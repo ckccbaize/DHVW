@@ -8,7 +8,7 @@
 PC 端“完成”= 下列全部成立，缺一不算：
 
 1. 全新 Windows 机器：单安装包 → 双击 → 托盘图标 → 可对话，全程零命令行。
-2. 子系统全部由主进程托管：崩溃自动重启，单进程被 kill 后 ≤10 s 恢复服务能力。
+2. 子系统全部由外壳托管：崩溃自动重启，单进程被 kill 后 ≤10 s 恢复服务能力。
 3. 对外能力完备：对话、语音、生活流、主动开口、记忆、世界生产、显示态控制、桌面接管各有一条可验证链路。
 4. 状态可观测：任一时刻能从 GUI 与日志回答“现在是什么显示态、什么世界档位、服务是否健康、上次失败原因”。
 5. 资源可释放：进入世界生产前显存真实回落，退出后 TTS 恢复；切换动作有实测数据。
@@ -19,7 +19,7 @@ PC 端“完成”= 下列全部成立，缺一不算：
 ## 2. 分层与数据流
 
 ```
-                    ┌──────────── 主进程（Rust / Tauri 2）────────────┐
+                    ┌──────────── 外壳（Electron 45 / TypeScript）──────────┐
                     │ 托盘 GUI │ Supervisor │ 端口管理 │ 日志 │ 配置库 │
                     │                    网关 8443                   │
                     └───────┬───────────────┬───────────────┬────────┘
@@ -48,6 +48,8 @@ PC 端“完成”= 下列全部成立，缺一不算：
 
 ## 3. 模块清单
 
+实现语言固定：**外壳模块（SUP / PORT / LOG / CFG / GUI / GW）用 TypeScript 跑在 Electron 主进程**；**服务模块（MODE / LIFE / CTX / GATE / ECHO / MEM / WORLD / LEDGER / BRIDGE / OLVTP / OBS）用 Python 3.12**；`DESK` 为独立可执行进程。跨语言只经本机 HTTP/WS 与落库，不共享内存。
+
 | ID | 模块 | 职责 | 关键约束 | 验收 |
 |---|---|---|---|---|
 | SUP | Supervisor | 子进程启停、健康检查、崩溃重启、退出清理 | 重启退避；不重复拉起；检查端口而非仅进程存活 | kill 任一子进程 ≤10 s 恢复 |
@@ -74,7 +76,7 @@ PC 端“完成”= 下列全部成立，缺一不算：
 
 | ID | 里程碑 | 交付 | 依赖 | 退出门槛 |
 |---|---|---|---|---|
-| PCM1 | 骨架与托管 | SUP / PORT / LOG / CFG / GUI / OLVTP | — | 托盘能起停 4 个 sidecar，kill 后自愈，日志可查 |
+| PCM1 | 骨架与托管 | SUP / PORT / LOG / CFG / GUI / OLVTP | — | 托盘能起停 4 个 sidecar，kill 后自愈，日志可查；Electron 45 + electron-builder 26 的空壳安装包在本机装/卸通过 |
 | PCM2 | 单包分发 | PKG | PCM1 | 干净 VM 双击可用，卸载干净 |
 | PCM3 | 网关与配对 | GW | PCM1 | 局域网 HTTPS/WSS 通，设备免配置连上 |
 | PCM4 | 编排骨架 | MODE / LIFE / CTX / GATE / ECHO / OBS | PCM1 | 被动注入可见效果；状态契约冻结 |
@@ -170,7 +172,7 @@ PC 端“完成”= 下列全部成立，缺一不算：
 | 预算超限 | — | 当次不发起调用，记事件，停生产至次日 |
 | 配置损坏 | 启动失败 | 迁移失败即回滚到上个快照并提示；不静默重置 |
 | 端口被占 | 启动失败 | 顺延分配并记事件；GUI 显示实际端口 |
-| 主进程被杀 | 全部服务残留 | 子进程带父进程守护，父退出即自杀；下次启动做孤儿清理 |
+| 外壳被杀 | 全部服务残留 | 服务宿主监视外壳 PID，外壳消失即整树退出；下次启动做孤儿清理 |
 
 ## 8. 验收（PC 侧，可测）
 
@@ -193,11 +195,11 @@ PC 端“完成”= 下列全部成立，缺一不算：
 
 | # | 问题 | 影响 | 状态 |
 |---|---|---|---|
-| Q1 | LLM 供应商与延迟：现有接入方实测成功率低、首字 1–35 s 波动，**当前不可用于交互** | PCM4 无法验收 PC-A3 | **阻塞**，需换供应商/直连并复测 |
-| Q2 | sidecar 打包方案：嵌入式 Python vs PyInstaller onedir | PCM2 体积与冷启动 | 待选型 |
-| Q3 | GUI 前端技术栈：Tauri 原生控件 vs Web 前端框架 | PCM1 起全部界面 | 待定 |
-| Q4 | 密钥存储：DPAPI 文件 vs Windows Credential Manager | CFG 实现 | 待定（倾向 Credential Manager） |
-| Q5 | 空闲判定在 Windows 的实现：`GetLastInputInfo` + 负载采样口径 | PCM6 与门 | 待实现验证 |
+| Q1 | LLM 供应商与延迟 | PCM4 无法验收 PC-A3 | **阻塞**。仓库外凭据文件当前只有 `codex.mintcat.work` 一个端点 + 一个 `sk-` 密钥，该端点此前成功率低、首字 1–35 s 波动；需补可用供应商后按 PC-A3 复测。密钥只从仓库外文件读取，不写入仓库、日志或安装包 |
+| Q2 | sidecar 打包方案：嵌入式 Python vs PyInstaller onedir | PCM2 体积与冷启动 | **方向已定**：嵌入式 CPython 3.12 + 单一 site-packages + 瘦启动器，OLVT 不做 PyInstaller；PCM1 用真实依赖验证体积与启动 |
+| Q3 | GUI 前端技术栈 | PCM1 起全部界面 | **已定**：React + Vite + TypeScript（见 ADR-PC-013） |
+| Q4 | 密钥存储 | CFG 实现 | **已定**：Electron `safeStorage` 异步 API（Windows 走 DPAPI），不落明文文件 |
+| Q5 | 空闲判定与负载采样口径 | PCM6 与门 | **实现已定**：`powerMonitor.getSystemIdleTime()` + `getSystemIdleState()`；采样窗口与阈值待 PCM6 实测校准 |
 | Q6 | AgentBridge 真实平台未定 | 只交 Stub，不阻塞 | 后续 |
 | Q7 | RustDesk：内嵌二进制 vs 引导安装 | PCM7 | 待定 |
 | Q8 | 记忆 embedding 模型分发：随包预置 vs 离线导入 | PCM5 首启可用性 | 待定，**不得依赖运行时联网下载** |

@@ -24,8 +24,8 @@ PC 主机端软件：把对话、语音、生活流、长期记忆、世界内�
 | 世界内容生产（场景种子、剧情、背景图 prompt） | orchestrator |
 | 显示态与世界档位控制（模式机、主机可达判定） | orchestrator |
 | 桌面接管（远程遥控本机） | RustDesk |
-| 外壳：托盘、服务托管、端口管理、日志、配置 | Tauri 主进程 |
-| 网关：自签证书、HTTPS/WSS 反代、设备配对 | 主进程 |
+| 外壳：托盘、服务托管、端口管理、日志、配置 | Electron 45 / TypeScript |
+| 网关：自签证书、HTTPS/WSS 反代、设备配对 | 外壳 |
 
 **不做**
 
@@ -40,7 +40,7 @@ PC 主机端软件：把对话、语音、生活流、长期记忆、世界内�
 
 | 进程 | 端口 | 绑定 | 职责 |
 |---|---|---|---|
-| 主进程（Tauri 2 / Rust） | — | — | 托盘、Supervisor、端口管理、日志、配置、网关 |
+| 外壳（Electron 45 / TypeScript） | — | — | 托盘、Supervisor、端口管理、日志、配置、网关、GUI |
 | `olvt-backend`（Python） | 12393 | 局域网 | 对话、ASR、TTS 编排、WebSocket 推流 |
 | `tts-service`（Python） | 9880 | 127.0.0.1 | GPT-SoVITS 推理，显存 4–5 GB |
 | `waketrace`（Python） | 8765 | 127.0.0.1 | 生活事件源，只被 orchestrator 拉取 |
@@ -63,14 +63,14 @@ certs/         自签 CA 与服务证书
 logs/          统一日志
 ```
 
-**密钥不入库、不入日志、不入安装包**：LLM API key 由 GUI 写入，DPAPI 加密存储。
+**密钥不入库、不入日志、不入安装包**：LLM API key 由 GUI 写入，经系统凭据机制（Windows DPAPI）加密存储；开发期从仓库外的凭据文件读取，路径由本机环境变量指定，仓库内只保留 base_url / model 这类非敏感配置。
 
 ## 仓库结构（规划）
 
 ```
 PC/
-├── apps/desktop/      Tauri 2 主进程（Rust）：托盘 / 托管 / 端口 / 日志 / 配置 / 网关
-├── orchestrator/      Python sidecar：模式机 / 生活流 / 闸门 / 记忆 / 世界生产
+├── apps/shell/        Electron 45 外壳（TypeScript）：托盘 / 托管 / 端口 / 日志 / 配置 / 网关 / GUI
+├── services/orchestrator/  Python sidecar：模式机 / 生活流 / 闸门 / 记忆 / 世界生产
 ├── sidecars/          上游 sidecar 的打包入口与补丁清单（OLVT、TTS、WakeTrace）
 ├── packaging/         sidecar 打包、安装包（NSIS/MSI）、签名
 ├── scripts/dev/       开发期启动、探活、冒烟脚本
@@ -84,10 +84,9 @@ PC/
 | 项 | 版本 | 说明 |
 |---|---|---|
 | Windows | 10 / 11 x64 | 唯一目标平台 |
-| Rust | stable + MSVC toolchain | Tauri 2 主进程 |
-| WebView2 | 系统自带或随包 | Tauri 运行时 |
-| Python | 3.12 | sidecar；上游要求 `<3.13` |
-| Node | 22 LTS + pnpm | 主进程 GUI 前端构建（技术栈待定，见 [PLAN](docs/PLAN.md) Q3） |
+| Node | 24 LTS + pnpm | 外壳与 GUI 构建（Electron 45 内置 Node 24） |
+| Electron | 45.2.3（锁定） | 外壳运行时，内置 Chromium 156 |
+| Python | 3.12 | 服务侧；上游要求 `<3.13` |
 | GPU | NVIDIA，驱动支持 CUDA 12.x | TTS 推理 |
 
 仓库路径必须**全 ASCII、无空格**：中文路径会让部分安装工具“报告成功但零文件落地”，无空格省掉脚本与打包的转义。
@@ -111,8 +110,9 @@ PC/
 - **分支**：`main` 常绿；功能走短分支，合入前本地跑通冒烟。
 - **版本**：语义化版本，PC 端独立打 tag（`pc-v0.1.0`），与设备端解耦。
 - **日志**：单一出口，结构化字段（时间、级别、进程、trace id），GUI 可查。
-- **配置**：落 SQLite，不外露可手改文件；上游 yaml 由主进程生成、不纳入版本库。
+- **配置**：落 SQLite，不外露可手改文件；上游 yaml 由外壳生成、不纳入版本库。
 - **依赖**：上游代码只读引用，改动以补丁清单形式记录并可重放；不在上游目录内直接开发。
+- **运行时版本**：Electron 固定 45.x（当前 45.2.3），升级必须过安装包与冒烟验证；密钥加解密只用 `safeStorage` 异步 API（同步版在 46 移除）。
 
 ## 许可证
 

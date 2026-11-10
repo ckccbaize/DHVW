@@ -1,7 +1,7 @@
-# --- Rust / Tauri ---
-target/
-**/target/
-**/gen/schemas/
+# --- Electron / 打包产物 ---
+release/
+dist-electron/
+/runtime/
 
 # --- Node ---
 node_modules/
