@@ -120,8 +120,10 @@
 - **日期**：2026-11-10 · **状态**：已接受
 - **决策**：Python 服务宿主启动后，用 `OpenProcess` + `WaitForSingleObject` 监视**外壳 PID**；外壳正常退出或被强杀，宿主在 ≤2 s 内终止自身拉起的全部子进程。启动时按上次记录的 PID + 进程创建时间清理残留。
 - **理由**：Electron 与 Tauri 都没有 Job Object 级联杀；外壳异常退出会留下 TTS 进程占住显存，直接破坏下一次“显存余量 ≥4 GB”的与门。
+- **实现（PCM1 实测修正）**：外壳侧没有可靠的级联杀，但**宿主可以自己建 Job Object** 并把自己与全部 worker 放进作业（`KILL_ON_JOB_CLOSE`）。宿主无论正常退出、被 `Stop-Process` 还是随外壳一起被杀，句柄关闭即由 Windows 回收整棵子树——实测强杀外壳后 ≤1 s 清零，无残留监听端口。显式停止单个 worker 用 `taskkill /T /F`（Windows venv 的 `python.exe` 会再起一个真实解释器子进程，只杀直接子进程会留孤儿）。
 - **后果**：
   - 启动顺序固定：外壳 → 服务宿主 → 各业务服务；退出顺序相反。
+  - 子进程必须 `stdin=DEVNULL` 启动：实测继承宿主的 stdin 管道会让 CPython 子进程卡在启动阶段（不 bind、不输出、CPU 0）。
   - PID 复用必须用“进程名 + 创建时间”双校验，不能只信 PID。
   - 宿主自身崩溃时由外壳的 Supervisor 重启宿主，并复用同一条清理逻辑。
 

@@ -70,7 +70,12 @@ logs/          统一日志
 ```
 PC/
 ├── apps/shell/        Electron 45 外壳（TypeScript）：托盘 / 托管 / 端口 / 日志 / 配置 / 网关 / GUI
-├── services/orchestrator/  Python sidecar：模式机 / 生活流 / 闸门 / 记忆 / 世界生产
+│   ├── src/main/      主进程：托管、端口、日志、配置、托盘、IPC
+│   ├── src/preload/   contextBridge 白名单
+│   └── src/renderer/  React 控制面板
+├── services/host/     服务宿主（Python 3.12）：托管 sidecar、监视外壳、整树清理
+├── services/worker/   占位 sidecar（PCM1 用于验证托管与自愈，PCM2 起被真实服务替换）
+├── services/orchestrator/  Python sidecar：模式机 / 生活流 / 闸门 / 记忆 / 世界生产（待建）
 ├── sidecars/          上游 sidecar 的打包入口与补丁清单（OLVT、TTS、WakeTrace）
 ├── packaging/         sidecar 打包、安装包（NSIS/MSI）、签名
 ├── scripts/dev/       开发期启动、探活、冒烟脚本
@@ -93,7 +98,40 @@ PC/
 
 ## 开发命令
 
-**当前处于规划阶段，源码尚未落地。** 命令随首个里程碑提交后在此更新，不提前写占位命令。
+首次安装（Electron 二进制走镜像，否则容易超时）：
+
+```bash
+cd apps/shell
+ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npm install
+```
+
+日常：
+
+```bash
+cd apps/shell
+npm run build     # 主进程 tsc → dist-electron，渲染层 vite → dist
+npm start         # 构建后启动外壳
+npm run dist      # electron-builder 出 NSIS 安装包 → ../../release
+```
+
+指定 Python（开发期默认取 `DHVW_PYTHON`，否则用 PATH 上的 `python`）：
+
+```bash
+DHVW_PYTHON="D:/ai_projects/olvt-venv/Scripts/python.exe" npm start
+```
+
+服务宿主可单独启动（自带 JSONL 事件流，`@@DHVW@@ ` 前缀）：
+
+```bash
+cd services
+PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目录>/logs --services <runtime-services.json>
+```
+
+注意：
+
+- 启动 Electron 前必须清掉 `ELECTRON_RUN_AS_NODE`，否则 `electron` 会当成 Node 跑。
+- 数据目录 `%APPDATA%/DigitalHuman`；日志分别为 `logs/shell.jsonl`、`logs/host.log`、`logs/<service>.log`。
+- Windows 上 venv 的 `python.exe` 会再拉起一个真实解释器子进程，所以整树清理用 **Job Object（KILL_ON_JOB_CLOSE）+ `taskkill /T /F`**，只杀直接子进程会留下孤儿。
 
 ## 文档
 
