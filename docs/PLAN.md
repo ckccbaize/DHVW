@@ -195,7 +195,7 @@ PC 端“完成”= 下列全部成立，缺一不算：
 
 | # | 问题 | 影响 | 状态 |
 |---|---|---|---|
-| Q1 | LLM 供应商与延迟 | PCM4 无法验收 PC-A3 | **阻塞**。仓库外凭据文件当前只有 `codex.mintcat.work` 一个端点 + 一个 `sk-` 密钥，该端点此前成功率低、首字 1–35 s 波动；需补可用供应商后按 PC-A3 复测。密钥只从仓库外文件读取，不写入仓库、日志或安装包 |
+| Q1 | LLM 供应商与模型范围 | 影响 PCM4 对话链路 | **已解除**。端点 `https://codex.mintcat.work` 实测可用：`/v1/models` 200（1.05 s），非流式对话 200（2.04 s），流式首字 1.98–4.61 s（2 次采样，`reasoning_effort: none`）。两个坑：① 请求必须带浏览器 UA，否则 403；② 不开 `reasoning_effort: none` 时只吐 `reasoning_content`，正文可能为空。残留风险：首字波动 2–4.6 s 未稳定达标 PC-A3（2.5 s），PCM4 须用固定采样口径复测。**模型只能 DeepSeek 系，禁止 gpt-6 及任何高价模型（ADR-PC-016）** |
 | Q2 | sidecar 打包方案：嵌入式 Python vs PyInstaller onedir | PCM2 体积与冷启动 | **方向已定**：嵌入式 CPython 3.12 + 单一 site-packages + 瘦启动器，OLVT 不做 PyInstaller；PCM1 用真实依赖验证体积与启动 |
 | Q3 | GUI 前端技术栈 | PCM1 起全部界面 | **已定**：React + Vite + TypeScript（见 ADR-PC-013） |
 | Q4 | 密钥存储 | CFG 实现 | **已定**：Electron `safeStorage` 异步 API（Windows 走 DPAPI），不落明文文件 |
