@@ -7,6 +7,7 @@ export interface ShellConfig {
   pythonPath: string
   autoLaunch: boolean
   window: { width: number; height: number }
+  llm: { baseUrl: string; model: string }
   services: Record<string, { enabled: boolean }>
 }
 
@@ -14,6 +15,7 @@ const DEFAULTS: ShellConfig = {
   pythonPath: '',
   autoLaunch: false,
   window: { width: 1020, height: 720 },
+  llm: { baseUrl: 'https://codex.mintcat.work', model: 'deepseek-v4.1-flash' },
   services: {},
 }
 
@@ -51,7 +53,12 @@ export function loadConfig(): ShellConfig {
     const row = conn.prepare('select value from kv where key = ?').get('shell') as { value?: string } | undefined
     if (!row?.value) return structuredClone(DEFAULTS)
     const raw = JSON.parse(row.value) as Partial<ShellConfig>
-    return { ...DEFAULTS, ...raw, window: { ...DEFAULTS.window, ...raw.window } }
+    return {
+      ...DEFAULTS,
+      ...raw,
+      window: { ...DEFAULTS.window, ...raw.window },
+      llm: { ...DEFAULTS.llm, ...raw.llm },
+    }
   } catch (err) {
     log('warn', 'config', '配置读取失败，使用默认值', { error: String(err) })
     return structuredClone(DEFAULTS)

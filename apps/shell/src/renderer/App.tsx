@@ -10,6 +10,7 @@ declare global {
       setAutoLaunch: (enabled: boolean) => Promise<{ ok: boolean }>
       openDataDir: () => Promise<string>
       restartHost: () => Promise<{ ok: boolean }>
+      probeLlm: () => Promise<{ ok: boolean; ms: number; status?: number; note?: string }>
       onSnapshot: (cb: (s: AppSnapshot) => void) => () => void
       onEvent: (cb: (e: HostEvent) => void) => () => void
     }
@@ -42,12 +43,15 @@ export default function App(): React.ReactElement {
   const [selected, setSelected] = useState<string>('host')
   const [logText, setLogText] = useState('')
   const [busy, setBusy] = useState(false)
+  const [probe, setProbe] = useState<{ ok: boolean; ms: number; note?: string } | null>(null)
+  const [probing, setProbing] = useState(false)
 
   const refresh = useCallback(async () => setSnap(await window.dhvw.snapshot()), [])
   const refreshLog = useCallback(async () => setLogText(await window.dhvw.tailLog(selected, 120)), [selected])
 
   useEffect(() => {
     void refresh()
+    void window.dhvw.probeLlm().then(setProbe)
     const offSnap = window.dhvw.onSnapshot((s) => setSnap(s))
     const offEvt = window.dhvw.onEvent((e) => setEvents((prev) => [e, ...prev].slice(0, 300)))
     const timer = setInterval(() => void refreshLog(), 2000)
@@ -85,6 +89,12 @@ export default function App(): React.ReactElement {
             {snap?.hostPid ? ` · pid ${snap.hostPid}` : ''}
           </span>
           <span className="pill">{running}/{workers.length} 服务运行</span>
+          {snap && <span className="pill mono">{snap.llm.model}</span>}
+          {probe && (
+            <span className={`pill ${probe.ok ? 'ok' : 'bad'}`} title={probe.note}>
+              端点 {probe.ok ? '可达' : '不可达'} · {probe.ms} ms
+            </span>
+          )}
         </div>
         <div className="actions">
           <label className="switch">
@@ -95,6 +105,18 @@ export default function App(): React.ReactElement {
             />
             开机自启
           </label>
+          <button
+            disabled={probing}
+            onClick={() => {
+              setProbing(true)
+              void window.dhvw
+                .probeLlm()
+                .then(setProbe)
+                .finally(() => setProbing(false))
+            }}
+          >
+            检测端点
+          </button>
           <button disabled={busy} onClick={() => void window.dhvw.restartHost().then(() => setTimeout(() => void refresh(), 800))}>
             重启宿主
           </button>

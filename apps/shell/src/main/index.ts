@@ -8,6 +8,10 @@ import { allocatePorts } from './ports'
 import { HostSupervisor } from './host'
 import type { ActionRequest, AppSnapshot, ServiceDef } from '../shared/types'
 import { createTray } from './tray'
+import { applyNetworkHardening, hardenSessionSetup } from './hardening'
+import { probeLlm } from './network'
+
+applyNetworkHardening()
 
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
@@ -48,6 +52,7 @@ function snapshot(): AppSnapshot {
     logDir,
     autoLaunch: config.autoLaunch,
     pythonPath: resolvePython(),
+    llm: config.llm,
   }
 }
 
@@ -75,6 +80,10 @@ function createWindow(): void {
       nodeIntegration: false,
       sandbox: true,
     },
+  })
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  win.webContents.on('will-navigate', (e, url) => {
+    if (!url.startsWith('file://')) e.preventDefault()
   })
   win.on('close', (e) => {
     if (quitting) return
@@ -113,6 +122,11 @@ function registerIpc(): void {
     return { ok: true }
   })
   ipcMain.handle('dhvw:openDataDir', () => electronShell.openPath(dataDir))
+  ipcMain.handle('dhvw:probe', async () => {
+    const result = await probeLlm(config.llm.baseUrl)
+    log(result.ok ? 'info' : 'warn', 'network', 'LLM 端点探测', { ...result })
+    return result
+  })
   ipcMain.handle('dhvw:restartHost', async () => {
     if (!supervisor) return { ok: false }
     await supervisor.stop('manual-restart')
@@ -123,6 +137,7 @@ function registerIpc(): void {
 
 async function boot(): Promise<void> {
   Menu.setApplicationMenu(null)
+  hardenSessionSetup()
   log('info', 'app', '外壳启动', {
     version: app.getVersion(),
     electron: process.versions.electron,

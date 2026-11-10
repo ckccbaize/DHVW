@@ -8,6 +8,8 @@ const api = {
   setAutoLaunch: (enabled: boolean): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:setAutoLaunch', enabled),
   openDataDir: (): Promise<string> => ipcRenderer.invoke('dhvw:openDataDir'),
   restartHost: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:restartHost'),
+  probeLlm: (): Promise<{ ok: boolean; ms: number; status?: number; note?: string }> =>
+    ipcRenderer.invoke('dhvw:probe'),
   onSnapshot: (cb: (s: AppSnapshot) => void): (() => void) => {
     const h = (_e: unknown, s: AppSnapshot): void => cb(s)
     ipcRenderer.on('dhvw:snapshot', h)

@@ -98,11 +98,11 @@ PC/
 
 ## 开发命令
 
-首次安装（Electron 二进制走镜像，否则容易超时）：
+首次安装（走国内镜像，不要直接 `npm install`——Electron 二进制从 GitHub 拉会超时）：
 
 ```bash
 cd apps/shell
-ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npm install
+npm run setup     # registry 走 npmmirror，ELECTRON_MIRROR 由脚本注入
 ```
 
 日常：
@@ -111,7 +111,7 @@ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npm install
 cd apps/shell
 npm run build     # 主进程 tsc → dist-electron，渲染层 vite → dist
 npm start         # 构建后启动外壳
-npm run dist      # electron-builder 出 NSIS 安装包 → ../../release
+npm run dist      # electron-builder 出 NSIS 安装包 → ../../release（内置 npmmirror 镜像）
 ```
 
 指定 Python（开发期默认取 `DHVW_PYTHON`，否则用 PATH 上的 `python`）：
@@ -132,6 +132,15 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 - 启动 Electron 前必须清掉 `ELECTRON_RUN_AS_NODE`，否则 `electron` 会当成 Node 跑。
 - 数据目录 `%APPDATA%/DigitalHuman`；日志分别为 `logs/shell.jsonl`、`logs/host.log`、`logs/<service>.log`。
 - Windows 上 venv 的 `python.exe` 会再拉起一个真实解释器子进程，所以整树清理用 **Job Object（KILL_ON_JOB_CLOSE）+ `taskkill /T /F`**，只杀直接子进程会留下孤儿。
+
+## 国内网络
+
+目标用户在国内，**构建期允许慢、运行期不允许联网**（ADR-PC-017）：
+
+- 构建：npm 与 electron-builder 资源默认走 `npmmirror`；Python 依赖在 PCM2 锁文件里固定国内索引。
+- 运行：外壳关闭 Chromium 后台联网/组件更新/崩溃上报，渲染层 CSP 只允许 `self`，无 CDN、无外链字体、无自动更新。
+- 模型、运行时、资源全部随包预置，首次运行不下载任何东西。
+- 唯一外联是 LLM 端点（默认 `https://codex.mintcat.work`，模型 `deepseek-v4.1-flash`）：请求必须带浏览器 UA，否则 403；GUI 顶部会显示实时探测结果（应用启动时自动探一次，可手动重测）。
 
 ## 文档
 

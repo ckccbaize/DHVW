@@ -40,6 +40,7 @@ export interface AppSnapshot {
   logDir: string
   autoLaunch: boolean
   pythonPath: string
+  llm: { baseUrl: string; model: string }
 }
 
 export interface ServiceDef {
