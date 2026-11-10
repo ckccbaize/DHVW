@@ -87,7 +87,7 @@ PC/
 | Rust | stable + MSVC toolchain | Tauri 2 主进程 |
 | WebView2 | 系统自带或随包 | Tauri 运行时 |
 | Python | 3.12 | sidecar；上游要求 `<3.13` |
-| Node | 22 LTS + pnpm | 主进程 GUI 前端构建 |
+| Node | 22 LTS + pnpm | 主进程 GUI 前端构建（技术栈待定，见 [PLAN](docs/PLAN.md) Q3） |
 | GPU | NVIDIA，驱动支持 CUDA 12.x | TTS 推理 |
 
 仓库路径必须**全 ASCII、无空格**：中文路径会让部分安装工具“报告成功但零文件落地”，无空格省掉脚本与打包的转义。
