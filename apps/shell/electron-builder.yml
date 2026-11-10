@@ -1,0 +1,33 @@
+appId: com.dhvw.host
+productName: DigitalHuman
+copyright: DHVW
+directories:
+  output: ../../release
+  buildResources: build
+files:
+  - dist-electron/**/*
+  - dist/**/*
+  - package.json
+extraResources:
+  - from: ../../services
+    to: services
+    filter:
+      - '**/*.py'
+      - '!**/__pycache__/**'
+  - from: build/icon.png
+    to: icon.png
+asar: true
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: ${productName}-${version}-setup.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: DHVW 主机端
+  deleteAppDataOnUninstall: false

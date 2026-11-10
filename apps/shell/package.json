@@ -1,0 +1,30 @@
+{
+  "name": "dhvw-shell",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DHVW 主机端外壳（Electron 45）",
+  "author": "DHVW",
+  "main": "dist-electron/main/index.js",
+  "scripts": {
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:renderer": "vite build",
+    "build": "npm run build:main && npm run build:renderer",
+    "start": "npm run build && electron .",
+    "dev": "npm run build && electron . --dev",
+    "dist": "npm run build && electron-builder --win nsis"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "electron": "45.2.3",
+    "electron-builder": "26.18.1",
+    "typescript": "^5.9.0",
+    "vite": "^8.3.7"
+  }
+}

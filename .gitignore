@@ -33,6 +33,8 @@ certs/
 # --- 构建产物 ---
 packaging/out/
 build/
+!apps/shell/build/
+!apps/shell/build/**
 *.exe
 *.dll
 *.pyd
@@ -54,6 +56,7 @@ build/
 *.onnx
 
 # --- 编辑器 / 系统 ---
+.tmp/
 .idea/
 .vscode/
 Thumbs.db
