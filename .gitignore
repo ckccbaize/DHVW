@@ -41,18 +41,17 @@ build/
 *.msi
 *.nsi.tmp
 
-# --- 运行期数据：绝不入库 ---
-data/
-logs/
-models/
-scenes/
-backgrounds/
-plots/
+# --- 运行期数据：绝不入库（运行期在 %APPDATA%，此处仅防误放）---
+/data/
+/logs/
+/models/
+/scenes/
+/backgrounds/
+/plots/
 *.db
 *.db-wal
 *.db-shm
 *.onnx
-*.webp
 
 # --- 编辑器 / 系统 ---
 .idea/
