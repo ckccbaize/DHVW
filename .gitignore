@@ -1,0 +1,62 @@
+# --- Rust / Tauri ---
+target/
+**/target/
+**/gen/schemas/
+
+# --- Node ---
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# --- 密钥与运行时配置：一律不入库 ---
+conf.yaml
+conf.yaml.*
+.env
+.env.*
+*.key
+*.pem
+*.pfx
+secrets/
+certs/
+
+# --- 构建产物 ---
+packaging/out/
+build/
+*.exe
+*.dll
+*.pyd
+*.so
+*.dylib
+*.msi
+*.nsi.tmp
+
+# --- 运行期数据：绝不入库 ---
+data/
+logs/
+models/
+scenes/
+backgrounds/
+plots/
+*.db
+*.db-wal
+*.db-shm
+*.onnx
+*.webp
+
+# --- 编辑器 / 系统 ---
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store
+desktop.ini
