@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import ctypes
 import signal
+import socket
 import subprocess
 import sys
 import threading
@@ -243,6 +245,7 @@ class Worker:
         self.cwd: str | None = spec.get("cwd")
         self.extra_env: dict[str, str] = dict(spec.get("env") or {})
         self.health_path: str | None = spec.get("healthPath")
+        self.health_mode: str = spec.get("healthMode") or "http"
         self.healthy: bool | None = None
         self.services_root = services_root
         self.log_dir = log_dir
@@ -283,7 +286,7 @@ class Worker:
             cmd = [part.replace("{port}", str(self.port)) for part in self.command]
         else:
             cmd = [sys.executable, "-m", self.module, *self.args, "--port", str(self.port)]
-        env.update({k: v.replace("{port}", str(self.port)) for k, v in self.extra_env.items()})
+        env.update({k: self._expand(v) for k, v in self.extra_env.items()})
         flags = 0x00000200 if os.name == "nt" else 0  # CREATE_NEW_PROCESS_GROUP
         self.proc = subprocess.Popen(
             cmd,
@@ -301,9 +304,14 @@ class Worker:
             self.log.write("warn", "job assign failed", service=self.id, pid=self.proc.pid)
         emit({"ts": round(time.time() * 1000), "type": "worker.started", "service": self.id, "pid": self.proc.pid, "port": self.port})
         self.log.write("info", "worker started", service=self.id, pid=self.proc.pid, port=self.port, cmd=cmd[0])
-        if self.health_path:
+        if self.health_path or self.health_mode == "tcp":
             self.healthy = None
             threading.Thread(target=self._probe_health, args=(self.proc.pid,), daemon=True).start()
+
+    def _expand(self, value: str) -> str:
+        """支持 {port} 与 %VAR%（值取自当前进程环境，避免配置里写死绝对路径）。"""
+        value = value.replace("{port}", str(self.port))
+        return re.sub(r"%([A-Za-z_][A-Za-z0-9_]*)%", lambda m: os.environ.get(m.group(1), m.group(0)), value)
 
     def _probe_health(self, pid: int | None) -> None:
         """启动后探测就绪；30 s 内不通则标记不健康，但进程继续跑（由外部判断）。"""
@@ -315,19 +323,24 @@ class Worker:
             if not self.proc or self.proc.pid != pid or self.proc.poll() is not None:
                 return
             try:
-                with urllib.request.urlopen(url, timeout=1.0) as resp:
-                    if resp.status < 400:
-                        self.healthy = True
-                        ms = int((time.time() - started) * 1000)
-                        emit({"ts": round(time.time() * 1000), "type": "worker.healthy", "service": self.id, "pid": pid, "ms": ms})
-                        self.log.write("info", "worker healthy", service=self.id, ms=ms)
-                        return
+                if self.health_mode == "tcp":
+                    with socket.create_connection(("127.0.0.1", self.port), timeout=1.0):
+                        ok = True
+                else:
+                    with urllib.request.urlopen(url, timeout=1.0) as resp:
+                        ok = resp.status < 400
+                if ok:
+                    self.healthy = True
+                    ms = int((time.time() - started) * 1000)
+                    emit({"ts": round(time.time() * 1000), "type": "worker.healthy", "service": self.id, "pid": pid, "ms": ms})
+                    self.log.write("info", "worker healthy", service=self.id, mode=self.health_mode, ms=ms)
+                    return
             except Exception:
                 pass
             time.sleep(0.3)
         self.healthy = False
         emit({"ts": round(time.time() * 1000), "type": "worker.unhealthy", "service": self.id, "pid": pid})
-        self.log.write("warn", "worker unhealthy", service=self.id, port=self.port, path=path)
+        self.log.write("warn", "worker unhealthy", service=self.id, port=self.port, mode=self.health_mode, path=path)
 
     def stop(self, reason: str) -> None:
         proc = self.proc

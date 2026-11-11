@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import type { AppSnapshot, HostEvent, WorkerSnapshot } from '../shared/types'
+import type { AppSnapshot, ComponentStatus, HostEvent, WorkerSnapshot } from '../shared/types'
 
 declare global {
   interface Window {
@@ -45,6 +45,7 @@ export default function App(): React.ReactElement {
   const [busy, setBusy] = useState(false)
   const [probe, setProbe] = useState<{ ok: boolean; ms: number; note?: string } | null>(null)
   const [probing, setProbing] = useState(false)
+  const [components, setComponents] = useState<ComponentStatus[]>([])
 
   const refresh = useCallback(async () => setSnap(await window.dhvw.snapshot()), [])
   const refreshLog = useCallback(async () => setLogText(await window.dhvw.tailLog(selected, 120)), [selected])
@@ -52,6 +53,10 @@ export default function App(): React.ReactElement {
   useEffect(() => {
     void refresh()
     void window.dhvw.probeLlm().then(setProbe)
+    void window.dhvw.components().then(setComponents)
+    const offComp = window.dhvw.onComponentProgress(({ id, progress }) =>
+      setComponents((prev) => prev.map((c) => (c.id === id ? { ...c, progress } : c))),
+    )
     const offSnap = window.dhvw.onSnapshot((s) => setSnap(s))
     // 心跳每 5 s 一条，留在日志里即可，事件流只保留状态变化
     const offEvt = window.dhvw.onEvent((e) => {
@@ -62,6 +67,7 @@ export default function App(): React.ReactElement {
     return () => {
       offSnap()
       offEvt()
+      offComp()
       clearInterval(timer)
     }
   }, [refresh, refreshLog])
@@ -175,6 +181,7 @@ export default function App(): React.ReactElement {
           <p className="hint">数据目录：{snap?.dataDir ?? '…'} · Python：{snap?.pythonPath ?? '…'}</p>
         </section>
 
+        <div className="col">
         <section className="panel events">
           <h2>事件</h2>
           <div className="scroll">
@@ -184,6 +191,41 @@ export default function App(): React.ReactElement {
             ))}
           </div>
         </section>
+
+        <section className="panel components">
+          <h2>组件</h2>
+          {components.length === 0 && <div className="empty">读取中…</div>}
+          {components.map((c) => (
+            <div className="comp" key={c.id}>
+              <div className="comp-info">
+                <span className="comp-name">{c.name}</span>
+                <span className={`pill ${c.state === 'ready' ? 'ok' : c.state === 'failed' ? 'bad' : ''}`}>
+                  {c.state === 'ready' ? '就绪' : c.state === 'failed' ? '失败' : c.state === 'installing' ? '下载中' : '未安装'}
+                </span>
+                <span className="comp-ver mono">v{c.version}</span>
+              </div>
+              {c.state === 'installing' && (
+                <div className="bar">
+                  <div style={{ width: `${c.progress ?? 0}%` }} />
+                </div>
+              )}
+              {c.error && <div className="comp-err">{c.error}</div>}
+              {c.state !== 'ready' && c.state !== 'installing' && (
+                <button
+                  disabled={c.state === 'installing'}
+                  onClick={() =>
+                    void window.dhvw.installComponent(c.id).then((st) =>
+                      setComponents((prev) => prev.map((x) => (x.id === st.id ? st : x))),
+                    )
+                  }
+                >
+                  下载并安装
+                </button>
+              )}
+            </div>
+          ))}
+        </section>
+        </div>
       </main>
 
       <footer className="panel logs">

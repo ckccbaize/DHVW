@@ -164,6 +164,16 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 - 实测：`waketrace` 走 vendor 仓库的 venv，启动到 `/health` 200 用 1.3 s，外壳侧 `worker.healthy` 事件可查。
 - 打包真实 sidecar 前必须先解决它的依赖分发（ADR-PC-014 的单一 site-packages），否则干净机器上跑不起来。
 
+## 组件下载（OLVT）
+
+OLVT 本体不随安装包，首次使用时从「组件」面板下载：
+
+- 下载地址顺序：`ghfast.top` → `gh-proxy.com` → `ghproxy.net` → GitHub 直连；任一成功即停，全部失败在面板显示最后一个错误。
+- 校验：最小体积（可选 sha256），解压后必须找到入口文件 `run_server.py`，否则判为失败。
+- 落点：`%APPDATA%/DigitalHuman/components/olvt/<version>/`，与安装目录分离，卸载不删除。
+- 覆盖下载源（企业镜像 / 内网离线包）：`config.shell.componentUrls = { "olvt": ["http://.../olvt.zip"] }`，支持 `{version}` 占位。
+- 本地验证过完整链路（下载 → 解压 → 去一层目录 → 入口校验 → 状态持久化），用本地 HTTP 服务喂了 6 MB 测试包。
+
 ## 界面风格
 
 全站按 `docs/design.md` 的**赛璐璐动画风**实现，落在 `apps/shell/src/renderer/styles.css` 的 CSS 变量上：

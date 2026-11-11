@@ -10,6 +10,7 @@ import type { ActionRequest, AppSnapshot, ServiceDef } from '../shared/types'
 import { createTray } from './tray'
 import { applyNetworkHardening, hardenSessionSetup } from './hardening'
 import { probeLlm } from './network'
+import { COMPONENTS, componentStatus, ensureComponent, resolveSpec } from './components'
 
 applyNetworkHardening()
 
@@ -131,6 +132,23 @@ function registerIpc(): void {
     return { ok: true }
   })
   ipcMain.handle('dhvw:openDataDir', () => electronShell.openPath(dataDir))
+  ipcMain.handle('dhvw:components', () =>
+    COMPONENTS.map((c) => componentStatus(resolveSpec(c, config.componentUrls[c.id]))),
+  )
+  ipcMain.handle('dhvw:componentInstall', async (_e, id: string) => {
+    const base = COMPONENTS.find((c) => c.id === id)
+    if (!base) return { id, name: id, version: '-', state: 'failed', error: '未知组件' }
+    const spec = resolveSpec(base, config.componentUrls[id])
+    log('info', 'component', '开始下载组件', { id: spec.id, version: spec.version, urls: spec.urls.length })
+    const status = await ensureComponent(spec, (pct) => {
+      if (win && !win.isDestroyed()) win.webContents.send('dhvw:componentProgress', { id: spec.id, progress: pct })
+    })
+    log(status.state === 'ready' ? 'info' : 'error', 'component', status.state === 'ready' ? '组件就绪' : '组件下载失败', {
+      id: spec.id,
+      error: status.error,
+    })
+    return status
+  })
   ipcMain.handle('dhvw:probe', async () => {
     const result = await probeLlm(config.llm.baseUrl)
     log(result.ok ? 'info' : 'warn', 'network', 'LLM 端点探测', { ...result })

@@ -61,6 +61,23 @@ export interface ServiceDef {
   env?: Record<string, string>
   /** 就绪探针路径，缺省不探测 */
   healthPath?: string
+  /** http（默认，GET healthPath 期望 <400）或 tcp（能连上端口即视为就绪） */
+  healthMode?: 'http' | 'tcp'
+}
+
+export interface ComponentStatus {
+  id: string
+  name: string
+  version: string
+  state: 'missing' | 'installing' | 'ready' | 'failed'
+  progress?: number
+  path?: string
+  error?: string
+}
+
+export interface ComponentProgress {
+  id: string
+  progress: number
 }
 
 export interface ActionRequest {

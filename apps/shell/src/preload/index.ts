@@ -1,5 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ActionRequest, AppSnapshot, HostEvent } from '../shared/types'
+import type {
+  ActionRequest,
+  AppSnapshot,
+  ComponentProgress,
+  ComponentStatus,
+  HostEvent,
+} from '../shared/types'
 
 const api = {
   snapshot: (): Promise<AppSnapshot> => ipcRenderer.invoke('dhvw:snapshot'),
@@ -10,6 +16,13 @@ const api = {
   restartHost: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:restartHost'),
   probeLlm: (): Promise<{ ok: boolean; ms: number; status?: number; note?: string }> =>
     ipcRenderer.invoke('dhvw:probe'),
+  components: (): Promise<ComponentStatus[]> => ipcRenderer.invoke('dhvw:components'),
+  installComponent: (id: string): Promise<ComponentStatus> => ipcRenderer.invoke('dhvw:componentInstall', id),
+  onComponentProgress: (cb: (p: ComponentProgress) => void): (() => void) => {
+    const h = (_e: unknown, p: ComponentProgress): void => cb(p)
+    ipcRenderer.on('dhvw:componentProgress', h)
+    return () => ipcRenderer.removeListener('dhvw:componentProgress', h)
+  },
   onSnapshot: (cb: (s: AppSnapshot) => void): (() => void) => {
     const h = (_e: unknown, s: AppSnapshot): void => cb(s)
     ipcRenderer.on('dhvw:snapshot', h)

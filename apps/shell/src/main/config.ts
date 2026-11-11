@@ -10,6 +10,8 @@ export interface ShellConfig {
   llm: { baseUrl: string; model: string }
   /** 把占位 sidecar 换成真实进程：id -> 可执行文件 + 参数（{port} 替换为分配端口） */
   sidecars: Record<string, { command: string[]; cwd?: string; env?: Record<string, string> }>
+  /** 组件下载地址覆盖（企业镜像/离线包），不填则用内置镜像列表 */
+  componentUrls: Record<string, string[]>
   services: Record<string, { enabled: boolean }>
 }
 
@@ -19,6 +21,7 @@ const DEFAULTS: ShellConfig = {
   window: { width: 1020, height: 720 },
   llm: { baseUrl: 'https://codex.mintcat.work', model: 'deepseek-v4.1-flash' },
   sidecars: {},
+  componentUrls: {},
   services: {},
 }
 
@@ -62,6 +65,7 @@ export function loadConfig(): ShellConfig {
       window: { ...DEFAULTS.window, ...raw.window },
       llm: { ...DEFAULTS.llm, ...raw.llm },
       sidecars: { ...DEFAULTS.sidecars, ...raw.sidecars },
+      componentUrls: { ...DEFAULTS.componentUrls, ...raw.componentUrls },
     }
   } catch (err) {
     log('warn', 'config', '配置读取失败，使用默认值', { error: String(err) })
