@@ -68,6 +68,8 @@ export class HostSupervisor extends EventEmitter {
       env: {
         ...process.env,
         PYTHONPATH: hostModuleRoot(),
+        // 嵌入式 CPython 忽略 PYTHONPATH，改由 runtime/sitecustomize.py 读取
+        DHVW_PYTHONPATH: hostModuleRoot(),
         PYTHONIOENCODING: 'utf-8',
         PYTHONUNBUFFERED: '1',
       },
@@ -183,6 +185,10 @@ export class HostSupervisor extends EventEmitter {
           }
         }
         break
+    }
+    if (evt.type === 'host.ready') {
+      this.emit('state')
+      return
     }
     if (!['worker.exit', 'worker.started', 'worker.restart', 'worker.failed', 'worker.stopped'].includes(evt.type)) return
     log(evt.type === 'worker.started' ? 'info' : 'warn', 'host', evt.type, {

@@ -117,7 +117,11 @@ export default function App(): React.ReactElement {
           >
             检测端点
           </button>
-          <button disabled={busy} onClick={() => void window.dhvw.restartHost().then(() => setTimeout(() => void refresh(), 800))}>
+          <button
+            className="primary"
+            disabled={busy}
+            onClick={() => void window.dhvw.restartHost().then(() => setTimeout(() => void refresh(), 800))}
+          >
             重启宿主
           </button>
           <button onClick={() => void window.dhvw.openDataDir()}>打开数据目录</button>
@@ -127,7 +131,8 @@ export default function App(): React.ReactElement {
       <main>
         <section className="panel services">
           <h2>服务</h2>
-          <table>
+          <div className="table-wrap">
+            <table>
             <thead>
               <tr>
                 <th>服务</th>
@@ -161,7 +166,8 @@ export default function App(): React.ReactElement {
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
           <p className="hint">数据目录：{snap?.dataDir ?? '…'} · Python：{snap?.pythonPath ?? '…'}</p>
         </section>
 
