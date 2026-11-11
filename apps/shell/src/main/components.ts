@@ -2,9 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import { Transform } from 'node:stream'
-import { pipeline } from 'node:stream/promises'
-import { dataDir } from './paths'
+import { componentsRoot, dataDir } from './paths'
 
 /**
  * 可下载组件（ADR-PC-018 修订：OLVT 不随包，首次使用时下载）。
@@ -55,8 +53,22 @@ export const COMPONENTS: ComponentSpec[] = [
   },
 ]
 
+/** 首次写入失败（安装目录只读）才退到用户数据目录，避免“静默散落” */
+let fallbackRoot: string | null = null
+
+function rootDir(): string {
+  return fallbackRoot ?? componentsRoot()
+}
+
 export function componentDir(spec: ComponentSpec): string {
-  return path.join(dataDir, 'components', spec.id, spec.version)
+  return path.join(rootDir(), spec.id, spec.version)
+}
+
+function ensureWritable(dir: string): void {
+  fs.mkdirSync(dir, { recursive: true })
+  const probe = path.join(dir, `.write-test-${process.pid}`)
+  fs.writeFileSync(probe, 'ok')
+  fs.rmSync(probe, { force: true })
 }
 
 function isReady(spec: ComponentSpec): boolean {
@@ -98,15 +110,20 @@ async function download(
       const total = Number(res.headers.get('content-length') ?? 0)
       const hash = createHash('sha256')
       let written = 0
-      const counter = new Transform({
-        transform(chunk: Buffer, _enc, cb) {
-          written += chunk.length
-          hash.update(chunk)
+      // 不用 stream.pipeline：undici 的 body 在 Node 24 上遇背压会触发 Parser 断言，
+      // 直接按块写文件句柄，天然背压且不依赖 Web Stream 桥接。
+      const fh = await fs.promises.open(dest, 'w')
+      try {
+        for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
+          const buf = Buffer.from(chunk)
+          written += buf.length
+          hash.update(buf)
+          await fh.write(buf)
           if (total > 0) onProgress(Math.min(99, Math.round((written / total) * 100)))
-          cb(null, chunk)
-        },
-      })
-      await pipeline(res.body as unknown as NodeJS.ReadableStream, counter, fs.createWriteStream(dest))
+        }
+      } finally {
+        await fh.close()
+      }
       if (spec.minBytes && written < spec.minBytes) throw new Error(`文件过小：${written}`)
       if (spec.sha256 && hash.digest('hex') !== spec.sha256) throw new Error('sha256 不匹配')
       onProgress(100)
@@ -124,8 +141,14 @@ export async function ensureComponent(
   onProgress: (pct: number) => void,
 ): Promise<ComponentStatus> {
   if (isReady(spec)) return componentStatus(spec)
-  const dir = componentDir(spec)
-  fs.mkdirSync(dir, { recursive: true })
+  let dir = componentDir(spec)
+  try {
+    ensureWritable(dir)
+  } catch {
+    fallbackRoot = path.join(dataDir, 'components')
+    dir = componentDir(spec)
+    ensureWritable(dir)
+  }
   const archive = path.join(dir, 'package.zip')
   try {
     await download(spec.urls, archive, spec, onProgress)

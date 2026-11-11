@@ -21,6 +21,19 @@ export function resourcesRoot(): string {
   return isPackaged ? process.resourcesPath : path.resolve(app.getAppPath(), '../..')
 }
 
+/** 安装根目录：打包后是 exe 所在目录，开发期是 apps/shell */
+export function installRoot(): string {
+  return isPackaged ? path.dirname(app.getPath('exe')) : app.getAppPath()
+}
+
+/**
+ * 组件与依赖等“运行环境”目录，必须落在安装根目录内（resources/components），
+ * 这样卸载时会随安装目录一起删除，不在用户机器上散落（ADR-PC-019）。
+ */
+export function componentsRoot(): string {
+  return path.join(resourcesRoot(), 'components')
+}
+
 export function hostModuleRoot(): string {
   return path.join(resourcesRoot(), 'services', 'host')
 }

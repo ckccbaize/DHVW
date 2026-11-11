@@ -164,6 +164,18 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 - 实测：`waketrace` 走 vendor 仓库的 venv，启动到 `/health` 200 用 1.3 s，外壳侧 `worker.healthy` 事件可查。
 - 打包真实 sidecar 前必须先解决它的依赖分发（ADR-PC-014 的单一 site-packages），否则干净机器上跑不起来。
 
+## 运行环境放在哪（ADR-PC-019）
+
+| 内容 | 位置 | 卸载 |
+|---|---|---|
+| 内置 CPython 运行时 | `<安装目录>\resources\runtime` | 删除 |
+| 下载的组件（OLVT、依赖） | `<安装目录>\resources\components` | 删除 |
+| 配置、日志、用户数据 | `%APPDATA%\DigitalHuman` | 保留 |
+
+安装为 per-user（`perMachine: false`），安装目录在 `%LOCALAPPDATA%\Programs\DigitalHuman`，普通用户可写，所以组件下载不需要提权。只有安装目录不可写（企业收紧 ACL）时才回退到 `%APPDATA%\DigitalHuman\components`，并写日志说明。
+
+实测：安装 → 下载组件到 `resources\components\olvt\1.2.1` → 卸载后安装目录整树消失（含组件），`%APPDATA%` 的 `config.db`/`logs` 保留。
+
 ## 组件下载（OLVT）
 
 OLVT 本体不随安装包，首次使用时从「组件」面板下载：

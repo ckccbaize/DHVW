@@ -173,3 +173,17 @@
 - 下载地址可在 `config.shell.componentUrls` 覆盖（企业镜像/离线包），不硬编码在代码里。
 - 组件解压到 `%APPDATA%/DigitalHuman/components/<id>/<version>/`，与安装目录分离，卸载不动它。
 - 依赖安装（venv + wheels）是下载之后的独立步骤，暂未自动化；干净机器上下载完仍需装依赖才能启动 OLVT。
+
+## ADR-PC-019 运行环境随程序收纳，不散落在用户目录
+
+- **日期**：2026-11-11 · **状态**：已接受
+- **决策**：
+  1. **运行环境属于程序**：内置 CPython（`resources/runtime`）、下载的组件（`resources/components`）、后续 sidecar 的 site-packages 与 venv，全部落在安装根目录内，卸载时随安装目录一起删除。
+  2. **用户数据属于用户**：`config.db`、`logs/`、聊天记录、模型产物等仍在 `%APPDATA%/DigitalHuman`，卸载保留（`deleteAppDataOnUninstall: false`）。
+  3. 安装方式必须是 per-user（`perMachine: false`）：安装目录在 `%LOCALAPPDATA%/Programs/DigitalHuman`，普通用户可写，组件下载无需提权。
+  4. 若安装目录不可写（企业环境被重定向/收紧 ACL），才回退到 `%APPDATA%/DigitalHuman/components`，并在日志里显式记录回退，不静默散落。
+- **理由**：用户对“一个托盘小工具”的预期是卸载后不留运行环境；把 venv/模型散在 AppData 或临时目录，卸载后就成了无法定位的垃圾，也让“重装即干净”失效。
+- **后果**：
+  - 卸载会删掉已下载的 OLVT 与依赖，重装后需重新下载；换来的是零残留。
+  - 升级安装（同目录覆盖）保留 `resources/components`，只有卸载才清空。
+  - 安装目录不可写时行为降级为 AppData，需要用户名下可写；文档必须写明这一点。

@@ -3,6 +3,7 @@ release/
 dist-electron/
 /runtime/
 apps/shell/runtime/
+/components/
 
 # --- Node ---
 node_modules/
