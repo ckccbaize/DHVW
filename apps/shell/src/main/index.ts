@@ -30,8 +30,17 @@ const SERVICE_CATALOG: Array<Omit<ServiceDef, 'port'>> = [
   { id: 'orchestrator', name: '编排器', module: 'dhvw_worker', args: ['--name', 'orchestrator'] },
 ]
 
+/** 随包内置的 CPython（scripts/fetch-runtime.mjs 产出）；不存在则退回系统 Python。 */
+function bundledPython(): string {
+  const candidates = [
+    path.join(resourcesRoot(), 'runtime', 'python.exe'),
+    path.join(app.getAppPath(), 'runtime', 'python.exe'),
+  ]
+  return candidates.find((p) => fs.existsSync(p)) ?? ''
+}
+
 function resolvePython(): string {
-  const candidates = [config.pythonPath, process.env.DHVW_PYTHON ?? '', 'python']
+  const candidates = [config.pythonPath, bundledPython(), process.env.DHVW_PYTHON ?? '', 'python']
   for (const c of candidates) {
     if (!c) continue
     if (path.isAbsolute(c)) {

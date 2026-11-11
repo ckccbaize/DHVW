@@ -14,6 +14,11 @@ extraResources:
     filter:
       - '**/*.py'
       - '!**/__pycache__/**'
+  - from: runtime
+    to: runtime
+    filter:
+      - '**/*'
+      - '!**/__pycache__/**'
   - from: build/icon.png
     to: icon.png
 asar: true

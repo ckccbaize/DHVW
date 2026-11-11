@@ -263,9 +263,12 @@ class Worker:
         log_path = self.log_dir / f"{self.id}.log"
         out = log_path.open("a", encoding="utf-8", errors="replace")
         env = dict(os.environ)
-        env["PYTHONPATH"] = os.pathsep.join(
+        search = os.pathsep.join(
             [str(self.services_root / "worker"), str(self.services_root / "host"), env.get("PYTHONPATH", "")]
         )
+        env["PYTHONPATH"] = search
+        # 内置嵌入式运行时走 sitecustomize，忽略 PYTHONPATH
+        env["DHVW_PYTHONPATH"] = search
         env["PYTHONUNBUFFERED"] = "1"
         env["PYTHONIOENCODING"] = "utf-8"
         cmd = [sys.executable, "-m", self.module, *self.args, "--port", str(self.port)]

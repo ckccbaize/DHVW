@@ -111,7 +111,8 @@ npm run setup     # registry 走 npmmirror，ELECTRON_MIRROR 由脚本注入
 cd apps/shell
 npm run build     # 主进程 tsc → dist-electron，渲染层 vite → dist
 npm start         # 构建后启动外壳
-npm run dist      # electron-builder 出 NSIS 安装包 → ../../release（内置 npmmirror 镜像）
+npm run fetch-runtime   # 从国内镜像拉 CPython 3.12 到 runtime/（pack 时缺省自动执行）
+npm run dist      # electron-builder 出 NSIS 安装包 → ../../release（内置 npmmirror 镜像，出包后校验 500 MB 预算）
 ```
 
 指定 Python（开发期默认取 `DHVW_PYTHON`，否则用 PATH 上的 `python`）：
@@ -139,8 +140,25 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 
 - 构建：npm 与 electron-builder 资源默认走 `npmmirror`；Python 依赖在 PCM2 锁文件里固定国内索引。
 - 运行：外壳关闭 Chromium 后台联网/组件更新/崩溃上报，渲染层 CSP 只允许 `self`，无 CDN、无外链字体、无自动更新。
-- 模型、运行时、资源全部随包预置，首次运行不下载任何东西。
+- 代码与 CPython 运行时就绪后随包内置，首次运行不下载任何东西；只有模型/语音这类大体积资源才按需下载，下载统一走 `scripts/lib/mirror.mjs`（华为云 → 阿里云 → npmmirror 依次回退，校验 sha256 与最小体积）。
 - 唯一外联是 LLM 端点（默认 `https://codex.mintcat.work`，模型 `deepseek-v4.1-flash`）：请求必须带浏览器 UA，否则 403；GUI 顶部会显示实时探测结果（应用启动时自动探一次，可手动重测）。
+
+## 界面风格
+
+全站按 `docs/design.md` 的**赛璐璐动画风**实现，落在 `apps/shell/src/renderer/styles.css` 的 CSS 变量上：
+
+- 3px 墨线（`#1a1a2e`）包住每个元素，零圆角（徽标除外），平涂填充，杜绝渐变与模糊阴影。
+- 阴影只有一层且无模糊：`4px 4px 0`，hover 扩到 `6px 6px 0`；过渡固定 `75ms linear`。
+- 按下是挤压物理：`scale(1.1, 0.9)` 下沉，阴影归零，不是位移动画。
+- 语义色固定：Red 主行动、Aqua 信息、Grass 成功、Sunset 强调；状态点用平涂方块而非发光点。
+- 字体优先 Inter（900/700），本机缺失时回退 Arial Black / 微软雅黑；不引外链字体（ADR-PC-017）。
+- `prefers-reduced-motion` 下关闭全部过渡与挤压。
+
+新增界面元素必须复用这些变量，不要引入第二套圆角、渐变或动效时长。
+
+## 体积预算
+
+安装包 **上限 500 MB**，`npm run pack` 出包后强制校验，超限直接失败（ADR-PC-018）。当前安装包约 117 MB，其中 Electron 内核约 110 MB、内置 Python 约 25 MB。模型权重不进安装包。
 
 ## 文档
 
