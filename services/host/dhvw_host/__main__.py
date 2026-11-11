@@ -10,6 +10,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.request
 from pathlib import Path
 from queue import Empty, Queue
 
@@ -23,6 +24,7 @@ PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 
 MAX_RESTARTS = 10
 RESTART_WINDOW = 300.0
+HEALTH_TIMEOUT = 30.0
 
 
 def emit(payload: dict) -> None:
@@ -235,8 +237,13 @@ class Worker:
         self.id: str = spec["id"]
         self.name: str = spec.get("name", self.id)
         self.port: int = int(spec["port"])
-        self.module: str = spec["module"]
+        self.module: str = spec.get("module", "")
         self.args: list[str] = list(spec.get("args", []))
+        self.command: list[str] | None = list(spec["command"]) if spec.get("command") else None
+        self.cwd: str | None = spec.get("cwd")
+        self.extra_env: dict[str, str] = dict(spec.get("env") or {})
+        self.health_path: str | None = spec.get("healthPath")
+        self.healthy: bool | None = None
         self.services_root = services_root
         self.log_dir = log_dir
         self.log = log
@@ -255,6 +262,7 @@ class Worker:
             "pid": self.proc.pid if self.proc and self.proc.poll() is None else None,
             "state": self.state,
             "restarts": self.restarts,
+            "healthy": self.healthy,
         }
 
     def start(self) -> None:
@@ -271,11 +279,15 @@ class Worker:
         env["DHVW_PYTHONPATH"] = search
         env["PYTHONUNBUFFERED"] = "1"
         env["PYTHONIOENCODING"] = "utf-8"
-        cmd = [sys.executable, "-m", self.module, *self.args, "--port", str(self.port)]
+        if self.command:
+            cmd = [part.replace("{port}", str(self.port)) for part in self.command]
+        else:
+            cmd = [sys.executable, "-m", self.module, *self.args, "--port", str(self.port)]
+        env.update({k: v.replace("{port}", str(self.port)) for k, v in self.extra_env.items()})
         flags = 0x00000200 if os.name == "nt" else 0  # CREATE_NEW_PROCESS_GROUP
         self.proc = subprocess.Popen(
             cmd,
-            cwd=str(self.services_root),
+            cwd=str(self.cwd or self.services_root),
             env=env,
             stdin=subprocess.DEVNULL,
             stdout=out,
@@ -288,7 +300,34 @@ class Worker:
         if not self.job.assign(self.proc.pid):
             self.log.write("warn", "job assign failed", service=self.id, pid=self.proc.pid)
         emit({"ts": round(time.time() * 1000), "type": "worker.started", "service": self.id, "pid": self.proc.pid, "port": self.port})
-        self.log.write("info", "worker started", service=self.id, pid=self.proc.pid, port=self.port)
+        self.log.write("info", "worker started", service=self.id, pid=self.proc.pid, port=self.port, cmd=cmd[0])
+        if self.health_path:
+            self.healthy = None
+            threading.Thread(target=self._probe_health, args=(self.proc.pid,), daemon=True).start()
+
+    def _probe_health(self, pid: int | None) -> None:
+        """启动后探测就绪；30 s 内不通则标记不健康，但进程继续跑（由外部判断）。"""
+        path = self.health_path or "/health"
+        url = f"http://127.0.0.1:{self.port}{path}"
+        started = time.time()
+        deadline = started + HEALTH_TIMEOUT
+        while time.time() < deadline:
+            if not self.proc or self.proc.pid != pid or self.proc.poll() is not None:
+                return
+            try:
+                with urllib.request.urlopen(url, timeout=1.0) as resp:
+                    if resp.status < 400:
+                        self.healthy = True
+                        ms = int((time.time() - started) * 1000)
+                        emit({"ts": round(time.time() * 1000), "type": "worker.healthy", "service": self.id, "pid": pid, "ms": ms})
+                        self.log.write("info", "worker healthy", service=self.id, ms=ms)
+                        return
+            except Exception:
+                pass
+            time.sleep(0.3)
+        self.healthy = False
+        emit({"ts": round(time.time() * 1000), "type": "worker.unhealthy", "service": self.id, "pid": pid})
+        self.log.write("warn", "worker unhealthy", service=self.id, port=self.port, path=path)
 
     def stop(self, reason: str) -> None:
         proc = self.proc
@@ -303,6 +342,7 @@ class Worker:
                 proc.kill()
         self.proc = None
         self.state = "stopped"
+        self.healthy = None
         emit({"ts": round(time.time() * 1000), "type": "worker.stopped", "service": self.id, "code": proc.returncode})
         self.log.write("info", "worker stopped", service=self.id, reason=reason, code=proc.returncode)
 
@@ -316,6 +356,7 @@ class Worker:
             return False
         uptime = time.time() - self.started_at
         self.proc = None
+        self.healthy = None
         if uptime > 30:
             self.restart_history.clear()
         self.restarts += 1

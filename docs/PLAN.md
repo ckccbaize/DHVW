@@ -85,6 +85,8 @@ PC 端“完成”= 下列全部成立，缺一不算：
 | PCM7 | 桥接与接管 | BRIDGE / DESK | PCM4 | Stub 契约稳定；接管零冲突 |
 | PCM8 | 硬化 | SUP / OBS 收口 | 全部 | 72 h 长稳、冷启动、断网恢复达标 |
 
+> 进展（2026-11-11）：PCM1 已实测通过；PCM2 完成内置 CPython 3.12 运行时与镜像拉取，`waketrace` 已可用真实进程替换占位 sidecar（`config.sidecars` 配置驱动，`/health` 探针 1.3 s 通过），OLVT/TTS 真实依赖待接。
+
 **顺序理由**
 
 - PCM1 是所有分支前置：没有托管与日志，后续一切问题都只能靠猜。

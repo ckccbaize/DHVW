@@ -7,7 +7,8 @@ import { fileURLToPath } from 'node:url'
 const dir = path.dirname(fileURLToPath(import.meta.url))
 const shellDir = path.resolve(dir, '..')
 const releaseDir = path.resolve(shellDir, '../..', 'release')
-const MAX_INSTALLER_BYTES = 500 * 1024 * 1024
+// 预算改为软阈值：超过只告警，超过 125% 才失败（用户要求暂不卡体积）
+const MAX_INSTALLER_MB = 500
 
 // 内置运行时缺失时先按镜像补齐，保证安装包自带 Python（ADR-PC-014）
 if (!fs.existsSync(path.join(shellDir, 'runtime', 'python.exe'))) {
@@ -33,12 +34,13 @@ child.on('exit', (code) => {
   const installer = path.join(releaseDir, `DigitalHuman-${version()}-setup.exe`)
   if (!fs.existsSync(installer)) process.exit(0)
   const mb = fs.statSync(installer).size / 1024 / 1024
-  const limit = MAX_INSTALLER_BYTES / 1024 / 1024
-  if (mb > limit) {
-    console.error(`[fail] 安装包 ${mb.toFixed(1)} MB 超过 ${limit} MB 预算，先裁剪随包资源`)
+  const limit = Number(process.env.DHVW_MAX_INSTALLER_MB ?? MAX_INSTALLER_MB)
+  if (mb > limit * 1.25) {
+    console.error(`[fail] 安装包 ${mb.toFixed(1)} MB 超过硬上限 ${(limit * 1.25).toFixed(0)} MB`)
     process.exit(2)
   }
-  console.log(`[ok] 安装包 ${mb.toFixed(1)} MB / 预算 ${limit} MB`)
+  if (mb > limit) console.warn(`[warn] 安装包 ${mb.toFixed(1)} MB 超过 ${limit} MB 预算，暂不阻断（DHVW_MAX_INSTALLER_MB 可调）`)
+  else console.log(`[ok] 安装包 ${mb.toFixed(1)} MB / 预算 ${limit} MB`)
 })
 
 function version() {

@@ -164,6 +164,16 @@ export class HostSupervisor extends EventEmitter {
         }
         break
       }
+      case 'worker.healthy': {
+        const w = evt.service ? this.workers.get(evt.service) : undefined
+        if (w) w.healthy = true
+        break
+      }
+      case 'worker.unhealthy': {
+        const w = evt.service ? this.workers.get(evt.service) : undefined
+        if (w) w.healthy = false
+        break
+      }
       case 'worker.exit':
       case 'worker.stopped':
       case 'worker.failed': {
@@ -190,7 +200,18 @@ export class HostSupervisor extends EventEmitter {
       this.emit('state')
       return
     }
-    if (!['worker.exit', 'worker.started', 'worker.restart', 'worker.failed', 'worker.stopped'].includes(evt.type)) return
+    if (
+      ![
+        'worker.exit',
+        'worker.started',
+        'worker.restart',
+        'worker.failed',
+        'worker.stopped',
+        'worker.healthy',
+        'worker.unhealthy',
+      ].includes(evt.type)
+    )
+      return
     log(evt.type === 'worker.started' ? 'info' : 'warn', 'host', evt.type, {
       service: evt.service,
       pid: evt.pid,

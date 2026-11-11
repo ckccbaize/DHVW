@@ -53,7 +53,11 @@ export default function App(): React.ReactElement {
     void refresh()
     void window.dhvw.probeLlm().then(setProbe)
     const offSnap = window.dhvw.onSnapshot((s) => setSnap(s))
-    const offEvt = window.dhvw.onEvent((e) => setEvents((prev) => [e, ...prev].slice(0, 300)))
+    // 心跳每 5 s 一条，留在日志里即可，事件流只保留状态变化
+    const offEvt = window.dhvw.onEvent((e) => {
+      if (e.type === 'host.heartbeat') return
+      setEvents((prev) => [e, ...prev].slice(0, 300))
+    })
     const timer = setInterval(() => void refreshLog(), 2000)
     return () => {
       offSnap()
@@ -148,8 +152,8 @@ export default function App(): React.ReactElement {
                 <tr key={w.id} className={w.state}>
                   <td className="name">{w.name}</td>
                   <td>
-                    <span className={`dot ${w.state}`} />
-                    {stateLabel[w.state]}
+                    <span className={`dot ${w.state === 'running' && w.healthy === false ? 'failed' : w.state}`} />
+                    {w.state === 'running' && w.healthy === false ? '无响应' : stateLabel[w.state]}
                   </td>
                   <td className="mono">{w.port || '—'}</td>
                   <td className="mono">{w.pid ?? '—'}</td>

@@ -143,6 +143,27 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 - 代码与 CPython 运行时就绪后随包内置，首次运行不下载任何东西；只有模型/语音这类大体积资源才按需下载，下载统一走 `scripts/lib/mirror.mjs`（华为云 → 阿里云 → npmmirror 依次回退，校验 sha256 与最小体积）。
 - 唯一外联是 LLM 端点（默认 `https://codex.mintcat.work`，模型 `deepseek-v4.1-flash`）：请求必须带浏览器 UA，否则 403；GUI 顶部会显示实时探测结果（应用启动时自动探一次，可手动重测）。
 
+## 真实 sidecar 接入
+
+默认 4 个服务都是占位 `dhvw_worker`（只提供 `/health`）。把某个服务换成真实进程，写 `config.db` 里的 `shell.sidecars`：
+
+```json
+{
+  "sidecars": {
+    "waketrace": {
+      "command": ["D:\\path\\to\\python.exe", "-m", "waketrace", "serve", "--host", "127.0.0.1", "--port", "{port}"],
+      "cwd": "D:\\path\\to\\Wake-Trace",
+      "env": { "WT_SOMETHING": "..." }
+    }
+  }
+}
+```
+
+- `{port}` 由外壳分配的端口替换；`env` 同样支持 `{port}`。
+- 声明了 `healthPath` 的服务启动后会轮询该路径（默认 `/health`），30 s 内不通则界面显示「无响应」并写 `host.log`。
+- 实测：`waketrace` 走 vendor 仓库的 venv，启动到 `/health` 200 用 1.3 s，外壳侧 `worker.healthy` 事件可查。
+- 打包真实 sidecar 前必须先解决它的依赖分发（ADR-PC-014 的单一 site-packages），否则干净机器上跑不起来。
+
 ## 界面风格
 
 全站按 `docs/design.md` 的**赛璐璐动画风**实现，落在 `apps/shell/src/renderer/styles.css` 的 CSS 变量上：

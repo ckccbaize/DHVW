@@ -24,9 +24,9 @@ let config: ShellConfig = loadConfig()
 let quitting = false
 
 const SERVICE_CATALOG: Array<Omit<ServiceDef, 'port'>> = [
-  { id: 'olvt', name: 'OLVT 后端', module: 'dhvw_worker', args: ['--name', 'olvt'] },
-  { id: 'tts', name: '语音合成', module: 'dhvw_worker', args: ['--name', 'tts'] },
-  { id: 'waketrace', name: '唤醒词', module: 'dhvw_worker', args: ['--name', 'waketrace'] },
+  { id: 'olvt', name: 'OLVT 后端', module: 'dhvw_worker', args: ['--name', 'olvt'], healthPath: '/health' },
+  { id: 'tts', name: '语音合成', module: 'dhvw_worker', args: ['--name', 'tts'], healthPath: '/health' },
+  { id: 'waketrace', name: '唤醒词', module: 'dhvw_worker', args: ['--name', 'waketrace'], healthPath: '/health' },
   { id: 'orchestrator', name: '编排器', module: 'dhvw_worker', args: ['--name', 'orchestrator'] },
 ]
 
@@ -155,7 +155,12 @@ async function boot(): Promise<void> {
   })
 
   const ports = await allocatePorts(SERVICE_CATALOG.length)
-  const services: ServiceDef[] = SERVICE_CATALOG.map((svc, i) => ({ ...svc, port: ports[i] ?? 0 }))
+  const services: ServiceDef[] = SERVICE_CATALOG.map((svc, i) => {
+    const override = config.sidecars[svc.id]
+    return { ...svc, ...(override ?? {}), port: ports[i] ?? 0 }
+  })
+  const real = services.filter((s) => s.command).map((s) => s.id)
+  if (real.length) log('info', 'sidecar', '使用真实 sidecar', { services: real })
   log('info', 'ports', '端口分配完成', { ports })
 
   supervisor = new HostSupervisor({ pythonPath: resolvePython(), shellPid: process.pid, services })
