@@ -14,6 +14,7 @@ import { createRemoteMemory } from "./memory/remote.js";
 import { createScheduler, createIdbJobBackend, createMemoryJobBackend } from "./sched/scheduler.js";
 import { createProviderStore, maskKey, isConfigured } from "./llm/provider.js";
 import { createLlmClient } from "./llm/client.js";
+import { createBudgetLedger } from "./llm/budget.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
 
 const LOG_CAP = 200;
@@ -61,6 +62,7 @@ let localMemory = null;
 let scheduler = null;
 let providerStore = null;
 let llm = null;
+let budget = null;
 
 const life = createLifeRuntime({ minute: 8 * 60 });
 
@@ -142,7 +144,16 @@ const ready = (async () => {
 
   providerStore = createProviderStore({ backend: kvBackend });
   await providerStore.init();
-  llm = createLlmClient({ getProvider: () => providerStore.get() });
+  budget = createBudgetLedger({ backend: kvBackend });
+  await budget.init();
+  llm = createLlmClient({
+    getProvider: () => providerStore.get(),
+    onUsage: (e) => {
+      if (!budget) return;
+      budget.record(e);
+      patch({ budget: budget.stats() });
+    },
+  });
   host.setLlmConfigHandler(async (patch) => {
     await providerStore.set(patch);
     patchState({ llm: llmView() });
@@ -293,6 +304,7 @@ function health() {
     },
     sched: scheduler ? scheduler.stats : null,
     llm: llmView(),
+    budget: budget ? budget.stats() : null,
     life: life.snapshot(),
     log: { ...logStats },
     doctor: state.doctor,
@@ -460,6 +472,19 @@ const handlers = {
     if (p.name === "log_latest") {
       return { ok: true, events: await eventLog.latest(p.args?.n || 10), stats: eventLog.stats };
     }
+    if (p.name === "budget_stats") {
+      return { ok: true, budget: budget.stats() };
+    }
+    if (p.name === "budget_soft_limit") {
+      const v = budget.setSoftLimit(p.args?.limit);
+      patch({ budget: budget.stats() });
+      return { ok: true, softLimitOut: v, budget: budget.stats() };
+    }
+    if (p.name === "budget_reset") {
+      const s = await budget.reset(p.args?.day);
+      patch({ budget: s });
+      return { ok: true, budget: s };
+    }
     if (p.name === "llm_config_get") {
       return { ok: true, config: providerStore.get(), masked: llmView() };
     }
@@ -475,6 +500,8 @@ const handlers = {
           maxTokens: p.args?.maxTokens || 200,
           temperature: p.args?.temperature ?? 0.3,
           json: !!p.args?.json,
+          cls: p.args?.cls || "work",
+          kind: p.args?.kind || "debug",
         });
         patch({ llm: llmView() });
         return { ok: true, ...out };

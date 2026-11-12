@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-12T14:29:48.059Z",
+ "built_at": "2026-11-12T14:50:05.787Z",
  "files": [
   {
    "path": "assets/scenes/home/home.built.json",
@@ -34,8 +34,8 @@
   },
   {
    "path": "debug-core.html",
-   "size": 15676,
-   "sha256": "362f051e3e5500a39fc02da414831201fd48877784bc1b82ed331723c522070c"
+   "size": 16103,
+   "sha256": "460b8507b5231f4250c1c2c3fef0fb1aa3ccd50cd8bc4e2507ab02493a79db6b"
   },
   {
    "path": "index.html",
@@ -93,9 +93,14 @@
    "sha256": "e13e801142015f9f83b7a5033b1687b9c51c06e997b89736e691c4d9c15092cc"
   },
   {
+   "path": "js/core/llm/budget.js",
+   "size": 3006,
+   "sha256": "336a2f4c60859d04af23bf290fb69599ca4506642c4cee3420755035d3e26506"
+  },
+  {
    "path": "js/core/llm/client.js",
-   "size": 4952,
-   "sha256": "64f1ade3b6159a990249ed7c8e1f47b048a5bea57f34365f50f2597167cd771f"
+   "size": 5237,
+   "sha256": "0a5ca680a5d8591c2e2345c69a4e61bfd9d09ef31970535392d65b92948c5210"
   },
   {
    "path": "js/core/llm/provider.js",
@@ -159,8 +164,8 @@
   },
   {
    "path": "js/core/worker.js",
-   "size": 18614,
-   "sha256": "e50e27e51f2c91f7e29fddc9ac00b2aa5c442666b8a1130d9704663484350a1f"
+   "size": 19477,
+   "sha256": "f27fc28771272cdeaec9d63764cf7cd64f5591c168750d415f6607f055bde8cd"
   },
   {
    "path": "js/forge/grammar.js",

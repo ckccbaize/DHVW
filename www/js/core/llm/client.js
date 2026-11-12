@@ -9,6 +9,7 @@ export function createLlmClient({
   sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
   now = () => Date.now(),
   random = Math.random,
+  onUsage = () => {},
 } = {}) {
   if (typeof getProvider !== "function") throw new Error("createLlmClient 需要 getProvider");
   const stats = { calls: 0, ok: 0, failed: 0, retries: 0, lastLatencyMs: 0, lastError: null };
@@ -79,7 +80,16 @@ export function createLlmClient({
    * @param {AbortSignal} [req.signal]
    * @param {number} [req.timeoutMs]
    */
-  async function complete({ messages, maxTokens = 800, temperature = 0.3, json = false, signal, timeoutMs } = {}) {
+  async function complete({
+    messages,
+    maxTokens = 800,
+    temperature = 0.3,
+    json = false,
+    signal,
+    timeoutMs,
+    cls = "work",
+    kind = "generic",
+  } = {}) {
     const provider = getProvider();
     if (!provider || !provider.baseUrl || !provider.model) {
       throw Object.assign(new Error("LLM 未配置（baseUrl/model）"), { code: "not_configured" });
@@ -104,6 +114,9 @@ export function createLlmClient({
         const out = await once(provider, body, timeoutMs ?? provider.timeoutMs, signal);
         stats.ok += 1;
         stats.lastLatencyMs = now() - t0;
+        try {
+          onUsage({ cls, kind, usage: out.usage, ok: true, ts: now() });
+        } catch {}
         return { ...out, latencyMs: stats.lastLatencyMs, attempts: attempt };
       } catch (err) {
         lastErr = err;
@@ -126,6 +139,9 @@ export function createLlmClient({
 
     stats.failed += 1;
     stats.lastError = lastErr ? lastErr.message : "unknown";
+    try {
+      onUsage({ cls, kind, usage: null, ok: false, ts: now() });
+    } catch {}
     throw Object.assign(lastErr || new Error("LLM 失败"), { attempts });
   }
 

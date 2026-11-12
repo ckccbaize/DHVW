@@ -32,6 +32,7 @@
 <div class="machine" id="memory">memory count=— terms=—</div>
 <div class="machine" id="sched">sched queued=— done=—</div>
 <div class="machine" id="llm">llm configured=— model=—</div>
+<div class="machine" id="budget">budget calls=— out=— alert=—</div>
 
 <h2>世界事件（点击即派发）</h2>
 <div class="row">
@@ -120,6 +121,13 @@ function pushLine(text) {
   logEl.textContent = lines.join("\n");
 }
 
+function renderBudget(b) {
+  if (!b) return;
+  document.querySelector("#budget").innerHTML =
+    `budget calls=<b>${b.calls}</b> ok=<b>${b.ok}</b> failed=<b>${b.failed}</b> ` +
+    `in=<b>${b.inTokens}</b> out=<b>${b.outTokens}</b> softAlert=<b>${b.softAlert}</b>`;
+}
+
 function renderLlm(l) {
   if (!l) return;
   document.querySelector("#llm").innerHTML =
@@ -188,6 +196,7 @@ const client = createCoreClient({
       if (p.memory) renderMemory(p.memory);
       if (p.sched) renderSched(p.sched);
       if (p.llm) renderLlm(p.llm);
+      if (p.budget) renderBudget(p.budget);
       if (p.display || p.conn || p.tier) {
         renderMachine({ ...(p.machine || {}), display: p.display ?? p.machine?.display, conn: p.conn ?? p.machine?.conn, tier: p.tier ?? p.machine?.tier, transitions: p.transitions });
       }
@@ -202,6 +211,7 @@ const client = createCoreClient({
       renderMemory(msg.payload.memory);
       renderSched(msg.payload.sched);
       renderLlm(msg.payload.llm);
+      renderBudget(msg.payload.budget);
     }
     if (msg.type === "core:event" && msg.payload.ev?.kind === "world_transition") {
       const r = msg.payload.ev.payload;
