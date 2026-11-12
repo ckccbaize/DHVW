@@ -172,7 +172,8 @@
 - 首次使用从组件面板下载：内置镜像顺序为 `ghfast.top` → `gh-proxy.com` → `ghproxy.net` → GitHub 直连，落盘前校验最小体积（可选 sha256），解压后校验入口文件存在。
 - 下载地址可在 `config.shell.componentUrls` 覆盖（企业镜像/离线包），不硬编码在代码里。
 - 组件解压到 `%APPDATA%/DigitalHuman/components/<id>/<version>/`，与安装目录分离，卸载不动它。
-- 依赖安装（venv + wheels）是下载之后的独立步骤，暂未自动化；干净机器上下载完仍需装依赖才能启动 OLVT。
+- 依赖安装由随包 `tools/uv.exe` 自动完成，装进 `resources/runtime/site-packages`（已实测）。
+- ASR 模型（SenseVoice 229 MB）同样走组件下载，与既有实验环境保持同一模型，不随包。
 
 ## ADR-PC-019 运行环境随程序收纳，不散落在用户目录
 

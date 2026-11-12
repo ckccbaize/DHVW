@@ -37,13 +37,16 @@ const GITHUB_REPO = 'https://github.com/Open-LLM-VTuber/Open-LLM-VTuber'
 
 /** 国内代理优先，直连兜底；失败逐个回退 */
 function githubProxies(url: string): string[] {
+  // 顺序按实测可用来排：gh-proxy 对 release 资产返回 200，ghfast 对同址返回 403
   return [
-    `https://ghfast.top/${url}`,
     `https://gh-proxy.com/${url}`,
     `https://ghproxy.net/${url}`,
+    `https://ghfast.top/${url}`,
     url,
   ]
 }
+
+const SHERPA_MODELS = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models'
 
 export const COMPONENTS: ComponentSpec[] = [
   {
@@ -54,6 +57,15 @@ export const COMPONENTS: ComponentSpec[] = [
     entry: 'run_server.py',
     minBytes: 5_000_000,
     requirements: 'requirements.txt',
+  },
+  {
+    // 与既有实验环境一致的 SenseVoice 多语种 ASR 模型（229 MB），不随包
+    id: 'asr-sensevoice',
+    name: 'ASR 模型 SenseVoice',
+    version: '2024-07-17',
+    urls: githubProxies(`${SHERPA_MODELS}/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-{version}.tar.bz2`),
+    entry: 'model.int8.onnx',
+    minBytes: 100_000_000,
   },
 ]
 
