@@ -72,7 +72,7 @@
 | W8 | 记忆查询（PC 代理） | `core/memory/remote.js`：`memory:query` 请求 + `req_id` 关联 + 200ms 超时 + 本地降级 | 主机不可达时 200ms 内降级到本地 | W7, W9 | **已有**（5 项测试 + 假 PC 联调） |
 | W9 | 主机可达与同步通道 | `core/host.js` + `runtime/remote.js`：心跳 5s、60s 判死、hello 校时、present:begin/end、events:batch | 假主机单测 + `tools/fake-pc.mjs` 联调 | W1 | **已有**（6 项测试 + 真实 WS 联调） |
 | W10 | 调度器 | `core/sched/scheduler.js`：优先级、切片 ≤5s、让位、持久队列；只调度生成/归纳任务 | 活跃期生成排队不跑；present 全停；挂起保留队列；重启恢复 queued | W5 | **已有**（8 项测试 + 浏览器实测） |
-| W11b | **本地 LLM 代理**（CORS 对策） | `shell` 新增 `POST /__llm/chat/completions`：仅回环、转发 baseUrl、限体积/超时、不落 key | 页面经本地代理可调外部 LLM；无 CORS 错误 | W11, B4 |
+| W11b | **本地 LLM 代理**（CORS 对策） | `shell` 新增 `POST /__llm/chat/completions`：仅回环、转发 baseUrl、限体积/超时、不落 key | 页面经本地代理可调外部 LLM；无 CORS 错误 | W11, B4 | **已有**（3 项 Go 测试 + 假 LLM 联调） |
 | W11 | LLM 客户端与服务商配置 | `core/llm/client.js` + `provider.js`：OpenAI 兼容、超时/中止、瞬时错误重试 ≤2、PC 可下发 `llm:config` | 429/500 重试成功；401 不重试；配置落库即生效 | W10 | **已有**（12 项测试） |
 | W12 | Prompt / Skill 注册表 | `skills/<name>/SKILL.md` + `prompts/*.md` → 构建期 `skills.json` | 改 prompt 不动代码；清单可校验 | A6 |
 | W13 | 管理层 Agent | `core/agent/manager.js`：意图 → 任务分解 → 派发 → schema 校验 → 落库 | 一次意图产出 1–3 个任务，非法输出被丢弃 | W11, W12 |

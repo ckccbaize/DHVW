@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -176,5 +177,75 @@ func TestRejectsNonLoopback(t *testing.T) {
 	}
 	if isLoopbackHost("0.0.0.0") || isLoopbackHost("192.168.1.10") {
 		t.Fatal("非回环地址应被拒绝")
+	}
+}
+
+func TestLLMProxyForwards(t *testing.T) {
+	var gotAuth, gotBody string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/chat/completions" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		gotAuth = r.Header.Get("Authorization")
+		b, _ := io.ReadAll(r.Body)
+		gotBody = string(b)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"pong"}}]}`))
+	}))
+	defer upstream.Close()
+
+	s, _ := newTestServer(t)
+	payload := `{"baseUrl":"` + upstream.URL + `/v1","apiKey":"sk-x","body":{"model":"m","messages":[]}}`
+	req := httptest.NewRequest(http.MethodPost, "/__llm/chat/completions", strings.NewReader(payload))
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, req)
+
+	if rec.Code != 200 {
+		t.Fatalf("proxy → %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "pong") {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+	if gotAuth != "Bearer sk-x" {
+		t.Fatalf("auth = %q", gotAuth)
+	}
+	if !strings.Contains(gotBody, `"model":"m"`) {
+		t.Fatalf("upstream body = %s", gotBody)
+	}
+}
+
+func TestLLMProxyRejectsBadInput(t *testing.T) {
+	s, _ := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/__llm/chat/completions", nil)
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, req)
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("GET → %d", rec.Code)
+	}
+
+	for _, body := range []string{
+		`{"baseUrl":"ftp://x","body":{}}`,
+		`{"baseUrl":"","body":{}}`,
+		`{"baseUrl":"http://127.0.0.1:1/v1"}`,
+		`not json`,
+	} {
+		req = httptest.NewRequest(http.MethodPost, "/__llm/chat/completions", strings.NewReader(body))
+		rec = httptest.NewRecorder()
+		s.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("body %q → %d", body, rec.Code)
+		}
+	}
+}
+
+func TestLLMProxyUpstreamDown(t *testing.T) {
+	s, _ := newTestServer(t)
+	payload := `{"baseUrl":"http://127.0.0.1:1/v1","body":{"model":"m"}}`
+	req := httptest.NewRequest(http.MethodPost, "/__llm/chat/completions", strings.NewReader(payload))
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("unreachable upstream → %d", rec.Code)
 	}
 }

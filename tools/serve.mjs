@@ -52,8 +52,67 @@ async function sendFile(req, res, urlPath, fsPath) {
   fs.createReadStream(fsPath).pipe(res);
 }
 
+function readBody(req, limit = 1 << 20) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks = [];
+    req.on("data", (c) => {
+      size += c.length;
+      if (size > limit) {
+        reject(Object.assign(new Error("body too large"), { code: "too_large" }));
+        req.destroy();
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    req.on("error", reject);
+  });
+}
+
+// 开发环境等价于 Go 壳的 /__llm 代理：页面同源请求，服务端转发到服务商。
+async function proxyLlm(req, res) {
+  if (req.method !== "POST") {
+    return void res.writeHead(405, { Allow: "POST" }).end("method not allowed");
+  }
+  let wrapper;
+  try {
+    wrapper = JSON.parse(await readBody(req));
+  } catch (err) {
+    return void res.writeHead(err.code === "too_large" ? 413 : 400).end("bad body");
+  }
+  let u;
+  try {
+    u = new URL(String(wrapper.baseUrl || ""));
+  } catch {
+    return void res.writeHead(400).end("bad baseUrl");
+  }
+  if (!/^https?:$/.test(u.protocol) || !u.host) return void res.writeHead(400).end("bad baseUrl");
+  try {
+    const upstream = await fetch(String(wrapper.baseUrl).replace(/\/+$/, "") + "/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(wrapper.apiKey ? { Authorization: `Bearer ${wrapper.apiKey}` } : {}),
+      },
+      body: JSON.stringify(wrapper.body ?? {}),
+    });
+    const text = await upstream.text();
+    res.writeHead(upstream.status, {
+      "Content-Type": upstream.headers.get("content-type") || "application/json",
+      "Cache-Control": "no-store",
+    });
+    res.end(text.slice(0, 4 << 20));
+  } catch {
+    res.writeHead(502, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "upstream_unreachable" }));
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   try {
+    const earlyPath = decodeURIComponent((req.url || "/").split("?")[0]);
+    if (earlyPath === "/__llm/chat/completions") return void (await proxyLlm(req, res));
     if (req.method !== "GET" && req.method !== "HEAD") {
       return void res.writeHead(405, { Allow: "GET, HEAD" }).end("method not allowed");
     }

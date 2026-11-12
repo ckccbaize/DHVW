@@ -14,7 +14,17 @@ export function createLlmClient({
   const stats = { calls: 0, ok: 0, failed: 0, retries: 0, lastLatencyMs: 0, lastError: null };
 
   async function once(provider, body, timeoutMs, externalSignal) {
-    const url = `${provider.baseUrl}/chat/completions`;
+    const useProxy = provider.useProxy !== false;
+    const url = useProxy ? "/__llm/chat/completions" : `${provider.baseUrl}/chat/completions`;
+    const payload = useProxy
+      ? { baseUrl: provider.baseUrl, apiKey: provider.apiKey, body }
+      : body;
+    const headers = useProxy
+      ? { "Content-Type": "application/json" }
+      : {
+          "Content-Type": "application/json",
+          ...(provider.apiKey ? { Authorization: `Bearer ${provider.apiKey}` } : {}),
+        };
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     if (externalSignal) {
@@ -24,11 +34,8 @@ export function createLlmClient({
     try {
       const res = await fetchImpl(url, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(provider.apiKey ? { Authorization: `Bearer ${provider.apiKey}` } : {}),
-        },
-        body: JSON.stringify(body),
+        headers,
+        body: JSON.stringify(payload),
         signal: ctrl.signal,
       });
       const text = await res.text();

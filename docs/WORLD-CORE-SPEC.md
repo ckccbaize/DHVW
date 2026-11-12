@@ -292,7 +292,7 @@ score(hotspot) = 1.0
 - 配置持久化在 IndexedDB `kv:llm_provider`，重启保留。
 
 **浏览器 CORS（实测风险）**：设备页面在 `127.0.0.1:8080`，直连外部 LLM 属跨域请求，会先发 `OPTIONS` 预检；多数服务商不返回 `Access-Control-Allow-Origin`，浏览器会直接拦掉（`net::ERR_CONNECTION_REFUSED` 或 CORS 错误）。
-**对策（W11b）**：在本地 Go 壳加 `POST /__llm/chat/completions` 代理（仅 `127.0.0.1` 可达），页面请求本地代理，由壳转发到 `baseUrl`；壳不落 key 日志、限制响应体积与超时。PC 在线时也可改走 PC 代理。
+**已实现（W11b）**：本地 Go 壳提供 `POST /__llm/chat/completions` 代理（仅 `127.0.0.1` 可达）。页面发 `{baseUrl, apiKey, body}`，壳转发到 `baseUrl + /chat/completions`；不落 key 日志、请求 ≤1MB、响应 ≤4MB、超时 120s；上游不可达返回 502。开发服务 `tools/serve.mjs` 等价实现。
 
 ### 5.5 硬约束（沿用 §10.9）
 

@@ -20,6 +20,8 @@ test("normalizeProvider：URL 规整、非法拒绝、数值截断", () => {
   assert.equal(q.maxAttempts, 5);
   assert.equal(q.retryBaseMs, 100);
   assert.equal(normalizeProvider({}).model, DEFAULT_PROVIDER.model);
+  assert.equal(normalizeProvider({}).useProxy, true);
+  assert.equal(normalizeProvider({ useProxy: false }).useProxy, false);
 });
 
 test("maskKey / isConfigured", () => {

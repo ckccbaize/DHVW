@@ -9,6 +9,7 @@ export const DEFAULT_PROVIDER = Object.freeze({
   maxAttempts: 3, // 1 次 + 2 次重试
   retryBaseMs: 500,
   reasoningEffort: "none",
+  useProxy: true, // 浏览器直连会被 CORS 拦，默认走本地壳代理
 });
 
 const clampInt = (v, min, max, fallback) => {
@@ -38,6 +39,7 @@ export function normalizeProvider(patch = {}, base = DEFAULT_PROVIDER) {
   if (patch.maxAttempts !== undefined) p.maxAttempts = clampInt(patch.maxAttempts, 1, 5, p.maxAttempts);
   if (patch.retryBaseMs !== undefined) p.retryBaseMs = clampInt(patch.retryBaseMs, 100, 10000, p.retryBaseMs);
   if (patch.reasoningEffort !== undefined) p.reasoningEffort = String(patch.reasoningEffort || "none");
+  if (patch.useProxy !== undefined) p.useProxy = !!patch.useProxy;
   return p;
 }
 

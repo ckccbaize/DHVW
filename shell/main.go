@@ -10,6 +10,8 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -20,6 +22,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path"
@@ -79,6 +82,7 @@ type server struct {
 	pack       packStatus
 	verifyHash bool
 	hits       atomic.Int64
+	httpClient *http.Client
 }
 
 func newServer(root, ver string, verifyHash bool) (*server, error) {
@@ -90,7 +94,13 @@ func newServer(root, ver string, verifyHash bool) (*server, error) {
 	if err != nil || !st.IsDir() {
 		return nil, fmt.Errorf("root 不是目录: %s", abs)
 	}
-	s := &server{root: abs, version: ver, started: time.Now(), verifyHash: verifyHash}
+	s := &server{
+		root:       abs,
+		version:    ver,
+		started:    time.Now(),
+		verifyHash: verifyHash,
+		httpClient: &http.Client{Timeout: 120 * time.Second},
+	}
 	s.pack = s.checkPack()
 	return s, nil
 }
@@ -166,6 +176,11 @@ func cacheControl(p string) string {
 }
 
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// LLM 代理是 POST，必须在通用 GET/HEAD 限制之前路由
+	if r.URL.Path == "/__llm/chat/completions" {
+		s.serveLLMProxy(w, r)
+		return
+	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		w.Header().Set("Allow", "GET, HEAD")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -175,6 +190,10 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if r.URL.Path == "/__health" {
 		s.serveHealth(w, r)
+		return
+	}
+	if r.URL.Path == "/__llm/chat/completions" {
+		s.serveLLMProxy(w, r)
 		return
 	}
 
@@ -259,6 +278,69 @@ func etagMatches(header, etag string) bool {
 		}
 	}
 	return false
+}
+
+// llmProxyReq 是页面发来的转发请求；key 只在内存中，不落日志。
+type llmProxyReq struct {
+	BaseURL string          `json:"baseUrl"`
+	APIKey  string          `json:"apiKey"`
+	Body    json.RawMessage `json:"body"`
+}
+
+// serveLLMProxy 解决浏览器跨域：页面请求本地壳，由壳转发到服务商。
+// 只监听回环（main 已限制），不记录 body/key。
+func (s *server) serveLLMProxy(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", "POST")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	var req llmProxyReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad json", http.StatusBadRequest)
+		return
+	}
+	u, err := url.Parse(strings.TrimSpace(req.BaseURL))
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		http.Error(w, "bad baseUrl", http.StatusBadRequest)
+		return
+	}
+	if u.Hostname() == "169.254.169.254" || strings.EqualFold(u.Hostname(), "metadata.google.internal") {
+		http.Error(w, "blocked host", http.StatusForbidden)
+		return
+	}
+	if len(req.Body) == 0 {
+		http.Error(w, "missing body", http.StatusBadRequest)
+		return
+	}
+
+	target := strings.TrimRight(req.BaseURL, "/") + "/chat/completions"
+	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+	defer cancel()
+	hr, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(req.Body))
+	if err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	hr.Header.Set("Content-Type", "application/json")
+	if req.APIKey != "" {
+		hr.Header.Set("Authorization", "Bearer "+req.APIKey)
+	}
+
+	resp, err := s.httpClient.Do(hr)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusBadGateway)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "upstream_unreachable"})
+		return
+	}
+	defer resp.Body.Close()
+
+	w.Header().Set("Content-Type", resp.Header.Get("Content-Type"))
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(resp.StatusCode)
+	_, _ = io.Copy(w, io.LimitReader(resp.Body, 4<<20))
 }
 
 func (s *server) serveHealth(w http.ResponseWriter, r *http.Request) {

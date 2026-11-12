@@ -109,3 +109,28 @@ server.on("upgrade", (req, socket) => {
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`[fake-pc] ws://127.0.0.1:${PORT}/dhvw`);
 });
+
+// 假 LLM（OpenAI 兼容），用于验证设备侧代理链路
+const LLM_PORT = PORT + 1;
+const llm = http.createServer((req, res) => {
+  if (req.method !== "POST" || !req.url.startsWith("/v1/chat/completions")) {
+    res.writeHead(404).end("not found");
+    return;
+  }
+  let body = "";
+  req.on("data", (c) => (body += c));
+  req.on("end", () => {
+    console.log(`[fake-llm] ← ${req.headers.authorization || "no-auth"} ${body.slice(0, 120)}`);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        choices: [{ message: { content: "pong from fake llm" } }],
+        usage: { prompt_tokens: 3, completion_tokens: 4 },
+        model: "fake-llm",
+      }),
+    );
+  });
+});
+llm.listen(LLM_PORT, "127.0.0.1", () => {
+  console.log(`[fake-llm] http://127.0.0.1:${LLM_PORT}/v1/chat/completions`);
+});

@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-12T14:20:03.776Z",
+ "built_at": "2026-11-12T14:29:48.059Z",
  "files": [
   {
    "path": "assets/scenes/home/home.built.json",
@@ -94,13 +94,13 @@
   },
   {
    "path": "js/core/llm/client.js",
-   "size": 4664,
-   "sha256": "1c958578639068102ffc9d6e230cf28beadfd8d4af7275ad5781c5f0c571db7b"
+   "size": 4952,
+   "sha256": "64f1ade3b6159a990249ed7c8e1f47b048a5bea57f34365f50f2597167cd771f"
   },
   {
    "path": "js/core/llm/provider.js",
-   "size": 2825,
-   "sha256": "501ed5fb172bdfebbd1fdea3a9f8bd024ae2635750af3b4b02db3d65a846e593"
+   "size": 2971,
+   "sha256": "ad25c4cb6f2f774b2177a6930028d3f377472225712fd3557b484d4043385c78"
   },
   {
    "path": "js/core/log/events.js",

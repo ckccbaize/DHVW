@@ -11,6 +11,7 @@ const provider = (over = {}) => ({
   maxAttempts: 3,
   retryBaseMs: 1,
   reasoningEffort: "none",
+  useProxy: false,
   ...over,
 });
 
@@ -108,6 +109,18 @@ test("网络错误：归一为 network 并重试", async () => {
 test("未配置：直接抛 not_configured", async () => {
   const c = createLlmClient({ getProvider: () => ({ baseUrl: "", model: "" }), fetchImpl: async () => okResponse() });
   await assert.rejects(c.complete({ messages: [] }), (e) => e.code === "not_configured");
+});
+
+test("默认走本地代理：包装 baseUrl/apiKey/body", async () => {
+  const { c, calls } = clientWith([okResponse("pong")], { useProxy: true });
+  const out = await c.complete({ messages: [{ role: "user", content: "x" }] });
+  assert.equal(out.text, "pong");
+  assert.equal(calls[0].url, "/__llm/chat/completions");
+  const wrapper = JSON.parse(calls[0].opts.body);
+  assert.equal(wrapper.baseUrl, "https://api.test/v1");
+  assert.equal(wrapper.apiKey, "sk-test");
+  assert.equal(wrapper.body.model, "m");
+  assert.equal(calls[0].opts.headers.Authorization, undefined);
 });
 
 test("json 模式带 response_format", async () => {
