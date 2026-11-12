@@ -38,6 +38,8 @@ body {
   gap: 16px;
   padding: 16px;
   background: var(--cel-white);
+  /* 极矮窗口下顶栏 + 主区 + 日志放不下时整页纵向滚动 */
+  overflow-y: auto;
 }
 
 /* ---------- 顶栏 ---------- */
@@ -216,7 +218,8 @@ main {
   grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
   gap: 16px;
   flex: 1;
-  min-height: 0;
+  /* 窗口再矮也要留出可操作高度，不够就让整页滚动，不能压成 0 */
+  min-height: 220px;
 }
 
 .panel {
@@ -228,6 +231,8 @@ main {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  /* 内容超出时在面板内部滚动，绝不外溢压到相邻面板 */
+  overflow: hidden;
 }
 
 .col {
@@ -237,21 +242,31 @@ main {
   min-height: 0;
 }
 
+.components {
+  overflow-y: auto;
+}
+
 .comp {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
   padding: 8px 0;
   border-bottom: 2px solid #ecece4;
 }
 
+.comp > button {
+  flex: 0 0 auto;
+}
+
 .comp-info {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1;
+  flex: 1 1 150px;
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 .comp-name {
@@ -507,6 +522,30 @@ pre {
 @media (max-width: 980px) {
   main {
     grid-template-columns: minmax(0, 1fr);
+    /* 行高按内容走，多出来的高度交给主区滚动条 */
+    grid-auto-rows: min-content;
+    align-content: start;
+    overflow-y: auto;
+  }
+
+  .events {
+    height: 220px;
+    flex: 0 0 auto;
+  }
+
+  .components {
+    max-height: none;
+  }
+}
+
+/* 窗口很矮时（横向仍双列）也一样：主区滚动，面板不被压扁 */
+@media (max-height: 620px) {
+  main {
+    overflow-y: auto;
+  }
+
+  .events {
+    min-height: 180px;
   }
 }
 

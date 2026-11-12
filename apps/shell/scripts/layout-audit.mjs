@@ -57,6 +57,22 @@ const audit = `(() => {
     if (!r.width && !r.height) continue
     if (r.right > vw + 1 || r.left < -1) issues.push({ type: 'outside-viewport', tag: el.tagName, text: (el.textContent || el.value || '').slice(0, 12) })
   }
+  // 控件必须留在自己所属面板内（之前的 bug：组件行的下载按钮溢出到面板外）
+  for (const el of document.querySelectorAll('button, input, select, textarea')) {
+    const panel = el.closest('.panel, .dialog, section')
+    if (!panel) continue
+    const r = el.getBoundingClientRect()
+    const pr = panel.getBoundingClientRect()
+    if (!r.width && !r.height) continue
+    // 面板自身可滚动时，纵向越界属于滚动内容，不算外溢
+    const scrollY = panel.scrollHeight > panel.clientHeight + 1
+    const scrollX = panel.scrollWidth > panel.clientWidth + 1
+    const badX = !scrollX && (r.right > pr.right + 1 || r.left < pr.left - 1)
+    const badY = !scrollY && r.bottom > pr.bottom + 1
+    if (badX || badY) {
+      issues.push({ type: 'escapes-panel', panel: panel.className, tag: el.tagName, text: (el.textContent || el.value || '').slice(0, 12) })
+    }
+  }
   for (const p of document.querySelectorAll('.panel, .dialog, section')) {
     if (p.scrollWidth - p.clientWidth > 1) issues.push({ type: 'container-hscroll', cls: p.className, over: p.scrollWidth - p.clientWidth })
     const pr = p.getBoundingClientRect()
