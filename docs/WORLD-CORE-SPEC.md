@@ -60,8 +60,12 @@ character
 ├─ phase      sleep / wake / morning / noon / afternoon / evening / night
 ├─ activity   active / idle / asleep
 ├─ mood       low / calm / happy / tired / excited   ← 由连续值分档
+├─ place      当前场景 id（home / park / shop / …，来自动态场景注册表）
+├─ transit    null | { to, from_door, to_door, started_at, eta_min }
 └─ presence   home（在场景中）/ away（出门，仅事件）
 ```
+
+**place 是动态的**：地图由产出侧（PC/ARM agent）自增加，`place` 的取值集合不是编译期常量。见 §11.4 与 §2.4。
 
 ### 2.3 任务层（task）
 
@@ -484,6 +488,11 @@ LLM **不能凭空发明动作**；它只能从注册表里选，并给参数。
 ### 11.4 旅行（允许跨夜、离开 home、进入地图）
 
 - **地点图**：`home.{bedroom,bathroom,balcony,living}` + `outside.{street,park,shop,...}`，边带步行时间；新地点可由**设备或 PC** 产出。
+- **动态注册表（地图自增加）**：场景包被收进资源包后，注册表 `{id → {rooms, hotspots, doors, life}}` 原子更新；状态机监听 `SCENE_ADDED / SCENE_REMOVED`。
+  - 新增：先过 T1 + 图校验（`door.to` 存在、anchor 存在），再入表；
+  - 删除：若她正在该场景，强制回 `home` 并写事件；若只是门指向它，标记 `door_unavailable`；
+  - **阶段→房间的映射必须由场景包提供**（`life.phaseRoom`），不能像 W4 现在这样硬编码 home 的房间 id；
+  - 注册表版本号随包更新，状态机快照记录 `place` 与 `registry_version`；启动时若 `place` 不存在则回 `home`。
 - **跨夜**：允许。`travel` 可带 `overnight:true`；期间 `presence=away`，作息照常（睡在旅店/帐篷，抽象处理），总观显示"她不在家"。
 - **地图产出契约**（两侧同源）：
 
