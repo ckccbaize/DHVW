@@ -105,7 +105,7 @@
 | 工具 | 作用 | 验收 |
 |---|---|---|
 | `tools/validate-scene.mjs` | schema + 闸门：尺寸一致、spawn 可走、热点可走、门双向、`act` 有定义、图集引用存在 | 故意改坏一处 → 退出码 1 并指出文件与格坐标 |
-| `www/js/core/scene-validate.js`（T1b） | **浏览器版同源校验**，设备加载时执行 | 与 T1 同 fixtures、同错误码 |
+| ~~`www/js/core/scene-validate.js`（T1b）~~ | **取消**：设备装 Node，校验放构建/部署/启动期 | — |
 | `tools/intake.mjs` | 把产出侧目录收进 `www/assets/scenes/<id>/`，生成 manifest，拒绝不合格包 | 不合格包不落盘 |
 | `tools/pack.mjs` / `verify.mjs` | 资源包清单与完整性（已有） | 已通过 |
 | `js/view/scene-loader.js` | 加载 + 校验 + 解码（失败回退到内置场景） | 缺图不白屏 |
