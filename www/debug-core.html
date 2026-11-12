@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>核心机骨架（W1/W3/W4/W5）</title>
+<title>核心机骨架（W1/W3/W4/W5/W6）</title>
 <style>
   :root { color-scheme: dark; }
   body { margin: 0; padding: 18px; background: #0f1218; color: #e6e9f0;
@@ -22,11 +22,12 @@
 </style>
 </head>
 <body>
-<h1>核心机骨架（W1/W3/W4/W5）· <span id="status">启动中…</span></h1>
+<h1>核心机骨架（W1/W3/W4/W5/W6）· <span id="status">启动中…</span></h1>
 
 <div class="machine" id="machine">display=— conn=— tier=— illegal=0 transitions=0</div>
 <div class="machine" id="life">minute=— phase=— band=—</div>
 <div class="machine" id="logstats">log seq=— count=— dropped=—</div>
+<div class="machine" id="snap">snapshot ts=— lastSeq=— resumed=—</div>
 
 <h2>世界事件（点击即派发）</h2>
 <div class="row">
@@ -58,6 +59,7 @@
 <h2>基础</h2>
 <div class="row">
   <button id="btnSnapshot">snapshot</button>
+  <button id="btnSnapSave">保存快照</button>
   <button id="btnPause">pause</button>
   <button id="btnResume">resume</button>
   <button id="btnBadType">未知 type</button>
@@ -86,6 +88,12 @@ function pushLine(text) {
   lines.unshift(`${new Date().toLocaleTimeString()}  ${text}`);
   if (lines.length > 20) lines.pop();
   logEl.textContent = lines.join("\n");
+}
+
+function renderSnap(s) {
+  if (!s) return;
+  document.querySelector("#snap").innerHTML =
+    `snapshot ts=<b>${s.ts || 0}</b> lastSeq=<b>${s.lastSeq || 0}</b> resumed=<b>${!!s.resumed}</b>`;
 }
 
 function renderLog(l) {
@@ -119,6 +127,7 @@ const client = createCoreClient({
       if (p.machine) renderMachine({ ...p.machine, transitions: p.transitions });
       if (p.life) renderLife(p.life);
       if (p.log) renderLog(p.log);
+      if (p.snapshot) renderSnap(p.snapshot);
       if (p.display || p.conn || p.tier) {
         renderMachine({ ...(p.machine || {}), display: p.display ?? p.machine?.display, conn: p.conn ?? p.machine?.conn, tier: p.tier ?? p.machine?.tier, transitions: p.transitions });
       }
@@ -128,6 +137,7 @@ const client = createCoreClient({
       renderMachine({ ...msg.payload.world, transitions: msg.payload.transitions });
       renderLife(msg.payload.life);
       renderLog(msg.payload.log);
+      renderSnap(msg.payload.snapshot);
     }
     if (msg.type === "core:event" && msg.payload.ev?.kind === "world_transition") {
       const r = msg.payload.ev.payload;
@@ -200,6 +210,12 @@ $("#btnPick").onclick = async () => {
   } catch (e) {
     pushLine(e.message);
   }
+};
+$("#btnSnapSave").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "snapshot_save" });
+    pushLine(`snapshot saved → ts=${r.snapshot.ts} lastSeq=${r.snapshot.lastSeq}`);
+  } catch (e) { pushLine(e.message); }
 };
 $("#btnSnapshot").onclick = () => client.request("core:snapshot", {}).catch((e) => pushLine(e.message));
 $("#btnPause").onclick = () => client.request("core:pause", {}).catch((e) => pushLine(e.message));

@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-12T13:14:07.489Z",
+ "built_at": "2026-11-12T13:23:15.226Z",
  "files": [
   {
    "path": "assets/scenes/home/home.built.json",
@@ -34,8 +34,8 @@
   },
   {
    "path": "debug-core.html",
-   "size": 8944,
-   "sha256": "ff705a30a7e1a2f9c09d654c333fc48a7b6f8c7d15b8558997429c3d9ae5577e"
+   "size": 9613,
+   "sha256": "d24591bf5b1518deaeca8633cbbfbaf892673fd136fbc9d31a341670863bb238"
   },
   {
    "path": "index.html",
@@ -89,18 +89,18 @@
   },
   {
    "path": "js/core/log/idb.js",
-   "size": 2563,
-   "sha256": "5d03bca5f1e00544d4ef6522320b56deaff6a95179e9f5c10d1260aa34b5c10a"
+   "size": 2985,
+   "sha256": "3e01fb2e763b534e6745cc7f47694973390fe177158907a373f0295d5c221712"
   },
   {
    "path": "js/core/machine/life.js",
-   "size": 7714,
-   "sha256": "7682481a04e0209a8e7eb247a1bf23aaa68abaca9490f2e1a042487359d22e12"
+   "size": 8140,
+   "sha256": "d9264dbf8ca6432b2ec198cd84c29abc10fc58efccfd81e1e2c7eba0fd58b5ec"
   },
   {
    "path": "js/core/machine/world.js",
-   "size": 5913,
-   "sha256": "a02645bf27670e934b7f384b1d996b2716aa0b44643c739a65eeeae76c23c28f"
+   "size": 5932,
+   "sha256": "83be342eb6599aada6d45420be5cdbda07a3a4ac41915ac23cfeab985756c9a9"
   },
   {
    "path": "js/core/pathagent.js",
@@ -113,9 +113,14 @@
    "sha256": "dfa4c98e57c85102d903532341cc18b848bee2965c46035a781e58ed94ebbdac"
   },
   {
+   "path": "js/core/snapshot.js",
+   "size": 1495,
+   "sha256": "2f160f70d0ea4c1157e5aaf78dc864ff223ecfc0290c71b1c657ecd830fe22c8"
+  },
+  {
    "path": "js/core/worker.js",
-   "size": 7720,
-   "sha256": "f414e353425a0bf9bf516c1119ea79d376bfde63c5378fb17321818cc78cd767"
+   "size": 10532,
+   "sha256": "ef343e145fbac892ba9b2713d70b720d7eb87a6078bbc29edd012fd5c7adb55b"
   },
   {
    "path": "js/forge/grammar.js",

@@ -1,7 +1,7 @@
-// 事件日志的 IndexedDB 后端（W5）。
-// 库：dhvw-core；store：events（keyPath seq，uuid 唯一索引）。
+// 核心机 IndexedDB（W5/W6）。
+// 库：dhvw-core v2；store：events（keyPath seq，uuid 唯一索引）+ kv（快照）。
 
-export function openEventDb(indexedDBImpl = globalThis.indexedDB, name = "dhvw-core", version = 1) {
+export function openCoreDb(indexedDBImpl = globalThis.indexedDB, name = "dhvw-core", version = 2) {
   if (!indexedDBImpl) return Promise.reject(new Error("indexedDB 不可用"));
   return new Promise((resolve, reject) => {
     const req = indexedDBImpl.open(name, version);
@@ -11,9 +11,22 @@ export function openEventDb(indexedDBImpl = globalThis.indexedDB, name = "dhvw-c
         const store = db.createObjectStore("events", { keyPath: "seq" });
         store.createIndex("uuid", "uuid", { unique: true });
       }
+      if (!db.objectStoreNames.contains("kv")) {
+        db.createObjectStore("kv", { keyPath: "k" });
+      }
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      const db = req.result;
+      // 其他连接需要让路，否则版本升级会被 blocked
+      db.onversionchange = () => {
+        try {
+          db.close();
+        } catch {}
+      };
+      resolve(db);
+    };
     req.onerror = () => reject(req.error);
+    req.onblocked = () => reject(new Error("indexedDB blocked（其他页面占用旧版本）"));
   });
 }
 

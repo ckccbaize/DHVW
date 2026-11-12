@@ -67,7 +67,7 @@
 | W3 | 世界状态机 | `core/machine/world.js`：显示态 × 主机可达 × 档位（§10.1 矩阵）+ 迁移日志/计数 | 非法组合 0 次；迁移日志逐条可复现 | W2 | **已有**（9 项测试 + 浏览器实测） |
 | W4 | 生活状态机 | `core/machine/life.js`：作息 7 段 → 房间/动作 + 心情四维/五档 + 打分选点 | 拨时间可见行为变化 | W3 | **已有**（12 项测试 + 浏览器实测） |
 | W5 | 事件日志 | `core/log/`：append-only + `seq` + 环形 2000 + IndexedDB 持久化 + uuid 幂等 | 写 2001 条剩 2000；重启后 `seq` 连续 | W1 | **已有**（9 项测试 + 浏览器重载实测） |
-| W6 | 快照与恢复 | 状态机快照 + `last_seq` 落 IndexedDB | kill Worker 后 ≤2s 恢复且不重复处理 | W3, W5 |
+| W6 | 快照与恢复 | `core/snapshot.js`：world/life/lastSeq 落 IndexedDB kv；2s 防抖 + 30s 定期 | kill Worker 后 ≤2s 恢复且不重复处理 | W3, W5 | **已有**（7 项测试 + 浏览器重载实测） |
 | W7 | 记忆查询（本地） | `core/memory/local.js`：MiniSearch + bigram 分词，索引摘要 | 5000 条摘要 ≤10MB、查询 ≤20ms | W5 |
 | W8 | 记忆查询（PC 代理） | `core/memory/remote.js`：`memory:query` 请求/超时/降级 | 主机不可达时 200ms 内降级到本地 | W7, W9 |
 | W9 | 主机可达与同步通道 | `core/sync/`：心跳 5s、60s 判死、outbox/inbox | 假主机单测 + 手动断开可见降级 | W1 |

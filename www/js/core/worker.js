@@ -5,7 +5,8 @@ import { makeMsg, validateMsg, errorMsg, replyMsg } from "./bus.js";
 import { createWorldRuntime, GRAPH } from "./machine/world.js";
 import { createLifeRuntime } from "./machine/life.js";
 import { createEventLog, createMemoryBackend } from "./log/events.js";
-import { openEventDb, createIdbEventBackend } from "./log/idb.js";
+import { openCoreDb, createIdbEventBackend } from "./log/idb.js";
+import { createSnapshotStore, createMemorySnapshotStore, validateSnapshot } from "./snapshot.js";
 
 const LOG_CAP = 200;
 const WORLD_EVENTS = new Set([
@@ -42,6 +43,9 @@ let ticks = 0;
 let lastTickAt = 0;
 let eventLog = null;
 let logStats = { count: 0, lastSeq: 0, dropped: 0 };
+let snapStore = createMemorySnapshotStore();
+let snapMeta = { ts: 0, lastSeq: 0, resumed: false };
+let saveTimer = null;
 
 const life = createLifeRuntime({ minute: 8 * 60 });
 
@@ -52,17 +56,62 @@ const world = createWorldRuntime({
   },
 });
 
+function withTimeout(promise, ms, label) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${label} timeout`)), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
+
 const ready = (async () => {
   try {
-    const db = await openEventDb();
+    const db = await withTimeout(openCoreDb(), 3000, "indexedDB open");
     eventLog = createEventLog({ backend: createIdbEventBackend(db) });
+    snapStore = createSnapshotStore(db);
   } catch (err) {
     log("warn", "idb_unavailable", { msg: err.message });
     eventLog = createEventLog({ backend: createMemoryBackend() });
+    snapStore = createMemorySnapshotStore();
   }
   await eventLog.init();
   logStats = eventLog.stats;
 })();
+
+async function persistSnapshot(reason = "auto") {
+  await ready;
+  const snap = {
+    v: 1,
+    ts: Date.now(),
+    lastSeq: eventLog.lastSeq,
+    world: world.state,
+    life: life.snapshot(),
+    reason,
+  };
+  try {
+    await snapStore.save(snap);
+    snapMeta = { ts: snap.ts, lastSeq: snap.lastSeq, resumed: snapMeta.resumed };
+    patch({ snapshot: { ...snapMeta } });
+  } catch (err) {
+    log("warn", "snapshot_save_failed", { msg: err.message });
+  }
+  return snap;
+}
+
+function scheduleSnapshot() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    void persistSnapshot("debounce");
+  }, 2000);
+}
 
 function log(level, msg, data) {
   logs.push({ t: Date.now(), level, msg, data });
@@ -114,6 +163,7 @@ function health() {
     lastTickAt,
     queue: state.jobs,
     world: { ...world.state },
+    snapshot: { ...snapMeta },
     transitions: world.records.length,
     illegal: world.state.illegal,
     life: life.snapshot(),
@@ -134,6 +184,7 @@ function dispatchWorld(event) {
   }
   const res = world.dispatch(event);
   patch(syncWorld());
+  scheduleSnapshot();
   return { ok: true, illegal: res.illegal, state: world.state };
 }
 
@@ -141,14 +192,39 @@ const handlers = {
   async "core:init"(p) {
     await ready;
     startedAt = Date.now();
-    world.reset();
-    life.reset({ minute: p.clock?.minute ?? 8 * 60, mood: p.mood });
+    let snap = null;
+    try {
+      snap = validateSnapshot(await snapStore.load());
+    } catch (err) {
+      log("warn", "snapshot_load_failed", { msg: err.message });
+    }
+    if (snap) {
+      try {
+        world.reset(snap.world);
+        life.restore(snap.life);
+        snapMeta = { ts: snap.ts, lastSeq: snap.lastSeq, resumed: true };
+        log("info", "snapshot_restored", { ts: snap.ts, lastSeq: snap.lastSeq });
+      } catch (err) {
+        log("warn", "snapshot_invalid", { msg: err.message });
+        world.reset();
+        life.reset({ minute: p.clock?.minute ?? 8 * 60, mood: p.mood });
+        snapMeta = { ts: 0, lastSeq: 0, resumed: false };
+      }
+    } else {
+      world.reset();
+      life.reset({ minute: p.clock?.minute ?? 8 * 60, mood: p.mood });
+      snapMeta = { ts: 0, lastSeq: 0, resumed: false };
+    }
     if (p.scene) state.scene = p.scene.id || p.scene;
     if (p.clock) state.clock = { day: p.clock.day ?? 1, minute: p.clock.minute ?? 480 };
     if (p.mood) Object.assign(state.mood, p.mood);
     log("info", "init", { scene: state.scene });
     patch({ ...state, ...syncWorld() });
-    await appendEvent("core_ready", { scene: state.scene, lastSeq: eventLog.lastSeq });
+    await appendEvent("core_ready", {
+      scene: state.scene,
+      lastSeq: eventLog.lastSeq,
+      resumed: snapMeta.resumed,
+    });
     startHeartbeat();
     return { ok: true, scene: state.scene, world: world.state, log: eventLog.stats };
   },
@@ -211,6 +287,7 @@ const handlers = {
     if (p.name === "life_advance") {
       life.advance(p.args?.minutes ?? 60);
       patch({ life: life.snapshot() });
+      scheduleSnapshot();
       return { ok: true, life: life.snapshot() };
     }
     if (p.name === "life_mood") {
@@ -219,11 +296,13 @@ const handlers = {
         reason: p.args?.reason || "",
       });
       patch({ life: life.snapshot() });
+      scheduleSnapshot();
       return { ok: true, life: life.snapshot() };
     }
     if (p.name === "life_pick") {
       const chosen = life.pick(p.args?.hotspots || [], p.args?.from || null);
       patch({ life: life.snapshot() });
+      scheduleSnapshot();
       return { ok: true, chosen, life: life.snapshot() };
     }
     if (p.name === "log_append") {
@@ -232,6 +311,19 @@ const handlers = {
     }
     if (p.name === "log_latest") {
       return { ok: true, events: await eventLog.latest(p.args?.n || 10), stats: eventLog.stats };
+    }
+    if (p.name === "snapshot_save") {
+      const snap = await persistSnapshot("manual");
+      return { ok: true, snapshot: { ts: snap.ts, lastSeq: snap.lastSeq } };
+    }
+    if (p.name === "snapshot_info") {
+      return { ok: true, snapshot: { ...snapMeta }, world: world.state, life: life.snapshot() };
+    }
+    if (p.name === "snapshot_clear") {
+      await snapStore.clear();
+      snapMeta = { ts: 0, lastSeq: 0, resumed: false };
+      patch({ snapshot: { ...snapMeta } });
+      return { ok: true };
     }
     if (p.name === "log_clear") {
       await eventLog.clear();
@@ -271,3 +363,6 @@ self.onmessage = async (e) => {
 
 log("info", "core worker boot");
 post("core:health", health());
+setInterval(() => {
+  void persistSnapshot("periodic");
+}, 30000);

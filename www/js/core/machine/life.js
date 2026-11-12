@@ -237,6 +237,16 @@ export function createLifeRuntime({ minute = 8 * 60, mood = MOOD_BASE } = {}) {
       if (chosen) this.noteAct(chosen.act);
       return chosen;
     },
+    /** 从快照恢复（W6）：minute/mood/recent/moodLog。 */
+    restore(snap = {}) {
+      m = Number.isFinite(snap.minute) ? snap.minute : 8 * 60;
+      moodState = { ...MOOD_BASE, ...(snap.mood || {}) };
+      recent.length = 0;
+      for (const r of snap.recent || []) recent.push({ ...r });
+      moodLog.length = 0;
+      for (const r of snap.moodLog || []) moodLog.push({ ...r });
+      return snapshot();
+    },
     reset({ minute: nextMinute = 8 * 60, mood: nextMood = MOOD_BASE } = {}) {
       m = nextMinute;
       moodState = { ...MOOD_BASE, ...nextMood };

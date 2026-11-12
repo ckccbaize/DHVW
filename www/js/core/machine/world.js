@@ -185,7 +185,7 @@ export function createWorldRuntime({ log = () => {}, now = () => Date.now() } = 
       return { state, changed, illegal, record: rec };
     },
     reset(init) {
-      state = createWorld(init);
+      state = init ? restore(init) : createWorld();
       records.length = 0;
       counts.clear();
       seq = 0;
