@@ -46,6 +46,7 @@ function SettingsDialog({
   const [charName, setCharName] = useState(value.olvt.characterName)
   const [humanName, setHumanName] = useState(value.olvt.humanName)
   const [persona, setPersona] = useState(value.olvt.personaPrompt)
+  const [ttsDir, setTtsDir] = useState(value.tts.backendDir)
   const [refAudio, setRefAudio] = useState(value.tts.refAudioPath)
   const [refText, setRefText] = useState(value.tts.refText)
   const [key, setKey] = useState('')
@@ -96,7 +97,7 @@ function SettingsDialog({
         ports: { olvt: Number(olvtPort), tts: Number(ttsPort) },
         asr: { enabled: asr },
         olvt: { characterName: charName, humanName, personaPrompt: persona },
-        tts: { refAudioPath: refAudio, refText },
+        tts: { backendDir: ttsDir, refAudioPath: refAudio, refText },
       })
       if (!res.ok || !res.settings) {
         setMsg({ ok: false, text: res.error ?? '保存失败' })
@@ -224,6 +225,10 @@ function SettingsDialog({
         <div className="field">
           <label>人设</label>
           <textarea value={persona} onChange={(e) => setPersona(e.target.value)} rows={4} spellCheck={false} />
+        </div>
+        <div className="field">
+          <label>语音合成后端目录（GPT-SoVITS，留空则用内置占位）</label>
+          <input value={ttsDir} onChange={(e) => setTtsDir(e.target.value)} spellCheck={false} placeholder="如 D:\tts\GPT-SoVITS" />
         </div>
         <div className="field">
           <label>参考音色（GPT-SoVITS，留空则用服务默认）</label>

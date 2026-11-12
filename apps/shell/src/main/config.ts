@@ -13,8 +13,8 @@ export interface ShellConfig {
   asr: { enabled: boolean }
   /** OLVT 后端：dir 为空时用组件目录；其余项直接写进生成的 conf.yaml */
   olvt: { dir: string; characterName: string; humanName: string; personaPrompt: string }
-  /** GPT-SoVITS 参考音色（apiUrl 由分配的 tts 端口决定，不在此配置） */
-  tts: { refAudioPath: string; refText: string; refLang: string; textLang: string }
+  /** GPT-SoVITS：backendDir 为本机后端目录（含 api_v2.py 与 runtime/python.exe），留空则用占位 worker */
+  tts: { backendDir: string; refAudioPath: string; refText: string; refLang: string; textLang: string }
   /** 把占位 sidecar 换成真实进程：id -> 可执行文件 + 参数（{port} 替换为分配端口） */
   sidecars: Record<string, { command: string[]; cwd?: string; env?: Record<string, string> }>
   /** 组件下载地址覆盖（企业镜像/离线包），不填则用内置镜像列表 */
@@ -37,7 +37,7 @@ const DEFAULTS: ShellConfig = {
     humanName: '主人',
     personaPrompt: '你是住在数字人虚拟仓里的小仓，语气自然、口语化，回答简短。不要使用 Markdown，不要输出括号里的动作描写。',
   },
-  tts: { refAudioPath: '', refText: '', refLang: 'ja', textLang: 'zh' },
+  tts: { backendDir: '', refAudioPath: '', refText: '', refLang: 'ja', textLang: 'zh' },
   sidecars: {},
   componentUrls: {},
   pipIndex: 'https://mirrors.aliyun.com/pypi/simple',

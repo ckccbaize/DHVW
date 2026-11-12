@@ -4,6 +4,7 @@ endpoints for language generation.
 """
 
 from typing import AsyncIterator, List, Dict, Any
+import asyncio
 import json
 import os
 
@@ -60,6 +61,10 @@ class AsyncLLM(StatelessLLMInterface):
             project=project_id,
             api_key=llm_api_key,
             default_headers={"User-Agent": ua},
+            # [DHVW 补丁] 默认 600 s 无超时，遇到半死连接会一直挂着不出声；
+            # 20 s 足够慢端点出首字，超时交给上层重试。
+            timeout=20.0,
+            max_retries=0,
         )
         self.support_tools = True
 
@@ -78,6 +83,32 @@ class AsyncLLM(StatelessLLMInterface):
         logger.info(
             f"Initialized AsyncLLM with the parameters: {self.base_url}, {self.model}"
         )
+
+    async def _create_stream(self, messages_with_system, available_tools):
+        """[DHVW 补丁] 建立流式请求；连接类错误按 0.5/1.0 s 退避重试。
+
+        只在尚未吐字前重试，因此不会重复输出半句话。
+        """
+        last: Exception | None = None
+        for attempt in range(1, 4):
+            try:
+                return await self.client.chat.completions.create(
+                    messages=messages_with_system,
+                    model=self.model,
+                    stream=True,
+                    temperature=self.temperature,
+                    tools=available_tools,
+                    extra_body=self.extra_body,  # [DHVW 补丁] 关闭思考等额外参数
+                )
+            except APIConnectionError as exc:
+                last = exc
+                if attempt == 3:
+                    raise
+                await asyncio.sleep(0.5 * attempt)
+                logger.warning(
+                    f"[DHVW] LLM 连接失败，第 {attempt} 次重试：{exc.__cause__}"
+                )
+        raise last  # pragma: no cover
 
     async def chat_completion(
         self,
@@ -119,15 +150,10 @@ class AsyncLLM(StatelessLLMInterface):
 
             available_tools = tools if self.support_tools else NOT_GIVEN
 
-            stream: AsyncStream[
-                ChatCompletionChunk
-            ] = await self.client.chat.completions.create(
-                messages=messages_with_system,
-                model=self.model,
-                stream=True,
-                temperature=self.temperature,
-                tools=available_tools,
-                extra_body=self.extra_body,  # [DHVW 补丁] 关闭思考等额外参数
+            # [DHVW 补丁] 首次连接失败（跨境网络抖动）重试 3 次，总等待约 3 s，
+            # 避免一句「连接失败」就被当成回复念出来。
+            stream: AsyncStream[ChatCompletionChunk] = await self._create_stream(
+                messages_with_system, available_tools
             )
             logger.debug(
                 f"Tool Support: {self.support_tools}, Available tools: {available_tools}"
@@ -228,7 +254,8 @@ class AsyncLLM(StatelessLLMInterface):
             logger.error(
                 f"Error calling the chat endpoint: Connection error. Failed to connect to the LLM API. \nCheck the configurations and the reachability of the LLM backend. \nSee the logs for details. \nTroubleshooting with documentation: https://open-llm-vtuber.github.io/docs/faq#%E9%81%87%E5%88%B0-error-calling-the-chat-endpoint-%E9%94%99%E8%AF%AF%E6%80%8E%E4%B9%88%E5%8A%9E \n{e.__cause__}"
             )
-            yield "Error calling the chat endpoint: Connection error. Failed to connect to the LLM API. Check the configurations and the reachability of the LLM backend. See the logs for details. Troubleshooting with documentation: [https://open-llm-vtuber.github.io/docs/faq#%E9%81%87%E5%88%B0-error-calling-the-chat-endpoint-%E9%94%99%E8%AF%AF%E6%80%8E%E4%B9%88%E5%8A%9E]"
+            # [DHVW 补丁] 下行文本会被直接送进 TTS，必须是给人听的中文，不能是英文堆栈
+            yield "抱歉，我暂时连不上语言模型，请检查网络或设置里的端点。"  # 补丁
 
         except RateLimitError as e:
             logger.error(

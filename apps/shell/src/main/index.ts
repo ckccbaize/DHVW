@@ -177,7 +177,7 @@ function registerIpc(): void {
       const v = patch.olvt?.[key]
       if (v !== undefined) next.olvt[key] = String(v)
     }
-    for (const key of ['refAudioPath', 'refText', 'refLang', 'textLang'] as const) {
+    for (const key of ['backendDir', 'refAudioPath', 'refText', 'refLang', 'textLang'] as const) {
       const v = patch.tts?.[key]
       if (v !== undefined) next.tts[key] = String(v)
     }
@@ -278,9 +278,36 @@ async function boot(): Promise<void> {
       hint: '在组件面板下载 OLVT，或在设置里指定已有目录',
     })
   }
+  // GPT-SoVITS：目录来自设置（或 sidecars.tts 覆盖），入口固定 api_v2.py
+  const ttsOverride = config.sidecars.tts
+  const ttsDir = (ttsOverride?.cwd || config.tts.backendDir || '').trim()
+  const ttsPython = ttsDir ? path.join(ttsDir, 'runtime', 'python.exe') : ''
+  if (ttsDir && !fs.existsSync(ttsDir)) {
+    log('warn', 'tts', '设置的语音合成目录不存在', { dir: ttsDir })
+  }
   const services: ServiceDef[] = SERVICE_CATALOG.map((svc, i) => {
     const override = config.sidecars[svc.id]
     const port = ports[i] ?? 0
+    if (svc.id === 'tts' && ttsDir) {
+      return {
+        ...svc,
+        command: override?.command ?? [
+          fs.existsSync(ttsPython) ? ttsPython : resolvePython(),
+          'api_v2.py',
+          '-a',
+          '127.0.0.1',
+          '-p',
+          '{port}',
+        ],
+        cwd: ttsDir,
+        env: { ...override?.env },
+        healthMode: 'tcp',
+        healthPath: undefined,
+        // 模型加载 12–60 s，超时告警后继续探测
+        healthTimeout: 180,
+        port,
+      }
+    }
     if (svc.id === 'olvt' && olvtDir) {
       return {
         ...svc,
@@ -294,6 +321,7 @@ async function boot(): Promise<void> {
         },
         healthMode: 'tcp',
         healthPath: undefined,
+        healthTimeout: 180,
         port,
       }
     }

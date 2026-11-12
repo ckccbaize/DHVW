@@ -177,6 +177,7 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 | OLVT / TTS 端口 | `0` = 自动分配；固定端口被占用时自动回退到动态分配 |
 | 启用 ASR | 关闭后不要求下载 SenseVoice 模型；开启但模型未下载时界面会提示 |
 | 角色名 / 称呼用户 / 人设 | 直接写进 OLVT 的 `character_config`，重启宿主生效 |
+| 语音合成后端目录 | GPT-SoVITS 目录（含 `api_v2.py` 与 `runtime/python.exe`）；留空则保留占位 worker。端口取上面的 TTS 端口 |
 | 参考音色（音频路径 + 文本） | GPT-SoVITS 的 `ref_audio_path` / `prompt_text`，留空则用 TTS 服务默认 |
 
 实测：保存 → 读回一致；`secrets` 里是 64 字符 base64 密文（非明文）；日志中检索不到密钥；`70000` 端口被拒绝并返回中文错误；端点 `https://codex.mintcat.work` 拉到 3 个对话模型（自动过滤 image 类），选中后 OLVT 直连流式首字 0.98 s。
@@ -196,6 +197,25 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 随包补丁（`apps/shell/resources/olvt-overrides/`）在启动时覆盖进后端目录，给上游 `openai_compatible_llm.py` 补两件它没有的能力：浏览器 UA（端点无 UA 直接 403）与 `OLVT_LLM_EXTRA_BODY`（关闭 deepseek 思考，首字更快且不会把思考内容读出来）。
 
 启用 ASR 但模型未下载时，后端退到占位 ASR 启动，界面日志会写明语音输入不可用。
+
+## 语音链路（已跑通）
+
+一回合 = 客户端音频 → SenseVoice → LLM → GPT-SoVITS → 音频分片。各段实测（本机 RTX 50 系）：
+
+| 段 | 实测 | 说明 |
+|---|---|---|
+| ASR（`POST /asr`，4.8 s 音频） | 0.13 s 解码，加载 1.0 s | SenseVoice int8，CPU 4 线程 |
+| LLM 首字 | 1.0–8.4 s | 端点自身抖动，与客户端无关 |
+| TTS | 冷 24.9 s（模型加载）/ 热 0.67–0.9 s | 单句，`api_v2.py` + 参考音色 |
+| 整回合（`text-input` → 首段音频） | 3.2–19.3 s | 差值几乎全在 LLM 首字 |
+
+验证方法：`ws://127.0.0.1:<olvt端口>/client-ws` 发 `{"type":"text-input","text":"..."}`，收集下行 `audio` 事件（`display_text.text` 是分句文本），`control: conversation-end` 收尾。
+
+两处对上游客户端的加固（`resources/olvt-overrides`）：
+- `AsyncOpenAI(timeout=20, max_retries=0)`：上游默认 600 s 且无重试，遇到半死连接会整轮不出声。
+- 建流连接失败按 0.5/1.0 s 退避重试 2 次；彻底失败时下行文本改为中文提示（原来会把英文排障段落念出来）。
+
+慢启动 sidecar（OLVT 6–14 s、GPT-SoVITS 12–15 s）的就绪探测超过 `healthTimeout`（默认 30 s，真实 sidecar 设 180 s）只告警一次，之后继续探测直到进程退出——否则 GPU 模型加载慢的机器会被永久标成不健康。
 
 实测（本地 OLVT 1.2.1 源码 + 组件目录结构 + 固定端口 12399）：
 

@@ -63,6 +63,8 @@ export interface ServiceDef {
   healthPath?: string
   /** http（默认，GET healthPath 期望 <400）或 tcp（能连上端口即视为就绪） */
   healthMode?: 'http' | 'tcp'
+  /** 就绪探测超时（秒）：慢启动服务可放宽，超时后仍继续探测 */
+  healthTimeout?: number
 }
 
 export type LlmProtocol = 'openai-compatible' | 'anthropic'
@@ -72,7 +74,7 @@ export interface SettingsView {
   ports: { olvt: number; tts: number }
   asr: { enabled: boolean; ready: boolean }
   olvt: { characterName: string; humanName: string; personaPrompt: string }
-  tts: { refAudioPath: string; refText: string; refLang: string; textLang: string }
+  tts: { backendDir: string; refAudioPath: string; refText: string; refLang: string; textLang: string }
 }
 
 export interface SettingsPatch {
@@ -80,7 +82,7 @@ export interface SettingsPatch {
   ports?: Partial<{ olvt: number; tts: number }>
   asr?: Partial<{ enabled: boolean }>
   olvt?: Partial<{ characterName: string; humanName: string; personaPrompt: string }>
-  tts?: Partial<{ refAudioPath: string; refText: string; refLang: string; textLang: string }>
+  tts?: Partial<{ backendDir: string; refAudioPath: string; refText: string; refLang: string; textLang: string }>
 }
 
 export interface ComponentStatus {

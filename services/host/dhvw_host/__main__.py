@@ -246,6 +246,8 @@ class Worker:
         self.extra_env: dict[str, str] = dict(spec.get("env") or {})
         self.health_path: str | None = spec.get("healthPath")
         self.health_mode: str = spec.get("healthMode") or "http"
+        # 慢启动服务（GPU 模型加载等）可以配更长；超时只告警一次，之后继续探测
+        self.health_timeout: float = float(spec.get("healthTimeout") or HEALTH_TIMEOUT)
         self.healthy: bool | None = None
         self.services_root = services_root
         self.log_dir = log_dir
@@ -314,12 +316,15 @@ class Worker:
         return re.sub(r"%([A-Za-z_][A-Za-z0-9_]*)%", lambda m: os.environ.get(m.group(1), m.group(0)), value)
 
     def _probe_health(self, pid: int | None) -> None:
-        """启动后探测就绪；30 s 内不通则标记不健康，但进程继续跑（由外部判断）。"""
+        """探测就绪：超过 healthTimeout 只告警一次，之后仍继续探测直到进程退出。
+
+        慢启动服务（GPT-SoVITS 加载模型约 40 s）不能因为一次超时就被判定永远不健康。
+        """
         path = self.health_path or "/health"
         url = f"http://127.0.0.1:{self.port}{path}"
         started = time.time()
-        deadline = started + HEALTH_TIMEOUT
-        while time.time() < deadline:
+        warned = False
+        while True:
             if not self.proc or self.proc.pid != pid or self.proc.poll() is not None:
                 return
             try:
@@ -337,10 +342,20 @@ class Worker:
                     return
             except Exception:
                 pass
-            time.sleep(0.3)
-        self.healthy = False
-        emit({"ts": round(time.time() * 1000), "type": "worker.unhealthy", "service": self.id, "pid": pid})
-        self.log.write("warn", "worker unhealthy", service=self.id, port=self.port, mode=self.health_mode, path=path)
+            if not warned and time.time() - started > self.health_timeout:
+                warned = True
+                self.healthy = False
+                emit({"ts": round(time.time() * 1000), "type": "worker.unhealthy", "service": self.id, "pid": pid})
+                self.log.write(
+                    "warn",
+                    "worker unhealthy",
+                    service=self.id,
+                    port=self.port,
+                    mode=self.health_mode,
+                    path=path,
+                    after=round(time.time() - started),
+                )
+            time.sleep(0.3 if not warned else 1.0)
 
     def stop(self, reason: str) -> None:
         proc = self.proc
