@@ -1,0 +1,15 @@
+{
+  "name": "dhvw-arm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "数字人虚拟仓 · 设备端（RK3566 / Armbian / Chromium kiosk）：离线壳 + 总观 + 端侧自治",
+  "type": "module",
+  "scripts": {
+    "serve": "node tools/serve.mjs",
+    "pack": "node tools/pack.mjs",
+    "verify": "node tools/verify.mjs",
+    "test": "node --test tests/",
+    "shell:test": "cd shell && go test ./...",
+    "shell:build": "sh shell/build.sh"
+  }
+}

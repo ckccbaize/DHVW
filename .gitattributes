@@ -1,0 +1,12 @@
+* text=auto eol=lf
+
+# 二进制资源：不做行尾/文本转换
+*.png binary
+*.webp binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
+
+# 部署脚本必须 LF（设备端是 Linux）
+*.sh text eol=lf
+deploy/** text eol=lf

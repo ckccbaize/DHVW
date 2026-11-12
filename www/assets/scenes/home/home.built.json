@@ -1,0 +1,610 @@
+{
+ "name": "home",
+ "title": "温馨的小家",
+ "version": 9,
+ "grid": {
+  "w": 20,
+  "h": 15,
+  "cell": 16
+ },
+ "start": "living",
+ "cleanup": {
+  "per_day": 6,
+  "min_interval_min": 45,
+  "tidy_ratio": 0.15
+ },
+ "image": "home.png",
+ "image2x": "home@2x.png",
+ "sprites": "sprites.png",
+ "intGrid": [
+  "11131131113111111111",
+  "11111111111111111111",
+  "10000000100001000001",
+  "10000000100001000001",
+  "10000000100001000001",
+  "10000000100001000001",
+  "10000000100001000001",
+  "11112111112111112111",
+  "10000000000000000001",
+  "10000000000000000001",
+  "10000000000000000001",
+  "10000000000000000001",
+  "10000000000000000001",
+  "10000000000000000001",
+  "11113111112111311111"
+ ],
+ "rooms": [
+  {
+   "id": "bedroom",
+   "name": "卧室",
+   "rect": [
+    1,
+    2,
+    7,
+    5
+   ],
+   "floor": "wood",
+   "unlock": {
+    "type": "start"
+   },
+   "story": "床边总堆着没叠的衣服。"
+  },
+  {
+   "id": "bathroom",
+   "name": "浴室",
+   "rect": [
+    9,
+    2,
+    4,
+    5
+   ],
+   "floor": "tile",
+   "unlock": {
+    "type": "start"
+   },
+   "story": "小是小，热水很足。"
+  },
+  {
+   "id": "balcony",
+   "name": "阳台",
+   "rect": [
+    14,
+    2,
+    5,
+    5
+   ],
+   "floor": "stone",
+   "unlock": {
+    "type": "start"
+   },
+   "story": "天好的时候，阳台能晒到太阳。"
+  },
+  {
+   "id": "living",
+   "name": "起居室",
+   "rect": [
+    1,
+    8,
+    18,
+    6
+   ],
+   "floor": "wood",
+   "unlock": {
+    "type": "start"
+   },
+   "story": "厨房、餐桌、沙发都在这一间里。"
+  }
+ ],
+ "doors": [
+  {
+   "id": "bed_living",
+   "x": 4,
+   "y": 7,
+   "to": "living"
+  },
+  {
+   "id": "bath_living",
+   "x": 10,
+   "y": 7,
+   "to": "living"
+  },
+  {
+   "id": "balcony_living",
+   "x": 16,
+   "y": 7,
+   "to": "living"
+  },
+  {
+   "id": "front",
+   "x": 10,
+   "y": 14,
+   "to": "outside"
+  }
+ ],
+ "windows": [
+  {
+   "x": 3,
+   "y": 0
+  },
+  {
+   "x": 6,
+   "y": 0
+  },
+  {
+   "x": 10,
+   "y": 0
+  },
+  {
+   "x": 4,
+   "y": 14
+  },
+  {
+   "x": 14,
+   "y": 14
+  }
+ ],
+ "props": [
+  {
+   "id": "bed",
+   "x": 1,
+   "y": 2,
+   "room": "bedroom",
+   "name": "卧室-bed-1",
+   "facing": "S",
+   "w": 2,
+   "h": 3
+  },
+  {
+   "id": "nightstand",
+   "x": 3,
+   "y": 2,
+   "room": "bedroom",
+   "name": "卧室-nightstand-1",
+   "facing": "S",
+   "w": 1,
+   "h": 1
+  },
+  {
+   "id": "wardrobe",
+   "x": 6,
+   "y": 2,
+   "room": "bedroom",
+   "name": "卧室-wardrobe-1",
+   "facing": "S",
+   "w": 2,
+   "h": 1
+  },
+  {
+   "id": "dresser",
+   "x": 6,
+   "y": 4,
+   "room": "bedroom",
+   "name": "卧室-dresser-1",
+   "facing": "W",
+   "w": 2,
+   "h": 1
+  },
+  {
+   "id": "rug",
+   "x": 2,
+   "y": 4,
+   "w": 3,
+   "h": 2,
+   "room": "bedroom",
+   "name": "卧室-rug-1"
+  },
+  {
+   "id": "plant",
+   "x": 7,
+   "y": 6,
+   "room": "bedroom",
+   "name": "卧室-plant-1",
+   "w": 1,
+   "h": 1
+  },
+  {
+   "id": "stool",
+   "x": 1,
+   "y": 6,
+   "room": "bedroom",
+   "name": "卧室-stool-1",
+   "w": 1,
+   "h": 1
+  },
+  {
+   "id": "table",
+   "x": 1,
+   "y": 9,
+   "room": "living",
+   "name": "起居室-table-1",
+   "facing": "E",
+   "w": 2,
+   "h": 2
+  },
+  {
+   "id": "chair",
+   "x": 3,
+   "y": 10,
+   "room": "living",
+   "name": "起居室-chair-1",
+   "facing": "W",
+   "w": 1,
+   "h": 1
+  },
+  {
+   "id": "plant",
+   "x": 6,
+   "y": 9,
+   "room": "living",
+   "name": "起居室-plant-1",
+   "w": 1,
+   "h": 1
+  },
+  {
+   "id": "lamp",
+   "x": 8,
+   "y": 12,
+   "room": "living",
+   "name": "起居室-lamp-1",
+   "w": 1,
+   "h": 1
+  },
+  {
+   "id": "counter",
+   "x": 1,
+   "y": 13,
+   "room": "living",
+   "name": "起居室-counter-1",
+   "facing": "N",
+   "w": 3,
+   "h": 1
+  },
+  {
+   "id": "stove",
+   "x": 4,
+   "y": 13,
+   "room": "living",
+   "name": "起居室-stove-1",
+   "facing": "N",
+   "w": 2,
+   "h": 1
+  },
+  {
+   "id": "fridge",
+   "x": 6,
+   "y": 13,
+   "room": "living",
+   "name": "起居室-fridge-1",
+   "facing": "N",
+   "w": 1,
+   "h": 1
+  },
+  {
+   "id": "sofa",
+   "x": 12,
+   "y": 8,
+   "room": "living",
+   "name": "起居室-sofa-1",
+   "facing": "S",
+   "w": 3,
+   "h": 1
+  },
+  {
+   "id": "armchair",
+   "x": 18,
+   "y": 8,
+   "room": "living",
+   "name": "起居室-armchair-1",
+   "facing": "W",
+   "w": 1,
+   "h": 1
+  },
+  {
+   "id": "rug",
+   "x": 11,
+   "y": 9,
+   "w": 5,
+   "h": 4,
+   "room": "living",
+   "name": "起居室-rug-1"
+  },
+  {
+   "id": "coffee_table",
+   "x": 13,
+   "y": 10,
+   "room": "living",
+   "name": "起居室-coffee_table-1",
+   "w": 2,
+   "h": 1
+  },
+  {
+   "id": "tv",
+   "x": 13,
+   "y": 13,
+   "room": "living",
+   "name": "起居室-tv-1",
+   "facing": "N",
+   "w": 2,
+   "h": 1
+  },
+  {
+   "id": "bookshelf",
+   "x": 17,
+   "y": 10,
+   "room": "living",
+   "name": "起居室-bookshelf-1",
+   "facing": "W",
+   "w": 2,
+   "h": 1
+  },
+  {
+   "id": "plant",
+   "x": 18,
+   "y": 12,
+   "room": "living",
+   "name": "起居室-plant-2",
+   "w": 1,
+   "h": 1
+  },
+  {
+   "id": "cat_tree",
+   "x": 17,
+   "y": 12,
+   "room": "living",
+   "name": "起居室-cat_tree-1",
+   "facing": "W",
+   "w": 1,
+   "h": 2
+  },
+  {
+   "id": "bathtub",
+   "x": 9,
+   "y": 2,
+   "room": "bathroom",
+   "name": "浴室-bathtub-1",
+   "facing": "S",
+   "w": 2,
+   "h": 2
+  },
+  {
+   "id": "sink",
+   "x": 12,
+   "y": 2,
+   "room": "bathroom",
+   "name": "浴室-sink-1",
+   "facing": "S",
+   "w": 1,
+   "h": 1
+  },
+  {
+   "id": "toilet",
+   "x": 12,
+   "y": 4,
+   "room": "bathroom",
+   "name": "浴室-toilet-1",
+   "facing": "W",
+   "w": 1,
+   "h": 1
+  },
+  {
+   "id": "washer",
+   "x": 9,
+   "y": 4,
+   "room": "bathroom",
+   "name": "浴室-washer-1",
+   "facing": "E",
+   "w": 1,
+   "h": 1
+  },
+  {
+   "id": "chair",
+   "x": 14,
+   "y": 2,
+   "room": "balcony",
+   "name": "阳台-chair-1",
+   "facing": "S",
+   "w": 1,
+   "h": 1
+  },
+  {
+   "id": "plant",
+   "x": 15,
+   "y": 2,
+   "room": "balcony",
+   "name": "阳台-plant-1",
+   "w": 1,
+   "h": 1
+  },
+  {
+   "id": "rug",
+   "x": 16,
+   "y": 4,
+   "w": 2,
+   "h": 2,
+   "room": "balcony",
+   "name": "阳台-rug-1"
+  },
+  {
+   "id": "plant_big",
+   "x": 18,
+   "y": 6,
+   "room": "balcony",
+   "name": "阳台-plant_big-1",
+   "facing": "W",
+   "w": 1,
+   "h": 1
+  },
+  {
+   "id": "plant",
+   "x": 15,
+   "y": 12,
+   "room": "living",
+   "name": "起居室-plant-3",
+   "w": 1,
+   "h": 1
+  },
+  {
+   "id": "desk",
+   "x": 4,
+   "y": 2,
+   "room": "bedroom",
+   "name": "卧室-desk-1",
+   "facing": "S",
+   "w": 2,
+   "h": 1
+  },
+  {
+   "id": "chair",
+   "x": 4,
+   "y": 3,
+   "room": "bedroom",
+   "name": "卧室-chair-1",
+   "facing": "N",
+   "w": 1,
+   "h": 1
+  },
+  {
+   "id": "plant",
+   "x": 8,
+   "y": 9,
+   "room": "living",
+   "name": "起居室-plant-4",
+   "w": 1,
+   "h": 1
+  },
+  {
+   "id": "stool",
+   "x": 5,
+   "y": 11,
+   "room": "living",
+   "name": "起居室-stool-1",
+   "w": 1,
+   "h": 1
+  }
+ ],
+ "wallProps": [
+  {
+   "id": "curtain",
+   "x": 2,
+   "y": 1,
+   "name": "墙面-curtain-1"
+  },
+  {
+   "id": "curtain",
+   "x": 4,
+   "y": 1,
+   "name": "墙面-curtain-2"
+  },
+  {
+   "id": "picture",
+   "x": 5,
+   "y": 1,
+   "name": "墙面-picture-1"
+  },
+  {
+   "id": "curtain",
+   "x": 7,
+   "y": 1,
+   "name": "墙面-curtain-3"
+  },
+  {
+   "id": "curtain",
+   "x": 9,
+   "y": 1,
+   "name": "墙面-curtain-4"
+  },
+  {
+   "id": "curtain",
+   "x": 11,
+   "y": 1,
+   "name": "墙面-curtain-5"
+  },
+  {
+   "id": "wall_lamp",
+   "x": 2,
+   "y": 7,
+   "name": "墙面-wall_lamp-1"
+  },
+  {
+   "id": "picture",
+   "x": 6,
+   "y": 7,
+   "name": "墙面-picture-2"
+  },
+  {
+   "id": "mirror",
+   "x": 12,
+   "y": 7,
+   "name": "墙面-mirror-1"
+  },
+  {
+   "id": "sticky_notes",
+   "x": 13,
+   "y": 7,
+   "name": "墙面-sticky_notes-1"
+  },
+  {
+   "id": "picture",
+   "x": 17,
+   "y": 7,
+   "name": "墙面-picture-3"
+  },
+  {
+   "id": "clock",
+   "x": 2,
+   "y": 14,
+   "name": "墙面-clock-1"
+  },
+  {
+   "id": "picture",
+   "x": 8,
+   "y": 14,
+   "name": "墙面-picture-4"
+  },
+  {
+   "id": "wall_shelf",
+   "x": 17,
+   "y": 14,
+   "name": "墙面-wall_shelf-1"
+  }
+ ],
+ "decor": [
+  {
+   "id": "slippers",
+   "x": 3,
+   "y": 6,
+   "name": "小物-slippers-1"
+  },
+  {
+   "id": "toy",
+   "x": 6,
+   "y": 6,
+   "name": "小物-toy-1"
+  },
+  {
+   "id": "bowl",
+   "x": 2,
+   "y": 12,
+   "name": "小物-bowl-1"
+  },
+  {
+   "id": "mug",
+   "x": 7,
+   "y": 12,
+   "name": "小物-mug-1"
+  },
+  {
+   "id": "magazines",
+   "x": 12,
+   "y": 12,
+   "name": "小物-magazines-1"
+  },
+  {
+   "id": "papers",
+   "x": 14,
+   "y": 9,
+   "name": "小物-papers-1"
+  }
+ ],
+ "clutter": []
+}
