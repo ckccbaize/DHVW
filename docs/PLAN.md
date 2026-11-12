@@ -85,7 +85,7 @@ PC 端“完成”= 下列全部成立，缺一不算：
 | PCM7 | 桥接与接管 | BRIDGE / DESK | PCM4 | Stub 契约稳定；接管零冲突 |
 | PCM8 | 硬化 | SUP / OBS 收口 | 全部 | 72 h 长稳、冷启动、断网恢复达标 |
 
-> 进展（2026-11-11）：PCM1 已实测通过；PCM2 完成内置 CPython 3.12 运行时与镜像拉取；`config.sidecars` 可用真实进程替换占位 sidecar——`waketrace`（HTTP 探针 1.3 s）与 `tts`（GPT-SoVITS，TCP 探针 9.2 s）均已实测就绪；全局设置（端点/模型/密钥/端口/ASR）已在 GUI 落地；OLVT 改为组件下载（不随包），下载/校验/解压/依赖安装链路已通（uv 随包，依赖装进 `resources/runtime/site-packages`）。
+> 进展（2026-11-12）：PCM1 已实测通过；PCM2 完成内置 CPython 3.12 运行时与镜像拉取；`config.sidecars` 可用真实进程替换占位 sidecar——`waketrace`（HTTP 探针 1.3 s）与 `tts`（GPT-SoVITS，TCP 探针 9.2 s）均已实测就绪；全局设置（端点/模型/密钥/端口/角色/ASR）在 GUI 落地，密钥 DPAPI 加密；OLVT 改为组件下载（不随包），启动前由主进程按设置生成 `conf.yaml` 并以真实进程拉起——内置 CPython 3.12.10 + 精简依赖（349 MB，无 torch）实测起到 `Uvicorn startup complete`（TCP 14.9 s）；安装包 137.3 MB，`runtime/site-packages` 不随包。剩余：语音链路端到端（麦克风→ASR→LLM→TTS 首字延迟）、PCM3 网关。
 
 **顺序理由**
 
