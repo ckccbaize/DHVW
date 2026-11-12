@@ -73,11 +73,11 @@
 | W24 | **并发合并协议**（D5） | `core/sync/merge.js`：所有权表 + LWW + tombstone + 幂等 | 双端同改一条：结果确定且可复现 | W5, W9 |
 | W25 | **LLM 路由与双档预算**（D2） | `core/llm/router.js` + `budget.js`：PC 在线→NotRouted；离线→直连；两类参数分离 | 切换 conn 时路由正确；超预算只停该类 | W11 |
 
-| W26 | **设备档唤醒运行时**（协议对齐 WakeTrace 2.1） | `core/wake/runtime.js`：严格 JSON、`silent/trace/message`、`world_event` 租约、`free_window`、线头 ≤5、小作品 | 假模型单测：三种结局 + 格式错误判失败；租约过期可重领 | W21 |
+| W26 | **设备档唤醒运行时（完整）** | `core/wake/`：严格 JSON、三结局、`world_event` 租约、`free_window`、线头 ≤5、小作品、工具证据、residue 过期、唤醒锁 | 假模型单测：三结局 + 格式错误判失败；租约过期可重领；线头上限生效 | W21 |
 | W27 | **自主活动注册表与计划协议** | `core/actions/registry.js` + `plan.js`：能力白名单、前置校验、时长/预算、留证 | 非法活动被拒；一次计划产出可执行步骤与证据 | W13, W20 |
-| W28 | **联网代理** | `shell` 新增 `GET /__fetch`：白名单、禁凭据/POST/内网、≤512KB、8s | 白名单外 403；内网地址拒绝；证据落库 | B4, W27 |
-| W29 | **地点图与旅行** | `core/places/`：place graph + 步行时间 + 抽象地点 | 旅行产生事件与证据；23:00 前回 home | W27 |
-| W30 | **显现共存 spike**（阻塞） | `spikes/present-host/`：iframe / 双窗口 各一版 | 切到显现后核心机仍存活（`health` 连续） | A2 |
+| W28 | **联网代理 + 全量审计** | `shell` 新增 `GET /__fetch`：AI 决定目标；禁内网/元数据/凭据/POST；≤512KB、8s、≤60 次/时；`net_log` 全量 | 内网地址拒绝；每条抓取有日志；抓回内容按不可信输入处理 | B4, W27 |
+| W29 | **地点图与旅行（含跨夜）** | `core/places/`：place graph + 步行时间 + 抽象地点 + 地图产出契约 | 跨夜旅行产生事件与证据；总观显示"她不在家"；新地图可被消费 | W27 |
+| W30 | **显现 iframe 宿主**（P1 已定） | `view/present-host.js` + PC 侧 HTTPS/证书要求：iframe 全屏、`allow=microphone;autoplay`、失败回总观 | 显现期间 `health` 连续；麦克风可用；关闭后内存回落 | A2, W9 |
 
 ## 4. L 组 · 生活引擎（作为 W4 的可视化验收面）
 
@@ -143,7 +143,7 @@
 |---|---|---|
 | 0 | A1–A6（含 D1–D10 决策） | 契约/预算/边界评审通过 |
 | 1 | B1–B6 | 壳可独立跑，curl 全绿 |
-| 2 | W1–W2 + W30 | 核心机骨架跑通；状态机选型有结论；显现共存方案定稿 |
+| 2 | W1–W2 + W30 | 核心机骨架跑通；状态机选型有结论；显现 iframe 宿主可用 |
 | 3 | W3–W6 | 状态机 + 事件日志 + 快照恢复 |
 | 4 | W7–W9 | 本地记忆 + 主机通道 + 降级 |
 | 5 | W10–W13 + W25 | 调度 + LLM 路由/预算 + skill/prompt + 管理层 Agent |
