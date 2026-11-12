@@ -118,6 +118,32 @@
 - [ ] `memory:query` 返回 `semantic:true` 且 ≤200ms
 - [ ] 向量索引可删除重建（`mem_meta` 正文重灌）
 
+## 9. LLM 服务商配置（PC 可直接修改）
+
+设备侧 LLM 走 OpenAI 兼容接口，服务商由 **PC 通过 WS 下发**，设备落库并立即生效：
+
+```json
+{ "type": "llm:config",
+  "payload": { "baseUrl": "https://api.example.com/v1", "apiKey": "sk-...",
+               "model": "deepseek-v4.1-flash", "timeoutMs": 20000,
+               "maxAttempts": 3, "retryBaseMs": 500 } }
+```
+
+| 字段 | 说明 |
+|---|---|
+| `baseUrl` | 必填，http(s)，末尾斜杠自动去掉；请求路径为 `/chat/completions` |
+| `apiKey` | 可选；只以 `sk-***abcd` 形式回显 |
+| `model` | 必填 |
+| `timeoutMs` | 1000–120000，默认 20000 |
+| `maxAttempts` | 1–5，默认 3（1 次 + 2 次重试） |
+| `retryBaseMs` | 100–10000，默认 500（指数退避 + 抖动） |
+
+**重试策略**：网络错误/超时/429/5xx/坏 JSON → 重试；4xx（除 429）不重试。设备侧 `llm:state` 回传 `{configured, baseUrl, model, maskedKey, stats}`。
+
+PC 侧 GUI 改配置后发一次 `llm:config` 即可，无需重启设备。
+
+> **CORS 注意**：设备页面在 `127.0.0.1:8080`，直连外部 LLM 会被浏览器预检拦截（多数服务商不返回 CORS 头）。设备侧会加本地代理 `POST /__llm/chat/completions`（W11b）；PC 在线时也可由 PC 代理转发。选服务商时请确认其是否允许浏览器直连，或接受走代理。
+
 ## 8. 待 PC 侧确认
 
 1. WS 端口/路径（默认 `8877/dhvw`）；

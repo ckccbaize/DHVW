@@ -7,6 +7,7 @@ export function createHostBridge({ dispatchWorld, send, post, now = () => Date.n
   let lastSeen = 0;
   let sessionId = null;
   let memoryHandler = null;
+  let llmConfigHandler = null;
 
   function patchHost(extra = {}) {
     post("core:state", {
@@ -89,6 +90,13 @@ export function createHostBridge({ dispatchWorld, send, post, now = () => Date.n
         case "memory:facts":
           post("core:event", { ev: { kind: "memory_facts", since: p.since, count: (p.facts || []).length } });
           break;
+        case "llm:config":
+          if (llmConfigHandler) {
+            Promise.resolve(llmConfigHandler(p))
+              .then(() => post("core:event", { ev: { kind: "llm_config", ok: true } }))
+              .catch((err) => post("core:event", { ev: { kind: "llm_config", ok: false, error: err.message } }));
+          }
+          break;
         case "memory:result":
           if (memoryHandler && memoryHandler(p)) break;
           post("core:event", { ev: { kind: "memory_result", hits: p.hits, semantic: !!p.semantic } });
@@ -99,6 +107,9 @@ export function createHostBridge({ dispatchWorld, send, post, now = () => Date.n
       }
     },
 
+    setLlmConfigHandler(fn) {
+      llmConfigHandler = typeof fn === "function" ? fn : null;
+    },
     setMemoryHandler(fn) {
       memoryHandler = typeof fn === "function" ? fn : null;
     },

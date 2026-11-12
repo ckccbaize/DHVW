@@ -107,6 +107,7 @@
 | `memory:facts` | `{since, facts, summary}` | 显现后记忆回流 |
 | `memory:result` | `{req_id, hits, semantic}` | 检索结果（`req_id` 原样带回） |
 | `facts:ack` | `{accepted, merged, rejected}` | 候选事实回执 |
+| `llm:config` | `{baseUrl?, apiKey?, model?, timeoutMs?, maxAttempts?, retryBaseMs?}` | **PC 直接修改设备 LLM 服务商配置**（落库生效） |
 
 ### 3.2 设备 → PC
 
@@ -122,6 +123,7 @@
 | `memory:query` | `{req_id, text, k}` | 语义检索代理（`req_id` 必填，用于结果关联） |
 | `facts:candidates` | `{facts, events}` | 设备归纳候选 |
 | `wake:state` | `{mode, next_wake_at, last_outcome}` | 设备档唤醒状态 |
+| `llm:state` | `{configured, baseUrl, model, maskedKey, stats}` | 设备 LLM 配置与调用统计（不含明文 key） |
 
 ### 3.3 连接与幂等
 

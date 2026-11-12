@@ -12,6 +12,9 @@ import { createRemoteRuntime } from "../runtime/remote.js";
 import { createLocalMemory, createIdbMemoryBackend, createMemoryDocBackend } from "./memory/local.js";
 import { createRemoteMemory } from "./memory/remote.js";
 import { createScheduler, createIdbJobBackend, createMemoryJobBackend } from "./sched/scheduler.js";
+import { createProviderStore, maskKey, isConfigured } from "./llm/provider.js";
+import { createLlmClient } from "./llm/client.js";
+import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
 
 const LOG_CAP = 200;
 const WORLD_EVENTS = new Set([
@@ -56,6 +59,8 @@ let remote = null;
 let lastSyncedSeq = 0;
 let localMemory = null;
 let scheduler = null;
+let providerStore = null;
+let llm = null;
 
 const life = createLifeRuntime({ minute: 8 * 60 });
 
@@ -97,18 +102,21 @@ function withTimeout(promise, ms, label) {
 const ready = (async () => {
   let memoryBackend = null;
   let jobBackend = null;
+  let kvBackend = null;
   try {
     const db = await withTimeout(openCoreDb(), 3000, "indexedDB open");
     eventLog = createEventLog({ backend: createIdbEventBackend(db) });
     snapStore = createSnapshotStore(db);
     memoryBackend = createIdbMemoryBackend(db);
     jobBackend = createIdbJobBackend(db);
+    kvBackend = createIdbKvBackend(db);
   } catch (err) {
     log("warn", "idb_unavailable", { msg: err.message });
     eventLog = createEventLog({ backend: createMemoryBackend() });
     snapStore = createMemorySnapshotStore();
     memoryBackend = createMemoryDocBackend();
     jobBackend = createMemoryJobBackend();
+    kvBackend = createMemoryKvBackend();
   }
   localMemory = createLocalMemory({
     backend: memoryBackend,
@@ -132,11 +140,38 @@ const ready = (async () => {
     return { ok: true, ms };
   });
 
+  providerStore = createProviderStore({ backend: kvBackend });
+  await providerStore.init();
+  llm = createLlmClient({ getProvider: () => providerStore.get() });
+  host.setLlmConfigHandler(async (patch) => {
+    await providerStore.set(patch);
+    patchState({ llm: llmView() });
+  });
+
   await eventLog.init();
   await localMemory.init();
   await scheduler.init();
   logStats = eventLog.stats;
 })();
+
+function llmView() {
+  if (!providerStore) return null;
+  const p = providerStore.get();
+  return {
+    configured: isConfigured(p),
+    baseUrl: p.baseUrl,
+    model: p.model,
+    maskedKey: maskKey(p.apiKey),
+    timeoutMs: p.timeoutMs,
+    maxAttempts: p.maxAttempts,
+    retryBaseMs: p.retryBaseMs,
+    stats: llm ? llm.stats : null,
+  };
+}
+
+function patchState(partial) {
+  patch(partial);
+}
 
 async function persistSnapshot(reason = "auto") {
   await ready;
@@ -257,6 +292,7 @@ function health() {
       remote: remoteMemory.stats,
     },
     sched: scheduler ? scheduler.stats : null,
+    llm: llmView(),
     life: life.snapshot(),
     log: { ...logStats },
     doctor: state.doctor,
@@ -423,6 +459,32 @@ const handlers = {
     }
     if (p.name === "log_latest") {
       return { ok: true, events: await eventLog.latest(p.args?.n || 10), stats: eventLog.stats };
+    }
+    if (p.name === "llm_config_get") {
+      return { ok: true, config: providerStore.get(), masked: llmView() };
+    }
+    if (p.name === "llm_config_set") {
+      await providerStore.set(p.args || {});
+      patch({ llm: llmView() });
+      return { ok: true, masked: llmView() };
+    }
+    if (p.name === "llm_complete") {
+      try {
+        const out = await llm.complete({
+          messages: p.args?.messages || [{ role: "user", content: p.args?.text || "ping" }],
+          maxTokens: p.args?.maxTokens || 200,
+          temperature: p.args?.temperature ?? 0.3,
+          json: !!p.args?.json,
+        });
+        patch({ llm: llmView() });
+        return { ok: true, ...out };
+      } catch (err) {
+        patch({ llm: llmView() });
+        throw err;
+      }
+    }
+    if (p.name === "llm_stats") {
+      return { ok: true, masked: llmView() };
     }
     if (p.name === "sched_enqueue") {
       const job = scheduler.enqueue({

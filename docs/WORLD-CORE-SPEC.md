@@ -263,7 +263,7 @@ score(hotspot) = 1.0
 | `max_tokens` | 200 | 800 |
 | 温度 | 0.8 | 0.3 |
 | 超时 | 8s | 20s |
-| 失败 | 不重试，30 min 后换下一条；连续 2 次当日停该类 | 同左 |
+| 失败 | **瞬时错误重试 ≤2 次**（指数退避）；永久错误不重试；连续 2 次失败当日停该类 | 同左 |
 
 ### 5.3 预算策略（**放宽，但规范输出**）
 
@@ -273,7 +273,7 @@ score(hotspot) = 1.0
 |---|---|
 | 单次上限 | 角色层 200 / 工作层 800 output tokens（硬） |
 | 输出规范 | 工作层必须 JSON schema；角色层必须 ≤60 字、单段、无 markdown |
-| 重试 | **不重试**（失败换下一条），避免叠时延与叠 token |
+| 重试 | **瞬时错误重试 ≤2 次**：网络/超时/429/5xx/坏 JSON；退避 500ms→1s + 抖动；4xx（除 429）不重试 |
 | 软上限 | 日 30k output 时告警并降级非必要任务（背景/场景生成） |
 | 熔断 | 日 100k output 或单小时 20k 时**停止全部生成类调用**（只保留生活 tick 与唤醒），防跑飞 |
 | 账本 | 按 `class/kind` 记账，GUI 可看、可手动重置 |
@@ -281,7 +281,20 @@ score(hotspot) = 1.0
 
 > 熔断不是预算，是**防跑飞**：模型异常循环、工具反复失败、URL 抓取风暴都靠它兜底。
 
-### 5.4 硬约束（沿用 §10.9）
+### 5.4 服务商配置（PC 可直接修改）
+
+设备侧保存 `{baseUrl, apiKey, model, timeoutMs, maxAttempts, retryBaseMs, reasoningEffort}`：
+
+- **PC 通过 WS `llm:config` 直接改**，设备落库并立即生效（不需要重启）；
+- 设备本地命令 `llm_config_set` / `llm_config_get` 同样可用（调试）；
+- `apiKey` 只以掩码形式回传（`sk-***abcd`），日志不落明文；
+- `baseUrl` 必须是 http(s)，非法配置直接拒绝并回错误；
+- 配置持久化在 IndexedDB `kv:llm_provider`，重启保留。
+
+**浏览器 CORS（实测风险）**：设备页面在 `127.0.0.1:8080`，直连外部 LLM 属跨域请求，会先发 `OPTIONS` 预检；多数服务商不返回 `Access-Control-Allow-Origin`，浏览器会直接拦掉（`net::ERR_CONNECTION_REFUSED` 或 CORS 错误）。
+**对策（W11b）**：在本地 Go 壳加 `POST /__llm/chat/completions` 代理（仅 `127.0.0.1` 可达），页面请求本地代理，由壳转发到 `baseUrl`；壳不落 key 日志、限制响应体积与超时。PC 在线时也可改走 PC 代理。
+
+### 5.5 硬约束（沿用 §10.9）
 
 `reasoning_effort=none`、不开 `tools`、JSON schema 约束、失败不重试、日上限封顶。
 
