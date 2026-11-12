@@ -32,3 +32,12 @@ export async function allocatePorts(count: number): Promise<number[]> {
   }
   return [...ports]
 }
+
+/** 端口是否空闲（被占用时返回 false，用于固定端口配置的回退判断） */
+export function isPortFree(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const srv = net.createServer()
+    srv.once('error', () => resolve(false))
+    srv.listen(port, '127.0.0.1', () => srv.close(() => resolve(true)))
+  })
+}

@@ -7,7 +7,10 @@ export interface ShellConfig {
   pythonPath: string
   autoLaunch: boolean
   window: { width: number; height: number }
-  llm: { baseUrl: string; model: string }
+  llm: { baseUrl: string; model: string; temperature: number }
+  /** 固定端口（0 = 自动分配），用于对接外部工具或防火墙放行 */
+  ports: { olvt: number; tts: number }
+  asr: { enabled: boolean }
   /** 把占位 sidecar 换成真实进程：id -> 可执行文件 + 参数（{port} 替换为分配端口） */
   sidecars: Record<string, { command: string[]; cwd?: string; env?: Record<string, string> }>
   /** 组件下载地址覆盖（企业镜像/离线包），不填则用内置镜像列表 */
@@ -21,7 +24,9 @@ const DEFAULTS: ShellConfig = {
   pythonPath: '',
   autoLaunch: false,
   window: { width: 1020, height: 720 },
-  llm: { baseUrl: 'https://codex.mintcat.work', model: 'deepseek-v4.1-flash' },
+  llm: { baseUrl: 'https://codex.mintcat.work', model: 'deepseek-v4.1-flash', temperature: 0.7 },
+  ports: { olvt: 0, tts: 0 },
+  asr: { enabled: true },
   sidecars: {},
   componentUrls: {},
   pipIndex: 'https://mirrors.aliyun.com/pypi/simple',
@@ -67,6 +72,8 @@ export function loadConfig(): ShellConfig {
       ...raw,
       window: { ...DEFAULTS.window, ...raw.window },
       llm: { ...DEFAULTS.llm, ...raw.llm },
+      ports: { ...DEFAULTS.ports, ...raw.ports },
+      asr: { ...DEFAULTS.asr, ...raw.asr },
       sidecars: { ...DEFAULTS.sidecars, ...raw.sidecars },
       componentUrls: { ...DEFAULTS.componentUrls, ...raw.componentUrls },
     }

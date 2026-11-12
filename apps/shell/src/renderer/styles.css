@@ -521,3 +521,98 @@ pre {
     transform: none;
   }
 }
+
+/* ---------- 设置弹层 ---------- */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgb(26 26 46 / 55%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 10;
+}
+
+.dialog {
+  background: var(--cel-white);
+  border: var(--line) solid var(--ink);
+  box-shadow: 8px 8px 0 var(--ink);
+  padding: 24px;
+  width: min(620px, 92vw);
+  max-height: 90vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.field label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+input[type='text'],
+input[type='password'],
+input[type='number'],
+input:not([type]) {
+  border: var(--line) solid var(--ink);
+  border-radius: 0;
+  background: var(--cel-white);
+  color: var(--ink);
+  padding: 8px 12px;
+  font: 700 13px/1.4 'Inter', Consolas, monospace;
+  outline: none;
+  min-width: 0;
+}
+
+input:focus {
+  background: #fffdf0;
+  box-shadow: var(--shadow);
+}
+
+input[readonly] {
+  background: #efefe6;
+  color: #4a4a58;
+}
+
+.row2 {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.dialog-actions {
+  justify-content: flex-end;
+  border-top: var(--line) solid var(--ink);
+  padding-top: 16px;
+}
+
+.msg {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.msg.ok {
+  color: #1f7a45;
+}
+
+.msg.bad {
+  color: #b3242f;
+}

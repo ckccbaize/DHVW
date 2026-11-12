@@ -4,13 +4,14 @@ import path from 'node:path'
 import { dataDir, logDir, rendererIndex, resourcesRoot, runtimeDir } from './paths'
 import { log } from './logger'
 import { loadConfig, saveConfig, type ShellConfig } from './config'
-import { allocatePorts } from './ports'
+import { allocatePorts, isPortFree } from './ports'
 import { HostSupervisor } from './host'
-import type { ActionRequest, AppSnapshot, ServiceDef } from '../shared/types'
+import type { ActionRequest, AppSnapshot, ServiceDef, SettingsPatch, SettingsView } from '../shared/types'
 import { createTray } from './tray'
 import { applyNetworkHardening, hardenSessionSetup } from './hardening'
 import { probeLlm } from './network'
 import { COMPONENTS, componentStatus, ensureComponent, resolveSpec } from './components'
+import { clearApiKey, hasApiKey, saveApiKey } from './secret'
 
 applyNetworkHardening()
 
@@ -48,6 +49,16 @@ function resolvePython(): string {
     return c
   }
   return 'python'
+}
+
+const ALLOWED_MODELS = ['deepseek-v4.1-flash']
+
+function settingsView(): SettingsView {
+  return {
+    llm: { ...config.llm, hasKey: hasApiKey() },
+    ports: { ...config.ports },
+    asr: { ...config.asr },
+  }
 }
 
 function snapshot(): AppSnapshot {
@@ -129,6 +140,41 @@ function registerIpc(): void {
     return { ok: true }
   })
   ipcMain.handle('dhvw:openDataDir', () => electronShell.openPath(dataDir))
+  ipcMain.handle('dhvw:settings', () => settingsView())
+  ipcMain.handle('dhvw:saveSettings', (_e, patch: SettingsPatch) => {
+    const next = loadConfig()
+    if (patch.llm?.baseUrl !== undefined) {
+      if (!/^https?:\/\/[^\s]+$/.test(patch.llm.baseUrl)) return { ok: false, error: '端点必须是 http(s) URL' }
+      next.llm.baseUrl = patch.llm.baseUrl.trim()
+    }
+    if (patch.llm?.model !== undefined) {
+      if (!ALLOWED_MODELS.includes(patch.llm.model)) return { ok: false, error: '模型不在白名单内' }
+      next.llm.model = patch.llm.model
+    }
+    if (patch.llm?.temperature !== undefined) {
+      const t = Number(patch.llm.temperature)
+      if (!(t >= 0 && t <= 2)) return { ok: false, error: 'temperature 需在 0–2' }
+      next.llm.temperature = t
+    }
+    if (patch.ports) {
+      for (const key of ['olvt', 'tts'] as const) {
+        const v = patch.ports[key]
+        if (v === undefined) continue
+        if (!Number.isInteger(v) || v < 0 || v > 65535) return { ok: false, error: '端口需为 0–65535 的整数' }
+        next.ports[key] = v
+      }
+    }
+    if (patch.asr?.enabled !== undefined) next.asr.enabled = Boolean(patch.asr.enabled)
+    saveConfig(next)
+    config = next
+    log('info', 'settings', '设置已保存', { llm: next.llm.baseUrl, model: next.llm.model, ports: next.ports })
+    return { ok: true, settings: settingsView() }
+  })
+  ipcMain.handle('dhvw:saveApiKey', (_e, key: string) => saveApiKey(String(key ?? '')))
+  ipcMain.handle('dhvw:clearApiKey', () => {
+    clearApiKey()
+    return { ok: true }
+  })
   ipcMain.handle('dhvw:components', () =>
     COMPONENTS.map((c) => componentStatus(resolveSpec(c, config.componentUrls[c.id]))),
   )
@@ -173,7 +219,14 @@ async function boot(): Promise<void> {
     resources: resourcesRoot(),
   })
 
-  const ports = await allocatePorts(SERVICE_CATALOG.length)
+  const dynamic = await allocatePorts(SERVICE_CATALOG.length)
+  const fixed: Record<string, number> = { olvt: config.ports.olvt, tts: config.ports.tts }
+  const ports = await Promise.all(
+    SERVICE_CATALOG.map(async (svc, i) => {
+      const want = fixed[svc.id] ?? 0
+      return want > 0 && (await isPortFree(want)) ? want : (dynamic[i] ?? 0)
+    }),
+  )
   const services: ServiceDef[] = SERVICE_CATALOG.map((svc, i) => {
     const override = config.sidecars[svc.id]
     return { ...svc, ...(override ?? {}), port: ports[i] ?? 0 }

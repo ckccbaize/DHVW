@@ -5,6 +5,8 @@ import type {
   ComponentProgress,
   ComponentStatus,
   HostEvent,
+  SettingsPatch,
+  SettingsView,
 } from '../shared/types'
 
 const api = {
@@ -16,6 +18,11 @@ const api = {
   restartHost: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:restartHost'),
   probeLlm: (): Promise<{ ok: boolean; ms: number; status?: number; note?: string }> =>
     ipcRenderer.invoke('dhvw:probe'),
+  settings: (): Promise<SettingsView> => ipcRenderer.invoke('dhvw:settings'),
+  saveSettings: (patch: SettingsPatch): Promise<{ ok: boolean; error?: string; settings?: SettingsView }> =>
+    ipcRenderer.invoke('dhvw:saveSettings', patch),
+  saveApiKey: (key: string): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('dhvw:saveApiKey', key),
+  clearApiKey: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:clearApiKey'),
   components: (): Promise<ComponentStatus[]> => ipcRenderer.invoke('dhvw:components'),
   installComponent: (id: string): Promise<ComponentStatus> => ipcRenderer.invoke('dhvw:componentInstall', id),
   onComponentProgress: (cb: (p: ComponentProgress) => void): (() => void) => {

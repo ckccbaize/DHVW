@@ -65,6 +65,18 @@ export interface ServiceDef {
   healthMode?: 'http' | 'tcp'
 }
 
+export interface SettingsView {
+  llm: { baseUrl: string; model: string; temperature: number; hasKey: boolean }
+  ports: { olvt: number; tts: number }
+  asr: { enabled: boolean }
+}
+
+export interface SettingsPatch {
+  llm?: Partial<{ baseUrl: string; model: string; temperature: number }>
+  ports?: Partial<{ olvt: number; tts: number }>
+  asr?: Partial<{ enabled: boolean }>
+}
+
 export interface ComponentStatus {
   id: string
   name: string

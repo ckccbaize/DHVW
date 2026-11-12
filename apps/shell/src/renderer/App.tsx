@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import type { AppSnapshot, ComponentStatus, HostEvent, WorkerSnapshot } from '../shared/types'
+import type { AppSnapshot, ComponentStatus, HostEvent, SettingsView, WorkerSnapshot } from '../shared/types'
 
 declare global {
   interface Window {
@@ -24,6 +24,130 @@ const stateLabel: Record<WorkerSnapshot['state'], string> = {
   failed: '失败',
 }
 
+function SettingsDialog({
+  value,
+  onClose,
+  onSaved,
+}: {
+  value: SettingsView
+  onClose: () => void
+  onSaved: (next: SettingsView) => void
+}): React.ReactElement {
+  const [baseUrl, setBaseUrl] = useState(value.llm.baseUrl)
+  const [temperature, setTemperature] = useState(String(value.llm.temperature))
+  const [olvtPort, setOlvtPort] = useState(String(value.ports.olvt))
+  const [ttsPort, setTtsPort] = useState(String(value.ports.tts))
+  const [asr, setAsr] = useState(value.asr.enabled)
+  const [key, setKey] = useState('')
+  const [hasKey, setHasKey] = useState(value.llm.hasKey)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const save = async (): Promise<void> => {
+    setBusy(true)
+    try {
+      const res = await window.dhvw.saveSettings({
+        llm: { baseUrl, temperature: Number(temperature) },
+        ports: { olvt: Number(olvtPort), tts: Number(ttsPort) },
+        asr: { enabled: asr },
+      })
+      if (!res.ok || !res.settings) {
+        setMsg({ ok: false, text: res.error ?? '保存失败' })
+        return
+      }
+      onSaved(res.settings)
+      setMsg({ ok: true, text: '已保存（服务端口变更需重启宿主生效）' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const saveKey = async (): Promise<void> => {
+    const res = await window.dhvw.saveApiKey(key)
+    if (res.ok) {
+      setHasKey(true)
+      setKey('')
+      setMsg({ ok: true, text: 'API Key 已加密保存' })
+    } else {
+      setMsg({ ok: false, text: res.error ?? '保存失败' })
+    }
+  }
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="dialog" onClick={(e) => e.stopPropagation()}>
+        <h2>设置</h2>
+        <div className="field">
+          <label>调用端点（全局）</label>
+          <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} spellCheck={false} />
+        </div>
+        <div className="row2">
+          <div className="field">
+            <label>模型</label>
+            <input value={value.llm.model} readOnly />
+          </div>
+          <div className="field">
+            <label>temperature</label>
+            <input value={temperature} onChange={(e) => setTemperature(e.target.value)} />
+          </div>
+        </div>
+        <div className="field">
+          <label>
+            API Key
+            <span className={`pill ${hasKey ? 'ok' : ''}`}>{hasKey ? '已配置' : '未配置'}</span>
+          </label>
+          <div className="row2">
+            <input
+              type="password"
+              placeholder={hasKey ? '输入新密钥可覆盖' : 'sk-...'}
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              spellCheck={false}
+            />
+            <div className="actions">
+              <button disabled={!key.trim()} onClick={() => void saveKey()}>
+                保存密钥
+              </button>
+              <button
+                disabled={!hasKey}
+                onClick={() =>
+                  void window.dhvw.clearApiKey().then(() => {
+                    setHasKey(false)
+                    setMsg({ ok: true, text: '密钥已清除' })
+                  })
+                }
+              >
+                清除
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="row2">
+          <div className="field">
+            <label>OLVT 端口（0 = 自动）</label>
+            <input value={olvtPort} onChange={(e) => setOlvtPort(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>TTS 端口（0 = 自动）</label>
+            <input value={ttsPort} onChange={(e) => setTtsPort(e.target.value)} />
+          </div>
+        </div>
+        <label className="switch">
+          <input type="checkbox" checked={asr} onChange={(e) => setAsr(e.target.checked)} />
+          启用语音识别（ASR）
+        </label>
+        {msg && <p className={`msg ${msg.ok ? 'ok' : 'bad'}`}>{msg.text}</p>}
+        <div className="actions dialog-actions">
+          <button className="primary" disabled={busy} onClick={() => void save()}>
+            保存
+          </button>
+          <button onClick={onClose}>关闭</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function EventLine({ e }: { e: HostEvent }): React.ReactElement {
   return (
     <div className={`ev ${e.type}`}>
@@ -46,6 +170,8 @@ export default function App(): React.ReactElement {
   const [probe, setProbe] = useState<{ ok: boolean; ms: number; note?: string } | null>(null)
   const [probing, setProbing] = useState(false)
   const [components, setComponents] = useState<ComponentStatus[]>([])
+  const [showSettings, setShowSettings] = useState(false)
+  const [settings, setSettings] = useState<SettingsView | null>(null)
 
   const refresh = useCallback(async () => setSnap(await window.dhvw.snapshot()), [])
   const refreshLog = useCallback(async () => setLogText(await window.dhvw.tailLog(selected, 120)), [selected])
@@ -54,6 +180,7 @@ export default function App(): React.ReactElement {
     void refresh()
     void window.dhvw.probeLlm().then(setProbe)
     void window.dhvw.components().then(setComponents)
+    void window.dhvw.settings().then(setSettings)
     const offComp = window.dhvw.onComponentProgress(({ id, progress }) =>
       setComponents((prev) => prev.map((c) => (c.id === id ? { ...c, progress } : c))),
     )
@@ -134,9 +261,21 @@ export default function App(): React.ReactElement {
           >
             重启宿主
           </button>
+          <button onClick={() => { setShowSettings(true); void window.dhvw.settings().then(setSettings) }}>设置</button>
           <button onClick={() => void window.dhvw.openDataDir()}>打开数据目录</button>
         </div>
       </header>
+
+      {showSettings && settings && (
+        <SettingsDialog
+          value={settings}
+          onClose={() => setShowSettings(false)}
+          onSaved={(next) => {
+            setSettings(next)
+            setSnap((prev) => (prev ? { ...prev, llm: { baseUrl: next.llm.baseUrl, model: next.llm.model } } : prev))
+          }}
+        />
+      )}
 
       <main>
         <section className="panel services">
