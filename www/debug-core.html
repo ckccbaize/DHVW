@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>核心机骨架（W1）</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 18px; background: #0f1218; color: #e6e9f0;
+         font: 13px/1.6 "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif; }
+  h1 { font-size: 16px; margin: 0 0 12px; font-weight: 600; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  button { font: inherit; padding: 6px 12px; border-radius: 8px; border: 1px solid #2b3242;
+           background: #1b2130; color: #e6e9f0; cursor: pointer; }
+  button:active { background: #263044; }
+  pre { background: #141a24; border: 1px solid #232b3a; border-radius: 8px;
+        padding: 10px 12px; overflow: auto; max-height: 40vh; }
+  .ok { color: #6fcaa5; } .bad { color: #e07a7a; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+</style>
+</head>
+<body>
+<h1>核心机骨架（W1）· <span id="status">启动中…</span></h1>
+<div class="row">
+  <button id="btnSnapshot">snapshot</button>
+  <button id="btnPause">pause</button>
+  <button id="btnResume">resume</button>
+  <button id="btnBadType">发未知 type（应回 error）</button>
+  <button id="btnBadVersion">发错版本（应回 error）</button>
+</div>
+<div class="grid">
+  <div><div>state</div><pre id="state">{}</pre></div>
+  <div><div>health</div><pre id="health">{}</pre></div>
+</div>
+<div>消息（最近 20 条）</div>
+<pre id="log"></pre>
+
+<script type="module">
+import { createCoreClient } from "./js/core/client.js";
+import { makeMsg } from "./js/core/bus.js";
+
+const $ = (s) => document.querySelector(s);
+const logEl = $("#log");
+const lines = [];
+const stateEl = $("#state");
+const healthEl = $("#health");
+
+function pushLine(text) {
+  lines.unshift(`${new Date().toLocaleTimeString()}  ${text}`);
+  if (lines.length > 20) lines.pop();
+  logEl.textContent = lines.join("\n");
+}
+
+const client = createCoreClient({
+  onMessage(msg) {
+    if (msg.type === "core:state") stateEl.textContent = JSON.stringify(msg.payload.patch, null, 1);
+    if (msg.type === "core:health") healthEl.textContent = JSON.stringify(msg.payload, null, 1);
+    pushLine(`${msg.type}${msg.replyTo ? " (reply)" : ""}`);
+  },
+  onError(err) {
+    pushLine(`error: ${err.message}`);
+  },
+});
+
+try {
+  client.start();
+  const init = await client.request("core:init", { scene: { id: "home" }, clock: { day: 1, minute: 480 } });
+  pushLine(`core:init → ${JSON.stringify(init)}`);
+  await client.request("core:snapshot", {});
+  $("#status").textContent = "运行中";
+  $("#status").className = "ok";
+} catch (err) {
+  $("#status").textContent = `失败：${err.message}`;
+  $("#status").className = "bad";
+}
+
+$("#btnSnapshot").onclick = () => client.request("core:snapshot", {}).catch((e) => pushLine(e.message));
+$("#btnPause").onclick = () => client.request("core:pause", {}).catch((e) => pushLine(e.message));
+$("#btnResume").onclick = () => client.request("core:resume", {}).catch((e) => pushLine(e.message));
+$("#btnBadType").onclick = () => client.request("core:no_such_type", {}).catch((e) => pushLine(`预期 error: ${e.code}`));
+
+$("#btnBadVersion").onclick = () => {
+  // 直接绕过 client 发一条 v=99 的消息，验证 worker 的 bad_version 分支
+  const w = new Worker(new URL("./js/core/worker.js", import.meta.url), { type: "module" });
+  const msg = { ...makeMsg("core:snapshot", {}), v: 99 };
+  w.onmessage = (e) => {
+    if (e.data.type !== "error") return; // 忽略 worker 启动时的 health 推送
+    pushLine(`bad_version → ${e.data.type}/${e.data.payload?.code}`);
+    w.terminate();
+  };
+  w.postMessage(msg);
+};
+
+window.__core = { client, lines };
+</script>
+</body>
+</html>

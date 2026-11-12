@@ -40,7 +40,7 @@
 |---|---|---|---|---|
 | A1 | 冻结参考实现 | `spike-v0` tag | tag 存在 | — |
 | A2 | **核心机边界与预算冻结** | `docs/WORLD-CORE-SPEC.md`：模块边界、消息表、内存/CPU 预算、失败策略 | 文档评审通过 | 调研 D1–D10 定稿 |
-| A3 | 跨进程契约 v0 | `docs/CONTRACTS.md`：主线程↔core、core↔子 Worker、设备↔PC | 三张消息表字段/方向/频率齐全 | A2 |
+| A3 | 跨进程契约 v0 | `docs/CONTRACTS.md`：主线程↔core、core↔子 Worker、设备↔PC | 三张消息表字段/方向/频率齐全 | A2 | **已有** |
 | A4 | 模块职责表 | `DEVICE-DESIGN.md` 补"每个文件一句话职责" | 无重复职责、无空壳模块 | A2 |
 | A5 | 验收模板 | `docs/ACCEPTANCE.md`：每项的"可观察结果 + 打点" | 后续提交都带证据段 | — |
 | A6 | 资源包与版本规则 | 目录 + `manifest.json` 版本号 | 改资源必须重打包且 verify 通过 | — |
@@ -62,7 +62,7 @@
 
 | ID | 开发项 | 产出 | 验收 | 依赖 |
 |---|---|---|---|---|
-| W1 | core.worker 骨架与消息总线 | `core/worker.js`、`core/bus.js`：init/state/event/health | 主线程发 `input` 能收到 `state` 回包 | A3 |
+| W1 | core.worker 骨架与消息总线 | `core/worker.js`、`core/bus.js`、`core/client.js`：init/state/event/health/reply | 主线程发 `input` 能收到 `state` 回包 | A3 | **已有**（8 项测试 + `debug-core.html` 实测） |
 | W2 | 状态机 spike（XState vs 纯 reducer） | `spikes/fsm/`：同一状态图两种实现 + 快照恢复 | 3 天内给出选型结论（体积/可读性/快照） | A2 |
 | W3 | 世界状态机 | `core/machine/world.js`：显示态 × 主机可达 × 档位（§10.1 矩阵） | 非法组合 0 次；迁移日志逐条可复现 | W2 |
 | W4 | 生活状态机 | `core/machine/life.js`：作息 7 段 → 房间/动作 | 拨时间可见行为变化 | W3 |

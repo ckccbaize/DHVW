@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-12T11:18:30.988Z",
+ "built_at": "2026-11-12T12:12:55.198Z",
  "files": [
   {
    "path": "assets/scenes/home/home.built.json",
@@ -33,6 +33,11 @@
    "sha256": "751c536eb0f31f7f8f542a02e68cf0740e14639d8ad6f1574f36b36451a81a80"
   },
   {
+   "path": "debug-core.html",
+   "size": 3723,
+   "sha256": "d2ba1348c48008e9720d7e0859ff930115cba8944e16a831a145217991eaf90b"
+  },
+  {
    "path": "index.html",
    "size": 2170,
    "sha256": "9c0b19d5141785cbe3d0053b4761fb4a1a8cc19b86b5c7bca47fe172ecb02bb3"
@@ -46,6 +51,16 @@
    "path": "js/core/assetstore.js",
    "size": 1657,
    "sha256": "bafbf845c88d932c54f6c6b86faa1d2f23368e2d1b8559588e60c0ac825739d9"
+  },
+  {
+   "path": "js/core/bus.js",
+   "size": 3023,
+   "sha256": "761157a2fe6599fd6122c6d549f02f8a4e2c2a6c39921b508aa60d42127f5a02"
+  },
+  {
+   "path": "js/core/client.js",
+   "size": 1534,
+   "sha256": "ac710d8bb48b5e056c4992a7b3c1ac18f9d8b077a28ba2eaf3b0a8a9f4993c60"
   },
   {
    "path": "js/core/clock.js",
@@ -76,6 +91,11 @@
    "path": "js/core/ringbuffer.js",
    "size": 796,
    "sha256": "dfa4c98e57c85102d903532341cc18b848bee2965c46035a781e58ed94ebbdac"
+  },
+  {
+   "path": "js/core/worker.js",
+   "size": 3706,
+   "sha256": "0b7f8f20c2c7acca97e577a25e6f84e33266ab489ea07ec2d21fa3f3890bc63f"
   },
   {
    "path": "js/forge/grammar.js",

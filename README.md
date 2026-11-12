@@ -24,6 +24,7 @@ npm run serve     # http://127.0.0.1:8080
 npm test          # 纯函数与契约测试
 npm run verify    # 资源包完整性
 npm run validate -- www/assets/scenes/home   # 场景包校验（§15 不变量）
+# 核心机骨架自检页：http://127.0.0.1:8080/debug-core.html
 ```
 
 设备端：
