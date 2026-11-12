@@ -24,6 +24,7 @@
 | `payload` | 纯 JSON；**不允许二进制**（资产走 blob/URL） |
 
 **错误回复**：`{type:"error", replyTo, payload:{code, msg}}`；未知 `type` 必须回 `error`，不静默丢弃。
+**WS 同信封**：设备 ↔ PC 的每条消息也必须带 `payload`（`hello` 的 `t_server`、`say` 的 `text` 都在 `payload` 里），不要放顶层。
 **超时**：请求默认 5s（LLM 类 20s），超时由调用方判定，不重发。
 **顺序**：同一通道内保序；不同通道不保证。
 **心跳**：主线程 ↔ core 5s；core ↔ 子 Worker 5s；设备 ↔ PC 5s。
@@ -54,7 +55,8 @@
 | `core:bubble` | `{text, ttl}` | 事件式 |
 | `core:asset` | `{meta}` | 产出时 |
 | `core:job` | `{id, kind, status, progress}` | 任务状态变化 |
-| `core:health` | `{ok, uptime, tier, conn, memMB?, tickP95, queue, doctor}` | 5s |
+| `core:moveTo` | `{targetGrid, path, speed, t0}` | 主机下发移动（转发给视图） |
+| `core:health` | `{ok, uptime, tier, conn, host, log, queue, doctor}` | 5s |
 | `core:error` | `{code, msg}` | 异常 |
 
 ---

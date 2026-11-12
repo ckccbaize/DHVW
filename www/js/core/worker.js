@@ -7,6 +7,8 @@ import { createLifeRuntime } from "./machine/life.js";
 import { createEventLog, createMemoryBackend } from "./log/events.js";
 import { openCoreDb, createIdbEventBackend } from "./log/idb.js";
 import { createSnapshotStore, createMemorySnapshotStore, validateSnapshot } from "./snapshot.js";
+import { createHostBridge } from "./host.js";
+import { createRemoteRuntime } from "../runtime/remote.js";
 
 const LOG_CAP = 200;
 const WORLD_EVENTS = new Set([
@@ -34,6 +36,7 @@ const state = {
   doctor: { status: "ok", lastCheck: 0 },
   machine: null,
   life: null,
+  host: { conn: "down", offsetMs: 0, lastSeen: 0, session: null },
 };
 
 const logs = [];
@@ -46,8 +49,16 @@ let logStats = { count: 0, lastSeq: 0, dropped: 0 };
 let snapStore = createMemorySnapshotStore();
 let snapMeta = { ts: 0, lastSeq: 0, resumed: false };
 let saveTimer = null;
+let remote = null;
+let lastSyncedSeq = 0;
 
 const life = createLifeRuntime({ minute: 8 * 60 });
+
+const host = createHostBridge({
+  dispatchWorld: (ev) => dispatchWorld(ev),
+  send: (m) => (remote ? remote.send(m) : false),
+  post,
+});
 
 const world = createWorldRuntime({
   log(rec) {
@@ -92,6 +103,7 @@ async function persistSnapshot(reason = "auto") {
     v: 1,
     ts: Date.now(),
     lastSeq: eventLog.lastSeq,
+    lastSyncedSeq,
     world: world.state,
     life: life.snapshot(),
     reason,
@@ -125,6 +137,18 @@ function post(type, payload, extra) {
 function patch(partial) {
   Object.assign(state, partial);
   post("core:state", { patch: partial });
+}
+
+async function flushEvents() {
+  await ready;
+  if (!remote || remote.conn !== "up") return 0;
+  const events = await eventLog.since(lastSyncedSeq, 200);
+  if (!events.length) return 0;
+  if (host.eventsBatch(events)) {
+    lastSyncedSeq = events[events.length - 1].seq;
+    scheduleSnapshot();
+  }
+  return events.length;
 }
 
 async function appendEvent(kind, payload = {}, src = "device") {
@@ -166,6 +190,13 @@ function health() {
     snapshot: { ...snapMeta },
     transitions: world.records.length,
     illegal: world.state.illegal,
+    host: {
+      conn: host.conn,
+      offsetMs: host.offsetMs,
+      lastSeen: host.lastSeen,
+      session: host.sessionId,
+    },
+    lastSyncedSeq,
     life: life.snapshot(),
     log: { ...logStats },
     doctor: state.doctor,
@@ -184,6 +215,8 @@ function dispatchWorld(event) {
   }
   const res = world.dispatch(event);
   patch(syncWorld());
+  if (event.type === "PRESENT_REQUEST" && !res.illegal) host.presentBegin();
+  if (event.type === "PRESENT_EXIT" && !res.illegal) host.presentEnd();
   scheduleSnapshot();
   return { ok: true, illegal: res.illegal, state: world.state };
 }
@@ -202,6 +235,7 @@ const handlers = {
       try {
         world.reset(snap.world);
         life.restore(snap.life);
+        lastSyncedSeq = Number(snap.lastSyncedSeq) || 0;
         snapMeta = { ts: snap.ts, lastSeq: snap.lastSeq, resumed: true };
         log("info", "snapshot_restored", { ts: snap.ts, lastSeq: snap.lastSeq });
       } catch (err) {
@@ -220,6 +254,23 @@ const handlers = {
     if (p.mood) Object.assign(state.mood, p.mood);
     log("info", "init", { scene: state.scene });
     patch({ ...state, ...syncWorld() });
+    if (remote) {
+      remote.stop();
+      remote = null;
+    }
+    const hostCfg = p.config?.host || {};
+    remote = createRemoteRuntime({
+      url: hostCfg.wsUrl || "",
+      probeUrl: hostCfg.probeUrl || "",
+      onConn: (next, info) => {
+        host.onConn(next, info);
+        if (next === "up") void flushEvents();
+      },
+      onMessage: (m) => host.onMessage(m),
+      log: (m) => log("info", "remote", { msg: m }),
+    });
+    remote.start();
+
     await appendEvent("core_ready", {
       scene: state.scene,
       lastSeq: eventLog.lastSeq,
@@ -311,6 +362,17 @@ const handlers = {
     }
     if (p.name === "log_latest") {
       return { ok: true, events: await eventLog.latest(p.args?.n || 10), stats: eventLog.stats };
+    }
+    if (p.name === "host_flush") {
+      const n = await flushEvents();
+      return { ok: true, sent: n, lastSyncedSeq };
+    }
+    if (p.name === "host_info") {
+      return {
+        ok: true,
+        host: { conn: host.conn, offsetMs: host.offsetMs, lastSeen: host.lastSeen, session: host.sessionId },
+        lastSyncedSeq,
+      };
     }
     if (p.name === "snapshot_save") {
       const snap = await persistSnapshot("manual");

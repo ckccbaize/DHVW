@@ -70,7 +70,7 @@
 | W6 | 快照与恢复 | `core/snapshot.js`：world/life/lastSeq 落 IndexedDB kv；2s 防抖 + 30s 定期 | kill Worker 后 ≤2s 恢复且不重复处理 | W3, W5 | **已有**（7 项测试 + 浏览器重载实测） |
 | W7 | 记忆查询（本地） | `core/memory/local.js`：MiniSearch + bigram 分词，索引摘要 | 5000 条摘要 ≤10MB、查询 ≤20ms | W5 |
 | W8 | 记忆查询（PC 代理） | `core/memory/remote.js`：`memory:query` 请求/超时/降级 | 主机不可达时 200ms 内降级到本地 | W7, W9 |
-| W9 | 主机可达与同步通道 | `core/sync/`：心跳 5s、60s 判死、outbox/inbox | 假主机单测 + 手动断开可见降级 | W1 |
+| W9 | 主机可达与同步通道 | `core/host.js` + `runtime/remote.js`：心跳 5s、60s 判死、hello 校时、present:begin/end、events:batch | 假主机单测 + `tools/fake-pc.mjs` 联调 | W1 | **已有**（6 项测试 + 真实 WS 联调） |
 | W10 | 调度器 | `core/sched/`：优先级、切片 ≤5s、让位、持久队列 | 活跃期不跑生成；息屏满速；挂起保留队列 | W5 |
 | W11 | LLM 客户端与预算账本 | `core/agent/llm.js` + `budget.js`：超时/中止/用量/日上限 | 超时可控；超预算只停生成不停生活 | W10 |
 | W12 | Prompt / Skill 注册表 | `skills/<name>/SKILL.md` + `prompts/*.md` → 构建期 `skills.json` | 改 prompt 不动代码；清单可校验 | A6 |

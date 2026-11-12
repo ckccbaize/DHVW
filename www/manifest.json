@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-12T13:23:15.226Z",
+ "built_at": "2026-11-12T13:33:58.033Z",
  "files": [
   {
    "path": "assets/scenes/home/home.built.json",
@@ -34,8 +34,8 @@
   },
   {
    "path": "debug-core.html",
-   "size": 9613,
-   "sha256": "d24591bf5b1518deaeca8633cbbfbaf892673fd136fbc9d31a341670863bb238"
+   "size": 10070,
+   "sha256": "79abecac98bcf6d153de8427811d38d79895c3c98a7ad81051d4305bebd6779f"
   },
   {
    "path": "index.html",
@@ -71,6 +71,11 @@
    "path": "js/core/grid.js",
    "size": 5221,
    "sha256": "ff4fe22dac287a949ec51d9b643a18691c910eeaf107a032b92b0c79c9206ac5"
+  },
+  {
+   "path": "js/core/host.js",
+   "size": 4078,
+   "sha256": "3ae7a0e54cb36244c254d09ca8c73afbf2d2c9e45f1bb11461f2285ac77192ea"
   },
   {
    "path": "js/core/lifestore.js",
@@ -119,8 +124,8 @@
   },
   {
    "path": "js/core/worker.js",
-   "size": 10532,
-   "sha256": "ef343e145fbac892ba9b2713d70b720d7eb87a6078bbc29edd012fd5c7adb55b"
+   "size": 12396,
+   "sha256": "534822e6a03547c67b71119ca5717c0089b94e9f5dca1f6a15335d98818b0487"
   },
   {
    "path": "js/forge/grammar.js",
@@ -134,8 +139,8 @@
   },
   {
    "path": "js/runtime/remote.js",
-   "size": 4270,
-   "sha256": "af7c17f2d4d2a0c8279af4061cc21b2503a6027d50a36826853833ad4b501568"
+   "size": 4400,
+   "sha256": "3e19fdee57345f3b8cc85d68b1f89fea8dedbf1bb00054d3cefab6e149000d2e"
   },
   {
    "path": "js/view/hud.js",

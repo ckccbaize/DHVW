@@ -2,6 +2,8 @@
 // 心跳 5s；WS 与 HTTP 探测双证；丢失 >60s 判不可达。
 // 主机不存在是**默认路径**，因此无 url 时立即 down，不重试、不报错。
 
+import { makeMsg } from "../core/bus.js";
+
 export function createRemoteRuntime({
   url = "",
   probeUrl = "",
@@ -35,7 +37,7 @@ export function createRemoteRuntime({
   function send(obj) {
     if (ws && ws.readyState === 1) {
       try {
-        ws.send(JSON.stringify(obj));
+        ws.send(JSON.stringify(makeMsg(obj.type, obj.payload ?? {}, { id: obj.id, ts: obj.ts })));
         return true;
       } catch {
         return false;
@@ -82,7 +84,7 @@ export function createRemoteRuntime({
         scheduleRetry();
         return;
       }
-      if (conn === "up") send({ type: "heartbeat", t });
+      if (conn === "up") send({ type: "heartbeat", payload: { t } });
       else if (!ws) {
         // WS 不可用时的第二证：HTTP 探测
         if (await probe()) setConn("up", "probe");
@@ -113,7 +115,7 @@ export function createRemoteRuntime({
       retryDelay = 2000;
       lastSeen = now();
       setConn("up", "ws_open");
-      send({ type: "hello", t: now(), role: "device", proto: 1 });
+      send({ type: "hello", payload: { t: now(), role: "device", proto: 1 } });
     };
     sock.onmessage = (ev) => {
       lastSeen = now();

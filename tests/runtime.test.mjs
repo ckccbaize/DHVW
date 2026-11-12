@@ -80,9 +80,9 @@ test("RemoteRuntime：WS 打开 → up，发 hello；心跳超时 → down", () 
   assert.equal(rt.conn, "up");
   assert.equal(ws.sent[0].type, "hello");
 
-  ws.msg({ type: "state:overview", work_tier: "host" });
+  ws.msg({ type: "state:overview", payload: { work_tier: "host" } });
   assert.equal(msgs.length, 1);
-  assert.equal(msgs[0].work_tier, "host");
+  assert.equal(msgs[0].payload.work_tier, "host");
 
   // 未超时：心跳只发不判死
   now += 5000;
