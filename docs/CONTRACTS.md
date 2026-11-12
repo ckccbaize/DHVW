@@ -105,7 +105,7 @@
 | `present:begin` / `present:end` | `{session_id}` | 显现会话边界（设备据此静音/接收记忆） |
 | `life:event` | `{cycle_id, outcome, fact, content, share, residue, next_wake, occurred_at}` | 生活流（WakeTrace 协议） |
 | `memory:facts` | `{since, facts, summary}` | 显现后记忆回流 |
-| `memory:result` | `{hits, semantic}` | 检索结果 |
+| `memory:result` | `{req_id, hits, semantic}` | 检索结果（`req_id` 原样带回） |
 | `facts:ack` | `{accepted, merged, rejected}` | 候选事实回执 |
 
 ### 3.2 设备 → PC
@@ -119,7 +119,7 @@
 | `events:batch` | `{events:[...]}` | 回流，≤200/批 |
 | `assets:manifest` | `{assets:[...]}` | `tier:edge` 清单 |
 | `memory:push` | `{since, facts, events, mood, phase, weather, place}` | 显现前推记忆 |
-| `memory:query` | `{text, k, since}` | 语义检索代理 |
+| `memory:query` | `{req_id, text, k}` | 语义检索代理（`req_id` 必填，用于结果关联） |
 | `facts:candidates` | `{facts, events}` | 设备归纳候选 |
 | `wake:state` | `{mode, next_wake_at, last_outcome}` | 设备档唤醒状态 |
 

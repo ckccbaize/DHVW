@@ -31,7 +31,7 @@
 | `present:begin` / `present:end` | `{session_id}` | 显现会话边界 |
 | `life:event` | `{cycle_id, outcome, fact, content, share, residue, next_wake, occurred_at}` | WakeTrace 生活流 |
 | `memory:facts` | `{since, facts[], summary}` | 显现后记忆回流 |
-| `memory:result` | `{hits[], semantic:true}` | 语义检索结果 |
+| `memory:result` | `{req_id, hits[], semantic:true}` | 语义检索结果（`req_id` 必须原样带回） |
 | `facts:ack` | `{accepted[], merged[], rejected[]}` | 候选事实回执 |
 
 ## 3. 设备 → PC（PC 需要接收/处理）
@@ -45,7 +45,7 @@
 | `events:batch` | `{events:[...]}` | 按 `uuid` 幂等入库；回 ack（可空） |
 | `assets:manifest` | `{assets:[...]}` | `tier:edge` 资产登记 |
 | `memory:push` | `{since, facts, events, mood, phase, weather, place}` | 并入上下文（显现前） |
-| `memory:query` | `{text, k, since}` | 查 `memory.db` → `memory:result` |
+| `memory:query` | `{req_id, text, k}` | 查 `memory.db` → `memory:result`（200ms 内返回，超时设备降级本地） |
 | `facts:candidates` | `{facts, events}` | 去重/合并/向量化 → `facts:ack` |
 | `wake:state` | `{mode, next_wake_at, last_outcome}` | 避免 PC 与设备同时开口 |
 
@@ -90,8 +90,9 @@
 
 ### 5.4 查询
 
-- `memory:query` → `memory:result`，目标 **≤200ms**（局域网）；
-- 返回 `{hits:[{id, body, tier, ts, score}], semantic:true}`；
+- `memory:query` → `memory:result`，目标 **≤200ms**（局域网）；超时设备自动降级本地字面检索；
+- 请求带 `req_id`，响应必须原样带回；
+- 返回 `{req_id, hits:[{id, body, tier, ts, score}], semantic:true}`；
 - 主机不可达时设备降级为本地字面检索，结果标 `semantic:false`。
 
 ### 5.5 回流

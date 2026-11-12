@@ -10,6 +10,7 @@ import { createSnapshotStore, createMemorySnapshotStore, validateSnapshot } from
 import { createHostBridge } from "./host.js";
 import { createRemoteRuntime } from "../runtime/remote.js";
 import { createLocalMemory, createIdbMemoryBackend, createMemoryDocBackend } from "./memory/local.js";
+import { createRemoteMemory } from "./memory/remote.js";
 
 const LOG_CAP = 200;
 const WORLD_EVENTS = new Set([
@@ -61,6 +62,12 @@ const host = createHostBridge({
   send: (m) => (remote ? remote.send(m) : false),
   post,
 });
+
+const remoteMemory = createRemoteMemory({
+  send: (m) => (host ? host.sendRaw(m) : false),
+  timeoutMs: 200,
+});
+host.setMemoryHandler((payload) => remoteMemory.handle(payload));
 
 const world = createWorldRuntime({
   log(rec) {
@@ -149,6 +156,19 @@ function patch(partial) {
   post("core:state", { patch: partial });
 }
 
+async function queryMemory(text, k = 5) {
+  await ready;
+  if (host.conn === "up") {
+    try {
+      const r = await remoteMemory.query(text, k);
+      return { hits: r.hits || [], semantic: true, source: "pc", query: text };
+    } catch (err) {
+      log("debug", "memory_remote_failed", { code: err.code || "error" });
+    }
+  }
+  return { hits: localMemory.search(text, { k }), semantic: false, source: "local", query: text };
+}
+
 async function flushEvents() {
   await ready;
   if (!remote || remote.conn !== "up") return 0;
@@ -207,7 +227,11 @@ function health() {
       session: host.sessionId,
     },
     lastSyncedSeq,
-    memory: { count: localMemory ? localMemory.count : 0, terms: localMemory ? localMemory.terms : 0 },
+    memory: {
+      count: localMemory ? localMemory.count : 0,
+      terms: localMemory ? localMemory.terms : 0,
+      remote: remoteMemory.stats,
+    },
     life: life.snapshot(),
     log: { ...logStats },
     doctor: state.doctor,
@@ -321,9 +345,7 @@ const handlers = {
   },
 
   async "core:query"(p) {
-    await ready;
-    const hits = localMemory.search(p.text || "", { k: p.k || 5 });
-    return { hits, semantic: false, query: p.text || "" };
+    return queryMemory(p.text || "", p.k || 5);
   },
 
   async "core:snapshot"() {
@@ -375,6 +397,9 @@ const handlers = {
     }
     if (p.name === "log_latest") {
       return { ok: true, events: await eventLog.latest(p.args?.n || 10), stats: eventLog.stats };
+    }
+    if (p.name === "memory_query") {
+      return { ok: true, ...(await queryMemory(p.args?.text || "", p.args?.k || 5)) };
     }
     if (p.name === "memory_add") {
       const doc = await localMemory.add(p.args || {});

@@ -87,6 +87,13 @@ server.on("upgrade", (req, socket) => {
       if (msg.type === "events:batch") {
         console.log(`[fake-pc]   batch=${msg.payload?.events?.length ?? 0}`);
       }
+      if (msg.type === "memory:query") {
+        sendMsg("memory:result", {
+          req_id: msg.payload?.req_id,
+          hits: [{ id: "pc-1", text: "PC 侧记忆：京都的枫叶", score: 0.91, tier: "L2" }],
+          semantic: true,
+        });
+      }
       if (msg.type === "present:begin" || msg.type === "present:end") {
         console.log(`[fake-pc]   session=${msg.payload?.session_id}`);
       }

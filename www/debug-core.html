@@ -56,6 +56,7 @@
   <button id="btnMemAdd">添加一条记忆</button>
   <button id="btnMemSearch">搜索「京都枫叶」</button>
   <button id="btnMemClear">清空记忆</button>
+  <button id="btnMemQuery">查询（PC 优先）</button>
 </div>
 
 <h2>事件日志（W5）</h2>
@@ -218,6 +219,12 @@ $("#btnMemSearch").onclick = async () => {
   try {
     const r = await client.request("core:command", { name: "memory_search", args: { text: "京都枫叶", k: 3 } });
     pushLine(`memory search → ${r.hits.map((h) => h.id + ":" + h.score).join(", ") || "无命中"}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnMemQuery").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "memory_query", args: { text: "京都枫叶", k: 3 } });
+    pushLine(`memory query → source=${r.source} semantic=${r.semantic} hits=${r.hits.length}`);
   } catch (e) { pushLine(e.message); }
 };
 $("#btnMemClear").onclick = async () => {

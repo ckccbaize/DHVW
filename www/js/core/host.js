@@ -6,6 +6,7 @@ export function createHostBridge({ dispatchWorld, send, post, now = () => Date.n
   let offsetMs = 0;
   let lastSeen = 0;
   let sessionId = null;
+  let memoryHandler = null;
 
   function patchHost(extra = {}) {
     post("core:state", {
@@ -89,6 +90,7 @@ export function createHostBridge({ dispatchWorld, send, post, now = () => Date.n
           post("core:event", { ev: { kind: "memory_facts", since: p.since, count: (p.facts || []).length } });
           break;
         case "memory:result":
+          if (memoryHandler && memoryHandler(p)) break;
           post("core:event", { ev: { kind: "memory_result", hits: p.hits, semantic: !!p.semantic } });
           break;
         default:
@@ -97,6 +99,12 @@ export function createHostBridge({ dispatchWorld, send, post, now = () => Date.n
       }
     },
 
+    setMemoryHandler(fn) {
+      memoryHandler = typeof fn === "function" ? fn : null;
+    },
+    sendRaw(msg) {
+      return send(msg);
+    },
     presentBegin(id) {
       sessionId = id || `p-${now()}`;
       return send({ type: "present:begin", payload: { session_id: sessionId } });

@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-12T13:39:46.926Z",
+ "built_at": "2026-11-12T13:45:33.271Z",
  "files": [
   {
    "path": "assets/scenes/home/home.built.json",
@@ -34,8 +34,8 @@
   },
   {
    "path": "debug-core.html",
-   "size": 11483,
-   "sha256": "c648891d89d41972d91049bf2cee6f5a87b210c8f65e12ae9789d2dc19e2f9fc"
+   "size": 11847,
+   "sha256": "20c95726ddbd3123dfae36fa0e58686d548b09aedda67beb9811ab8733d8016f"
   },
   {
    "path": "index.html",
@@ -74,8 +74,8 @@
   },
   {
    "path": "js/core/host.js",
-   "size": 4078,
-   "sha256": "3ae7a0e54cb36244c254d09ca8c73afbf2d2c9e45f1bb11461f2285ac77192ea"
+   "size": 4306,
+   "sha256": "8cfb8ad65f13892a84c5a53200968a65b804c389e2c14d55e9f7078fe603ecbe"
   },
   {
    "path": "js/core/lifestore.js",
@@ -118,6 +118,11 @@
    "sha256": "e0e57047fae9c8a3b4858a446cc613a27a0ce0a740b0619ac9cf30f49e0893f1"
   },
   {
+   "path": "js/core/memory/remote.js",
+   "size": 1920,
+   "sha256": "d57916089deb13e517e7a89a9549422f83d20f5d1630bb207521f204b0102b8b"
+  },
+  {
    "path": "js/core/pathagent.js",
    "size": 3329,
    "sha256": "4249212bf055ee42f9d0e64ddb5af6e2c0ebc1ffffec6745e88148cf2c1b9692"
@@ -134,8 +139,8 @@
   },
   {
    "path": "js/core/worker.js",
-   "size": 13712,
-   "sha256": "6e9d11aeff1f069d269ecc2aebe17facf0355d39ebd15d089205b48272063138"
+   "size": 14467,
+   "sha256": "e986f44ea2ffb2bff48d2890199a599e09b3560e17897b9aa1bed96bf0762778"
   },
   {
    "path": "js/forge/grammar.js",

@@ -69,7 +69,7 @@
 | W5 | 事件日志 | `core/log/`：append-only + `seq` + 环形 2000 + IndexedDB 持久化 + uuid 幂等 | 写 2001 条剩 2000；重启后 `seq` 连续 | W1 | **已有**（9 项测试 + 浏览器重载实测） |
 | W6 | 快照与恢复 | `core/snapshot.js`：world/life/lastSeq 落 IndexedDB kv；2s 防抖 + 30s 定期 | kill Worker 后 ≤2s 恢复且不重复处理 | W3, W5 | **已有**（7 项测试 + 浏览器重载实测） |
 | W7 | 记忆查询（本地） | `core/memory/`：自研 bigram 倒排 + 时间衰减 + IndexedDB 持久化（不引 MiniSearch） | 5000 条摘要 ≤10MB、查询 ≤20ms | W5 | **已有**（7 项测试 + 浏览器重载实测） |
-| W8 | 记忆查询（PC 代理） | `core/memory/remote.js`：`memory:query` 请求/超时/降级 | 主机不可达时 200ms 内降级到本地 | W7, W9 |
+| W8 | 记忆查询（PC 代理） | `core/memory/remote.js`：`memory:query` 请求 + `req_id` 关联 + 200ms 超时 + 本地降级 | 主机不可达时 200ms 内降级到本地 | W7, W9 | **已有**（5 项测试 + 假 PC 联调） |
 | W9 | 主机可达与同步通道 | `core/host.js` + `runtime/remote.js`：心跳 5s、60s 判死、hello 校时、present:begin/end、events:batch | 假主机单测 + `tools/fake-pc.mjs` 联调 | W1 | **已有**（6 项测试 + 真实 WS 联调） |
 | W10 | 调度器 | `core/sched/`：优先级、切片 ≤5s、让位、持久队列 | 活跃期不跑生成；息屏满速；挂起保留队列 | W5 |
 | W11 | LLM 客户端与预算账本 | `core/agent/llm.js` + `budget.js`：超时/中止/用量/日上限 | 超时可控；超预算只停生成不停生活 | W10 |
@@ -87,7 +87,7 @@
 | W22 | **统计与可视化**（D3） | `core/stats/` + `www/debug.html`：状态图 SVG、时间线、心情曲线、队列、预算 | 断网可用；状态迁移 1s 内上图 | W3, W20 |
 | W23 | **记忆管线**（D4） | `core/memory/pipeline.js`：预筛→LLM 归纳→事实→向量→索引 | 20 条事件归纳出 5–10 条事实；检索 top1 命中 | W7, W11 |
 | W24 | **并发合并协议**（D5） | `core/sync/merge.js`：所有权表 + LWW + tombstone + 幂等 | 双端同改一条：结果确定且可复现 | W5, W9 |
-| W25 | **LLM 路由与双档预算**（D2） | `core/llm/router.js` + `budget.js`：PC 在线→NotRouted；离线→直连；两类参数分离 | 切换 conn 时路由正确；超预算只停该类 | W11 |
+| W25 | **LLM 客户端与预算**（D2 修订） | `core/llm/client.js` + `budget.js`：设备常开直连；显现期间角色层静音；两类参数分离 | 显现时角色层不调用；超预算只停该类 | W11 |
 
 | W26 | **设备档唤醒运行时（完整）** | `core/wake/`：严格 JSON、三结局、`world_event` 租约、`free_window`、线头 ≤5、小作品、工具证据、residue 过期、唤醒锁 | 假模型单测：三结局 + 格式错误判失败；租约过期可重领；线头上限生效 | W21 |
 | W27 | **自主活动注册表与计划协议** | `core/actions/registry.js` + `plan.js`：能力白名单、前置校验、时长/预算、留证 | 非法活动被拒；一次计划产出可执行步骤与证据 | W13, W20 |
