@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-12T15:48:43.918Z",
+ "built_at": "2026-11-12T15:56:08.017Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -39,8 +39,8 @@
   },
   {
    "path": "debug-core.html",
-   "size": 20487,
-   "sha256": "2185c508f01de162061385d4d04f412d2e35ac26a4045ffbbea628cdf9f44444"
+   "size": 21526,
+   "sha256": "dcaf485e27b4511f31a5bf74edd6e5aa4851cf60d94bdae8032b291a76b8753c"
   },
   {
    "path": "index.html",
@@ -116,6 +116,11 @@
    "path": "js/core/kv.js",
    "size": 937,
    "sha256": "e8b28063a75c7300859e24ef25753baa471934cb9c92914855645ecf673745dc"
+  },
+  {
+   "path": "js/core/life/outing.js",
+   "size": 5121,
+   "sha256": "8664bd6eb0acd5d8b42fac1029ab9a21f94759aa53660ce0fa7e60a01b73ce79"
   },
   {
    "path": "js/core/lifestore.js",
@@ -199,8 +204,8 @@
   },
   {
    "path": "js/core/worker.js",
-   "size": 25755,
-   "sha256": "5702107e3b46a462623898592741d1e5d70e4b15816162d9b469fb49f66cd19d"
+   "size": 28554,
+   "sha256": "022d911be0c6872872937e5cc12b460650eb0018b6a42c6b2fbe37cacca4eebd"
   },
   {
    "path": "js/forge/grammar.js",

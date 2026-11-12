@@ -19,6 +19,7 @@ import { createAgentRegistry } from "./agent/registry.js";
 import { createManagerAgent } from "./agent/manager.js";
 import { createPlotAgent, EVENT_POOL } from "./agent/subs/plot.js";
 import { createEventPoolAgent } from "./agent/subs/events.js";
+import { planOuting, pickDestination, dateKey, SPECIAL_DATES } from "./life/outing.js";
 import { createBgAgent } from "./agent/subs/bg.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
 
@@ -76,6 +77,7 @@ let bgAgent = null;
 let bgMeta = null;
 let eventPoolAgent = null;
 let eventPool = { updatedAt: 0, events: [] };
+let outing = { lastAt: 0, day: "", count: 0, plan: null, specialDates: {}, lastCheckAt: 0 };
 
 const life = createLifeRuntime({ minute: 8 * 60 });
 
@@ -177,6 +179,8 @@ const ready = (async () => {
   eventPoolAgent = createEventPoolAgent({ llm, registry: agentRegistry });
   const savedPool = await kvBackend.get("event_pool");
   if (savedPool && Array.isArray(savedPool.events)) eventPool = savedPool;
+  const savedOuting = await kvBackend.get("outing_state");
+  if (savedOuting && typeof savedOuting === "object") outing = { ...outing, ...savedOuting };
   scheduler.register("event_pool", async () => {
     await refreshEventPool(6);
   });
@@ -208,6 +212,62 @@ const ready = (async () => {
   }, 30 * 60 * 1000);
   logStats = eventLog.stats;
 })();
+
+function outingView() {
+  return {
+    lastAt: outing.lastAt,
+    count: outing.count,
+    plan: outing.plan,
+    specialDates: outing.specialDates,
+  };
+}
+
+async function maybeOuting({ force = false } = {}) {
+  if (!force && scheduler.stats.present) return { ok: false, reason: "present" };
+  const now = Date.now();
+  if (!force && now - outing.lastCheckAt < 60_000) return { ok: false, reason: "throttled" };
+  outing.lastCheckAt = now;
+  const day = dateKey(now);
+  if (outing.day !== day) {
+    outing.day = day;
+    outing.count = 0;
+  }
+  const snap = life.snapshot();
+  const r = planOuting({
+    now,
+    mood: snap.mood,
+    lastOutingAt: outing.lastAt,
+    outingsToday: outing.count,
+    sameActCount: snap.recent.length,
+    specialDates: outing.specialDates,
+  });
+  if (!r.go && !force) {
+    patch({ outing: outingView() });
+    return { ok: true, ...r };
+  }
+  const destination = r.destination || pickDestination({ mood: snap.mood, special: r.special });
+  outing.lastAt = now;
+  outing.count += 1;
+  outing.plan = {
+    ts: now,
+    reason: r.reason,
+    special: r.special,
+    destination,
+    moodDelta: destination.mood,
+    mapSpec: {
+      kind: destination.kind,
+      name: destination.name,
+      distance: destination.distance,
+      seed: `${day}-${outing.count}`,
+    },
+  };
+  life.applyMood(destination.mood, { source: "plot", reason: `出门:${destination.name}` });
+  patch({ life: life.snapshot(), outing: outingView() });
+  scheduleSnapshot();
+  await kvBackend.put("outing_state", outing);
+  await appendEvent("outing:intent", outing.plan);
+  return { ok: true, ...r, go: true, destination };
+}
 
 async function refreshEventPool(count = 6) {
   if (!eventPoolAgent) return { ok: false, reason: "not_ready", events: [], rejected: [] };
@@ -372,6 +432,7 @@ function health() {
     agent: agentRegistry ? agentRegistry.stats() : { loaded: false },
     bg: bgMeta,
     eventPool: { total: eventPool.events.length, updatedAt: eventPool.updatedAt },
+    outing: outingView(),
     life: life.snapshot(),
     log: { ...logStats },
     doctor: state.doctor,
@@ -515,6 +576,7 @@ const handlers = {
       life.advance(p.args?.minutes ?? 60);
       patch({ life: life.snapshot() });
       scheduleSnapshot();
+      void maybeOuting();
       return { ok: true, life: life.snapshot() };
     }
     if (p.name === "life_mood") {
@@ -582,6 +644,26 @@ const handlers = {
         });
       }
       return { ...r, life: life.snapshot() };
+    }
+    if (p.name === "outing_check") {
+      return await maybeOuting();
+    }
+    if (p.name === "outing_go") {
+      return await maybeOuting({ force: true });
+    }
+    if (p.name === "outing_state") {
+      return { ok: true, outing: outingView() };
+    }
+    if (p.name === "outing_clear") {
+      outing = { lastAt: 0, day: "", count: 0, plan: null, specialDates: outing.specialDates, lastCheckAt: 0 };
+      await kvBackend.put("outing_state", outing);
+      patch({ outing: outingView() });
+      return { ok: true, outing: outingView() };
+    }
+    if (p.name === "outing_special") {
+      outing.specialDates = { ...outing.specialDates, ...(p.args?.dates || {}) };
+      await kvBackend.put("outing_state", outing);
+      return { ok: true, outing: outingView() };
     }
     if (p.name === "event_pool_refresh") {
       return await refreshEventPool(p.args?.count || 6);

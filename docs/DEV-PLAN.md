@@ -93,7 +93,7 @@
 | W26 | **设备档唤醒运行时（完整）** | `core/wake/`：严格 JSON、三结局、`world_event` 租约、`free_window`、线头 ≤5、小作品、工具证据、residue 过期、唤醒锁 | 假模型单测：三结局 + 格式错误判失败；租约过期可重领；线头上限生效 | W21 |
 | W27 | **自主活动注册表与计划协议** | `core/actions/registry.js` + `plan.js`：能力白名单、前置校验、时长/预算、留证 | 非法活动被拒；一次计划产出可执行步骤与证据 | W13, W20 |
 | W28 | **联网代理 + 全量审计** | `shell` 新增 `GET /__fetch`：AI 决定目标；禁内网/元数据/凭据/POST；≤512KB、8s、≤60 次/时；`net_log` 全量 | 内网地址拒绝；每条抓取有日志；抓回内容按不可信输入处理 | B4, W27 |
-| W29 | **地点图与旅行（含跨夜、动态注册表）** | `core/places/`：place graph + 步行时间 + 抽象地点 + 地图产出契约 + `SCENE_ADDED/REMOVED` 原子更新 | 跨夜旅行产生事件与证据；新地图可被消费；删除当前场景时回 home | W27 |
+| W29 | **地点图与旅行（含跨夜、动态注册表）** | `core/places/`：place graph + 步行时间 + 抽象地点 + 地图产出契约 + `SCENE_ADDED/REMOVED` 原子更新 | 跨夜旅行产生事件与证据；新地图可被消费；删除当前场景时回 home | W27 | 出门意愿已有（`core/life/outing.js`） |
 | W32 | **Doctor 自检与自愈**（未来功能） | `core/doctor.js`：周期检测、日志包、LLM 诊断、白名单动作、安全模式 | 注入 5 类故障可检测；动作 100% 在白名单；日志脱敏 | W17, W11 |
 | W33 | **心情/行为外部引导与深层管理**（未来） | `core/mood/policy.js`：来源优先级、TTL、限频、episode/baseline、剧情 setpoint | 唤醒/剧情可引导行为且可解释；越权被拒 | W4, W21, W14 |
 | W31 | **地图绘制移植**（设备侧自己画） | `forge/painter.js` + `forge/layout.js`：`paint_home.py`/`pick_layout.py` 的 JS 版 + 同源闸门 | 同 spec 与 Python 逐像素一致；设备烘焙 ≤50ms | B4, W27 |
