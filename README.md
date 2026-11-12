@@ -207,6 +207,24 @@ conf: port 12399 / base_url https://codex.mintcat.work / model deepseek-v4.1-fla
 override UA applied: true
 ```
 
+## OLVT 依赖清单（精简）
+
+上游 `pyproject.toml` 把全部后端 SDK 都列为必装（anthropic / azure-speech / elevenlabs / cartesia / edge-tts / pyttsx3 / letta / torch）。我们只用「openai_compatible + sherpa-onnx + GPT-SoVITS HTTP」，随包改用 `apps/shell/resources/olvt-requirements.txt`（安装时优先于组件自带的 `requirements.txt`）。
+
+- 重型导入都藏在各后端模块内部、由工厂按需 import，所以剔除是安全的；
+- 但 `basic_memory_agent` 在模块级就 import 了 `anthropic` 与 `letta_client`，`agent_factory` 会提前拉起 → 必须保留；
+- `mcp` 在 Windows 上依赖 `pywin32`，缺了 import 直接失败；
+- `groq` 保留，仅作为「ASR 未启用/模型未下载」时的占位后端；
+- torch 不装（VAD 已关闭，coqui/funasr 不用）。
+
+实测：334 MB / 依赖安装 7 分钟（阿里云索引），装进共享 `runtime/site-packages` 后，内置 CPython 3.12.10 + 生成的 conf.yaml 能把 OLVT 起到 `Uvicorn running on http://127.0.0.1:12399`，日志确认 `ASR: sherpa_onnx_asr` / `TTS: gpt_sovits_tts` / `VAD is disabled` / `Application startup complete`。
+
+嵌入式 CPython 的三处坑（`runtime/sitecustomize.py` 已处理）：
+
+1. `._pth` 模式下 `PYTHONPATH` 被忽略 → 读 `DHVW_PYTHONPATH`；
+2. 脚本所在目录不进 `sys.path` → 手动插入 `os.getcwd()`，否则 `python run_server.py` 找不到同目录包；
+3. `uv --target` 装的目录不是 site 目录，`.pth` 不生效（pywin32 就靠它注册 `win32/win32/lib`）→ 手动展开 `.pth` 里的相对路径，并把 `pywin32_system32` 加进 DLL 搜索路径。
+
 ## 运行环境放在哪（ADR-PC-019）
 
 | 内容 | 位置 | 卸载 |

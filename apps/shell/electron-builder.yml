@@ -19,6 +19,8 @@ extraResources:
     filter:
       - '**/*'
       - '!**/__pycache__/**'
+      # 组件依赖是首次使用时下载安装的（ADR-PC-018），不随安装包
+      - '!site-packages/**'
   - from: build/tools
     to: tools
   - from: build/icon.png
@@ -26,6 +28,9 @@ extraResources:
   # 上游 OLVT 未开放 UA / extra_body，随包带两个补丁文件覆盖过去
   - from: resources/olvt-overrides
     to: olvt-overrides
+  # 精简后的 OLVT 依赖清单（替代上游 requirements.txt）
+  - from: resources/olvt-requirements.txt
+    to: olvt-requirements.txt
 asar: true
 win:
   target:

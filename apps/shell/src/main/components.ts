@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
-import { componentsRoot, dataDir, resourcesRoot, runtimeDir } from './paths'
+import { bundledResourceDir, componentsRoot, dataDir, resourcesRoot, runtimeDir } from './paths'
 
 /**
  * 可下载组件（ADR-PC-018 修订：OLVT 不随包，首次使用时下载）。
@@ -21,6 +21,8 @@ export interface ComponentSpec {
   minBytes?: number
   /** 组件内的依赖清单（相对路径），安装到 runtime/site-packages */
   requirements?: string
+  /** 随包的依赖清单（相对 resources/），存在时优先于组件自带的那份 */
+  requirementsBundled?: string
 }
 
 export interface ComponentStatus {
@@ -57,6 +59,8 @@ export const COMPONENTS: ComponentSpec[] = [
     entry: 'run_server.py',
     minBytes: 5_000_000,
     requirements: 'requirements.txt',
+    // 上游把全部后端 SDK（含 torch）列为必装，随包用精简清单替代，见该文件头注释
+    requirementsBundled: 'olvt-requirements.txt',
   },
   {
     // 与既有实验环境一致的 SenseVoice 多语种 ASR 模型（229 MB），不随包
@@ -198,7 +202,8 @@ function installDeps(
   onProgress: (pct: number) => void,
 ): void {
   if (!spec.requirements) return
-  const req = path.join(dir, spec.requirements)
+  const bundled = spec.requirementsBundled ? path.join(bundledResourceDir(), spec.requirementsBundled) : ''
+  const req = bundled && fs.existsSync(bundled) ? bundled : path.join(dir, spec.requirements)
   if (!fs.existsSync(req)) return
   const runtime = runtimeDir()
   const uv =

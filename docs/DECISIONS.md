@@ -204,3 +204,10 @@
   - `conf.yaml` 是生成物，手改会在下次启动被覆盖；需要长期保留的调整要加进设置项。
   - 升级 OLVT 版本时必须同步 `olvt-overrides` 里的补丁文件，否则 UA/extra_body 丢失。
   - conf.yaml 含明文 API Key，安装目录（per-user，`%LOCALAPPDATA%`）本身受用户账户保护，但不能再复制到共享目录。
+
+### 修订（2026-11-12）：精简依赖清单与嵌入式 Python 的三处适配
+
+- OLVT 组件安装时不使用上游 `requirements.txt`，改用随包的 `resources/olvt-requirements.txt`（`ComponentSpec.requirementsBundled` 优先）。
+- 依据：静态求 `run_server.py` 的模块级导入闭包 + 逐次启动验证；剔除项（torch / azure-speech / elevenlabs / cartesia / edge-tts / pyttsx3 / 各 ASR 后端）都只被各自的后端模块在函数内 import。
+- 必须保留但上游标注为“可选”的：`anthropic`、`letta-client`（`basic_memory_agent` 模块级导入）、`pywin32`（mcp 的 Windows 句柄实现）、`groq`（ASR 占位）。
+- `runtime/sitecustomize.py` 补齐三件嵌入式 Python 缺失的标准行为：`DHVW_PYTHONPATH`、脚本目录入 `sys.path`、展开 `--target` 目录里的 `.pth` 并注册 DLL 目录。
