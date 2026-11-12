@@ -10,6 +10,7 @@
     "verify": "node tools/verify.mjs",
     "test": "node --test tests/*.test.mjs",
     "shell:test": "cd shell && go test ./...",
-    "shell:build": "sh shell/build.sh"
+    "shell:build": "sh shell/build.sh",
+    "validate": "node tools/validate-scene.mjs"
   }
 }

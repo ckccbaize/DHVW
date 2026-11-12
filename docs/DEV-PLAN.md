@@ -100,7 +100,7 @@
 
 | ID | 工具 | 作用 | 验收 | 状态 |
 |---|---|---|---|---|
-| T1 | `tools/validate-scene.mjs` | schema + 闸门：尺寸一致、spawn/热点可走、门双向、`act` 有定义、图集引用存在 | 改坏一处 → 退出码 1 并指出文件与格坐标 | 待做 |
+| T1 | `tools/validate-scene.mjs` | schema + 闸门：尺寸一致、spawn/热点可走、门双向、`act` 有定义、图集引用存在 | 改坏一处 → 退出码 1 并指出文件与格坐标 | **已有**（16 项测试） |
 | T2 | `tools/intake.mjs` | 产出侧目录 → `www/assets/scenes/<id>/`，生成 manifest，拒绝不合格包 | 不合格包不落盘 | 待做 |
 | T3 | `js/view/scene-loader.js` | 加载 + 校验 + 解码，失败回退内置场景 | 缺图不白屏 | 待做 |
 | T4 | `js/view/animator.js` | 按 `sheet.json` 播放（方向/动作/帧率） | 4 向 + 5 动作可播 | 待做 |

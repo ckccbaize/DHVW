@@ -23,6 +23,7 @@ RK3566（4×A55 / 2GB / 32G eMMC）+ Armbian + Chromium kiosk 上的设备端软
 npm run serve     # http://127.0.0.1:8080
 npm test          # 纯函数与契约测试
 npm run verify    # 资源包完整性
+npm run validate -- www/assets/scenes/home   # 场景包校验（§15 不变量）
 ```
 
 设备端：
