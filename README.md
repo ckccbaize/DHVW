@@ -178,6 +178,33 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 
 实测：保存 → 读回一致；`secrets` 里是 64 字符 base64 密文（非明文）；日志中检索不到密钥；`gpt-6-astra` 与 `70000` 端口均被拒绝并返回中文错误。
 
+## OLVT 首启编排（ADR-PC-020）
+
+后端不需要手改 `conf.yaml`：外壳每次启动按当前设置生成，再以 sidecar 拉起。
+
+| 生成字段 | 来源 |
+|---|---|
+| `system_config.port` | 设置里的 OLVT 端口（0 = 自动；固定端口被占用自动回退） |
+| `llm_configs.openai_compatible_llm.*` | 全局端点 / 模型 / temperature / 解密后的 API Key |
+| `tts_config.gpt_sovits_tts.api_url` | `http://127.0.0.1:<tts 端口>/tts` |
+| `asr_config.sherpa_onnx_asr.sense_voice/tokens` | 组件目录里 SenseVoice 的绝对路径 |
+| `vad_config.vad_model` | `null`（silero 需要 torch，运行环境不含） |
+
+随包补丁（`apps/shell/resources/olvt-overrides/`）在启动时覆盖进后端目录，给上游 `openai_compatible_llm.py` 补两件它没有的能力：浏览器 UA（端点无 UA 直接 403）与 `OLVT_LLM_EXTRA_BODY`（关闭 deepseek 思考，首字更快且不会把思考内容读出来）。
+
+启用 ASR 但模型未下载时，后端退到占位 ASR 启动，界面日志会写明语音输入不可用。
+
+实测（本地 OLVT 1.2.1 源码 + 组件目录结构 + 固定端口 12399）：
+
+```
+worker healthy  service=olvt  mode=tcp  ms=4439
+http://127.0.0.1:12399/  → 200 <!doctype html>
+conf: port 12399 / base_url https://codex.mintcat.work / model deepseek-v4.1-flash
+      sense_voice …\components\asr-sensevoice\2024-07-17\model.int8.onnx
+      api_url http://127.0.0.1:<tts 端口>/tts / vad_model null
+override UA applied: true
+```
+
 ## 运行环境放在哪（ADR-PC-019）
 
 | 内容 | 位置 | 卸载 |

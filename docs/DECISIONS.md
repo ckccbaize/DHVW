@@ -171,7 +171,7 @@
 - OLVT 不随安装包：它带完整 venv 与前端产物，体积与模型互绑，随包会让每次升级重下全部内容。
 - 首次使用从组件面板下载：内置镜像顺序为 `ghfast.top` → `gh-proxy.com` → `ghproxy.net` → GitHub 直连，落盘前校验最小体积（可选 sha256），解压后校验入口文件存在。
 - 下载地址可在 `config.shell.componentUrls` 覆盖（企业镜像/离线包），不硬编码在代码里。
-- 组件解压到 `%APPDATA%/DigitalHuman/components/<id>/<version>/`，与安装目录分离，卸载不动它。
+- 组件解压到 `<安装根目录>/resources/components/<id>/<version>/`（与 ADR-PC-019 一致，卸载随之清理）。
 - 依赖安装由随包 `tools/uv.exe` 自动完成，装进 `resources/runtime/site-packages`（已实测）。
 - ASR 模型（SenseVoice 229 MB）同样走组件下载，与既有实验环境保持同一模型，不随包。
 
@@ -188,3 +188,19 @@
   - 卸载会删掉已下载的 OLVT 与依赖，重装后需重新下载；换来的是零残留。
   - 升级安装（同目录覆盖）保留 `resources/components`，只有卸载才清空。
   - 安装目录不可写时行为降级为 AppData，需要用户名下可写；文档必须写明这一点。
+
+## ADR-PC-020 OLVT 后端配置由外壳生成，用户不碰 conf.yaml
+
+- **日期**：2026-11-12 · **状态**：已接受
+- **决策**：
+  1. 每次启动前由主进程把「全局设置」渲染成 OLVT 的 `conf.yaml`，写在 OLVT 后端目录里（`run_server.py` 只认 cwd 下的 `conf.yaml`），文件头标注“由 DHVW 生成，请勿手改”。
+  2. 字段来源：LLM 端点/模型/temperature/密钥 ← 设置；`api_url` ← 分配的 TTS 端口；`port` ← 分配的 OLVT 端口；SenseVoice 的 `sense_voice`/`tokens` ← ASR 组件目录绝对路径。
+  3. 字符串一律用 JSON 字符串字面量（合法 YAML 双引号标量），避免中文与 Windows 反斜杠转义出错。
+  4. 上游 OLVT 不支持请求头与额外请求体，改为随包带补丁文件覆盖 `openai_compatible_llm.py`（浏览器 UA + `OLVT_LLM_EXTRA_BODY`），启动时覆盖进后端目录；版本号钉在 1.2.1。
+  5. `vad_config.vad_model: null`：silero VAD 依赖 torch（约 2.5 GB），运行环境不含 torch，语音分段交给客户端。
+  6. ASR 模型缺失时（未启用或未下载）退到 `groq_whisper_asr` 占位配置：pydantic 强制要求 `asr_config` 有具体实现，用不带模型文件的实现保证后端仍能起来，界面提示语音输入不可用。
+- **理由**：终端型产品不该让用户编辑后端 YAML；配置项分散在两处必然漂移。密钥只能进加密存储，所以 conf.yaml 每次由主进程解密后重写，文件里是明文但只存在于本机安装目录。
+- **后果**：
+  - `conf.yaml` 是生成物，手改会在下次启动被覆盖；需要长期保留的调整要加进设置项。
+  - 升级 OLVT 版本时必须同步 `olvt-overrides` 里的补丁文件，否则 UA/extra_body 丢失。
+  - conf.yaml 含明文 API Key，安装目录（per-user，`%LOCALAPPDATA%`）本身受用户账户保护，但不能再复制到共享目录。

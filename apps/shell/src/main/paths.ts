@@ -39,6 +39,13 @@ export function runtimeDir(): string {
   return isPackaged ? path.join(process.resourcesPath, 'runtime') : path.join(app.getAppPath(), 'runtime')
 }
 
+/** 随包的 OLVT 补丁（打包后 resources/olvt-overrides，开发期 apps/shell/resources/olvt-overrides） */
+export function overridesRoot(): string {
+  return isPackaged
+    ? path.join(process.resourcesPath, 'olvt-overrides')
+    : path.join(app.getAppPath(), 'resources', 'olvt-overrides')
+}
+
 export function hostModuleRoot(): string {
   return path.join(resourcesRoot(), 'services', 'host')
 }

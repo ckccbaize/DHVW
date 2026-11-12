@@ -11,6 +11,10 @@ export interface ShellConfig {
   /** 固定端口（0 = 自动分配），用于对接外部工具或防火墙放行 */
   ports: { olvt: number; tts: number }
   asr: { enabled: boolean }
+  /** OLVT 后端：dir 为空时用组件目录；其余项直接写进生成的 conf.yaml */
+  olvt: { dir: string; characterName: string; humanName: string; personaPrompt: string }
+  /** GPT-SoVITS 参考音色（apiUrl 由分配的 tts 端口决定，不在此配置） */
+  tts: { refAudioPath: string; refText: string; refLang: string; textLang: string }
   /** 把占位 sidecar 换成真实进程：id -> 可执行文件 + 参数（{port} 替换为分配端口） */
   sidecars: Record<string, { command: string[]; cwd?: string; env?: Record<string, string> }>
   /** 组件下载地址覆盖（企业镜像/离线包），不填则用内置镜像列表 */
@@ -27,6 +31,13 @@ const DEFAULTS: ShellConfig = {
   llm: { baseUrl: 'https://codex.mintcat.work', model: 'deepseek-v4.1-flash', temperature: 0.7 },
   ports: { olvt: 0, tts: 0 },
   asr: { enabled: true },
+  olvt: {
+    dir: '',
+    characterName: '小仓',
+    humanName: '主人',
+    personaPrompt: '你是住在数字人虚拟仓里的小仓，语气自然、口语化，回答简短。不要使用 Markdown，不要输出括号里的动作描写。',
+  },
+  tts: { refAudioPath: '', refText: '', refLang: 'ja', textLang: 'zh' },
   sidecars: {},
   componentUrls: {},
   pipIndex: 'https://mirrors.aliyun.com/pypi/simple',
@@ -74,6 +85,8 @@ export function loadConfig(): ShellConfig {
       llm: { ...DEFAULTS.llm, ...raw.llm },
       ports: { ...DEFAULTS.ports, ...raw.ports },
       asr: { ...DEFAULTS.asr, ...raw.asr },
+      olvt: { ...DEFAULTS.olvt, ...raw.olvt },
+      tts: { ...DEFAULTS.tts, ...raw.tts },
       sidecars: { ...DEFAULTS.sidecars, ...raw.sidecars },
       componentUrls: { ...DEFAULTS.componentUrls, ...raw.componentUrls },
     }

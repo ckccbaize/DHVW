@@ -23,6 +23,9 @@ extraResources:
     to: tools
   - from: build/icon.png
     to: icon.png
+  # 上游 OLVT 未开放 UA / extra_body，随包带两个补丁文件覆盖过去
+  - from: resources/olvt-overrides
+    to: olvt-overrides
 asar: true
 win:
   target:

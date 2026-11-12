@@ -11,7 +11,8 @@ import { createTray } from './tray'
 import { applyNetworkHardening, hardenSessionSetup } from './hardening'
 import { probeLlm } from './network'
 import { COMPONENTS, componentStatus, ensureComponent, resolveSpec } from './components'
-import { clearApiKey, hasApiKey, saveApiKey } from './secret'
+import { clearApiKey, hasApiKey, readApiKey, saveApiKey } from './secret'
+import { asrModelPaths, prepareOlvt, resolveOlvtDir } from './olvt'
 
 applyNetworkHardening()
 
@@ -227,9 +228,51 @@ async function boot(): Promise<void> {
       return want > 0 && (await isPortFree(want)) ? want : (dynamic[i] ?? 0)
     }),
   )
+  const portOf = (id: string): number => ports[SERVICE_CATALOG.findIndex((s) => s.id === id)] ?? 0
+  const olvtOverride = config.sidecars.olvt
+  const olvtDir = resolveOlvtDir(olvtOverride?.cwd || config.olvt.dir)
+  const olvtPort = portOf('olvt')
+  if (olvtDir) {
+    const asr = asrModelPaths(config.asr.enabled)
+    if (config.asr.enabled && !asr.modelPath) {
+      log('warn', 'olvt', 'ASR 已启用但 SenseVoice 模型未下载，语音输入不可用', { component: 'asr-sensevoice' })
+    }
+    prepareOlvt({
+      dir: olvtDir,
+      port: olvtPort,
+      characterName: config.olvt.characterName,
+      humanName: config.olvt.humanName,
+      personaPrompt: config.olvt.personaPrompt,
+      llm: { ...config.llm, apiKey: readApiKey() ?? 'missing-api-key' },
+      tts: { apiUrl: `http://127.0.0.1:${portOf('tts')}/tts`, ...config.tts },
+      asr: { enabled: config.asr.enabled, ...asr },
+    })
+  } else {
+    log('warn', 'olvt', '未找到 OLVT 后端目录，使用占位 worker', {
+      component: 'olvt',
+      hint: '在组件面板下载 OLVT，或在设置里指定已有目录',
+    })
+  }
   const services: ServiceDef[] = SERVICE_CATALOG.map((svc, i) => {
     const override = config.sidecars[svc.id]
-    return { ...svc, ...(override ?? {}), port: ports[i] ?? 0 }
+    const port = ports[i] ?? 0
+    if (svc.id === 'olvt' && olvtDir) {
+      return {
+        ...svc,
+        command: override?.command ?? [resolvePython(), 'run_server.py'],
+        cwd: olvtDir,
+        env: {
+          ...override?.env,
+          PYTHONUNBUFFERED: '1',
+          // 思考模型默认带 reasoning_content，首字多 1–2 s 且内容无法出声
+          OLVT_LLM_EXTRA_BODY: '{"reasoning_effort":"none"}',
+        },
+        healthMode: 'tcp',
+        healthPath: undefined,
+        port,
+      }
+    }
+    return { ...svc, ...(override ?? {}), port }
   })
   const real = services.filter((s) => s.command).map((s) => s.id)
   if (real.length) log('info', 'sidecar', '使用真实 sidecar', { services: real })
