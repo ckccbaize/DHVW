@@ -63,6 +63,7 @@
 <div class="row">
   <input id="agentIntent" value="回应雨停" />
   <button id="btnAgentRun">跑一次 agent</button>
+  <button id="btnAgentPlot">跑一次剧情</button>
 </div>
 
 <h2>LLM 服务商（W11）</h2>
@@ -296,6 +297,12 @@ $("#btnAgentRun").onclick = async () => {
     pushLine(r.ok
       ? `agent ok → ${r.tasks.length} tasks: ${r.tasks.map((t) => t.skill + "=" + (t.ok ? "ok" : t.error)).join(", ")}`
       : `agent rejected → ${r.reason || (r.tasks || []).map((t) => t.skill + ":" + t.error).join(", ")}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnAgentPlot").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "agent_plot", args: { input: "雨停了", place: "客厅", mood: "平静" } });
+    pushLine(r.ok ? `plot ok(${r.attempts}) → ${r.text}` : `plot rejected → ${r.reason}`);
   } catch (e) { pushLine(e.message); }
 };
 $("#btnLlmSave").onclick = async () => {

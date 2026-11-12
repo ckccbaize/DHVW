@@ -66,7 +66,24 @@ Worker 命令：
 
 事件名沿用 pi 的 `agent/turn/message/tool_execution` 结构，统一加 `agent:` 前缀写入事件日志。
 
-## 5. 新增技能
+## 5. 子 Agent（W14 起）
+
+技能可以由子 Agent 实现，而不是直接调模型。管理层构造时传 `subAgents`：
+
+```js
+createManagerAgent({ llm, registry, subAgents: { "plot-writer": (args) => plotAgent.run(args) } })
+```
+
+命中子 Agent 时不再走通用 LLM 分支；子 Agent 返回 `{ok, text, ...}`，失败原因进入任务错误。
+
+剧情子 Agent 的校验：30–80 字、含时段时间词、无引号台词、与最近 20 条 bigram 相似度 <0.6；不合格带原因重写 ≤3 次。
+
+工艺约束提炼自：
+
+- https://github.com/howells/fiction
+- https://github.com/alt-code-ai/agent (`fiction-writing-story-development`)
+
+## 6. 新增技能
 
 1. 建 `agent/skills/<name>/SKILL.md` 与 `agent/prompts/<prompt>.md`；
 2. `node tools/build-agent.mjs`；

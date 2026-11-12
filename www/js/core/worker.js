@@ -17,6 +17,7 @@ import { createLlmClient } from "./llm/client.js";
 import { createBudgetLedger } from "./llm/budget.js";
 import { createAgentRegistry } from "./agent/registry.js";
 import { createManagerAgent } from "./agent/manager.js";
+import { createPlotAgent } from "./agent/subs/plot.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
 
 const LOG_CAP = 200;
@@ -68,6 +69,7 @@ let llm = null;
 let budget = null;
 let agentRegistry = null;
 let manager = null;
+let plotAgent = null;
 
 const life = createLifeRuntime({ minute: 8 * 60 });
 
@@ -164,9 +166,11 @@ const ready = (async () => {
       patch({ budget: budget.stats() });
     },
   });
+  plotAgent = createPlotAgent({ llm, registry: agentRegistry });
   manager = createManagerAgent({
     llm,
     registry: agentRegistry,
+    subAgents: { "plot-writer": (args) => plotAgent.run(args) },
     appendEvent: (kind, payload) => appendEvent(kind, payload),
     saveRun: async (rec) => {
       const prev = (await kvBackend.get("agent_runs")) || [];
@@ -497,6 +501,20 @@ const handlers = {
     }
     if (p.name === "agent_run") {
       const r = await manager.run(p.args?.intent, p.args?.ctx || {});
+      return { ...r };
+    }
+    if (p.name === "agent_plot") {
+      const recent = (await kvBackend.get("plot_recent")) || [];
+      const r = await plotAgent.run({
+        input: p.args?.input || "",
+        place: p.args?.place || "",
+        mood: p.args?.mood || "",
+        recent,
+      });
+      if (r.ok) {
+        await kvBackend.put("plot_recent", [r.text, ...recent].slice(0, 20));
+        await appendEvent("plot:generated", { text: r.text, attempts: r.attempts });
+      }
       return { ...r };
     }
     if (p.name === "agent_runs") {

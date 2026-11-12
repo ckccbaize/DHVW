@@ -39,6 +39,7 @@ export function createManagerAgent({
   saveRun = async () => {},
   now = () => Date.now(),
   maxTasks = 3,
+  subAgents = {},
   idFactory = () => globalThis.crypto.randomUUID(),
 } = {}) {
   if (!llm) throw new Error("createManagerAgent 需要 llm");
@@ -101,27 +102,37 @@ export function createManagerAgent({
       const started = now();
       await emit("tool_execution_start", { tool: task.skill, input: task.input });
       try {
-        const text = registry.render(skill.prompt, {
-          ...ctx,
-          intent,
-          input: task.input,
-          now: new Date(now()).toISOString(),
-          place: ctx.place ?? "",
-          mood: ctx.mood ?? "",
-        });
-        const res = await llm.complete({
-          messages: [{ role: "user", content: text }],
-          maxTokens: skill.maxTokens,
-          temperature: skill.temperature,
-          json: skill.output === "json",
-          cls: skill.class,
-          kind: skill.name,
-        });
-        let output = res.text;
-        if (skill.output === "json") {
-          const parsed = extractJson(output);
-          if (!parsed) throw new Error("invalid_json_output");
-          output = parsed;
+        let output;
+        const sub = subAgents[task.skill];
+        if (sub) {
+          const r = await sub({ input: task.input, intent, ctx });
+          if (!r.ok) throw new Error(r.reason || "subagent_failed");
+          output = r.text ?? r.output;
+        } else {
+          const text = registry.render(skill.prompt, {
+            ...ctx,
+            intent,
+            input: task.input,
+            now: new Date(now()).toISOString(),
+            place: ctx.place ?? "",
+            mood: ctx.mood ?? "",
+            period: ctx.period ?? "",
+            recent: ctx.recent ?? "（无）",
+          });
+          const res = await llm.complete({
+            messages: [{ role: "user", content: text }],
+            maxTokens: skill.maxTokens,
+            temperature: skill.temperature,
+            json: skill.output === "json",
+            cls: skill.class,
+            kind: skill.name,
+          });
+          output = res.text;
+          if (skill.output === "json") {
+            const parsed = extractJson(output);
+            if (!parsed) throw new Error("invalid_json_output");
+            output = parsed;
+          }
         }
         const ms = now() - started;
         results.push({ skill: task.skill, input: task.input, ok: true, output, ms });
