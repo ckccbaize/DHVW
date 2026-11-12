@@ -1,20 +1,34 @@
-// 核心机骨架（W1）：消息总线 + 生命周期 + 健康 + 日志环。
-// 契约见 docs/CONTRACTS.md §1；本文件只做骨架，不含状态机/记忆/调度。
+// 核心机骨架（W1）+ 世界状态机（W3）。
+// 契约见 docs/CONTRACTS.md §1；状态机见 core/machine/world.js。
 
 import { makeMsg, validateMsg, errorMsg, replyMsg } from "./bus.js";
+import { createWorldRuntime, GRAPH } from "./machine/world.js";
 
 const LOG_CAP = 200;
+const WORLD_EVENTS = new Set([
+  "HOST_UP",
+  "HOST_DOWN",
+  "HOST_LOST",
+  "PRESENT_REQUEST",
+  "PRESENT_EXIT",
+  "WORLD_START",
+  "WORLD_STOP",
+  "EDGE_START",
+  "TIER_SET",
+  "TAKEOVER",
+]);
 
 const state = {
   display: "overview",
   conn: "down",
-  tier: "edge",
+  tier: "idle",
   paused: false,
   scene: null,
   clock: { day: 1, minute: 8 * 60 },
   mood: { energy: 0.55, valence: 0.55, social: 0.4, focus: 0.5 },
   jobs: 0,
   doctor: { status: "ok", lastCheck: 0 },
+  machine: null,
 };
 
 const logs = [];
@@ -22,6 +36,13 @@ let startedAt = 0;
 let heartbeat = null;
 let ticks = 0;
 let lastTickAt = 0;
+
+const world = createWorldRuntime({
+  log(rec) {
+    log("info", "world", rec);
+    post("core:event", { ev: { uuid: `w-${rec.seq}-${rec.t}`, kind: "world_transition", t: rec.t, payload: rec } });
+  },
+});
 
 function log(level, msg, data) {
   logs.push({ t: Date.now(), level, msg, data });
@@ -37,17 +58,32 @@ function patch(partial) {
   post("core:state", { patch: partial });
 }
 
+/** 把状态机结果镜像到扁平 state（UI 只读扁平字段）。 */
+function syncWorld() {
+  const m = world.state;
+  return {
+    display: m.display,
+    conn: m.conn,
+    tier: m.tier,
+    machine: { ...m },
+    transitions: world.records.length,
+  };
+}
+
 function health() {
   return {
     ok: true,
     uptime: startedAt ? Math.round((Date.now() - startedAt) / 1000) : 0,
-    tier: state.tier,
-    conn: state.conn,
     display: state.display,
+    conn: state.conn,
+    tier: state.tier,
     paused: state.paused,
     ticks,
     lastTickAt,
     queue: state.jobs,
+    world: { ...world.state },
+    transitions: world.records.length,
+    illegal: world.state.illegal,
     doctor: state.doctor,
     logs: logs.length,
   };
@@ -58,17 +94,27 @@ function startHeartbeat() {
   heartbeat = setInterval(() => post("core:health", health()), 5000);
 }
 
+function dispatchWorld(event) {
+  if (!WORLD_EVENTS.has(event.type)) {
+    throw Object.assign(new Error(`未知世界事件: ${event.type}`), { code: "bad_payload" });
+  }
+  const res = world.dispatch(event);
+  patch(syncWorld());
+  return { ok: true, illegal: res.illegal, state: world.state };
+}
+
 const handlers = {
   "core:init"(p) {
     startedAt = Date.now();
+    world.reset();
     if (p.scene) state.scene = p.scene.id || p.scene;
     if (p.clock) state.clock = { day: p.clock.day ?? 1, minute: p.clock.minute ?? 480 };
     if (p.mood) Object.assign(state.mood, p.mood);
     log("info", "init", { scene: state.scene });
-    post("core:state", { patch: { ...state } });
+    patch({ ...state, ...syncWorld() });
     post("core:event", { ev: { uuid: `boot-${startedAt}`, kind: "core_ready", t: Date.now() } });
     startHeartbeat();
-    return { ok: true, scene: state.scene };
+    return { ok: true, scene: state.scene, world: world.state };
   },
 
   "core:input"(p) {
@@ -80,16 +126,14 @@ const handlers = {
     if (p.state !== "overview" && p.state !== "present") {
       throw Object.assign(new Error("display 只能是 overview/present"), { code: "bad_payload" });
     }
-    patch({ display: p.state });
-    return { ok: true };
+    return dispatchWorld({ type: p.state === "present" ? "PRESENT_REQUEST" : "PRESENT_EXIT" });
   },
 
   "core:host"(p) {
     const next = p.conn === "up" ? "up" : "down";
-    const partial = { conn: next };
-    if (p.tier) partial.tier = p.tier;
-    patch(partial);
-    return { ok: true };
+    const out = dispatchWorld({ type: next === "up" ? "HOST_UP" : "HOST_DOWN" });
+    if (p.tier) dispatchWorld({ type: "TIER_SET", value: p.tier });
+    return out;
   },
 
   "core:pause"() {
@@ -103,17 +147,28 @@ const handlers = {
   },
 
   "core:query"(p) {
-    // W1 骨架：记忆模块未接入，返回空结果并标注非语义
     return { hits: [], semantic: false, query: p.text || "" };
   },
 
   "core:snapshot"() {
-    post("core:state", { patch: { ...state } });
+    patch({ ...state });
     post("core:health", health());
-    return { ok: true };
+    return { ok: true, world: world.state, graph: GRAPH };
   },
 
   "core:command"(p) {
+    if (p.name === "world") {
+      const ev = p.args?.event;
+      if (!ev || typeof ev.type !== "string") {
+        throw Object.assign(new Error("world 命令需要 args.event"), { code: "bad_payload" });
+      }
+      return dispatchWorld(ev);
+    }
+    if (p.name === "world_reset") {
+      world.reset();
+      patch(syncWorld());
+      return { ok: true, world: world.state };
+    }
     log("info", "command", p);
     return { ok: true, name: p.name || null };
   },

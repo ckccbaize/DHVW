@@ -2,36 +2,56 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>核心机骨架（W1）</title>
+<title>核心机骨架（W1/W3）</title>
 <style>
   :root { color-scheme: dark; }
   body { margin: 0; padding: 18px; background: #0f1218; color: #e6e9f0;
          font: 13px/1.6 "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif; }
   h1 { font-size: 16px; margin: 0 0 12px; font-weight: 600; }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  h2 { font-size: 13px; margin: 14px 0 6px; color: #98a1ae; font-weight: 500; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
   button { font: inherit; padding: 6px 12px; border-radius: 8px; border: 1px solid #2b3242;
            background: #1b2130; color: #e6e9f0; cursor: pointer; }
   button:active { background: #263044; }
   pre { background: #141a24; border: 1px solid #232b3a; border-radius: 8px;
-        padding: 10px 12px; overflow: auto; max-height: 40vh; }
+        padding: 10px 12px; overflow: auto; max-height: 32vh; margin: 0; }
   .ok { color: #6fcaa5; } .bad { color: #e07a7a; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .machine { display: flex; gap: 16px; font-variant-numeric: tabular-nums; }
+  .machine b { color: #e0b070; font-weight: 600; }
 </style>
 </head>
 <body>
-<h1>核心机骨架（W1）· <span id="status">启动中…</span></h1>
+<h1>核心机骨架（W1/W3）· <span id="status">启动中…</span></h1>
+
+<div class="machine" id="machine">display=— conn=— tier=— illegal=0 transitions=0</div>
+
+<h2>世界事件（点击即派发）</h2>
+<div class="row">
+  <button data-ev="HOST_UP">HOST_UP</button>
+  <button data-ev="HOST_DOWN">HOST_DOWN</button>
+  <button data-ev="PRESENT_REQUEST">PRESENT_REQUEST</button>
+  <button data-ev="PRESENT_EXIT">PRESENT_EXIT</button>
+  <button data-ev="WORLD_START">WORLD_START</button>
+  <button data-ev="WORLD_STOP">WORLD_STOP</button>
+  <button data-ev="EDGE_START">EDGE_START</button>
+  <button data-ev="TAKEOVER">TAKEOVER</button>
+</div>
+
+<h2>基础</h2>
 <div class="row">
   <button id="btnSnapshot">snapshot</button>
   <button id="btnPause">pause</button>
   <button id="btnResume">resume</button>
-  <button id="btnBadType">发未知 type（应回 error）</button>
-  <button id="btnBadVersion">发错版本（应回 error）</button>
+  <button id="btnBadType">未知 type</button>
+  <button id="btnBadVersion">错版本</button>
 </div>
+
 <div class="grid">
-  <div><div>state</div><pre id="state">{}</pre></div>
-  <div><div>health</div><pre id="health">{}</pre></div>
+  <div><h2>state</h2><pre id="state">{}</pre></div>
+  <div><h2>health</h2><pre id="health">{}</pre></div>
 </div>
-<div>消息（最近 20 条）</div>
+<h2>消息（最近 20 条）</h2>
 <pre id="log"></pre>
 
 <script type="module">
@@ -43,6 +63,7 @@ const logEl = $("#log");
 const lines = [];
 const stateEl = $("#state");
 const healthEl = $("#health");
+const machineEl = $("#machine");
 
 function pushLine(text) {
   lines.unshift(`${new Date().toLocaleTimeString()}  ${text}`);
@@ -50,10 +71,32 @@ function pushLine(text) {
   logEl.textContent = lines.join("\n");
 }
 
+function renderMachine(m) {
+  if (!m) return;
+  machineEl.innerHTML =
+    `display=<b>${m.display}</b> conn=<b>${m.conn}</b> tier=<b>${m.tier}</b> ` +
+    `illegal=<b>${m.illegal}</b> transitions=<b>${m.transitions ?? 0}</b>`;
+}
+
 const client = createCoreClient({
   onMessage(msg) {
-    if (msg.type === "core:state") stateEl.textContent = JSON.stringify(msg.payload.patch, null, 1);
-    if (msg.type === "core:health") healthEl.textContent = JSON.stringify(msg.payload, null, 1);
+    if (msg.type === "core:state") {
+      const p = msg.payload.patch;
+      stateEl.textContent = JSON.stringify(p, null, 1);
+      if (p.machine) renderMachine({ ...p.machine, transitions: p.transitions });
+      if (p.display || p.conn || p.tier) {
+        renderMachine({ ...(p.machine || {}), display: p.display ?? p.machine?.display, conn: p.conn ?? p.machine?.conn, tier: p.tier ?? p.machine?.tier, transitions: p.transitions });
+      }
+    }
+    if (msg.type === "core:health") {
+      healthEl.textContent = JSON.stringify(msg.payload, null, 1);
+      renderMachine({ ...msg.payload.world, transitions: msg.payload.transitions });
+    }
+    if (msg.type === "core:event" && msg.payload.ev?.kind === "world_transition") {
+      const r = msg.payload.ev.payload;
+      pushLine(`world ${r.event}${r.illegal ? " (illegal)" : ""} → ${r.to.display}/${r.to.conn}/${r.to.tier}`);
+      return;
+    }
     pushLine(`${msg.type}${msg.replyTo ? " (reply)" : ""}`);
   },
   onError(err) {
@@ -61,10 +104,19 @@ const client = createCoreClient({
   },
 });
 
+async function dispatch(type) {
+  try {
+    const r = await client.request("core:command", { name: "world", args: { event: { type } } });
+    if (r.illegal) pushLine(`${type} 被拒绝（illegal）`);
+  } catch (e) {
+    pushLine(`${type} 失败: ${e.message}`);
+  }
+}
+
 try {
   client.start();
   const init = await client.request("core:init", { scene: { id: "home" }, clock: { day: 1, minute: 480 } });
-  pushLine(`core:init → ${JSON.stringify(init)}`);
+  pushLine(`core:init → ${JSON.stringify(init.world)}`);
   await client.request("core:snapshot", {});
   $("#status").textContent = "运行中";
   $("#status").className = "ok";
@@ -73,18 +125,20 @@ try {
   $("#status").className = "bad";
 }
 
+for (const btn of document.querySelectorAll("[data-ev]")) {
+  btn.onclick = () => dispatch(btn.dataset.ev);
+}
 $("#btnSnapshot").onclick = () => client.request("core:snapshot", {}).catch((e) => pushLine(e.message));
 $("#btnPause").onclick = () => client.request("core:pause", {}).catch((e) => pushLine(e.message));
 $("#btnResume").onclick = () => client.request("core:resume", {}).catch((e) => pushLine(e.message));
 $("#btnBadType").onclick = () => client.request("core:no_such_type", {}).catch((e) => pushLine(`预期 error: ${e.code}`));
 
 $("#btnBadVersion").onclick = () => {
-  // 直接绕过 client 发一条 v=99 的消息，验证 worker 的 bad_version 分支
   const w = new Worker(new URL("./js/core/worker.js", import.meta.url), { type: "module" });
   const msg = { ...makeMsg("core:snapshot", {}), v: 99 };
   w.onmessage = (e) => {
-    if (e.data.type !== "error") return; // 忽略 worker 启动时的 health 推送
-    pushLine(`bad_version → ${e.data.type}/${e.data.payload?.code}`);
+    if (e.data.type !== "error") return;
+    pushLine(`bad_version → ${e.data.payload?.code}`);
     w.terminate();
   };
   w.postMessage(msg);
