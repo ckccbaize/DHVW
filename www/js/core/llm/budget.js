@@ -8,7 +8,7 @@ const dayKey = (ts) => {
 
 const emptyTotals = () => ({ calls: 0, ok: 0, failed: 0, inTokens: 0, outTokens: 0 });
 
-export function createBudgetLedger({ backend, now = () => Date.now(), softLimitOut = 30000 } = {}) {
+export function createBudgetLedger({ backend, now = () => Date.now(), softLimitOut = 50000 } = {}) {
   if (!backend) throw new Error("createBudgetLedger 需要 backend");
   const rows = new Map(); // `${day}|${cls}|${kind}` -> row
   let loaded = false;
@@ -53,6 +53,16 @@ export function createBudgetLedger({ backend, now = () => Date.now(), softLimitO
       rows.set(key, row);
       void persist();
       return { ...row };
+    },
+    history(days = 7) {
+      const out = [];
+      const base = new Date(now());
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(base);
+        d.setDate(d.getDate() - i);
+        out.push(this.stats(dayKey(d.getTime())));
+      }
+      return out;
     },
     stats(day = dayKey(now())) {
       const totals = emptyTotals();

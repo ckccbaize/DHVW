@@ -15,6 +15,8 @@ import { createScheduler, createIdbJobBackend, createMemoryJobBackend } from "./
 import { createProviderStore, maskKey, isConfigured } from "./llm/provider.js";
 import { createLlmClient } from "./llm/client.js";
 import { createBudgetLedger } from "./llm/budget.js";
+import { createAgentRegistry } from "./agent/registry.js";
+import { createManagerAgent } from "./agent/manager.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
 
 const LOG_CAP = 200;
@@ -52,6 +54,7 @@ let heartbeat = null;
 let ticks = 0;
 let lastTickAt = 0;
 let eventLog = null;
+let kvBackend = null;
 let logStats = { count: 0, lastSeq: 0, dropped: 0 };
 let snapStore = createMemorySnapshotStore();
 let snapMeta = { ts: 0, lastSeq: 0, resumed: false };
@@ -63,6 +66,8 @@ let scheduler = null;
 let providerStore = null;
 let llm = null;
 let budget = null;
+let agentRegistry = null;
+let manager = null;
 
 const life = createLifeRuntime({ minute: 8 * 60 });
 
@@ -104,7 +109,6 @@ function withTimeout(promise, ms, label) {
 const ready = (async () => {
   let memoryBackend = null;
   let jobBackend = null;
-  let kvBackend = null;
   try {
     const db = await withTimeout(openCoreDb(), 3000, "indexedDB open");
     eventLog = createEventLog({ backend: createIdbEventBackend(db) });
@@ -146,12 +150,27 @@ const ready = (async () => {
   await providerStore.init();
   budget = createBudgetLedger({ backend: kvBackend });
   await budget.init();
+  agentRegistry = createAgentRegistry();
+  try {
+    await agentRegistry.load();
+  } catch (err) {
+    log("warn", "agent_registry_failed", { msg: err.message });
+  }
   llm = createLlmClient({
     getProvider: () => providerStore.get(),
     onUsage: (e) => {
       if (!budget) return;
       budget.record(e);
       patch({ budget: budget.stats() });
+    },
+  });
+  manager = createManagerAgent({
+    llm,
+    registry: agentRegistry,
+    appendEvent: (kind, payload) => appendEvent(kind, payload),
+    saveRun: async (rec) => {
+      const prev = (await kvBackend.get("agent_runs")) || [];
+      await kvBackend.put("agent_runs", [rec, ...prev].slice(0, 50));
     },
   });
   host.setLlmConfigHandler(async (patch) => {
@@ -305,6 +324,7 @@ function health() {
     sched: scheduler ? scheduler.stats : null,
     llm: llmView(),
     budget: budget ? budget.stats() : null,
+    agent: agentRegistry ? agentRegistry.stats() : { loaded: false },
     life: life.snapshot(),
     log: { ...logStats },
     doctor: state.doctor,
@@ -472,8 +492,25 @@ const handlers = {
     if (p.name === "log_latest") {
       return { ok: true, events: await eventLog.latest(p.args?.n || 10), stats: eventLog.stats };
     }
+    if (p.name === "agent_skills") {
+      return { ok: true, skills: agentRegistry ? agentRegistry.list() : [], stats: agentRegistry.stats() };
+    }
+    if (p.name === "agent_run") {
+      const r = await manager.run(p.args?.intent, p.args?.ctx || {});
+      return { ...r };
+    }
+    if (p.name === "agent_runs") {
+      return { ok: true, runs: (await kvBackend.get("agent_runs")) || [] };
+    }
+    if (p.name === "agent_prompt") {
+      const text = agentRegistry.render(p.args?.name, p.args?.vars || {});
+      return { ok: true, name: p.args?.name, text };
+    }
     if (p.name === "budget_stats") {
       return { ok: true, budget: budget.stats() };
+    }
+    if (p.name === "budget_history") {
+      return { ok: true, history: budget.history(p.args?.days || 7) };
     }
     if (p.name === "budget_soft_limit") {
       const v = budget.setSoftLimit(p.args?.limit);

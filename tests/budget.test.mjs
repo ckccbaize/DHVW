@@ -70,6 +70,22 @@ test("reset：只清当天", async () => {
   assert.equal(b.stats("2026-11-13").calls, 1);
 });
 
+test("history：按天返回最近 N 天总量", async () => {
+  const b = createBudgetLedger({ backend: createMemoryKvBackend(), now: () => T });
+  await b.init();
+  b.record({ cls: "work", kind: "plot", usage: { completion_tokens: 10 }, ts: T });
+  const h = b.history(2);
+  assert.equal(h.length, 2);
+  assert.equal(h[0].outTokens, 0); // 昨天
+  assert.equal(h[1].outTokens, 10); // 今天
+});
+
+test("默认软告警阈值 50k", async () => {
+  const b = createBudgetLedger({ backend: createMemoryKvBackend(), now: () => T });
+  await b.init();
+  assert.equal(b.stats().softLimitOut, 50000);
+});
+
 test("setSoftLimit：只改阈值", async () => {
   const b = createBudgetLedger({ backend: createMemoryKvBackend(), now: () => T });
   await b.init();

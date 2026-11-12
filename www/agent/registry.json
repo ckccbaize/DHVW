@@ -1,0 +1,33 @@
+{
+ "version": 1,
+ "built_at": "2026-11-12T14:59:22.521Z",
+ "skills": {
+  "plot-writer": {
+   "name": "plot-writer",
+   "description": "工作层：根据生活事件生成 30-80 字剧情",
+   "class": "work",
+   "prompt": "plot",
+   "maxTokens": 400,
+   "temperature": 0.5,
+   "tools": [],
+   "output": "text",
+   "body": "# 使用时机\n\n端侧/主机档需要新剧情，且本地文法未命中时调用。\n\n# 约束\n\n- 30-80 字，含时间锚点；\n- 不写台词，只写\"她做了什么/感受到什么\"；\n- 24 小时内不重复。\n"
+  },
+  "wake-character": {
+   "name": "wake-character",
+   "description": "角色层唤醒：根据生活种子生成 1-2 句口语",
+   "class": "character",
+   "prompt": "character-wake",
+   "maxTokens": 200,
+   "temperature": 0.8,
+   "tools": [],
+   "output": "text",
+   "body": "# 使用时机\n\n设备档唤醒机产出 `message` 意图时调用；PC 在线时由 PC 链路负责，设备静音。\n\n# 约束\n\n- 只输出 1-2 句口语，≤60 字；\n- 不复述记录、不说\"我注意到\"、不提问式追问；\n- 沉默由闸门在调用前决定，不在这里输出 `[silent]`。\n"
+  }
+ },
+ "prompts": {
+  "character-wake": "现在：{{now}}\n你刚经历：{{input}}\n你此刻的心情：{{mood}}\n\n开口要求：1-2 句口语，接着这个片段说；不要解释你在做什么，不要说\"我注意到\"，不要提问式追问，不要提及记录或系统。\n",
+  "manager-plan": "你是设备端任务编排器。可用技能：\n{{skills}}\n\n目标：{{intent}}\n当前时间：{{now}}\n\n只输出严格 JSON，不要解释：\n{\"tasks\":[{\"skill\":\"<技能名>\",\"input\":\"<给该技能的一句话输入>\",\"reason\":\"<为什么>\"}]}\n规则：最多 3 个任务；没有合适技能就输出 {\"tasks\":[]}。\n",
+  "plot": "时间：{{now}}\n地点：{{place}}\n刚发生：{{input}}\n心情：{{mood}}\n\n写一段 30-80 字的第三人称小记，只写她做了什么、感受到什么；不要写台词，不要解释系统。\n"
+ }
+}

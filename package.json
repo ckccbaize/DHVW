@@ -12,7 +12,9 @@
     "shell:test": "cd shell && go test ./...",
     "shell:build": "sh shell/build.sh",
     "validate": "node tools/validate-scene.mjs",
-    "spike:fsm": "node spikes/fsm/compare.mjs"
+    "spike:fsm": "node spikes/fsm/compare.mjs",
+    "build:agent": "node tools/build-agent.mjs",
+    "check:agent": "node tools/build-agent.mjs --check"
   },
   "devDependencies": {
     "xstate": "5.33.4"

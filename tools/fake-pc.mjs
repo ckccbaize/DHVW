@@ -121,10 +121,15 @@ const llm = http.createServer((req, res) => {
   req.on("data", (c) => (body += c));
   req.on("end", () => {
     console.log(`[fake-llm] ← ${req.headers.authorization || "no-auth"} ${body.slice(0, 120)}`);
+    const content = body.includes("任务编排器")
+      ? JSON.stringify({ tasks: [{ skill: "wake-character", input: "雨停了", reason: "演示" }] })
+      : body.includes("开口要求")
+        ? "雨停了，正好。"
+        : "pong from fake llm";
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(
       JSON.stringify({
-        choices: [{ message: { content: "pong from fake llm" } }],
+        choices: [{ message: { content } }],
         usage: { prompt_tokens: 3, completion_tokens: 4 },
         model: "fake-llm",
       }),
