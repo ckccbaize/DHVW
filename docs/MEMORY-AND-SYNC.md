@@ -45,6 +45,26 @@
 
 **代价（写清）**：离线时"京都看枫叶"这类语义召回会退化为字面命中；缓解手段是**关键词表 + 事件标题规范化**（写入时就把事件压成"时间 + 地点 + 动作 + 对象"的可检索文本）。
 
+### 2.1 PC 侧向量处理要求（PC AI 必读）
+
+设备**不做**向量化；PC 侧必须承担以下工作（接口见 `PC-INTEGRATION.md` §5）：
+
+| 步骤 | 要求 |
+|---|---|
+| 接收 | `facts:candidates` / `events:batch`；按 `uuid` 幂等 |
+| 规范化 | 时间统一 `Asia/Shanghai`；文本压成"时间 + 地点 + 动作 + 对象" |
+| 去重 | 文本哈希 + 时间窗 + `uuid`；同义改写不重复入库 |
+| 合并 | LWW（`updated_at`，`pc > device`）；`supersedes` 保留旧事实 |
+| 归纳 | 设备已归纳则跳过；否则批量抽取（会话末/每 2h） |
+| 向量化 | 本地 `fastembed` + `bge-small-zh-v1.5`（约 90MB，随包预置）或云端 embedding；**禁止运行时下载模型** |
+| 落库 | `mem_meta` + `vec0` + FTS5（`tokenize='trigram'`）同库同事务 |
+| 回执 | `facts:ack {accepted, merged, rejected}` |
+| 查询 | `memory:query` → `memory:result`，目标 ≤200ms，`semantic:true` |
+| 回流 | 显现后 `memory:facts` 增量下发（`since` 游标），只发 fact + 摘要 |
+| 重建 | 删 `vec0`/FTS5 后可由 `mem_meta` 正文重灌 |
+
+**验收**：10 条 A9 样本（含"7 天前"与同字面旧记忆）top1 命中；索引可重建；模型离线可用。
+
 ---
 
 ## 3. 写入路径（设备 → PC）
