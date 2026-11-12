@@ -157,7 +157,7 @@ test("run：真实注册表变量齐全（character-wake / plot）", async () =>
   const llm = scripted([
     '{"tasks":[{"skill":"wake-character","input":"雨停了"},{"skill":"plot-writer","input":"窗边"}]}',
     "雨停了，正好。",
-    "她在窗边站了一会儿。",
+    '{"text":"她在窗边站了一会儿。","event":"窗边","place":"living","mood":{},"imageQuery":"window"}',
   ]);
   const agent = createManagerAgent({
     llm,

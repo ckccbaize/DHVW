@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-12T15:23:27.514Z",
+ "built_at": "2026-11-12T15:43:48.047Z",
  "files": [
   {
    "path": "agent/registry.json",
-   "size": 3258,
-   "sha256": "4cf5ea9fe5e36b2aa2413112e259ff32eb31ca9012d6b5ed8c379a68d9d7e08f"
+   "size": 3800,
+   "sha256": "a03b4bad25b9cfe36b439819da72eac7f7f5d01da6b479805342e70f76e4cf12"
   },
   {
    "path": "assets/scenes/home/home.built.json",
@@ -39,8 +39,8 @@
   },
   {
    "path": "debug-core.html",
-   "size": 18237,
-   "sha256": "0175908534b9a760d397c12038779a28b3966114d9cb82bf9f5cbba779a95b5d"
+   "size": 19463,
+   "sha256": "5408ef0dd4d5bec1c1ab3fced4aeab4798107c7db9a9d3f997715dfccae04546"
   },
   {
    "path": "index.html",
@@ -53,9 +53,14 @@
    "sha256": "7738d9ef3fb10b1add2d6d7e78eab14b25585dacc601f9284cdc409fc9ec8036"
   },
   {
+   "path": "js/core/agent/json.js",
+   "size": 470,
+   "sha256": "3a8ba1df8dbff9288c1ebb2f18f9ccad98924124c9bb3ef6d2e94c32ca77513b"
+  },
+  {
    "path": "js/core/agent/manager.js",
-   "size": 5784,
-   "sha256": "b865e020ee82ccf6fd44f9d2374d43e8657dbbfa93812403155b6b478bd9f13e"
+   "size": 5537,
+   "sha256": "b2157a4d9202d9004b9277164fdb8d0435c4d1b55abd91e5fb41b5f599eed51e"
   },
   {
    "path": "js/core/agent/registry.js",
@@ -63,9 +68,14 @@
    "sha256": "d181a94fb551031077db44b650f6a44cfdb5f9b2507181b33a91ceac4641d7c5"
   },
   {
+   "path": "js/core/agent/subs/bg.js",
+   "size": 3709,
+   "sha256": "6769455f9f183d19964d3c341ba1e7e5b4d3df97ba6fb74bd55e38ec3d90a1c8"
+  },
+  {
    "path": "js/core/agent/subs/plot.js",
-   "size": 3663,
-   "sha256": "402e1cdc32cd39a451d1c47b1f17193e1831ee2638cf9e9b6267ecbabc17457a"
+   "size": 10036,
+   "sha256": "8b04b43453df331d19608ad089c68657dc212b178a9972fc52ce8e31398178fc"
   },
   {
    "path": "js/core/assetstore.js",
@@ -184,8 +194,8 @@
   },
   {
    "path": "js/core/worker.js",
-   "size": 21568,
-   "sha256": "360038653bdb8491ea4c5d3c061ac64022bf6706c834634062af7a7a55a856f5"
+   "size": 23615,
+   "sha256": "5187cd019a92d657b162d5543a0a5cf65da978db216ddddab3f73ba46586a5f2"
   },
   {
    "path": "js/forge/grammar.js",

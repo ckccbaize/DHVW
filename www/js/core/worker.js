@@ -18,6 +18,7 @@ import { createBudgetLedger } from "./llm/budget.js";
 import { createAgentRegistry } from "./agent/registry.js";
 import { createManagerAgent } from "./agent/manager.js";
 import { createPlotAgent } from "./agent/subs/plot.js";
+import { createBgAgent } from "./agent/subs/bg.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
 
 const LOG_CAP = 200;
@@ -70,6 +71,8 @@ let budget = null;
 let agentRegistry = null;
 let manager = null;
 let plotAgent = null;
+let bgAgent = null;
+let bgMeta = null;
 
 const life = createLifeRuntime({ minute: 8 * 60 });
 
@@ -167,6 +170,7 @@ const ready = (async () => {
     },
   });
   plotAgent = createPlotAgent({ llm, registry: agentRegistry });
+  bgAgent = createBgAgent();
   manager = createManagerAgent({
     llm,
     registry: agentRegistry,
@@ -329,6 +333,7 @@ function health() {
     llm: llmView(),
     budget: budget ? budget.stats() : null,
     agent: agentRegistry ? agentRegistry.stats() : { loaded: false },
+    bg: bgMeta,
     life: life.snapshot(),
     log: { ...logStats },
     doctor: state.doctor,
@@ -505,17 +510,74 @@ const handlers = {
     }
     if (p.name === "agent_plot") {
       const recent = (await kvBackend.get("plot_recent")) || [];
+      const recentEvents = (await kvBackend.get("plot_events")) || [];
       const r = await plotAgent.run({
         input: p.args?.input || "",
         place: p.args?.place || "",
         mood: p.args?.mood || "",
         recent,
+        recentEvents,
       });
       if (r.ok) {
+        life.applyMood(r.mood, { source: "plot", reason: r.event });
+        patch({ life: life.snapshot() });
+        scheduleSnapshot();
         await kvBackend.put("plot_recent", [r.text, ...recent].slice(0, 20));
-        await appendEvent("plot:generated", { text: r.text, attempts: r.attempts });
+        await kvBackend.put("plot_events", [r.event, ...recentEvents].slice(0, 10));
+        await kvBackend.put("last_plot", {
+          text: r.text,
+          event: r.event,
+          place: r.place,
+          scene: r.scene,
+          imageQuery: r.imageQuery,
+          ts: Date.now(),
+        });
+        await appendEvent("plot:generated", {
+          text: r.text,
+          event: r.event,
+          place: r.place,
+          scene: r.scene,
+          imageQuery: r.imageQuery,
+          mood: r.mood,
+          attempts: r.attempts,
+        });
       }
-      return { ...r };
+      return { ...r, life: life.snapshot() };
+    }
+    if (p.name === "plot_clear") {
+      await kvBackend.put("plot_recent", []);
+      await kvBackend.put("plot_events", []);
+      await kvBackend.put("last_plot", null);
+      return { ok: true };
+    }
+    if (p.name === "bg_search") {
+      return await bgAgent.search(p.args?.query, { n: p.args?.n, provider: p.args?.provider });
+    }
+    if (p.name === "bg_prepare") {
+      const r = await bgAgent.prepare(p.args?.url);
+      if (r.ok) {
+        const { bytes, ...meta } = r;
+        bgMeta = meta;
+        await kvBackend.put("bg_last", { bytes, meta });
+        patch({ bg: bgMeta });
+      }
+      const { bytes, ...rest } = r;
+      return rest;
+    }
+    if (p.name === "bg_generate") {
+      const r = await bgAgent.generate(p.args?.query, { n: p.args?.n, provider: p.args?.provider });
+      if (r.ok) {
+        const { bytes, ...meta } = r;
+        bgMeta = meta;
+        await kvBackend.put("bg_last", { bytes, meta });
+        patch({ bg: bgMeta });
+      }
+      const { bytes, ...rest } = r;
+      return rest;
+    }
+    if (p.name === "bg_last") {
+      const saved = await kvBackend.get("bg_last");
+      return { ok: !!saved, meta: saved?.meta || null };
     }
     if (p.name === "agent_runs") {
       return { ok: true, runs: (await kvBackend.get("agent_runs")) || [] };

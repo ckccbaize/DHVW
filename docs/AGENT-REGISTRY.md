@@ -78,6 +78,28 @@ createManagerAgent({ llm, registry, subAgents: { "plot-writer": (args) => plotAg
 
 剧情子 Agent 的校验：30–80 字、含时段时间词、无引号台词、与最近 20 条 bigram 相似度 <0.6；不合格带原因重写 ≤3 次。
 
+剧情输出是结构化的，同时驱动三件事：
+
+| 字段 | 去向 |
+|---|---|
+| `text` | 事件日志 / 显现台词素材 |
+| `event` / `mood` | `life.applyMood(..., {source:"plot"})`，影响状态机 |
+| `place` / `scene` | 地图/场景提示（W16 消费） |
+| `imageQuery` | 背景图搜索（W15） |
+
+事件从 `EVENT_POOL` 按时段与最近 10 条随机挑选，避免连续重复。
+
+## 6. 背景子 Agent
+
+`core/agent/subs/bg.js` 走壳的图片代理，无需 API key：
+
+- `GET /__image/search?q=&n=`：Bing 图片（国内可达）→ Openverse（CC）→ Wikimedia Commons；
+- `GET /__image/fetch?url=`：仅公网 IP、仅 `image/*`、≤6MiB；
+- 设备侧裁成 960×540（cover），JPEG 质量递减到 ≤200KB，单色图直接拒绝；
+- 结果字节存 kv `bg_last`，元数据进 `health.bg`。
+
+## 7. 新增技能
+
 工艺约束提炼自：
 
 - https://github.com/howells/fiction

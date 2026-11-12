@@ -6,7 +6,7 @@ prompt: plot
 maxTokens: 400
 temperature: 0.5
 tools: []
-output: text
+output: json
 ---
 # 使用时机
 
@@ -21,5 +21,8 @@ output: text
 
 # 校验
 
-- 30-80 字、含时间词、无引号台词、与最近 20 条相似度 <0.6；
+- JSON 字段：text / event / place / scene / mood / imageQuery；
+- text 30-80 字、含时间词、无引号台词、与最近 20 条相似度 <0.6；
+- place/scene 必须是 living/hall/bedroom/bath/balcony/kitchen；
+- mood 只允许 energy/valence/social/focus，单项 ±0.3；
 - 不合格由子 Agent 带原因重写，最多 3 次。

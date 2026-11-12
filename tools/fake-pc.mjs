@@ -121,7 +121,16 @@ const llm = http.createServer((req, res) => {
   req.on("data", (c) => (body += c));
   req.on("end", () => {
     console.log(`[fake-llm] ← ${req.headers.authorization || "no-auth"} ${body.slice(0, 120)}`);
-    const content = body.includes("第三人称小记")
+    const content = body.includes("背景图检索词")
+      ? JSON.stringify({
+          text: "夜里，她把窗推开一条缝，雨声涌进来。桌上的杯子还温着，她端起来，又放下，去拧灭了走廊的灯。",
+          event: "雨停开窗",
+          place: "living",
+          scene: "living",
+          mood: { valence: 0.05, energy: -0.02 },
+          imageQuery: "rain window night",
+        })
+      : body.includes("第三人称小记")
       ? "夜里，她把窗推开一条缝，雨声涌进来。桌上的杯子还温着，她端起来，又放下，去拧灭了走廊的灯。"
       : body.includes("任务编排器")
       ? JSON.stringify({ tasks: [{ skill: "wake-character", input: "雨停了", reason: "演示" }] })

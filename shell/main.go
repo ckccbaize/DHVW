@@ -192,6 +192,14 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.serveHealth(w, r)
 		return
 	}
+	if r.URL.Path == "/__image/search" {
+		s.serveImageSearch(w, r)
+		return
+	}
+	if r.URL.Path == "/__image/fetch" {
+		s.serveImageFetch(w, r)
+		return
+	}
 	if r.URL.Path == "/__llm/chat/completions" {
 		s.serveLLMProxy(w, r)
 		return

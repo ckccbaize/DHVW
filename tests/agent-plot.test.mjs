@@ -5,14 +5,27 @@ import {
   createPlotAgent,
   hasTimeAnchor,
   periodOf,
+  pickDailyEvent,
   similarity,
   validatePlot,
+  validatePlotResult,
 } from "../www/js/core/agent/subs/plot.js";
 import { createManagerAgent } from "../www/js/core/agent/manager.js";
 import { createRegistryFromData } from "../www/js/core/agent/registry.js";
 
 const V = "夜里，她坐在窗边数雨点，数到三十七就停了。杯子里的水凉了，她起身去续，又坐回原处。";
 const V2 = "深夜，她把洗好的碗一只只倒扣在架上，水滴沿着瓷沿往下走。窗外的车灯扫过墙面，又退回去。";
+
+const J = (text = V, extra = {}) =>
+  JSON.stringify({
+    text,
+    event: "雨停开窗",
+    place: "living",
+    scene: "living",
+    mood: { valence: 0.05, energy: -0.02 },
+    imageQuery: "rain window night",
+    ...extra,
+  });
 
 const registry = createRegistryFromData({
   version: 1,
@@ -25,7 +38,7 @@ const registry = createRegistryFromData({
       maxTokens: 400,
       temperature: 0.5,
       tools: [],
-      output: "text",
+      output: "json",
       body: "",
     },
   },
@@ -49,6 +62,8 @@ function scripted(texts) {
   };
 }
 
+const atNight = () => new Date(2026, 10, 12, 22, 0).getTime();
+
 test("periodOf / hasTimeAnchor", () => {
   assert.equal(periodOf(7), "清晨");
   assert.equal(periodOf(15), "下午");
@@ -67,23 +82,45 @@ test("validatePlot：长度/台词/时间锚点/重复", () => {
   assert.equal(validatePlot(V, { hour: 22 }), null);
 });
 
+test("validatePlotResult：字段与增量边界", () => {
+  assert.equal(validatePlotResult(JSON.parse(J()), { hour: 22 }), null);
+  assert.equal(validatePlotResult(JSON.parse(J(V, { place: "moon" })), { hour: 22 }), "bad_place");
+  assert.equal(validatePlotResult(JSON.parse(J(V, { mood: { anger: 0.1 } })), { hour: 22 }), "bad_mood_dim:anger");
+  assert.equal(validatePlotResult(JSON.parse(J(V, { mood: { valence: 0.9 } })), { hour: 22 }), "bad_mood_delta:valence");
+  assert.equal(validatePlotResult(JSON.parse(J(V, { imageQuery: "" })), { hour: 22 }), "bad_image_query");
+  assert.equal(validatePlotResult(JSON.parse(J(V, { event: "" })), { hour: 22 }), "bad_event");
+});
+
+test("pickDailyEvent：按时段过滤并避开最近事件", () => {
+  const night = pickDailyEvent({ hour: 22, random: () => 0 });
+  assert.ok(night.hours.includes(22));
+  const avoid = pickDailyEvent({ hour: 22, recent: [night.id], random: () => 0 });
+  assert.notEqual(avoid.id, night.id);
+  const morning = pickDailyEvent({ hour: 7, random: () => 0 });
+  assert.ok(morning.hours.includes(7));
+});
+
 test("similarity：相同文本为 1，无关文本低", () => {
   assert.equal(similarity(V, V), 1);
   assert.ok(similarity(V, V2) < 0.6);
 });
 
-test("run：首稿合格 → 一次调用", async () => {
-  const llm = scripted([V]);
-  const agent = createPlotAgent({ llm, registry, now: () => new Date(2026, 10, 12, 22, 0).getTime() });
-  const r = await agent.run({ input: "雨停了", place: "客厅", mood: "平静" });
+test("run：首稿合格 → 结构化字段返回", async () => {
+  const llm = scripted([J()]);
+  const agent = createPlotAgent({ llm, registry, now: atNight });
+  const r = await agent.run({ input: "雨停了" });
   assert.equal(r.ok, true);
+  assert.equal(r.event, "雨停开窗");
+  assert.equal(r.place, "living");
+  assert.deepEqual(r.mood, { valence: 0.05, energy: -0.02 });
+  assert.equal(r.imageQuery, "rain window night");
   assert.equal(r.attempts, 1);
-  assert.equal(llm.calls.length, 1);
+  assert.equal(llm.calls[0].json, true);
 });
 
 test("run：首稿太短 → 带原因重写", async () => {
-  const llm = scripted(["太短了。", V]);
-  const agent = createPlotAgent({ llm, registry, now: () => new Date(2026, 10, 12, 22, 0).getTime() });
+  const llm = scripted([J("太短。"), J()]);
+  const agent = createPlotAgent({ llm, registry, now: atNight });
   const r = await agent.run({ input: "雨停了" });
   assert.equal(r.ok, true);
   assert.equal(r.attempts, 2);
@@ -91,21 +128,25 @@ test("run：首稿太短 → 带原因重写", async () => {
 });
 
 test("run：重复 → 重写；三次仍不合格 → 失败", async () => {
-  const llm = scripted([V, V2]);
-  const agent = createPlotAgent({ llm, registry, now: () => new Date(2026, 10, 12, 22, 0).getTime() });
+  const llm = scripted([J(), J(V2)]);
+  const agent = createPlotAgent({ llm, registry, now: atNight });
   const r = await agent.run({ input: "雨停了", recent: [V] });
   assert.equal(r.ok, true);
   assert.equal(r.text, V2);
 
-  const bad = createPlotAgent({
-    llm: scripted(["短。"]),
-    registry,
-    now: () => new Date(2026, 10, 12, 22, 0).getTime(),
-  });
+  const bad = createPlotAgent({ llm: scripted([J("短。")]), registry, now: atNight });
   const f = await bad.run({ input: "x" });
   assert.equal(f.ok, false);
   assert.equal(f.reason, "too_short");
   assert.equal(f.attempts, 3);
+});
+
+test("run：非法 JSON → invalid_json 后重写", async () => {
+  const llm = scripted(["不是 JSON", J()]);
+  const agent = createPlotAgent({ llm, registry, now: atNight });
+  const r = await agent.run({ input: "x" });
+  assert.equal(r.ok, true);
+  assert.match(llm.calls[1].messages[0].content, /invalid_json/);
 });
 
 test("manager：plot-writer 走子 Agent，不再直接调 LLM", async () => {
