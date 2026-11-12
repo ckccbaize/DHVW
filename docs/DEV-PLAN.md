@@ -76,7 +76,7 @@
 | W11 | LLM 客户端与服务商配置 | `core/llm/client.js` + `provider.js`：OpenAI 兼容、超时/中止、瞬时错误重试 ≤2、PC 可下发 `llm:config` | 429/500 重试成功；401 不重试；配置落库即生效 | W10 | **已有**（12 项测试） |
 | W12 | Prompt / Skill 注册表 | `agent/skills/<name>/SKILL.md` + `agent/prompts/*.md` → `tools/build-agent.mjs` → `www/agent/registry.json` | 改 prompt 不动代码；清单可校验 | A6 | **已有**（5 项测试 + 浏览器实测） |
 | W13 | 管理层 Agent | `core/agent/manager.js`：意图 → 任务分解 → 派发 → schema 校验 → 落库 | 一次意图产出 1–3 个任务，非法输出被丢弃 | W11, W12 | **已有**（8 项测试 + 假 LLM 端到端） |
-| W14 | 子 Agent：剧情 | `core/agent/subs/plot.js` | 30–80 字、时间锚点、24h 去重 | W13 | **已有**（7 项测试 + 端到端去重实测） |
+| W14 | 子 Agent：剧情 | `core/agent/subs/plot.js` + `subs/events.js` | 30–80 字、时间锚点、24h 去重；事件池可定时扩展 | W13 | **已有**（12 项测试 + 端到端实测） |
 | W15 | 子 Agent：背景 | `core/agent/subs/bg.js` | 960×540、非单色、体积达标 | W13 | **已有**（搜索/下载/裁切/压缩，实测 60KB） |
 | W16 | 子 Agent：地图 | `core/agent/subs/map.js`（依赖 W31 绘制移植） | 生成合法 intGrid + 可渲染 | W13, W31 |
 | W17 | 资源治理与 24/7 | `core/governor.js`：内存水位、降频、息屏、看门狗 | 8h 不断档；水位超限按 P4→P3→P2 降级 | W10 |

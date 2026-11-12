@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-12T15:43:48.047Z",
+ "built_at": "2026-11-12T15:48:43.918Z",
  "files": [
   {
    "path": "agent/registry.json",
-   "size": 3800,
-   "sha256": "a03b4bad25b9cfe36b439819da72eac7f7f5d01da6b479805342e70f76e4cf12"
+   "size": 4978,
+   "sha256": "a46ab5f3f1a82cc9f58b83ad2cc92739efdc8d403116953aaddb9e8b2052f2cd"
   },
   {
    "path": "assets/scenes/home/home.built.json",
@@ -39,8 +39,8 @@
   },
   {
    "path": "debug-core.html",
-   "size": 19463,
-   "sha256": "5408ef0dd4d5bec1c1ab3fced4aeab4798107c7db9a9d3f997715dfccae04546"
+   "size": 20487,
+   "sha256": "2185c508f01de162061385d4d04f412d2e35ac26a4045ffbbea628cdf9f44444"
   },
   {
    "path": "index.html",
@@ -73,9 +73,14 @@
    "sha256": "6769455f9f183d19964d3c341ba1e7e5b4d3df97ba6fb74bd55e38ec3d90a1c8"
   },
   {
+   "path": "js/core/agent/subs/events.js",
+   "size": 3207,
+   "sha256": "88f92f573a00f8fb9bf5d1d4d25e0d4cd4796f459dad26b66144956f696eeab2"
+  },
+  {
    "path": "js/core/agent/subs/plot.js",
-   "size": 10036,
-   "sha256": "8b04b43453df331d19608ad089c68657dc212b178a9972fc52ce8e31398178fc"
+   "size": 10143,
+   "sha256": "29ae21c18d11abf5ce400dfced8be27755dd99b04a42231a346d0da4e4ae4c59"
   },
   {
    "path": "js/core/assetstore.js",
@@ -194,8 +199,8 @@
   },
   {
    "path": "js/core/worker.js",
-   "size": 23615,
-   "sha256": "5187cd019a92d657b162d5543a0a5cf65da978db216ddddab3f73ba46586a5f2"
+   "size": 25755,
+   "sha256": "5702107e3b46a462623898592741d1e5d70e4b15816162d9b469fb49f66cd19d"
   },
   {
    "path": "js/forge/grammar.js",

@@ -100,12 +100,18 @@ export function validatePlotResult(obj, { hour, recent = [] } = {}) {
 }
 
 /** 按时段与最近事件挑一个日常事件；random 可注入以便测试。 */
-export function pickDailyEvent({ hour = new Date().getHours(), recent = [], random = Math.random } = {}) {
+export function pickDailyEvent({
+  hour = new Date().getHours(),
+  recent = [],
+  random = Math.random,
+  pool = [],
+} = {}) {
+  const all = pool.length ? [...pool, ...EVENT_POOL] : EVENT_POOL;
   const recentIds = new Set(recent);
-  let pool = EVENT_POOL.filter((e) => e.hours.includes(hour) && !recentIds.has(e.id));
-  if (!pool.length) pool = EVENT_POOL.filter((e) => !recentIds.has(e.id));
-  if (!pool.length) pool = EVENT_POOL;
-  return pool[Math.floor(random() * pool.length) % pool.length];
+  let list = all.filter((e) => e.hours.includes(hour) && !recentIds.has(e.id));
+  if (!list.length) list = all.filter((e) => !recentIds.has(e.id));
+  if (!list.length) list = all;
+  return list[Math.floor(random() * list.length) % list.length];
 }
 
 export function createPlotAgent({ llm, registry, now = () => Date.now(), maxAttempts = 3 } = {}) {
@@ -118,6 +124,7 @@ export function createPlotAgent({ llm, registry, now = () => Date.now(), maxAtte
     mood = "",
     recent = [],
     recentEvents = [],
+    extraEvents = [],
     hour,
     random = Math.random,
   } = {}) {
@@ -126,7 +133,7 @@ export function createPlotAgent({ llm, registry, now = () => Date.now(), maxAtte
     const ts = now();
     const h = Number.isFinite(hour) ? hour : new Date(ts).getHours();
     const period = periodOf(h);
-    const seed = input || pickDailyEvent({ hour: h, recent: recentEvents, random });
+    const seed = input || pickDailyEvent({ hour: h, recent: recentEvents, random, pool: extraEvents });
     const seedText = typeof seed === "string" ? seed : seed.text;
     const recentText = recent.slice(0, 5).join(" / ") || "（无）";
     let draft = "";

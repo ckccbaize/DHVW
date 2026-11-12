@@ -89,6 +89,16 @@ createManagerAgent({ llm, registry, subAgents: { "plot-writer": (args) => plotAg
 
 事件从 `EVENT_POOL` 按时段与最近 10 条随机挑选，避免连续重复。
 
+### 事件池扩展
+
+内置 20 条之外，剧情 Agent 可定时生成新事件：
+
+- `event-pool` 技能输出 `{events:[...]}`，字段与内置一致；
+- 校验：text 4–24 字、hours 0–23、place 白名单、mood 维度/±0.3、与已有相似度 <0.6；
+- 新事件写 kv `event_pool`（上限 60 条），与内置池合并后参与挑选；
+- 调度器 `event_pool` 任务在 idle/asleep 执行，超过 6 小时自动补一次；
+- 命令：`event_pool_refresh` / `event_pool_list` / `event_pool_clear`。
+
 ## 6. 背景子 Agent
 
 `core/agent/subs/bg.js` 走壳的图片代理，无需 API key：

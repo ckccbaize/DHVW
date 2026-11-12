@@ -121,7 +121,14 @@ const llm = http.createServer((req, res) => {
   req.on("data", (c) => (body += c));
   req.on("end", () => {
     console.log(`[fake-llm] ← ${req.headers.authorization || "no-auth"} ${body.slice(0, 120)}`);
-    const content = body.includes("背景图检索词")
+    const content = body.includes("日常生活事件")
+      ? JSON.stringify({
+          events: [
+            { text: "她把窗台的灰擦了一遍", hours: [8, 9, 10], place: "living", mood: { focus: 0.04 }, imageQuery: "wiping windowsill morning" },
+            { text: "她在厨房削了一个苹果", hours: [15, 16, 17], place: "kitchen", mood: { valence: 0.06 }, imageQuery: "peeling apple kitchen" },
+          ],
+        })
+      : body.includes("背景图检索词")
       ? JSON.stringify({
           text: "夜里，她把窗推开一条缝，雨声涌进来。桌上的杯子还温着，她端起来，又放下，去拧灭了走廊的灯。",
           event: "雨停开窗",

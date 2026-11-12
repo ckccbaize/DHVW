@@ -17,7 +17,8 @@ import { createLlmClient } from "./llm/client.js";
 import { createBudgetLedger } from "./llm/budget.js";
 import { createAgentRegistry } from "./agent/registry.js";
 import { createManagerAgent } from "./agent/manager.js";
-import { createPlotAgent } from "./agent/subs/plot.js";
+import { createPlotAgent, EVENT_POOL } from "./agent/subs/plot.js";
+import { createEventPoolAgent } from "./agent/subs/events.js";
 import { createBgAgent } from "./agent/subs/bg.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
 
@@ -73,6 +74,8 @@ let manager = null;
 let plotAgent = null;
 let bgAgent = null;
 let bgMeta = null;
+let eventPoolAgent = null;
+let eventPool = { updatedAt: 0, events: [] };
 
 const life = createLifeRuntime({ minute: 8 * 60 });
 
@@ -171,6 +174,12 @@ const ready = (async () => {
   });
   plotAgent = createPlotAgent({ llm, registry: agentRegistry });
   bgAgent = createBgAgent();
+  eventPoolAgent = createEventPoolAgent({ llm, registry: agentRegistry });
+  const savedPool = await kvBackend.get("event_pool");
+  if (savedPool && Array.isArray(savedPool.events)) eventPool = savedPool;
+  scheduler.register("event_pool", async () => {
+    await refreshEventPool(6);
+  });
   manager = createManagerAgent({
     llm,
     registry: agentRegistry,
@@ -189,8 +198,36 @@ const ready = (async () => {
   await eventLog.init();
   await localMemory.init();
   await scheduler.init();
+  if (Date.now() - eventPool.updatedAt > 6 * 3600 * 1000) {
+    scheduler.enqueue({ kind: "event_pool", priority: 6 });
+  }
+  setInterval(() => {
+    if (Date.now() - eventPool.updatedAt < 6 * 3600 * 1000) return;
+    if (scheduler.queue.some((j) => j.kind === "event_pool")) return;
+    scheduler.enqueue({ kind: "event_pool", priority: 6 });
+  }, 30 * 60 * 1000);
   logStats = eventLog.stats;
 })();
+
+async function refreshEventPool(count = 6) {
+  if (!eventPoolAgent) return { ok: false, reason: "not_ready", events: [], rejected: [] };
+  const existing = [...EVENT_POOL.map((e) => e.text), ...eventPool.events.map((e) => e.text)];
+  const r = await eventPoolAgent.refresh({ existing, count });
+  if (r.ok) {
+    eventPool = {
+      updatedAt: Date.now(),
+      events: [...r.events, ...eventPool.events].slice(0, 60),
+    };
+    await kvBackend.put("event_pool", eventPool);
+    await appendEvent("event_pool:updated", {
+      added: r.events.length,
+      rejected: r.rejected.length,
+      total: eventPool.events.length,
+    });
+    patch({ eventPool: { total: eventPool.events.length, updatedAt: eventPool.updatedAt } });
+  }
+  return r;
+}
 
 function llmView() {
   if (!providerStore) return null;
@@ -334,6 +371,7 @@ function health() {
     budget: budget ? budget.stats() : null,
     agent: agentRegistry ? agentRegistry.stats() : { loaded: false },
     bg: bgMeta,
+    eventPool: { total: eventPool.events.length, updatedAt: eventPool.updatedAt },
     life: life.snapshot(),
     log: { ...logStats },
     doctor: state.doctor,
@@ -517,6 +555,7 @@ const handlers = {
         mood: p.args?.mood || "",
         recent,
         recentEvents,
+        extraEvents: eventPool.events,
       });
       if (r.ok) {
         life.applyMood(r.mood, { source: "plot", reason: r.event });
@@ -543,6 +582,18 @@ const handlers = {
         });
       }
       return { ...r, life: life.snapshot() };
+    }
+    if (p.name === "event_pool_refresh") {
+      return await refreshEventPool(p.args?.count || 6);
+    }
+    if (p.name === "event_pool_list") {
+      return { ok: true, updatedAt: eventPool.updatedAt, events: eventPool.events };
+    }
+    if (p.name === "event_pool_clear") {
+      eventPool = { updatedAt: 0, events: [] };
+      await kvBackend.put("event_pool", eventPool);
+      patch({ eventPool: { total: 0, updatedAt: 0 } });
+      return { ok: true };
     }
     if (p.name === "plot_clear") {
       await kvBackend.put("plot_recent", []);
