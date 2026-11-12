@@ -100,13 +100,16 @@
 
 | ID | 工具 | 作用 | 验收 | 状态 |
 |---|---|---|---|---|
-| T1 | `tools/validate-scene.mjs` | schema + 闸门：尺寸一致、spawn/热点可走、门双向、`act` 有定义、图集引用存在 | 改坏一处 → 退出码 1 并指出文件与格坐标 | **已有**（16 项测试） |
+| T1 | `tools/validate-scene.mjs` | schema + 闸门：尺寸一致、spawn/热点可走、门双向、`act` 有定义、图集引用存在 | 改坏一处 → 退出码 1 并指出文件与格坐标 | **已有**（17 项测试；生产期 Node 工具） |
+| T1b | `www/js/core/scene-validate.js` | 从 T1 抽出的**浏览器版同源校验**（无 fs/path/crypto） | 与 T1 同 fixtures、同错误码；设备加载时执行 | 待做（ARM 侧必须） |
 | T2 | `tools/intake.mjs` | 产出侧目录 → `www/assets/scenes/<id>/`，生成 manifest，拒绝不合格包 | 不合格包不落盘 | 待做 |
 | T3 | `js/view/scene-loader.js` | 加载 + 校验 + 解码，失败回退内置场景 | 缺图不白屏 | 待做 |
 | T4 | `js/view/animator.js` | 按 `sheet.json` 播放（方向/动作/帧率） | 4 向 + 5 动作可播 | 待做 |
 | T5 | `js/core/interactions.js` | Registry + Resolver + Executor + EffectApplier（见 `INTERACTION-LAYER.md`） | 改 JSON 即改行为；打断/条件不满足有明确结果 | 待做 |
 | T6 | `www/debug.html` 场景页 | 碰撞/热点/可达性可视化 | 一眼看出哪格挡路、哪个热点不可达 | 与 W22 合并 |
 | T7 | `tools/pack.mjs` / `verify.mjs` | 资源包清单与完整性 | 已通过 | **已有** |
+
+> 工具运行位置与"ARM 侧必须补上什么"见 `docs/AGENT-TOOLKIT.md`：**T1 是生产期自检工具，不随设备发布；设备侧必须实现 T1b 同源校验**。
 
 ## 4. L 组 · 生活引擎（作为 W4 的可视化验收面）
 

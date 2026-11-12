@@ -19,6 +19,7 @@
 | 状态机、事件、记忆、唤醒、LLM | — | ✅ |
 
 > 一句话：**设备侧不发明内容，只保证"给定内容一定能被正确加载、校验、播放、执行、产出"。**
+> 工具运行位置与 ARM 侧必须补的项见 `docs/AGENT-TOOLKIT.md`。
 
 ## 2. 产出侧交付物（每个场景一个目录）
 
@@ -104,6 +105,7 @@
 | 工具 | 作用 | 验收 |
 |---|---|---|
 | `tools/validate-scene.mjs` | schema + 闸门：尺寸一致、spawn 可走、热点可走、门双向、`act` 有定义、图集引用存在 | 故意改坏一处 → 退出码 1 并指出文件与格坐标 |
+| `www/js/core/scene-validate.js`（T1b） | **浏览器版同源校验**，设备加载时执行 | 与 T1 同 fixtures、同错误码 |
 | `tools/intake.mjs` | 把产出侧目录收进 `www/assets/scenes/<id>/`，生成 manifest，拒绝不合格包 | 不合格包不落盘 |
 | `tools/pack.mjs` / `verify.mjs` | 资源包清单与完整性（已有） | 已通过 |
 | `js/view/scene-loader.js` | 加载 + 校验 + 解码（失败回退到内置场景） | 缺图不白屏 |
