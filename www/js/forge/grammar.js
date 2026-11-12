@@ -26,6 +26,8 @@ export function mulberry32(seed) {
 const ROOM_NAME = {
   bedroom: "卧室",
   bathroom: "浴室",
+  bath: "浴室",
+  hall: "门厅",
   balcony: "阳台",
   living: "起居室",
   kitchen: "厨房",

@@ -61,7 +61,7 @@
 | W13 | 管理层 Agent | `core/agent/manager.js`：意图 → 任务分解 → 派发 → schema 校验 → 落库 | 一次意图产出 1–3 个任务，非法输出被丢弃 | W11, W12 |
 | W14 | 子 Agent：剧情 | `core/agent/subs/plot.js` | 30–80 字、时间锚点、24h 去重 | W13 |
 | W15 | 子 Agent：背景 | `core/agent/subs/bg.js` | 960×540、非单色、体积达标 | W13 |
-| W16 | 子 Agent：地图 | `core/agent/subs/map.js`（依赖 tileset 管线） | 生成合法 intGrid + 可渲染 | W13, 资源管线 |
+| W16 | 子 Agent：地图 | `core/agent/subs/map.js`（依赖 W31 绘制移植） | 生成合法 intGrid + 可渲染 | W13, W31 |
 | W17 | 资源治理与 24/7 | `core/governor.js`：内存水位、降频、息屏、看门狗 | 8h 不断档；水位超限按 P4→P3→P2 降级 | W10 |
 | W18 | 观测 | `state_log` / 任务账本 / `health` 字段 | 一条命令看到状态机+队列+预算+索引 | W17 |
 | W19 | 与 PC 同步 | 事件批、资产清单、记忆结果合并 | 假 PC 收批、uuid 去重、重复不重复入 | W9, W5 |
@@ -77,6 +77,7 @@
 | W27 | **自主活动注册表与计划协议** | `core/actions/registry.js` + `plan.js`：能力白名单、前置校验、时长/预算、留证 | 非法活动被拒；一次计划产出可执行步骤与证据 | W13, W20 |
 | W28 | **联网代理 + 全量审计** | `shell` 新增 `GET /__fetch`：AI 决定目标；禁内网/元数据/凭据/POST；≤512KB、8s、≤60 次/时；`net_log` 全量 | 内网地址拒绝；每条抓取有日志；抓回内容按不可信输入处理 | B4, W27 |
 | W29 | **地点图与旅行（含跨夜）** | `core/places/`：place graph + 步行时间 + 抽象地点 + 地图产出契约 | 跨夜旅行产生事件与证据；总观显示"她不在家"；新地图可被消费 | W27 |
+| W31 | **地图绘制移植**（设备侧自己画） | `forge/painter.js` + `forge/layout.js`：`paint_home.py`/`pick_layout.py` 的 JS 版 + 同源闸门 | 同 spec 与 Python 逐像素一致；设备烘焙 ≤50ms | B4, W27 |
 | W30 | **显现 iframe 宿主**（P1 已定） | `view/present-host.js` + PC 侧 HTTPS/证书要求：iframe 全屏、`allow=microphone;autoplay`、失败回总观 | 显现期间 `health` 连续；麦克风可用；关闭后内存回落 | A2, W9 |
 
 ## 4. L 组 · 生活引擎（作为 W4 的可视化验收面）
@@ -150,7 +151,7 @@
 | 6 | W14–W16 | 三个子 Agent（剧情→背景→地图） |
 | 7 | W17–W19 + W24 | 24/7 治理 + 并发合并 + 同步 |
 | 8 | W20–W23 + L1–L4 | 心情 + 唤醒机 + 统计可视化 + 记忆管线 + 生活可视 |
-| 8.5 | W26–W29 | 设备档唤醒运行时 + 自主活动 + 联网代理 + 地点图 |
+| 8.5 | W26–W29 + W31 | 设备档唤醒运行时 + 自主活动 + 联网代理 + 地点图 + 地图绘制移植 |
 | 9 | V1–V9 | 视图最小闭环 + A15 |
 | 10 | S1–S8 | 风格统一 |
 | 11 | D1–D5 | 设备开机即总观 |

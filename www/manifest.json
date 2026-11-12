@@ -1,21 +1,21 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-12T09:21:50.752Z",
+ "built_at": "2026-11-12T11:18:30.988Z",
  "files": [
   {
    "path": "assets/scenes/home/home.built.json",
-   "size": 9079,
-   "sha256": "8ac299d20813c329100d8c795e8d0a66b49d04d1e86aabfd3d9f6f9bf59472e6"
+   "size": 8349,
+   "sha256": "e9f86db939043611039ebd9ce4ded904b3e9fab3360c1b9c5ba1251728cf5042"
   },
   {
    "path": "assets/scenes/home/home.png",
-   "size": 33566,
-   "sha256": "bfb006b404a1ed784c2aafc8ffdf9fd30c117b2e0ccb33652cccd86b84778ed9"
+   "size": 33582,
+   "sha256": "e41d2a28895e6654feaeddc25ef07954bb19d9286f8dc38d39a3da133555c4ef"
   },
   {
    "path": "assets/scenes/home/home@2x.png",
-   "size": 41976,
-   "sha256": "996a4b621e1a1af139d7656564f4ab7744bbfc58294bca800c7721e49d500167"
+   "size": 41997,
+   "sha256": "988f3e4a79ccd2ab9df5c8d1702f5ba61ec3b914f49c68ce012266dbc60c5d83"
   },
   {
    "path": "assets/scenes/home/sprites.png",
@@ -79,8 +79,8 @@
   },
   {
    "path": "js/forge/grammar.js",
-   "size": 6282,
-   "sha256": "b107e55c820c67d802553b5ff82fec75460d15a6abd4b31b127fcfd63795bcc2"
+   "size": 6318,
+   "sha256": "e31d2262a9801344828391833ae8a1b5a220d25df5a7de08593054c6a6335255"
   },
   {
    "path": "js/runtime/local.js",
