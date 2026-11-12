@@ -1,0 +1,50 @@
+#!/bin/sh
+# 设备端安装：资源包 → /opt/dhvw/www，壳 → /usr/local/bin，单元 → systemd。
+# 用法（在设备上）：sudo sh deploy/install.sh /path/to/dhvw-shell-linux-arm64
+set -eu
+
+BIN="${1:-}"
+if [ -z "$BIN" ] || [ ! -f "$BIN" ]; then
+  echo "用法: sudo sh deploy/install.sh <dhvw-shell 二进制>" >&2
+  exit 1
+fi
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$HERE/.." && pwd)"
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo "需要 root（systemd 单元与 /opt 写入）" >&2
+  exit 1
+fi
+
+if ! id dhvw >/dev/null 2>&1; then
+  useradd --system --home-dir /home/dhvw --create-home --shell /usr/sbin/nologin dhvw
+fi
+
+install -d /opt/dhvw
+rm -rf /opt/dhvw/www
+cp -a "$ROOT/www" /opt/dhvw/www
+chown -R root:root /opt/dhvw/www
+chmod -R a+rX /opt/dhvw/www
+
+install -m 0755 "$BIN" /usr/local/bin/dhvw-shell
+install -m 0755 "$HERE/kiosk.sh" /opt/dhvw/kiosk.sh
+
+install -m 0644 "$HERE/systemd/dhvw-shell.service" /etc/systemd/system/dhvw-shell.service
+install -m 0644 "$HERE/systemd/dhvw-kiosk.service" /etc/systemd/system/dhvw-kiosk.service
+
+install -d /etc/systemd/logind.conf.d
+install -m 0644 "$HERE/logind/99-dhvw-nosleep.conf" /etc/systemd/logind.conf.d/99-dhvw-nosleep.conf
+
+install -d /etc/sysctl.d
+install -m 0644 "$HERE/sysctl/99-dhvw.conf" /etc/sysctl.d/99-dhvw.conf
+sysctl -p /etc/sysctl.d/99-dhvw.conf >/dev/null 2>&1 || true
+
+systemctl daemon-reload
+systemctl enable --now dhvw-shell.service
+systemctl restart systemd-logind >/dev/null 2>&1 || true
+
+echo "已安装。检查："
+echo "  systemctl status dhvw-shell --no-pager"
+echo "  curl -s http://127.0.0.1:8080/__health"
+echo "kiosk 需先有 X（graphical.target）：systemctl enable --now dhvw-kiosk.service"

@@ -1,0 +1,19 @@
+{
+  "host": {
+    "wsUrl": "",
+    "probeUrl": "",
+    "ttsUrl": ""
+  },
+  "life": {
+    "minutesPerSecond": 1,
+    "tickMs": 1000
+  },
+  "assetQuotaBytes": 524288000,
+  "display": {
+    "backToOverviewMs": 90000,
+    "hostLostGraceMs": 10000,
+    "hysteresisMs": 20000,
+    "switchSource": "virtual"
+  },
+  "forgeIntervalMs": 45000
+}

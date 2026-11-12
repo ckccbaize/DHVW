@@ -77,7 +77,9 @@ arm/
 │   │   ├─ core/grid.js         intGrid 解析、BFS、热点推导
 │   │   ├─ core/pathagent.js    位置模型（moveTo + 插值 + 纠偏）
 │   │   ├─ core/lifestore.js    唯一视图数据源（订阅式）
-│   │   ├─ core/clock.js        单调时钟 + clock_offset
+│   │   ├─ core/clock.js        单调时钟 + clock_offset + 时段划分
+│   │   ├─ core/light.js        光照档位映射（端侧与视图共用）
+│   │   ├─ core/assetstore.js   资产优先级 + 配额淘汰（纯函数）
 │   │   ├─ core/ringbuffer.js   事件环形缓冲（2000 条 + dropped 计数）
 │   │   ├─ runtime/remote.js    RemoteRuntime（WS + 心跳 + 双证探测）
 │   │   ├─ runtime/local.js     LocalRuntime（Worker + IndexedDB）
@@ -94,6 +96,7 @@ arm/
 │   ├─ systemd/dhvw-shell.service
 │   ├─ systemd/dhvw-kiosk.service
 │   ├─ logind/99-dhvw-nosleep.conf
+│   ├─ sysctl/99-dhvw.conf      zram 友好 / 少写 eMMC
 │   ├─ kiosk.sh
 │   └─ install.sh               设备端安装（cp + systemctl enable）
 ├─ tools/
@@ -259,6 +262,7 @@ state = {
 | 项 | 定稿 |
 |---|---|
 | 服务 | `dhvw-shell -addr 127.0.0.1:8080 -root /opt/dhvw/www`，只读 |
+| 开发对照 | `tools/serve.mjs` 路径规则与壳一致，但**一律 `no-cache`**；壳才对 `/js/`、`/assets/` 发 `immutable`（否则改完模块刷新仍拿旧文件） |
 | 路径规则 | 拒绝 `..`/绝对路径/符号链接逃逸；**无目录列表**；无扩展名路径回退 `index.html`（SPA） |
 | 缓存 | `index.html` / `manifest.json` / `config.json`：`no-cache` + ETag；`/assets/` 与 `/js/`：`max-age=31536000, immutable`（资源包随版本整体替换） |
 | 校验 | 启动时读 `manifest.json`，校验缺失/尺寸不符并记日志；`/__health` 返回 `{ok, files, missing[], uptime, version}` |
@@ -313,8 +317,8 @@ state = {
 
 ```bash
 # 本地开发（Windows/任意平台，Node 20+）
-npm run serve            # http://127.0.0.1:8080
-npm test                 # 纯函数与契约测试
+npm run serve            # http://127.0.0.1:8080（开发服务，no-cache）
+npm test                 # node --test tests/*.test.mjs（31 项）
 npm run pack             # 重建 www/manifest.json
 npm run verify           # 校验资源包
 
@@ -326,3 +330,25 @@ sudo sh deploy/install.sh /path/to/dist/dhvw-shell-linux-arm64
 systemctl status dhvw-shell dhvw-kiosk
 curl -s http://127.0.0.1:8080/__health
 ```
+
+---
+
+## 14. 实测记录（v0.1，2026-11-12）
+
+环境：Windows 11 / Node 24.19 / Go 1.26.5 / Chromium（headless，1280×720）。真机（RK3566）尚未测，标注为待测。
+
+| 项 | 方法 | 结果 |
+|---|---|---|
+| 总观出画面 | Go 壳（`:8082`）加载 `www/`，无主机 | 通过：地图 + 角色 + HUD 渲染，`conn=down`、角标「世界·本地」、8fps（静止） |
+| **A15 拒绝显现** | 点击角色 20 次 + 拨开关 | 通过：`refused=20`，`display` 始终 `overview`，`#present` 始终隐藏；开关 `.bounce` 回弹 |
+| 显现进入（模拟主机可达） | `forceConn('up')` → `requestPresent()` | 通过：显示态切 `present`，背景取 `tier:edge` 的 WebP，提示「Live2D 资源未就绪 · 静态立绘模式」；退出回总观 |
+| 点击寻路 | 点起居室地板 | 通过：`moveTo` 目标 (5,12)，BFS 13 格，插值连续行走 |
+| **端侧轻资产** | `forge.worker` 入队 plot/bg/scene | 通过：剧情 30–80 字带时间锚点、背景 960×540 WebP（方差 357）、场景 640×480 WebP（dusk 光照变体），全部 `tier:edge` + `origin` |
+| 端侧自动调度 | 活跃度转 idle 后 tick | 通过：非活跃期自动入队，活跃期不入队（`forge` 不抢生活） |
+| 事件流 | life tick → IndexedDB | 通过：`wake/enter/act/say` 事件带 `uuid` + `t_corrected`（`t_local + clock_offset`） |
+| **A14 不建 WebGL** | 注入 `getContext` 探针后加载 | 通过：仅 `2d`（2 次调用 / 1 个 canvas），无 webgl/webgl2 |
+| 壳行为 | curl | 通过：`/__health` 报资源包 24 文件 0 缺失；`/js/*` `immutable`；`index.html` `no-cache`；ETag→304；`../` 越界 404；目录 404；缺失 `.js` 404；SPA 回退 200；POST 405 |
+| 单测 | `npm test`（31 项）+ `go test` | 通过：grid/pathagent/clock/ringbuffer/assetstore/grammar/remote/local 全绿 |
+| 交叉编译 | `sh shell/build.sh` | 通过：`dhvw-shell-linux-arm64` 5.7MB、`-armv7` 6.0MB（CGO 关闭） |
+
+**未验证（真机待测）**：A4 内存、A10 切换耗时、A13 8h 长稳与息屏功耗、A16 真机 tick P95 与烘焙耗时、1080p 实际观感（当前 20×15 场景在 16:9 屏上左右留黑边，属资源比例而非渲染问题）。
