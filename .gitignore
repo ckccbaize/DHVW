@@ -37,6 +37,7 @@ packaging/out/
 build/
 !apps/shell/build/
 !apps/shell/build/**
+apps/shell/build/tools/
 *.exe
 *.dll
 *.pyd

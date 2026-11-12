@@ -19,6 +19,8 @@ extraResources:
     filter:
       - '**/*'
       - '!**/__pycache__/**'
+  - from: build/tools
+    to: tools
   - from: build/icon.png
     to: icon.png
 asar: true

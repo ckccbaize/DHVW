@@ -85,7 +85,7 @@ PC 端“完成”= 下列全部成立，缺一不算：
 | PCM7 | 桥接与接管 | BRIDGE / DESK | PCM4 | Stub 契约稳定；接管零冲突 |
 | PCM8 | 硬化 | SUP / OBS 收口 | 全部 | 72 h 长稳、冷启动、断网恢复达标 |
 
-> 进展（2026-11-11）：PCM1 已实测通过；PCM2 完成内置 CPython 3.12 运行时与镜像拉取；`config.sidecars` 可用真实进程替换占位 sidecar——`waketrace`（HTTP 探针 1.3 s）与 `tts`（GPT-SoVITS，TCP 探针 9.2 s）均已实测就绪；OLVT 改为组件下载（不随包），下载/校验/解压链路已通，依赖安装待自动化。
+> 进展（2026-11-11）：PCM1 已实测通过；PCM2 完成内置 CPython 3.12 运行时与镜像拉取；`config.sidecars` 可用真实进程替换占位 sidecar——`waketrace`（HTTP 探针 1.3 s）与 `tts`（GPT-SoVITS，TCP 探针 9.2 s）均已实测就绪；OLVT 改为组件下载（不随包），下载/校验/解压/依赖安装链路已通（uv 随包，依赖装进 `resources/runtime/site-packages`）。
 
 **顺序理由**
 

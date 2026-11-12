@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell as electronShell } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
-import { dataDir, logDir, rendererIndex, resourcesRoot } from './paths'
+import { dataDir, logDir, rendererIndex, resourcesRoot, runtimeDir } from './paths'
 import { log } from './logger'
 import { loadConfig, saveConfig, type ShellConfig } from './config'
 import { allocatePorts } from './ports'
@@ -33,10 +33,7 @@ const SERVICE_CATALOG: Array<Omit<ServiceDef, 'port'>> = [
 
 /** 随包内置的 CPython（scripts/fetch-runtime.mjs 产出）；不存在则退回系统 Python。 */
 function bundledPython(): string {
-  const candidates = [
-    path.join(resourcesRoot(), 'runtime', 'python.exe'),
-    path.join(app.getAppPath(), 'runtime', 'python.exe'),
-  ]
+  const candidates = [path.join(runtimeDir(), 'python.exe')]
   return candidates.find((p) => fs.existsSync(p)) ?? ''
 }
 
@@ -140,9 +137,13 @@ function registerIpc(): void {
     if (!base) return { id, name: id, version: '-', state: 'failed', error: '未知组件' }
     const spec = resolveSpec(base, config.componentUrls[id])
     log('info', 'component', '开始下载组件', { id: spec.id, version: spec.version, urls: spec.urls.length })
-    const status = await ensureComponent(spec, (pct) => {
-      if (win && !win.isDestroyed()) win.webContents.send('dhvw:componentProgress', { id: spec.id, progress: pct })
-    })
+    const status = await ensureComponent(
+      spec,
+      (pct) => {
+        if (win && !win.isDestroyed()) win.webContents.send('dhvw:componentProgress', { id: spec.id, progress: pct })
+      },
+      config.pipIndex,
+    )
     log(status.state === 'ready' ? 'info' : 'error', 'component', status.state === 'ready' ? '组件就绪' : '组件下载失败', {
       id: spec.id,
       error: status.error,

@@ -184,7 +184,8 @@ OLVT 本体不随安装包，首次使用时从「组件」面板下载：
 - 校验：最小体积（可选 sha256），解压后必须找到入口文件 `run_server.py`，否则判为失败。
 - 落点：`%APPDATA%/DigitalHuman/components/olvt/<version>/`，与安装目录分离，卸载不删除。
 - 覆盖下载源（企业镜像 / 内网离线包）：`config.shell.componentUrls = { "olvt": ["http://.../olvt.zip"] }`，支持 `{version}` 占位。
-- 本地验证过完整链路（下载 → 解压 → 去一层目录 → 入口校验 → 状态持久化），用本地 HTTP 服务喂了 6 MB 测试包。
+- 本地验证过完整链路（下载 → 解压 → 去一层目录 → 入口校验 → 状态持久化 → 依赖安装），用本地 HTTP 服务喂了 6 MB 测试包。
+- 依赖安装：组件带 `requirements.txt` 时，自动用随包的 `tools/uv.exe` 把依赖装进 `resources/runtime/site-packages`（单一 site-packages，ADR-PC-014），索引默认 `https://mirrors.aliyun.com/pypi/simple`，可用 `config.shell.pipIndex` 覆盖。实测 `httpx==0.28.1` 从下载到可 `import` 用时 1.8 s。
 
 ## 界面风格
 

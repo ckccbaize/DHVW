@@ -34,6 +34,11 @@ export function componentsRoot(): string {
   return path.join(resourcesRoot(), 'components')
 }
 
+/** 内置 CPython 运行时：打包在 resources/runtime，开发期在 apps/shell/runtime */
+export function runtimeDir(): string {
+  return isPackaged ? path.join(process.resourcesPath, 'runtime') : path.join(app.getAppPath(), 'runtime')
+}
+
 export function hostModuleRoot(): string {
   return path.join(resourcesRoot(), 'services', 'host')
 }

@@ -12,6 +12,8 @@ export interface ShellConfig {
   sidecars: Record<string, { command: string[]; cwd?: string; env?: Record<string, string> }>
   /** 组件下载地址覆盖（企业镜像/离线包），不填则用内置镜像列表 */
   componentUrls: Record<string, string[]>
+  /** 组件依赖安装使用的 PyPI 镜像 */
+  pipIndex: string
   services: Record<string, { enabled: boolean }>
 }
 
@@ -22,6 +24,7 @@ const DEFAULTS: ShellConfig = {
   llm: { baseUrl: 'https://codex.mintcat.work', model: 'deepseek-v4.1-flash' },
   sidecars: {},
   componentUrls: {},
+  pipIndex: 'https://mirrors.aliyun.com/pypi/simple',
   services: {},
 }
 

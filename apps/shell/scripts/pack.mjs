@@ -10,9 +10,13 @@ const releaseDir = path.resolve(shellDir, '../..', 'release')
 // 预算改为软阈值：超过只告警，超过 125% 才失败（用户要求暂不卡体积）
 const MAX_INSTALLER_MB = 500
 
-// 内置运行时缺失时先按镜像补齐，保证安装包自带 Python（ADR-PC-014）
-if (!fs.existsSync(path.join(shellDir, 'runtime', 'python.exe'))) {
-  const prep = spawnSync(process.execPath, [path.join(dir, 'fetch-runtime.mjs')], { cwd: shellDir, stdio: 'inherit' })
+// 内置运行时与 uv 缺失时先补齐，保证安装包自带 Python 与依赖安装能力（ADR-PC-014）
+for (const [name, ready] of [
+  ['fetch-runtime.mjs', path.join(shellDir, 'runtime', 'python.exe')],
+  ['fetch-uv.mjs', path.join(shellDir, 'build', 'tools', 'uv.exe')],
+]) {
+  if (fs.existsSync(ready)) continue
+  const prep = spawnSync(process.execPath, [path.join(dir, name)], { cwd: shellDir, stdio: 'inherit' })
   if (prep.status !== 0) process.exit(prep.status ?? 1)
 }
 

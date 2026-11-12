@@ -2,7 +2,8 @@ import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import { componentsRoot, dataDir } from './paths'
+import { app } from 'electron'
+import { componentsRoot, dataDir, resourcesRoot, runtimeDir } from './paths'
 
 /**
  * 可下载组件（ADR-PC-018 修订：OLVT 不随包，首次使用时下载）。
@@ -18,6 +19,8 @@ export interface ComponentSpec {
   entry: string
   sha256?: string
   minBytes?: number
+  /** 组件内的依赖清单（相对路径），安装到 runtime/site-packages */
+  requirements?: string
 }
 
 export interface ComponentStatus {
@@ -50,6 +53,7 @@ export const COMPONENTS: ComponentSpec[] = [
     urls: githubProxies(`${GITHUB_REPO}/archive/refs/tags/v{version}.zip`),
     entry: 'run_server.py',
     minBytes: 5_000_000,
+    requirements: 'requirements.txt',
   },
 ]
 
@@ -139,6 +143,7 @@ async function download(
 export async function ensureComponent(
   spec: ComponentSpec,
   onProgress: (pct: number) => void,
+  indexUrl = 'https://mirrors.aliyun.com/pypi/simple',
 ): Promise<ComponentStatus> {
   if (isReady(spec)) return componentStatus(spec)
   let dir = componentDir(spec)
@@ -159,6 +164,7 @@ export async function ensureComponent(
     fs.rmSync(archive, { force: true })
     flatten(dir, spec)
     if (!isReady(spec)) throw new Error(`解压后缺少 ${spec.entry}`)
+    installDeps(spec, dir, indexUrl, onProgress)
     return componentStatus(spec)
   } catch (err) {
     return {
@@ -167,6 +173,49 @@ export async function ensureComponent(
       error: (err as Error).message,
     }
   }
+}
+
+/**
+ * 把组件依赖装进共享的 runtime/site-packages（ADR-PC-014 单一 site-packages）。
+ * uv 随安装包提供，索引走国内镜像；失败直接抛错，让界面显示原因而不是“装好了但跑不起来”。
+ */
+function installDeps(
+  spec: ComponentSpec,
+  dir: string,
+  indexUrl: string,
+  onProgress: (pct: number) => void,
+): void {
+  if (!spec.requirements) return
+  const req = path.join(dir, spec.requirements)
+  if (!fs.existsSync(req)) return
+  const runtime = runtimeDir()
+  const uv =
+    process.env.DHVW_UV ??
+    [path.join(resourcesRoot(), 'tools', 'uv.exe'), path.join(app.getAppPath(), 'build', 'tools', 'uv.exe')].find(
+      (p) => fs.existsSync(p),
+    )
+  if (!uv) throw new Error('缺少 uv（打包时应随 tools/uv.exe 提供）')
+  onProgress(60)
+  const args = [
+    'pip',
+    'install',
+    '--python',
+    path.join(runtime, 'python.exe'),
+    '--target',
+    path.join(runtime, 'site-packages'),
+    '--index-url',
+    indexUrl,
+    '--no-cache',
+    '--quiet',
+    '-r',
+    req,
+  ]
+  const out = spawnSync(uv, args, { encoding: 'utf8', timeout: 30 * 60 * 1000 })
+  if (out.error) throw out.error
+  if (out.status !== 0) {
+    throw new Error(`依赖安装失败：${String(out.stderr ?? '').slice(-400) || String(out.stdout ?? '').slice(-400)}`)
+  }
+  onProgress(100)
 }
 
 /** GitHub 归档会多一层 `<repo>-<version>/`，直接提到组件目录下 */
