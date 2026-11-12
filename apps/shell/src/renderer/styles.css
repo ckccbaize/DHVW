@@ -366,6 +366,7 @@ td.name {
 }
 
 .table-wrap {
+  overflow-x: auto;
   flex: 1;
   min-height: 0;
   overflow: auto;
@@ -632,4 +633,84 @@ input[readonly] {
 
 .msg.bad {
   color: #b3242f;
+}
+
+/* ---------- 表单控件与换行约束（窗口缩小时不许把按钮挤出容器） ---------- */
+
+select {
+  border: var(--line) solid var(--ink);
+  border-radius: 0;
+  background: var(--cel-white);
+  color: var(--ink);
+  padding: 8px 12px;
+  font: 900 13px/1.4 'Inter', 'Microsoft YaHei', sans-serif;
+  outline: none;
+  min-width: 0;
+  max-width: 100%;
+  cursor: pointer;
+}
+
+select:focus {
+  background: #fffdf0;
+  box-shadow: var(--shadow);
+}
+
+.row2.tight {
+  align-items: stretch;
+  gap: 8px;
+}
+
+.row2.tight > input,
+.row2.tight > select {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+.row2.tight > button,
+.actions > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* 任何容器里的按钮都不许被压缩成竖排或被裁掉 */
+button {
+  flex-shrink: 0;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.field > input,
+.field > select,
+.field > textarea {
+  width: 100%;
+  min-width: 0;
+}
+
+.dialog .row2 {
+  align-items: flex-end;
+}
+
+@media (max-width: 520px) {
+  .dialog .row2 {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* 窄窗口：先牺牲次要列，保住操作按钮不被挤出容器 */
+@media (max-width: 700px) {
+  .col-optional {
+    display: none;
+  }
+
+  .row-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .row-actions button {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
 }

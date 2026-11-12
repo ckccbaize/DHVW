@@ -9,7 +9,7 @@ import { HostSupervisor } from './host'
 import type { ActionRequest, AppSnapshot, ServiceDef, SettingsPatch, SettingsView } from '../shared/types'
 import { createTray } from './tray'
 import { applyNetworkHardening, hardenSessionSetup } from './hardening'
-import { probeLlm } from './network'
+import { listModels, probeLlm } from './network'
 import { COMPONENTS, componentStatus, ensureComponent, resolveSpec } from './components'
 import { clearApiKey, hasApiKey, readApiKey, saveApiKey } from './secret'
 import { asrModelPaths, prepareOlvt, resolveOlvtDir } from './olvt'
@@ -52,7 +52,7 @@ function resolvePython(): string {
   return 'python'
 }
 
-const ALLOWED_MODELS = ['deepseek-v4.1-flash']
+const PROTOCOLS = ['openai-compatible', 'anthropic'] as const
 
 function settingsView(): SettingsView {
   return {
@@ -151,8 +151,13 @@ function registerIpc(): void {
       next.llm.baseUrl = patch.llm.baseUrl.trim()
     }
     if (patch.llm?.model !== undefined) {
-      if (!ALLOWED_MODELS.includes(patch.llm.model)) return { ok: false, error: '模型不在白名单内' }
-      next.llm.model = patch.llm.model
+      const model = String(patch.llm.model).trim()
+      if (!model) return { ok: false, error: '模型不能为空（可先拉取模型列表）' }
+      next.llm.model = model
+    }
+    if (patch.llm?.protocol !== undefined) {
+      if (!PROTOCOLS.includes(patch.llm.protocol)) return { ok: false, error: '不支持的协议' }
+      next.llm.protocol = patch.llm.protocol
     }
     if (patch.llm?.temperature !== undefined) {
       const t = Number(patch.llm.temperature)
@@ -181,6 +186,16 @@ function registerIpc(): void {
     log('info', 'settings', '设置已保存', { llm: next.llm.baseUrl, model: next.llm.model, ports: next.ports })
     return { ok: true, settings: settingsView() }
   })
+  ipcMain.handle(
+    'dhvw:listModels',
+    (_e, req?: { baseUrl?: string; protocol?: 'openai-compatible' | 'anthropic'; apiKey?: string }) =>
+      listModels({
+        baseUrl: req?.baseUrl ?? config.llm.baseUrl,
+        protocol: req?.protocol ?? config.llm.protocol,
+        // 允许用界面上刚输入但尚未保存的密钥试拉取
+        apiKey: req?.apiKey?.trim() || readApiKey(),
+      }),
+  )
   ipcMain.handle('dhvw:saveApiKey', (_e, key: string) => saveApiKey(String(key ?? '')))
   ipcMain.handle('dhvw:clearApiKey', () => {
     clearApiKey()

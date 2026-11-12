@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import type { AppSnapshot, ComponentStatus, HostEvent, SettingsView, WorkerSnapshot } from '../shared/types'
+import type { AppSnapshot, ComponentStatus, HostEvent, LlmProtocol, SettingsView, WorkerSnapshot } from '../shared/types'
 
 declare global {
   interface Window {
@@ -33,7 +33,12 @@ function SettingsDialog({
   onClose: () => void
   onSaved: (next: SettingsView) => void
 }): React.ReactElement {
+  const [protocol, setProtocol] = useState<LlmProtocol>(value.llm.protocol)
   const [baseUrl, setBaseUrl] = useState(value.llm.baseUrl)
+  const [model, setModel] = useState(value.llm.model)
+  const [manualModel, setManualModel] = useState(!value.llm.model)
+  const [models, setModels] = useState<string[]>([])
+  const [loadingModels, setLoadingModels] = useState(false)
   const [temperature, setTemperature] = useState(String(value.llm.temperature))
   const [olvtPort, setOlvtPort] = useState(String(value.ports.olvt))
   const [ttsPort, setTtsPort] = useState(String(value.ports.tts))
@@ -48,24 +53,26 @@ function SettingsDialog({
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const save = async (): Promise<void> => {
-    setBusy(true)
+  const fetchModels = async (): Promise<void> => {
+    setLoadingModels(true)
+    setMsg(null)
     try {
-      const res = await window.dhvw.saveSettings({
-        llm: { baseUrl, temperature: Number(temperature) },
-        ports: { olvt: Number(olvtPort), tts: Number(ttsPort) },
-        asr: { enabled: asr },
-        olvt: { characterName: charName, humanName, personaPrompt: persona },
-        tts: { refAudioPath: refAudio, refText },
+      const res = await window.dhvw.listModels({
+        baseUrl,
+        protocol,
+        // 界面上刚输入还没保存的密钥也允许直接试用
+        apiKey: key.trim() || undefined,
       })
-      if (!res.ok || !res.settings) {
-        setMsg({ ok: false, text: res.error ?? '保存失败' })
+      if (!res.ok) {
+        setMsg({ ok: false, text: `拉取失败：${res.error ?? '未知原因'}` })
         return
       }
-      onSaved(res.settings)
-      setMsg({ ok: true, text: '已保存（服务端口变更需重启宿主生效）' })
+      setModels(res.models)
+      if (!res.models.includes(model)) setModel(res.models[0] ?? model)
+      setManualModel(false)
+      setMsg({ ok: true, text: `拉到 ${res.models.length} 个模型（${res.url ?? ''}）` })
     } finally {
-      setBusy(false)
+      setLoadingModels(false)
     }
   }
 
@@ -80,30 +87,96 @@ function SettingsDialog({
     }
   }
 
+  const save = async (): Promise<void> => {
+    setBusy(true)
+    try {
+      if (key.trim() && !hasKey) await window.dhvw.saveApiKey(key).then((r) => r.ok && setHasKey(true))
+      const res = await window.dhvw.saveSettings({
+        llm: { protocol, baseUrl, model, temperature: Number(temperature) },
+        ports: { olvt: Number(olvtPort), tts: Number(ttsPort) },
+        asr: { enabled: asr },
+        olvt: { characterName: charName, humanName, personaPrompt: persona },
+        tts: { refAudioPath: refAudio, refText },
+      })
+      if (!res.ok || !res.settings) {
+        setMsg({ ok: false, text: res.error ?? '保存失败' })
+        return
+      }
+      onSaved(res.settings)
+      setMsg({ ok: true, text: '已保存（端口类改动需重启宿主生效）' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="overlay" onClick={onClose}>
       <div className="dialog" onClick={(e) => e.stopPropagation()}>
         <h2>设置</h2>
-        <div className="field">
-          <label>调用端点（全局）</label>
-          <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} spellCheck={false} />
-        </div>
+
         <div className="row2">
           <div className="field">
-            <label>模型</label>
-            <input value={value.llm.model} readOnly />
+            <label>协议</label>
+            <select
+              value={protocol}
+              onChange={(e) => {
+                setProtocol(e.target.value as LlmProtocol)
+                setModels([])
+                setManualModel(true)
+              }}
+            >
+              <option value="openai-compatible">OpenAI 兼容</option>
+              <option value="anthropic">Anthropic</option>
+            </select>
           </div>
           <div className="field">
             <label>temperature</label>
             <input value={temperature} onChange={(e) => setTemperature(e.target.value)} />
           </div>
         </div>
+
+        <div className="field">
+          <label>调用端点（全局）</label>
+          <div className="row2 tight">
+            <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} spellCheck={false} />
+            <button disabled={loadingModels || !baseUrl.trim()} onClick={() => void fetchModels()}>
+              {loadingModels ? '拉取中…' : '拉取模型'}
+            </button>
+          </div>
+        </div>
+
+        <div className="field">
+          <label>模型</label>
+          {!manualModel && models.length > 0 ? (
+            <div className="row2 tight">
+              <select value={model} onChange={(e) => setModel(e.target.value)}>
+                {models.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+              <button onClick={() => setManualModel(true)}>手动输入</button>
+            </div>
+          ) : (
+            <div className="row2 tight">
+              <input
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder="先拉取列表，或直接填写模型名"
+                spellCheck={false}
+              />
+              {models.length > 0 && <button onClick={() => setManualModel(false)}>从列表选</button>}
+            </div>
+          )}
+        </div>
+
         <div className="field">
           <label>
             API Key
             <span className={`pill ${hasKey ? 'ok' : ''}`}>{hasKey ? '已配置' : '未配置'}</span>
           </label>
-          <div className="row2">
+          <div className="row2 tight">
             <input
               type="password"
               placeholder={hasKey ? '输入新密钥可覆盖' : 'sk-...'}
@@ -111,24 +184,23 @@ function SettingsDialog({
               onChange={(e) => setKey(e.target.value)}
               spellCheck={false}
             />
-            <div className="actions">
-              <button disabled={!key.trim()} onClick={() => void saveKey()}>
-                保存密钥
-              </button>
-              <button
-                disabled={!hasKey}
-                onClick={() =>
-                  void window.dhvw.clearApiKey().then(() => {
-                    setHasKey(false)
-                    setMsg({ ok: true, text: '密钥已清除' })
-                  })
-                }
-              >
-                清除
-              </button>
-            </div>
+            <button disabled={!key.trim()} onClick={() => void saveKey()}>
+              保存密钥
+            </button>
+            <button
+              disabled={!hasKey}
+              onClick={() =>
+                void window.dhvw.clearApiKey().then(() => {
+                  setHasKey(false)
+                  setMsg({ ok: true, text: '密钥已清除' })
+                })
+              }
+            >
+              清除
+            </button>
           </div>
         </div>
+
         <div className="row2">
           <div className="field">
             <label>OLVT 端口（0 = 自动）</label>
@@ -316,8 +388,8 @@ export default function App(): React.ReactElement {
                 <th>服务</th>
                 <th>状态</th>
                 <th>端口</th>
-                <th>PID</th>
-                <th>重启</th>
+                <th className="col-optional">PID</th>
+                <th className="col-optional">重启</th>
                 <th />
               </tr>
             </thead>
@@ -330,8 +402,8 @@ export default function App(): React.ReactElement {
                     {w.state === 'running' && w.healthy === false ? '无响应' : stateLabel[w.state]}
                   </td>
                   <td className="mono">{w.port || '—'}</td>
-                  <td className="mono">{w.pid ?? '—'}</td>
-                  <td className="mono">{w.restarts}</td>
+                  <td className="mono col-optional">{w.pid ?? '—'}</td>
+                  <td className="mono col-optional">{w.restarts}</td>
                   <td className="row-actions">
                     <button disabled={busy} onClick={() => void act(w.id, 'restart')}>重启</button>
                     {w.state === 'running' ? (

@@ -65,8 +65,10 @@ export interface ServiceDef {
   healthMode?: 'http' | 'tcp'
 }
 
+export type LlmProtocol = 'openai-compatible' | 'anthropic'
+
 export interface SettingsView {
-  llm: { baseUrl: string; model: string; temperature: number; hasKey: boolean }
+  llm: { baseUrl: string; model: string; temperature: number; protocol: LlmProtocol; hasKey: boolean }
   ports: { olvt: number; tts: number }
   asr: { enabled: boolean; ready: boolean }
   olvt: { characterName: string; humanName: string; personaPrompt: string }
@@ -74,7 +76,7 @@ export interface SettingsView {
 }
 
 export interface SettingsPatch {
-  llm?: Partial<{ baseUrl: string; model: string; temperature: number }>
+  llm?: Partial<{ baseUrl: string; model: string; temperature: number; protocol: LlmProtocol }>
   ports?: Partial<{ olvt: number; tts: number }>
   asr?: Partial<{ enabled: boolean }>
   olvt?: Partial<{ characterName: string; humanName: string; personaPrompt: string }>

@@ -5,6 +5,7 @@ import type {
   ComponentProgress,
   ComponentStatus,
   HostEvent,
+  LlmProtocol,
   SettingsPatch,
   SettingsView,
 } from '../shared/types'
@@ -22,6 +23,12 @@ const api = {
   saveSettings: (patch: SettingsPatch): Promise<{ ok: boolean; error?: string; settings?: SettingsView }> =>
     ipcRenderer.invoke('dhvw:saveSettings', patch),
   saveApiKey: (key: string): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('dhvw:saveApiKey', key),
+  listModels: (req?: {
+    baseUrl?: string
+    protocol?: LlmProtocol
+    apiKey?: string
+  }): Promise<{ ok: boolean; models: string[]; error?: string; url?: string }> =>
+    ipcRenderer.invoke('dhvw:listModels', req),
   clearApiKey: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:clearApiKey'),
   components: (): Promise<ComponentStatus[]> => ipcRenderer.invoke('dhvw:components'),
   installComponent: (id: string): Promise<ComponentStatus> => ipcRenderer.invoke('dhvw:componentInstall', id),

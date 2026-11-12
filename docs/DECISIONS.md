@@ -211,3 +211,17 @@
 - 依据：静态求 `run_server.py` 的模块级导入闭包 + 逐次启动验证；剔除项（torch / azure-speech / elevenlabs / cartesia / edge-tts / pyttsx3 / 各 ASR 后端）都只被各自的后端模块在函数内 import。
 - 必须保留但上游标注为“可选”的：`anthropic`、`letta-client`（`basic_memory_agent` 模块级导入）、`pywin32`（mcp 的 Windows 句柄实现）、`groq`（ASR 占位）。
 - `runtime/sitecustomize.py` 补齐三件嵌入式 Python 缺失的标准行为：`DHVW_PYTHONPATH`、脚本目录入 `sys.path`、展开 `--target` 目录里的 `.pth` 并注册 DLL 目录。
+
+## ADR-PC-021 模型不设白名单，协议与模型由端点决定
+
+- **日期**：2026-11-12 · **状态**：已接受（取代 ADR-PC-016 中“只允许单一模型”的产品层约束）
+- **决策**：
+  1. 设置里提供「协议」选择：`openai-compatible` 与 `anthropic`，分别映射到 OLVT 的 `openai_compatible_llm` / `claude_llm` 配置段。
+  2. 模型列表从端点拉取：`{baseUrl}/v1/models`（失败再试 `{baseUrl}/models`）；OpenAI 兼容用 `Authorization: Bearer`，Anthropic 用 `x-api-key` + `anthropic-version`；两者都带浏览器 UA（端点会按 UA 过滤）。
+  3. 列表里自动过滤 `image/embed/tts/whisper` 等非对话模型；过滤后为空则原样展示。允许手动输入模型名兜底。
+  4. 保存时只校验「模型非空、协议在枚举内、端点必须是 http(s)」，不再有模型白名单。
+  5. `baseUrl` 归一化在生成 conf 时做：OpenAI 兼容补 `/v1`（客户端会再拼 `/chat/completions`），Anthropic 保留根地址（客户端拼 `/v1/messages`）。
+- **理由**：软件是终端，服务商与模型属于用户配置，不是产品定义；“deepseek-v4.1-flash”只是当前个人验证用的选择。
+- **后果**：
+  - 用户选了端点不支持的模型时错误来自上游，界面只显示原始错误，不做预判。
+  - 拉取模型需要已保存或现场输入的 API Key，未配置时列表会因 401 失败，提示里带 HTTP 状态。

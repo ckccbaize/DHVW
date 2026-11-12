@@ -7,7 +7,7 @@ export interface ShellConfig {
   pythonPath: string
   autoLaunch: boolean
   window: { width: number; height: number }
-  llm: { baseUrl: string; model: string; temperature: number }
+  llm: { baseUrl: string; model: string; temperature: number; protocol: 'openai-compatible' | 'anthropic' }
   /** 固定端口（0 = 自动分配），用于对接外部工具或防火墙放行 */
   ports: { olvt: number; tts: number }
   asr: { enabled: boolean }
@@ -28,7 +28,7 @@ const DEFAULTS: ShellConfig = {
   pythonPath: '',
   autoLaunch: false,
   window: { width: 1020, height: 720 },
-  llm: { baseUrl: 'https://codex.mintcat.work', model: 'deepseek-v4.1-flash', temperature: 0.7 },
+  llm: { baseUrl: 'https://codex.mintcat.work', model: '', temperature: 0.7, protocol: 'openai-compatible' },
   ports: { olvt: 0, tts: 0 },
   asr: { enabled: true },
   olvt: {

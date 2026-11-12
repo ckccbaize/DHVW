@@ -170,7 +170,8 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 
 | 项 | 说明 |
 |---|---|
-| 调用端点 / 模型 | 全局 LLM 端点，模型白名单只放行 `deepseek-v4.1-flash`（ADR-PC-016），非法值直接拒绝 |
+| 协议 | `OpenAI 兼容`（默认）或 `Anthropic`；决定 OLVT 用 `openai_compatible_llm` 还是 `claude_llm` 段 |
+| 调用端点 / 模型 | 填端点后点「拉取模型」从 `{baseUrl}/v1/models`（Anthropic 用 x-api-key）取列表并选择，也可手动输入；模型只校验非空，不做白名单 |
 | temperature | 0–2，越界拒绝 |
 | API Key | DPAPI 加密后存 `secrets` 表；IPC 只返回 `hasKey` 布尔值，明文不出主进程，不进日志 |
 | OLVT / TTS 端口 | `0` = 自动分配；固定端口被占用时自动回退到动态分配 |
@@ -178,7 +179,7 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 | 角色名 / 称呼用户 / 人设 | 直接写进 OLVT 的 `character_config`，重启宿主生效 |
 | 参考音色（音频路径 + 文本） | GPT-SoVITS 的 `ref_audio_path` / `prompt_text`，留空则用 TTS 服务默认 |
 
-实测：保存 → 读回一致；`secrets` 里是 64 字符 base64 密文（非明文）；日志中检索不到密钥；`gpt-6-astra` 与 `70000` 端口均被拒绝并返回中文错误。
+实测：保存 → 读回一致；`secrets` 里是 64 字符 base64 密文（非明文）；日志中检索不到密钥；`70000` 端口被拒绝并返回中文错误；端点 `https://codex.mintcat.work` 拉到 3 个对话模型（自动过滤 image 类），选中后 OLVT 直连流式首字 0.98 s。
 
 ## OLVT 首启编排（ADR-PC-020）
 

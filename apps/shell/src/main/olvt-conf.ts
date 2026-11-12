@@ -12,7 +12,7 @@ export interface OlvtConfInput {
   characterName: string
   humanName: string
   personaPrompt: string
-  llm: { baseUrl: string; model: string; temperature: number; apiKey: string }
+  llm: { baseUrl: string; model: string; temperature: number; apiKey: string; protocol: 'openai-compatible' | 'anthropic' }
   tts: { apiUrl: string; refAudioPath: string; refText: string; refLang: string; textLang: string }
   asr: { enabled: boolean; modelPath: string; tokensPath: string }
 }
@@ -25,6 +25,30 @@ const block = (v: string, indent: string): string =>
     .join('\n')
 
 export function renderOlvtConf(input: OlvtConfInput): string {
+  // OpenAI 兼容客户端会自己在 base_url 后补 /chat/completions，所以 base_url 要落在 /v1 上；
+  // Anthropic 客户端补 /v1/messages，根地址即可。
+  const base =
+    input.llm.protocol === 'anthropic'
+      ? input.llm.baseUrl.replace(/\/+$/, '')
+      : /\/v1$/.test(input.llm.baseUrl.replace(/\/+$/, ''))
+        ? input.llm.baseUrl.replace(/\/+$/, '')
+        : `${input.llm.baseUrl.replace(/\/+$/, '')}/v1`
+  const provider = input.llm.protocol === 'anthropic' ? 'claude_llm' : 'openai_compatible_llm'
+  const llmBlock =
+    input.llm.protocol === 'anthropic'
+      ? `      claude_llm:
+        base_url: ${q(base)}
+        llm_api_key: ${q(input.llm.apiKey)}
+        model: ${q(input.llm.model)}
+        interrupt_method: 'user'`
+      : `      openai_compatible_llm:
+        base_url: ${q(base)}
+        llm_api_key: ${q(input.llm.apiKey)}
+        organization_id: null
+        project_id: null
+        model: ${q(input.llm.model)}
+        temperature: ${input.llm.temperature}
+        interrupt_method: 'user'`
   const asrReady = input.asr.enabled && Boolean(input.asr.modelPath) && Boolean(input.asr.tokensPath)
   // pydantic 校验：sherpa 必须带真实模型路径；模型没下载时退到不落盘的远端占位实现，
   // 保证后端仍能启动（此时麦克风不可用，界面上会给出提示）。
@@ -66,20 +90,13 @@ ${block(input.personaPrompt, '    ')}
     conversation_agent_choice: 'basic_memory_agent'
     agent_settings:
       basic_memory_agent:
-        llm_provider: 'openai_compatible_llm'
+        llm_provider: '${provider}'
         faster_first_response: true
         segment_method: 'regex'
         use_mcpp: false
         mcp_enabled_servers: []
     llm_configs:
-      openai_compatible_llm:
-        base_url: ${q(input.llm.baseUrl)}
-        llm_api_key: ${q(input.llm.apiKey)}
-        organization_id: null
-        project_id: null
-        model: ${q(input.llm.model)}
-        temperature: ${input.llm.temperature}
-        interrupt_method: 'user'
+${llmBlock}
 
   asr_config:
     asr_model: ${asrReady ? "'sherpa_onnx_asr'" : "'groq_whisper_asr'"}

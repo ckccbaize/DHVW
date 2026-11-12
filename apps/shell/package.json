@@ -13,7 +13,8 @@
     "start": "npm run build && electron .",
     "dev": "npm run build && electron . --dev",
     "dist": "npm run build && node scripts/pack.mjs",
-    "pack": "node scripts/pack.mjs"
+    "pack": "node scripts/pack.mjs",
+    "audit:layout": "node scripts/layout-audit.mjs"
   },
   "dependencies": {
     "react": "^19.2.0",
