@@ -8,6 +8,7 @@ export function createHostBridge({ dispatchWorld, send, post, now = () => Date.n
   let sessionId = null;
   let memoryHandler = null;
   let llmConfigHandler = null;
+  const handlers = new Map();
 
   function patchHost(extra = {}) {
     post("core:state", {
@@ -101,12 +102,22 @@ export function createHostBridge({ dispatchWorld, send, post, now = () => Date.n
           if (memoryHandler && memoryHandler(p)) break;
           post("core:event", { ev: { kind: "memory_result", hits: p.hits, semantic: !!p.semantic } });
           break;
-        default:
+        default: {
+          const fn = handlers.get(msg.type);
+          if (fn) {
+            fn(p, msg);
+            break;
+          }
           post("core:event", { ev: { kind: "host_unknown", type: msg.type } });
           break;
+        }
       }
     },
 
+    on(type, fn) {
+      handlers.set(type, typeof fn === "function" ? fn : null);
+      return this;
+    },
     setLlmConfigHandler(fn) {
       llmConfigHandler = typeof fn === "function" ? fn : null;
     },

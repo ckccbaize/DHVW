@@ -142,6 +142,15 @@
 
 **预算**：设备侧只做统计与软告警（日 **50k** output 提示），**不做自动熔断**；需要停用时由用户在 GUI 手动暂停。
 
+## 世界摘要（联动入口）
+
+设备生成统一摘要 `world:digest`，并写入 `data/digest.json`（`GET /__digest` 可读）：
+
+- `sceneRequests`：待生成地图，PC 取 `status:"pending"` 的 `mapSpec` 生成，完成后回 `scene:ready {id}`；
+- `pcActions`：设备请求 PC 执行的白名单动作（`map.generate` / `app.open` / `media.play` / `notify` / `web.open`），执行后回 `pc:action:ack {id, ok, result}`；
+- `agenda` / `recentEvents`：剧情、出门、事件流，PC 可用于联动展示或决策；
+- 主动拉取：发 `digest:get`。
+
 PC 侧 GUI 改配置后发一次 `llm:config` 即可，无需重启设备。
 
 > **CORS 注意**：设备页面在 `127.0.0.1:8080`，直连外部 LLM 会被浏览器预检拦截（多数服务商不返回 CORS 头）。设备侧**已内置本地代理** `POST /__llm/chat/completions`（W11b）：页面发 `{baseUrl, apiKey, body}`，壳转发到服务商。PC 侧无需为此做额外适配；若希望所有流量走 PC，可把 `baseUrl` 指向 PC 的代理端点。

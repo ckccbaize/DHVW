@@ -77,6 +77,8 @@ type packStatus struct {
 
 type server struct {
 	root       string
+	dataDir    string
+	noCache    bool
 	version    string
 	started    time.Time
 	pack       packStatus
@@ -96,6 +98,7 @@ func newServer(root, ver string, verifyHash bool) (*server, error) {
 	}
 	s := &server{
 		root:       abs,
+		dataDir:    filepath.Join(filepath.Dir(abs), "data"),
 		version:    ver,
 		started:    time.Now(),
 		verifyHash: verifyHash,
@@ -168,8 +171,11 @@ func (s *server) resolve(urlPath string) (string, error) {
 
 func cacheControl(p string) string {
 	switch {
-	case strings.HasPrefix(p, "/assets/"), strings.HasPrefix(p, "/js/"), strings.HasPrefix(p, "/css/"):
+	case strings.HasPrefix(p, "/assets/"):
 		return "public, max-age=31536000, immutable"
+	case strings.HasPrefix(p, "/js/"), strings.HasPrefix(p, "/css/"):
+		// 代码必须可升级：ETag 重验证，避免设备更新后仍跑旧模块。
+		return "no-cache"
 	default:
 		return "no-cache"
 	}
@@ -179,6 +185,10 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// LLM 代理是 POST，必须在通用 GET/HEAD 限制之前路由
 	if r.URL.Path == "/__llm/chat/completions" {
 		s.serveLLMProxy(w, r)
+		return
+	}
+	if r.URL.Path == "/__digest" {
+		s.serveDigest(w, r)
 		return
 	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -242,7 +252,11 @@ func (s *server) serveFile(w http.ResponseWriter, r *http.Request, urlPath, fsPa
 	etag := fmt.Sprintf(`W/"%d-%d"`, fi.Size(), fi.ModTime().UnixNano())
 	h := w.Header()
 	h.Set("ETag", etag)
-	h.Set("Cache-Control", cacheControl(urlPath))
+	cc := cacheControl(urlPath)
+	if s.noCache {
+		cc = "no-cache"
+	}
+	h.Set("Cache-Control", cc)
 	h.Set("X-Content-Type-Options", "nosniff")
 	if ct, ok := mimeTypes[strings.ToLower(filepath.Ext(fsPath))]; ok {
 		h.Set("Content-Type", ct)
@@ -372,6 +386,7 @@ func main() {
 	addr := flag.String("addr", "127.0.0.1:8080", "监听地址（只允许回环）")
 	root := flag.String("root", "./www", "资源包根目录")
 	verifyHash := flag.Bool("verify-hash", false, "启动时校验 manifest 的 sha256（较慢，仅排障用）")
+	dev := flag.Bool("dev", false, "开发模式：静态文件禁用长缓存")
 	flag.Parse()
 
 	host, _, err := net.SplitHostPort(*addr)
@@ -383,6 +398,9 @@ func main() {
 	}
 
 	srv, err := newServer(*root, version, *verifyHash)
+	if srv != nil {
+		srv.noCache = *dev
+	}
 	if err != nil {
 		log.Fatalf("初始化失败: %v", err)
 	}

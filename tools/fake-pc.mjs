@@ -97,6 +97,13 @@ server.on("upgrade", (req, socket) => {
       if (msg.type === "present:begin" || msg.type === "present:end") {
         console.log(`[fake-pc]   session=${msg.payload?.session_id}`);
       }
+      if (msg.type === "pc:action") {
+        sendMsg("pc:action:ack", { id: msg.payload?.id, ok: true, result: { fake: true } });
+      }
+      if (msg.type === "world:digest") {
+        const d = msg.payload?.digest;
+        console.log(`[fake-pc]   digest agenda=${d?.agenda?.length} scenes=${d?.sceneRequests?.length} pc=${d?.pcActions?.length}`);
+      }
     }
   }
 

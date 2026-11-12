@@ -57,8 +57,12 @@ func TestServesIndexAndMime(t *testing.T) {
 	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/javascript") {
 		t.Fatalf("js content-type = %q", ct)
 	}
+	if cc := rec.Header().Get("Cache-Control"); !strings.Contains(cc, "no-cache") {
+		t.Fatalf("js 必须可重验证（no-cache），got %q", cc)
+	}
+	rec = get(t, s, "/assets/a.png")
 	if cc := rec.Header().Get("Cache-Control"); !strings.Contains(cc, "immutable") {
-		t.Fatalf("js cache-control = %q", cc)
+		t.Fatalf("assets 应长缓存，got %q", cc)
 	}
 	if rec.Header().Get("X-Content-Type-Options") != "nosniff" {
 		t.Fatal("缺少 nosniff")

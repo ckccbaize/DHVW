@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-12T15:56:08.017Z",
+ "built_at": "2026-11-12T16:04:26.011Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -39,8 +39,8 @@
   },
   {
    "path": "debug-core.html",
-   "size": 21526,
-   "sha256": "dcaf485e27b4511f31a5bf74edd6e5aa4851cf60d94bdae8032b291a76b8753c"
+   "size": 22635,
+   "sha256": "76e76864e619be6ea677b9a33730288e7d6b5fc8e736d7e7d367f8060ada8773"
   },
   {
    "path": "index.html",
@@ -79,8 +79,8 @@
   },
   {
    "path": "js/core/agent/subs/plot.js",
-   "size": 10143,
-   "sha256": "29ae21c18d11abf5ce400dfced8be27755dd99b04a42231a346d0da4e4ae4c59"
+   "size": 10235,
+   "sha256": "9b3b94cef36bb5f97d6bf58d97610d280fc6ad8616d6f759fd02d3ad5b2bf94d"
   },
   {
    "path": "js/core/assetstore.js",
@@ -103,14 +103,19 @@
    "sha256": "9d4cfc558c0e3390fb4e9d2c8e24b3aab6ac3dafe3dd13e9095b42e5c4415ec8"
   },
   {
+   "path": "js/core/digest.js",
+   "size": 1438,
+   "sha256": "ea7ad85405c6575ef887e4675fc24cea4922625cac5e5a85790e5fec2b6e6af9"
+  },
+  {
    "path": "js/core/grid.js",
    "size": 5221,
    "sha256": "ff4fe22dac287a949ec51d9b643a18691c910eeaf107a032b92b0c79c9206ac5"
   },
   {
    "path": "js/core/host.js",
-   "size": 4778,
-   "sha256": "3d50008b593ea148601928276d4b3e0f8b18736e67f597599f8a4f6565f875fb"
+   "size": 5049,
+   "sha256": "c6d4956e736910635ffbdecaf1788b996e33d043ae033af0cc10a027eb1c1b23"
   },
   {
    "path": "js/core/kv.js",
@@ -204,8 +209,8 @@
   },
   {
    "path": "js/core/worker.js",
-   "size": 28554,
-   "sha256": "022d911be0c6872872937e5cc12b460650eb0018b6a42c6b2fbe37cacca4eebd"
+   "size": 33956,
+   "sha256": "b1a8e1483c5f9ca863ed5b260db8bfffb8ed576982b0db88a256e95bf24c5112"
   },
   {
    "path": "js/forge/grammar.js",

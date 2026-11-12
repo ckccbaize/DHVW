@@ -20,6 +20,7 @@ import { createManagerAgent } from "./agent/manager.js";
 import { createPlotAgent, EVENT_POOL } from "./agent/subs/plot.js";
 import { createEventPoolAgent } from "./agent/subs/events.js";
 import { planOuting, pickDestination, dateKey, SPECIAL_DATES } from "./life/outing.js";
+import { buildDigest, createDigestStore } from "./digest.js";
 import { createBgAgent } from "./agent/subs/bg.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
 
@@ -78,6 +79,14 @@ let bgMeta = null;
 let eventPoolAgent = null;
 let eventPool = { updatedAt: 0, events: [] };
 let outing = { lastAt: 0, day: "", count: 0, plan: null, specialDates: {}, lastCheckAt: 0 };
+let agenda = [];
+let sceneRequests = [];
+let pcActions = [];
+let digestStore = null;
+let digestTimer = null;
+let lastDigestAt = 0;
+
+const PC_ACTIONS = new Set(["map.generate", "app.open", "media.play", "notify", "web.open"]);
 
 const life = createLifeRuntime({ minute: 8 * 60 });
 
@@ -92,6 +101,25 @@ const remoteMemory = createRemoteMemory({
   timeoutMs: 200,
 });
 host.setMemoryHandler((payload) => remoteMemory.handle(payload));
+host.on("digest:get", () => {
+  void writeDigest();
+});
+host.on("pc:action:ack", (p) => {
+  const item = pcActions.find((a) => a.id === p.id);
+  if (!item) return;
+  item.status = p.ok ? "acked" : "failed";
+  item.result = p.result ?? null;
+  item.ackedAt = Date.now();
+  void kvBackend.put("pc_actions", pcActions);
+  scheduleDigest();
+});
+host.on("scene:ready", async (p) => {
+  const item = sceneRequests.find((s) => s.id === p.id);
+  if (!item) return;
+  item.status = "ready";
+  await kvBackend.put("scene_requests", sceneRequests);
+  scheduleDigest();
+});
 
 const world = createWorldRuntime({
   log(rec) {
@@ -181,6 +209,10 @@ const ready = (async () => {
   if (savedPool && Array.isArray(savedPool.events)) eventPool = savedPool;
   const savedOuting = await kvBackend.get("outing_state");
   if (savedOuting && typeof savedOuting === "object") outing = { ...outing, ...savedOuting };
+  agenda = (await kvBackend.get("agenda")) || [];
+  sceneRequests = (await kvBackend.get("scene_requests")) || [];
+  pcActions = (await kvBackend.get("pc_actions")) || [];
+  digestStore = createDigestStore({ backend: kvBackend });
   scheduler.register("event_pool", async () => {
     await refreshEventPool(6);
   });
@@ -212,6 +244,74 @@ const ready = (async () => {
   }, 30 * 60 * 1000);
   logStats = eventLog.stats;
 })();
+
+function pushAgenda(entry) {
+  agenda.unshift(entry);
+  agenda = agenda.slice(0, 50);
+  void kvBackend.put("agenda", agenda);
+  scheduleDigest();
+}
+
+function enqueuePcAction(action, args = {}) {
+  if (!PC_ACTIONS.has(action)) return { ok: false, reason: "bad_action" };
+  const entry = {
+    id: `pc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    action,
+    args: args && typeof args === "object" ? args : {},
+    status: "queued",
+    createdAt: Date.now(),
+  };
+  pcActions.unshift(entry);
+  pcActions = pcActions.slice(0, 50);
+  if (host.conn === "up" && host.sendRaw({ type: "pc:action", payload: { id: entry.id, action: entry.action, args: entry.args } })) {
+    entry.status = "sent";
+  }
+  void kvBackend.put("pc_actions", pcActions);
+  scheduleDigest();
+  return { ok: true, action: entry };
+}
+
+function scheduleDigest() {
+  clearTimeout(digestTimer);
+  digestTimer = setTimeout(() => void writeDigest(), 800);
+}
+
+async function writeDigest() {
+  if (!digestStore) return null;
+  const snap = life.snapshot();
+  const d = buildDigest({
+    now: Date.now(),
+    seq: eventLog ? eventLog.lastSeq : 0,
+    clock: {
+      day: new Date().toISOString().slice(0, 10),
+      minute: snap.minute,
+      phase: snap.phase,
+    },
+    world: { display: state.display, conn: host.conn, tier: world.state.tier },
+    life: snap,
+    agenda,
+    sceneRequests,
+    pcActions,
+    recentEvents: eventLog ? await eventLog.latest(20) : [],
+    budget: budget ? budget.stats() : null,
+    eventPool: { total: eventPool.events.length, updatedAt: eventPool.updatedAt },
+    outing: outingView(),
+    digest: { ts: lastDigestAt, agenda: agenda.length, scenes: sceneRequests.length, pcActions: pcActions.length },
+    lastPlot: await kvBackend.get("last_plot"),
+  });
+  await digestStore.save(d);
+  if (host.conn === "up") host.sendRaw({ type: "world:digest", payload: { digest: d } });
+  lastDigestAt = Date.now();
+  patch({
+    digest: {
+      ts: d.ts,
+      agenda: agenda.length,
+      scenes: sceneRequests.length,
+      pcActions: pcActions.length,
+    },
+  });
+  return d;
+}
 
 function outingView() {
   return {
@@ -266,6 +366,23 @@ async function maybeOuting({ force = false } = {}) {
   scheduleSnapshot();
   await kvBackend.put("outing_state", outing);
   await appendEvent("outing:intent", outing.plan);
+  pushAgenda({
+    id: `outing-${now.toString(36)}`,
+    kind: "outing",
+    at: now,
+    status: "planned",
+    payload: { destination, mapSpec: outing.plan.mapSpec, reason: outing.plan.reason },
+  });
+  sceneRequests.unshift({
+    id: `scene-${now.toString(36)}`,
+    reason: "outing",
+    mapSpec: outing.plan.mapSpec,
+    status: "pending",
+    createdAt: now,
+  });
+  sceneRequests = sceneRequests.slice(0, 20);
+  void kvBackend.put("scene_requests", sceneRequests);
+  scheduleDigest();
   return { ok: true, ...r, go: true, destination };
 }
 
@@ -433,6 +550,7 @@ function health() {
     bg: bgMeta,
     eventPool: { total: eventPool.events.length, updatedAt: eventPool.updatedAt },
     outing: outingView(),
+    digest: { ts: lastDigestAt, agenda: agenda.length, scenes: sceneRequests.length, pcActions: pcActions.length },
     life: life.snapshot(),
     log: { ...logStats },
     doctor: state.doctor,
@@ -533,6 +651,16 @@ const handlers = {
     const next = p.conn === "up" ? "up" : "down";
     const out = dispatchWorld({ type: next === "up" ? "HOST_UP" : "HOST_DOWN" });
     if (p.tier) dispatchWorld({ type: "TIER_SET", value: p.tier });
+    if (next === "up") {
+      for (const a of pcActions) {
+        if (a.status !== "queued") continue;
+        if (host.sendRaw({ type: "pc:action", payload: { id: a.id, action: a.action, args: a.args } })) {
+          a.status = "sent";
+        }
+      }
+      if (kvBackend) void kvBackend.put("pc_actions", pcActions);
+      void writeDigest();
+    }
     return out;
   },
 
@@ -642,8 +770,46 @@ const handlers = {
           mood: r.mood,
           attempts: r.attempts,
         });
+        pushAgenda({
+          id: `plot-${Date.now().toString(36)}`,
+          kind: "plot",
+          at: Date.now(),
+          status: "done",
+          payload: {
+            text: r.text,
+            event: r.event,
+            place: r.place,
+            scene: r.scene,
+            imageQuery: r.imageQuery,
+            mood: r.mood,
+          },
+        });
+        if (r.pcAction?.action) enqueuePcAction(r.pcAction.action, r.pcAction.args);
       }
       return { ...r, life: life.snapshot() };
+    }
+    if (p.name === "digest_get") {
+      return { ok: true, digest: await writeDigest() };
+    }
+    if (p.name === "digest_write") {
+      return { ok: true, digest: await writeDigest() };
+    }
+    if (p.name === "pc_action") {
+      return enqueuePcAction(p.args?.action, p.args?.args);
+    }
+    if (p.name === "pc_actions") {
+      return { ok: true, actions: pcActions };
+    }
+    if (p.name === "agenda_list") {
+      return { ok: true, agenda, scenes: sceneRequests };
+    }
+    if (p.name === "scene_ready") {
+      const item = sceneRequests.find((s) => s.id === p.args?.id);
+      if (!item) return { ok: false, reason: "not_found" };
+      item.status = "ready";
+      await kvBackend.put("scene_requests", sceneRequests);
+      scheduleDigest();
+      return { ok: true, scene: item };
     }
     if (p.name === "outing_check") {
       return await maybeOuting();

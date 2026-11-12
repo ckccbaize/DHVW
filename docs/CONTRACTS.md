@@ -108,6 +108,9 @@
 | `memory:result` | `{req_id, hits, semantic}` | 检索结果（`req_id` 原样带回） |
 | `facts:ack` | `{accepted, merged, rejected}` | 候选事实回执 |
 | `llm:config` | `{baseUrl?, apiKey?, model?, timeoutMs?, maxAttempts?, retryBaseMs?}` | **PC 直接修改设备 LLM 服务商配置**（落库生效） |
+| `digest:get` | `{}` | 请求设备重发 `world:digest` |
+| `scene:ready` | `{id}` | PC 已完成某条 `sceneRequests` 的地图生成 |
+| `pc:action:ack` | `{id, ok, result?}` | PC 执行完设备下发的 `pc:action` |
 
 ### 3.2 设备 → PC
 
@@ -124,6 +127,31 @@
 | `facts:candidates` | `{facts, events}` | 设备归纳候选 |
 | `wake:state` | `{mode, next_wake_at, last_outcome}` | 设备档唤醒状态 |
 | `llm:state` | `{configured, baseUrl, model, maskedKey, stats}` | 设备 LLM 配置与调用统计（不含明文 key） |
+| `world:digest` | `{digest}` | 统一世界摘要（状态/日程/场景请求/PC 动作） |
+| `pc:action` | `{id, action, args}` | 设备请求 PC 执行白名单动作 |
+
+### 3.4 世界摘要（world:digest）
+
+设备在状态变化后（≤1s 防抖）与每 30s 生成一份摘要，同时：
+
+- 写 kv `digest`；
+- `POST /__digest` → 壳原子写 `data/digest.json`（PC 可 `GET /__digest` 读取）；
+- 主机在线时推 `world:digest`。
+
+```json
+{
+  "v": 1, "ts": 0, "seq": 0,
+  "clock": {"day":"2026-11-13","minute":480,"phase":"morning"},
+  "world": {"display":"overview","conn":"up","tier":"idle"},
+  "life": {"minute":480,"phase":"morning","band":"calm","mood":{}},
+  "agenda": [{"id":"plot-…","kind":"plot","at":0,"status":"done","payload":{}}],
+  "sceneRequests": [{"id":"scene-…","reason":"outing","mapSpec":{"kind":"lively","name":"集市","distance":7,"seed":"11-13-1"},"status":"pending"}],
+  "pcActions": [{"id":"pc-…","action":"map.generate","args":{},"status":"queued|sent|acked|failed"}],
+  "recentEvents": [], "budget": {}, "eventPool": {}, "outing": {}, "lastPlot": {}
+}
+```
+
+`pc:action` 白名单：`map.generate` / `app.open` / `media.play` / `notify` / `web.open`；不在白名单直接拒绝。
 
 ### 3.3 连接与幂等
 

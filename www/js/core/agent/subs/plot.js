@@ -176,6 +176,7 @@ export function createPlotAgent({ llm, registry, now = () => Date.now(), maxAtte
           scene: obj.scene ?? obj.place,
           mood: obj.mood,
           imageQuery: obj.imageQuery.trim(),
+          pcAction: obj.pcAction && typeof obj.pcAction === "object" ? obj.pcAction : null,
           attempts: attempt,
         };
       }
