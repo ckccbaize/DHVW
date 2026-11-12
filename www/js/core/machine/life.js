@@ -1,5 +1,9 @@
 // 生活状态机（W4）：作息 7 段 → 房间/动作 + 心情四维/五档 + 行为打分。
 // 契约：docs/WORLD-CORE-SPEC.md §2.2 / §3。
+//
+// FUTURE(W33)：心情是**外部可引导**的接口（唤醒机 / 剧情 / 用户 / Doctor）。
+// 现在只预留 source/reason 归因与 moodLog；深层管理（优先级、TTL、限频、
+// episode/baseline、剧情 setpoint）见 SPEC §3.4 与 DEV-PLAN W33。
 
 import { phaseOf } from "../clock.js";
 
@@ -28,6 +32,9 @@ export const PHASE_ACTS = {
 };
 
 export const MOOD_BASE = Object.freeze({ energy: 0.55, valence: 0.55, social: 0.4, focus: 0.5 });
+
+/** 心情写入来源（W33 会用于优先级/限频）。 */
+export const MOOD_SOURCES = Object.freeze(["system", "wake", "plot", "interaction", "user", "doctor"]);
 export const MOOD_DIMENSIONS = Object.keys(MOOD_BASE);
 export const MOOD_DECAY_PER_MIN = 0.004;
 
@@ -154,6 +161,7 @@ export function createLifeRuntime({ minute = 8 * 60, mood = MOOD_BASE } = {}) {
   let m = minute;
   let moodState = { ...MOOD_BASE, ...mood };
   const recent = [];
+  const moodLog = []; // FUTURE(W33)：外部引导的归因记录
 
   function advance(minutes) {
     const delta = Math.max(0, Number(minutes) || 0);
@@ -169,6 +177,7 @@ export function createLifeRuntime({ minute = 8 * 60, mood = MOOD_BASE } = {}) {
       band: moodBand(moodState),
       mood: { ...moodState },
       recent: recent.slice(-10),
+      moodLog: moodLog.slice(-5),
     };
   }
 
@@ -193,8 +202,23 @@ export function createLifeRuntime({ minute = 8 * 60, mood = MOOD_BASE } = {}) {
       const delta = next >= m ? next - m : 1440 - m + next;
       return advance(delta);
     },
-    applyMood(deltas) {
+    /**
+     * 外部引导心情（唤醒机 / 剧情 / 用户 / Doctor）。
+     * meta.source 必须来自 MOOD_SOURCES；meta.reason 用于可解释性。
+     * FUTURE(W33)：这里会加优先级、TTL、限频与"直接设定"（setpoint）。
+     */
+    applyMood(deltas, { source = "system", reason = "" } = {}) {
+      const before = { ...moodState };
       moodState = applyMoodEvent(moodState, deltas);
+      moodLog.push({
+        t: m,
+        source: MOOD_SOURCES.includes(source) ? source : "system",
+        reason,
+        deltas: { ...deltas },
+        before,
+        after: { ...moodState },
+      });
+      if (moodLog.length > 50) moodLog.shift();
       return snapshot();
     },
     noteAct(act) {
@@ -217,6 +241,7 @@ export function createLifeRuntime({ minute = 8 * 60, mood = MOOD_BASE } = {}) {
       m = nextMinute;
       moodState = { ...MOOD_BASE, ...nextMood };
       recent.length = 0;
+      moodLog.length = 0;
       return snapshot();
     },
   };

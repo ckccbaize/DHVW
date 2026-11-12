@@ -119,11 +119,29 @@ test("runtime：noteAct 影响后续选择", () => {
   assert.equal(chosen.act, "water"); // read 被新颖度惩罚，water 同为上午动作
 });
 
+test("runtime：外部引导心情带 source/reason 归因", () => {
+  const rt = createLifeRuntime({ minute: 600 });
+  rt.applyMood({ valence: 0.2 }, { source: "wake", reason: "梦到旧事" });
+  const snap = rt.snapshot();
+  assert.equal(snap.moodLog.length, 1);
+  assert.equal(snap.moodLog[0].source, "wake");
+  assert.equal(snap.moodLog[0].reason, "梦到旧事");
+  assert.ok(snap.moodLog[0].after.valence > snap.moodLog[0].before.valence);
+  // 非法 source 归到 system
+  rt.applyMood({ valence: -0.1 }, { source: "hacker" });
+  assert.equal(rt.snapshot().moodLog[1].source, "system");
+  // 日志上限 50
+  for (let i = 0; i < 60; i++) rt.applyMood({ valence: 0.01 }, { source: "plot" });
+  assert.ok(rt.snapshot().moodLog.length <= 5); // snapshot 只带最近 5 条
+});
+
 test("runtime：reset 清空", () => {
   const rt = createLifeRuntime({ minute: 600 });
   rt.noteAct("read");
+  rt.applyMood({ valence: 0.2 }, { source: "wake" });
   rt.reset({ minute: 480 });
   assert.equal(rt.minute, 480);
   assert.equal(rt.snapshot().recent.length, 0);
+  assert.equal(rt.snapshot().moodLog.length, 0);
   assert.deepEqual(rt.mood, { ...MOOD_BASE });
 });

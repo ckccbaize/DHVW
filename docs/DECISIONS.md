@@ -33,6 +33,7 @@
 | 已定 | **LLM 预算放宽**：单次上限 + 输出规范 + 软告警 30k/日 + 熔断 100k/日 | SPEC §5.3 |
 | 已定 | **交互/碰撞/精灵/门属于产出侧**；ARM 只读 `intGrid`、执行 `interactions.json`、播放图集 | `CONTENT-CONTRACT.md`；W32–W35 移出本仓库 |
 | 已定 | **先走主线（核心机），先不动资源**；ARM 侧保证产出工具齐全 | DEV-PLAN §0.2 / T 组 |
+| 新增（未来） | **心情是外部可引导接口**：唤醒机/剧情/用户/Doctor 可 bias 或 setpoint，必须带 source/reason/TTL；W33 做优先级/限频/episode-baseline | SPEC §3.4 / DEV-PLAN W33 |
 | 新增（未来） | **Doctor 自检与自愈**：周期检测异常 → 日志交 LLM → 只能从白名单动作修复 → 继续运行；连续失败进安全模式 | SPEC §14 / DEV-PLAN W32 |
 
 ## 0. 总表

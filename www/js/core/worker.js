@@ -177,7 +177,10 @@ const handlers = {
       return { ok: true, life: life.snapshot() };
     }
     if (p.name === "life_mood") {
-      life.applyMood(p.args?.deltas || {});
+      life.applyMood(p.args?.deltas || {}, {
+        source: p.args?.source || "user",
+        reason: p.args?.reason || "",
+      });
       patch({ life: life.snapshot() });
       return { ok: true, life: life.snapshot() };
     }

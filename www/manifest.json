@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-12T12:53:44.636Z",
+ "built_at": "2026-11-12T13:02:53.187Z",
  "files": [
   {
    "path": "assets/scenes/home/home.built.json",
@@ -84,8 +84,8 @@
   },
   {
    "path": "js/core/machine/life.js",
-   "size": 6548,
-   "sha256": "633cd9478e15b7427fa4cf9c0e927a588273f170f89ee831b086bee8de038fe8"
+   "size": 7714,
+   "sha256": "7682481a04e0209a8e7eb247a1bf23aaa68abaca9490f2e1a042487359d22e12"
   },
   {
    "path": "js/core/machine/world.js",
@@ -104,8 +104,8 @@
   },
   {
    "path": "js/core/worker.js",
-   "size": 6107,
-   "sha256": "d0fc0df498e265d7e69be5786526b64be2ecf547dbc4cad45315e4c7d337aa37"
+   "size": 6198,
+   "sha256": "b531cca1f1612e33e4d5750792989370715a6b7f8aee08b81371c388306b0da6"
   },
   {
    "path": "js/forge/grammar.js",
