@@ -585,6 +585,23 @@ input:focus {
   box-shadow: var(--shadow);
 }
 
+textarea {
+  border: var(--line) solid var(--ink);
+  border-radius: 0;
+  background: var(--cel-white);
+  color: var(--ink);
+  padding: 8px 12px;
+  font: 700 13px/1.5 'Inter', Consolas, monospace;
+  outline: none;
+  resize: vertical;
+  min-height: 80px;
+}
+
+textarea:focus {
+  background: #fffdf0;
+  box-shadow: var(--shadow);
+}
+
 input[readonly] {
   background: #efefe6;
   color: #4a4a58;

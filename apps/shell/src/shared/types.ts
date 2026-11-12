@@ -68,13 +68,17 @@ export interface ServiceDef {
 export interface SettingsView {
   llm: { baseUrl: string; model: string; temperature: number; hasKey: boolean }
   ports: { olvt: number; tts: number }
-  asr: { enabled: boolean }
+  asr: { enabled: boolean; ready: boolean }
+  olvt: { characterName: string; humanName: string; personaPrompt: string }
+  tts: { refAudioPath: string; refText: string; refLang: string; textLang: string }
 }
 
 export interface SettingsPatch {
   llm?: Partial<{ baseUrl: string; model: string; temperature: number }>
   ports?: Partial<{ olvt: number; tts: number }>
   asr?: Partial<{ enabled: boolean }>
+  olvt?: Partial<{ characterName: string; humanName: string; personaPrompt: string }>
+  tts?: Partial<{ refAudioPath: string; refText: string; refLang: string; textLang: string }>
 }
 
 export interface ComponentStatus {

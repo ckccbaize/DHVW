@@ -58,7 +58,9 @@ function settingsView(): SettingsView {
   return {
     llm: { ...config.llm, hasKey: hasApiKey() },
     ports: { ...config.ports },
-    asr: { ...config.asr },
+    asr: { ...config.asr, ready: Boolean(asrModelPaths(config.asr.enabled).modelPath) },
+    olvt: { ...config.olvt },
+    tts: { ...config.tts },
   }
 }
 
@@ -166,6 +168,14 @@ function registerIpc(): void {
       }
     }
     if (patch.asr?.enabled !== undefined) next.asr.enabled = Boolean(patch.asr.enabled)
+    for (const key of ['characterName', 'humanName', 'personaPrompt'] as const) {
+      const v = patch.olvt?.[key]
+      if (v !== undefined) next.olvt[key] = String(v)
+    }
+    for (const key of ['refAudioPath', 'refText', 'refLang', 'textLang'] as const) {
+      const v = patch.tts?.[key]
+      if (v !== undefined) next.tts[key] = String(v)
+    }
     saveConfig(next)
     config = next
     log('info', 'settings', '设置已保存', { llm: next.llm.baseUrl, model: next.llm.model, ports: next.ports })

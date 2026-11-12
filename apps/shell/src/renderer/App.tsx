@@ -38,6 +38,11 @@ function SettingsDialog({
   const [olvtPort, setOlvtPort] = useState(String(value.ports.olvt))
   const [ttsPort, setTtsPort] = useState(String(value.ports.tts))
   const [asr, setAsr] = useState(value.asr.enabled)
+  const [charName, setCharName] = useState(value.olvt.characterName)
+  const [humanName, setHumanName] = useState(value.olvt.humanName)
+  const [persona, setPersona] = useState(value.olvt.personaPrompt)
+  const [refAudio, setRefAudio] = useState(value.tts.refAudioPath)
+  const [refText, setRefText] = useState(value.tts.refText)
   const [key, setKey] = useState('')
   const [hasKey, setHasKey] = useState(value.llm.hasKey)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -50,6 +55,8 @@ function SettingsDialog({
         llm: { baseUrl, temperature: Number(temperature) },
         ports: { olvt: Number(olvtPort), tts: Number(ttsPort) },
         asr: { enabled: asr },
+        olvt: { characterName: charName, humanName, personaPrompt: persona },
+        tts: { refAudioPath: refAudio, refText },
       })
       if (!res.ok || !res.settings) {
         setMsg({ ok: false, text: res.error ?? '保存失败' })
@@ -132,9 +139,31 @@ function SettingsDialog({
             <input value={ttsPort} onChange={(e) => setTtsPort(e.target.value)} />
           </div>
         </div>
+        <div className="row2">
+          <div className="field">
+            <label>角色名</label>
+            <input value={charName} onChange={(e) => setCharName(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>称呼用户</label>
+            <input value={humanName} onChange={(e) => setHumanName(e.target.value)} />
+          </div>
+        </div>
+        <div className="field">
+          <label>人设</label>
+          <textarea value={persona} onChange={(e) => setPersona(e.target.value)} rows={4} spellCheck={false} />
+        </div>
+        <div className="field">
+          <label>参考音色（GPT-SoVITS，留空则用服务默认）</label>
+          <input value={refAudio} onChange={(e) => setRefAudio(e.target.value)} spellCheck={false} />
+        </div>
+        <div className="field">
+          <label>参考音色文本</label>
+          <input value={refText} onChange={(e) => setRefText(e.target.value)} spellCheck={false} />
+        </div>
         <label className="switch">
           <input type="checkbox" checked={asr} onChange={(e) => setAsr(e.target.checked)} />
-          启用语音识别（ASR）
+          启用语音识别（ASR）{!value.asr.ready && asr ? '（模型未下载，需在组件面板安装）' : ''}
         </label>
         {msg && <p className={`msg ${msg.ok ? 'ok' : 'bad'}`}>{msg.text}</p>}
         <div className="actions dialog-actions">

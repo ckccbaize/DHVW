@@ -174,7 +174,9 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 | temperature | 0–2，越界拒绝 |
 | API Key | DPAPI 加密后存 `secrets` 表；IPC 只返回 `hasKey` 布尔值，明文不出主进程，不进日志 |
 | OLVT / TTS 端口 | `0` = 自动分配；固定端口被占用时自动回退到动态分配 |
-| 启用 ASR | 关闭后不要求下载 SenseVoice 模型 |
+| 启用 ASR | 关闭后不要求下载 SenseVoice 模型；开启但模型未下载时界面会提示 |
+| 角色名 / 称呼用户 / 人设 | 直接写进 OLVT 的 `character_config`，重启宿主生效 |
+| 参考音色（音频路径 + 文本） | GPT-SoVITS 的 `ref_audio_path` / `prompt_text`，留空则用 TTS 服务默认 |
 
 实测：保存 → 读回一致；`secrets` 里是 64 字符 base64 密文（非明文）；日志中检索不到密钥；`gpt-6-astra` 与 `70000` 端口均被拒绝并返回中文错误。
 
