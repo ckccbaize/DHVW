@@ -198,6 +198,29 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 
 启用 ASR 但模型未下载时，后端退到占位 ASR 启动，界面日志会写明语音输入不可用。
 
+## 局域网网关（PCM3）
+
+服务面板底部的「设备接入」条显示网关地址，点「配对 / 设备」打开弹层。
+
+- **监听**：`0.0.0.0:8443`（端口可在设置里改，默认 8443，改后网关自动重建监听）。
+- **证书**：首次启动生成 CA（`%APPDATA%/DigitalHuman/gateway/ca.crt.pem`，10 年）+ 主机证书（397 天，SAN 含 `localhost`、`127.0.0.1` 与本机所有 IPv4）。局域网 IP 变化或证书快过期时只重签主机证书，CA 不变，设备无需重新信任。
+- **免鉴权端点**：`GET /healthz`、`GET /ca.crt`（设备先取它信任证书）、`POST /pair`。
+- **配对**：弹层点「生成配对码」得到 6 位码（5 分钟有效、一次性），设备 `POST /pair {"code":"123456","name":"客厅屏"}` 换 32 字节 token，token 存 `gateway/devices.json`（0600）。连续 5 次错误码后该 IP 被锁，直到重新生成配对码。
+- **鉴权**：其余请求必须带 `X-DHVW-Token` 头或 `?token=`，未配对返回 401。
+- **反代**：`/<服务名>/...` 转发到本机对应端口（`olvt`、`orchestrator`、`waketrace`）；`/ws/<服务名>?token=...` 转发 WebSocket（OLVT 走 `/client-ws`）。
+
+实测（本机，Node 客户端 + `--cacert` 等价校验）：
+
+| 检查 | 结果 |
+|---|---|
+| `openssl verify -CAfile ca.crt.pem server.crt.pem` | OK |
+| `GET /healthz`（127.0.0.1 / 10.38.94.208 / 26.252.92.45） | 全部 200，主机名与 SAN 匹配 |
+| 未带 token 访问 `/olvt/health` | 401 |
+| 错误配对码 | 403；正确配对码 | 200 + token |
+| 同一配对码重放 | 403（一次性） |
+| 带 token 反代 `/olvt/health` | 200，上游 JSON 原样返回 |
+| `wss://…/ws/olvt?token=…` 走完一回合 | 收到回复与音频分片 |
+
 ## 语音链路（已跑通）
 
 一回合 = 客户端音频 → SenseVoice → LLM → GPT-SoVITS → 音频分片。各段实测（本机 RTX 50 系）：

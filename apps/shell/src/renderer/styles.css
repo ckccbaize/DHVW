@@ -240,10 +240,51 @@ main {
   flex-direction: column;
   gap: 16px;
   min-height: 0;
+  /* 右列面板数量会随版本增加，放不下时整列滚动，不压扁面板 */
+  overflow-y: auto;
 }
 
-.components {
+.col > .panel {
+  flex: 0 0 auto;
+}
+
+.events {
+  height: 180px;
+}
+
+.components,
+.gateway {
   overflow-y: auto;
+}
+
+.gw-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 2px solid #d9d9cf;
+}
+
+.gw-strip-url {
+  font-size: 11px;
+  min-width: 0;
+  word-break: break-all;
+  flex: 1 1 120px;
+}
+
+.gw-url {
+  display: block;
+  padding: 4px 0;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.gw-dev {
+  font-size: 11px;
+  padding: 2px 0;
+  opacity: 0.8;
 }
 
 .comp {

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell as electronShell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell as electronShell } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { dataDir, logDir, rendererIndex, resourcesRoot, runtimeDir } from './paths'
@@ -13,6 +13,7 @@ import { listModels, probeLlm } from './network'
 import { COMPONENTS, componentStatus, ensureComponent, resolveSpec } from './components'
 import { clearApiKey, hasApiKey, readApiKey, saveApiKey } from './secret'
 import { asrModelPaths, prepareOlvt, resolveOlvtDir } from './olvt'
+import { Gateway, type GatewayTarget } from './gateway'
 
 applyNetworkHardening()
 
@@ -23,6 +24,8 @@ if (!gotLock) {
 
 let win: BrowserWindow | null = null
 let supervisor: HostSupervisor | null = null
+let gateway: Gateway | null = null
+let gatewayTargets: GatewayTarget[] = []
 let config: ShellConfig = loadConfig()
 let quitting = false
 
@@ -61,6 +64,7 @@ function settingsView(): SettingsView {
     asr: { ...config.asr, ready: Boolean(asrModelPaths(config.asr.enabled).modelPath) },
     olvt: { ...config.olvt },
     tts: { ...config.tts },
+    gateway: { ...config.gateway },
   }
 }
 
@@ -89,9 +93,11 @@ function showWindow(): void {
 }
 
 function createWindow(): void {
+  // 面板数量随版本增长（服务/事件/组件/设备接入），默认尺寸取屏幕可用区域，但不小于原设定
+  const area = screen.getPrimaryDisplay().workAreaSize
   win = new BrowserWindow({
-    width: config.window.width,
-    height: config.window.height,
+    width: Math.min(Math.max(config.window.width, 960), area.width),
+    height: Math.min(Math.max(config.window.height, 720), area.height),
     show: true,
     backgroundColor: '#12151c',
     title: 'DHVW 主机端',
@@ -144,6 +150,21 @@ function registerIpc(): void {
   })
   ipcMain.handle('dhvw:openDataDir', () => electronShell.openPath(dataDir))
   ipcMain.handle('dhvw:settings', () => settingsView())
+  ipcMain.handle('dhvw:gateway', () => gateway?.status ?? null)
+  ipcMain.handle('dhvw:gatewayPair', () => gateway?.openPairing() ?? null)
+  ipcMain.handle('dhvw:gatewayClosePair', () => {
+    gateway?.closePairing()
+    return { ok: true }
+  })
+  ipcMain.handle('dhvw:gatewayForget', () => {
+    gateway?.forgetDevices()
+    return { ok: true }
+  })
+  ipcMain.handle('dhvw:gatewayRestart', async () => {
+    await gateway?.stop()
+    gateway?.start()
+    return { ok: true }
+  })
   ipcMain.handle('dhvw:saveSettings', (_e, patch: SettingsPatch) => {
     const next = loadConfig()
     if (patch.llm?.baseUrl !== undefined) {
@@ -181,9 +202,27 @@ function registerIpc(): void {
       const v = patch.tts?.[key]
       if (v !== undefined) next.tts[key] = String(v)
     }
+    let gatewayChanged = false
+    if (patch.gateway?.port !== undefined) {
+      const port = Number(patch.gateway.port)
+      if (!Number.isInteger(port) || port < 1 || port > 65535) return { ok: false, error: '网关端口需为 1–65535 的整数' }
+      if (port !== next.gateway.port) gatewayChanged = true
+      next.gateway.port = port
+    }
+    if (patch.gateway?.enabled !== undefined) {
+      if (Boolean(patch.gateway.enabled) !== next.gateway.enabled) gatewayChanged = true
+      next.gateway.enabled = Boolean(patch.gateway.enabled)
+    }
     saveConfig(next)
     config = next
     log('info', 'settings', '设置已保存', { llm: next.llm.baseUrl, model: next.llm.model, ports: next.ports })
+    if (gatewayChanged && gateway) {
+      // 端口/开关变化需要重建监听；CA 与设备表不变
+      void gateway.stop().then(() => {
+        gateway = new Gateway({ port: next.gateway.port, targets: gatewayTargets })
+        if (next.gateway.enabled) gateway.start()
+      })
+    }
     return { ok: true, settings: settingsView() }
   })
   ipcMain.handle(
@@ -338,6 +377,15 @@ async function boot(): Promise<void> {
   supervisor.on('state', broadcast)
   supervisor.start()
 
+  // 局域网网关：证书与配对独立于 sidecar，服务端口就绪即可转发
+  gatewayTargets = [
+    { name: 'olvt', port: portOf('olvt'), wsPath: '/client-ws' },
+    { name: 'orchestrator', port: portOf('orchestrator') },
+    { name: 'waketrace', port: portOf('waketrace') },
+  ]
+  gateway = new Gateway({ port: config.gateway.port, targets: gatewayTargets })
+  if (config.gateway.enabled) gateway.start()
+
   createWindow()
   createTray({
     onShow: showWindow,
@@ -354,6 +402,7 @@ async function boot(): Promise<void> {
     e.preventDefault()
     quitting = true
     log('info', 'app', '外壳退出，等待宿主回收子进程')
+    await gateway?.stop()
     await supervisor?.stop('app-quit')
     app.exit(0)
   })

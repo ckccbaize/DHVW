@@ -27,7 +27,7 @@ await call('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceSc
 await new Promise((r) => setTimeout(r, 600))
 if (process.env.SCROLL === '1') {
   await call('Runtime.evaluate', {
-    expression: "(() => { const m = document.querySelector('main'); if (m) m.scrollTop = m.scrollHeight; return m ? m.scrollTop : -1 })()",
+    expression: "(() => { const m = document.querySelector('main'); if (m) m.scrollTop = m.scrollHeight; const c = document.querySelector('.col'); if (c) c.scrollTop = c.scrollHeight; return 1 })()",
     returnByValue: true,
   })
   await new Promise((r) => setTimeout(r, 300))

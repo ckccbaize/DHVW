@@ -1,19 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import type { AppSnapshot, ComponentStatus, HostEvent, LlmProtocol, SettingsView, WorkerSnapshot } from '../shared/types'
+import type { AppSnapshot, ComponentStatus, GatewayStatusView, HostEvent, LlmProtocol, SettingsView, WorkerSnapshot } from '../shared/types'
+import type { DhvwApi } from '../preload'
 
+// 窗口 API 直接复用预加载层的导出类型，避免两处手写签名漂移
 declare global {
   interface Window {
-    dhvw: {
-      snapshot: () => Promise<AppSnapshot>
-      action: (req: { id: string; action: 'start' | 'stop' | 'restart' }) => Promise<{ ok: boolean }>
-      tailLog: (id: string, lines?: number) => Promise<string>
-      setAutoLaunch: (enabled: boolean) => Promise<{ ok: boolean }>
-      openDataDir: () => Promise<string>
-      restartHost: () => Promise<{ ok: boolean }>
-      probeLlm: () => Promise<{ ok: boolean; ms: number; status?: number; note?: string }>
-      onSnapshot: (cb: (s: AppSnapshot) => void) => () => void
-      onEvent: (cb: (e: HostEvent) => void) => () => void
-    }
+    dhvw: DhvwApi
   }
 }
 
@@ -254,6 +246,100 @@ function SettingsDialog({
   )
 }
 
+function GatewayDialog({
+  status,
+  onChange,
+  onClose,
+}: {
+  status: GatewayStatusView | null
+  onChange: (s: GatewayStatusView | null) => void
+  onClose: () => void
+}): React.ReactElement {
+  const [msg, setMsg] = useState<string | null>(null)
+  const refresh = async (): Promise<void> => onChange(await window.dhvw.gateway())
+  const left = status?.pairing ? Math.max(0, Math.round((status.pairing.expiresAt - Date.now()) / 1000)) : 0
+
+  return (
+    <div className="overlay" onClick={onClose}>
+    <div className="dialog" onClick={(e) => e.stopPropagation()}>
+      <h2>设备接入（局域网网关）</h2>
+      <div className="comp">
+        <div className="comp-info">
+          <span className="comp-name">局域网网关</span>
+          <span className={`pill ${status?.running ? 'ok' : 'bad'}`}>{status?.running ? '运行中' : '未运行'}</span>
+          <span className="comp-ver mono">:{status?.port ?? '—'}</span>
+        </div>
+        <button onClick={() => void window.dhvw.gatewayRestart().then(refresh)}>重启网关</button>
+      </div>
+      {status?.error && <div className="comp-err">{status.error}</div>}
+      {status?.urls.map((u) => (
+        <code key={u} className="gw-url mono">
+          {u}
+        </code>
+      ))}
+      <div className="comp">
+        <div className="comp-info">
+          <span className="comp-name">配对码</span>
+          {status?.pairing ? (
+            <span className="pill mono">
+              {status.pairing.code} · {left}s
+            </span>
+          ) : (
+            <span className="pill">未开启</span>
+          )}
+        </div>
+        {status?.pairing ? (
+          <button onClick={() => void window.dhvw.gatewayClosePair().then(refresh)}>取消</button>
+        ) : (
+          <button
+            onClick={() =>
+              void window.dhvw.gatewayPair().then((p) => {
+                setMsg(p ? '配对码 5 分钟内有效，一次性使用' : '网关未运行，先启动网关')
+                return refresh()
+              })
+            }
+          >
+            生成配对码
+          </button>
+        )}
+      </div>
+      <div className="comp">
+        <div className="comp-info">
+          <span className="comp-name">已配对设备</span>
+          <span className="pill mono">{status?.devices.length ?? 0}</span>
+        </div>
+        {!!status?.devices.length && (
+          <button
+            onClick={() =>
+              void window.dhvw.gatewayForget().then(() => {
+                setMsg('已解除全部设备，需重新配对')
+                return refresh()
+              })
+            }
+          >
+            全部解除
+          </button>
+        )}
+      </div>
+      {status?.devices.map((d) => (
+        <div key={d.addedAt} className="gw-dev mono">
+          {d.name} · 配对 {d.addedAt.slice(0, 10)}
+        </div>
+      ))}
+      <p className="hint">
+        CA 指纹 <span className="mono">{status?.caFingerprint?.slice(0, 23) ?? '…'}</span>
+        <br />
+        设备先取 {status?.urls[0] ?? 'https://<主机IP>:8443'}/ca.crt 信任证书，再用配对码换 token
+      </p>
+      {msg && <p className="hint">{msg}</p>}
+      <div className="actions dialog-actions">
+        <button onClick={onClose}>关闭</button>
+      </div>
+    </div>
+    </div>
+  )
+}
+
 function EventLine({ e }: { e: HostEvent }): React.ReactElement {
   return (
     <div className={`ev ${e.type}`}>
@@ -276,7 +362,9 @@ export default function App(): React.ReactElement {
   const [probe, setProbe] = useState<{ ok: boolean; ms: number; note?: string } | null>(null)
   const [probing, setProbing] = useState(false)
   const [components, setComponents] = useState<ComponentStatus[]>([])
+  const [gateway, setGateway] = useState<GatewayStatusView | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [showGateway, setShowGateway] = useState(false)
   const [settings, setSettings] = useState<SettingsView | null>(null)
 
   const refresh = useCallback(async () => setSnap(await window.dhvw.snapshot()), [])
@@ -286,6 +374,7 @@ export default function App(): React.ReactElement {
     void refresh()
     void window.dhvw.probeLlm().then(setProbe)
     void window.dhvw.components().then(setComponents)
+    void window.dhvw.gateway().then(setGateway)
     void window.dhvw.settings().then(setSettings)
     const offComp = window.dhvw.onComponentProgress(({ id, progress }) =>
       setComponents((prev) => prev.map((c) => (c.id === id ? { ...c, progress } : c))),
@@ -296,7 +385,10 @@ export default function App(): React.ReactElement {
       if (e.type === 'host.heartbeat') return
       setEvents((prev) => [e, ...prev].slice(0, 300))
     })
-    const timer = setInterval(() => void refreshLog(), 2000)
+    const timer = setInterval(() => {
+      void refreshLog()
+      void window.dhvw.gateway().then(setGateway)
+    }, 2000)
     return () => {
       offSnap()
       offEvt()
@@ -383,6 +475,8 @@ export default function App(): React.ReactElement {
         />
       )}
 
+      {showGateway && <GatewayDialog status={gateway} onChange={setGateway} onClose={() => setShowGateway(false)} />}
+
       <main>
         <section className="panel services">
           <h2>服务</h2>
@@ -423,8 +517,17 @@ export default function App(): React.ReactElement {
             </tbody>
             </table>
           </div>
+          <div className="gw-strip">
+            <span className="pill mono">
+              <span className={`dot ${gateway?.running ? 'running' : 'failed'}`} />
+              设备接入 :{gateway?.port ?? '—'}
+            </span>
+            <code className="mono gw-strip-url">{gateway?.urls[0] ?? '未启动'}</code>
+            <button onClick={() => setShowGateway(true)}>配对 / 设备</button>
+          </div>
           <p className="hint">数据目录：{snap?.dataDir ?? '…'} · Python：{snap?.pythonPath ?? '…'}</p>
         </section>
+
 
         <div className="col">
         <section className="panel events">
@@ -457,7 +560,6 @@ export default function App(): React.ReactElement {
               {c.error && <div className="comp-err">{c.error}</div>}
               {c.state !== 'ready' && c.state !== 'installing' && (
                 <button
-                  disabled={c.state === 'installing'}
                   onClick={() =>
                     void window.dhvw.installComponent(c.id).then((st) =>
                       setComponents((prev) => prev.map((x) => (x.id === st.id ? st : x))),
@@ -470,6 +572,7 @@ export default function App(): React.ReactElement {
             </div>
           ))}
         </section>
+
         </div>
       </main>
 

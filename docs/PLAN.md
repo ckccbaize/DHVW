@@ -85,7 +85,7 @@ PC 端“完成”= 下列全部成立，缺一不算：
 | PCM7 | 桥接与接管 | BRIDGE / DESK | PCM4 | Stub 契约稳定；接管零冲突 |
 | PCM8 | 硬化 | SUP / OBS 收口 | 全部 | 72 h 长稳、冷启动、断网恢复达标 |
 
-> 进展（2026-11-12）：PCM1 已实测通过；PCM2 完成内置 CPython 3.12 运行时与镜像拉取；`config.sidecars` 可用真实进程替换占位 sidecar——`waketrace`（HTTP 探针 1.3 s）与 `tts`（GPT-SoVITS，TCP 探针 9.2 s）均已实测就绪；全局设置（端点/模型/密钥/端口/角色/ASR）在 GUI 落地，密钥 DPAPI 加密；OLVT 改为组件下载（不随包），启动前由主进程按设置生成 `conf.yaml` 并以真实进程拉起——内置 CPython 3.12.10 + 精简依赖（349 MB，无 torch）实测起到 `Uvicorn startup complete`（TCP 14.9 s）；安装包 137.3 MB，`runtime/site-packages` 不随包。剩余：语音链路端到端（麦克风→ASR→LLM→TTS 首字延迟）、PCM3 网关。；语音链路已端到端跑通：`POST /asr` 识别 TTS 产出的 4.8 s 音频 0.13 s，`text-input` 一回合拿到分句音频（首段 3.2–19.3 s，差值在 LLM 首字），TTS 后端目录进 GUI 设置。
+> 进展（2026-11-12）：PCM1 已实测通过；PCM2 完成内置 CPython 3.12 运行时与镜像拉取；`config.sidecars` 可用真实进程替换占位 sidecar——`waketrace`（HTTP 探针 1.3 s）与 `tts`（GPT-SoVITS，TCP 探针 9.2 s）均已实测就绪；全局设置（端点/模型/密钥/端口/角色/ASR）在 GUI 落地，密钥 DPAPI 加密；OLVT 改为组件下载（不随包），启动前由主进程按设置生成 `conf.yaml` 并以真实进程拉起——内置 CPython 3.12.10 + 精简依赖（349 MB，无 torch）实测起到 `Uvicorn startup complete`（TCP 14.9 s）；安装包 137.3 MB，`runtime/site-packages` 不随包。剩余：语音链路端到端（麦克风→ASR→LLM→TTS 首字延迟）、PCM3 网关。；语音链路已端到端跑通：`POST /asr` 识别 TTS 产出的 4.8 s 音频 0.13 s，`text-input` 一回合拿到分句音频（首段 3.2–19.3 s，差值在 LLM 首字），TTS 后端目录进 GUI 设置。；PCM3 网关已落地：自签 CA + SAN 主机证书、6 位一次性配对码换 token、HTTPS/WSS 反代（`/ws/olvt` 走完一回合），证书链与局域网 IP 均实测通过。
 
 **顺序理由**
 

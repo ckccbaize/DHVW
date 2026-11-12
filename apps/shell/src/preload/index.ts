@@ -4,6 +4,7 @@ import type {
   AppSnapshot,
   ComponentProgress,
   ComponentStatus,
+  GatewayStatusView,
   HostEvent,
   LlmProtocol,
   SettingsPatch,
@@ -31,6 +32,11 @@ const api = {
     ipcRenderer.invoke('dhvw:listModels', req),
   clearApiKey: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:clearApiKey'),
   components: (): Promise<ComponentStatus[]> => ipcRenderer.invoke('dhvw:components'),
+  gateway: (): Promise<GatewayStatusView | null> => ipcRenderer.invoke('dhvw:gateway'),
+  gatewayPair: (): Promise<{ code: string; expiresAt: number } | null> => ipcRenderer.invoke('dhvw:gatewayPair'),
+  gatewayClosePair: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:gatewayClosePair'),
+  gatewayForget: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:gatewayForget'),
+  gatewayRestart: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:gatewayRestart'),
   installComponent: (id: string): Promise<ComponentStatus> => ipcRenderer.invoke('dhvw:componentInstall', id),
   onComponentProgress: (cb: (p: ComponentProgress) => void): (() => void) => {
     const h = (_e: unknown, p: ComponentProgress): void => cb(p)

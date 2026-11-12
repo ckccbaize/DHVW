@@ -75,6 +75,7 @@ export interface SettingsView {
   asr: { enabled: boolean; ready: boolean }
   olvt: { characterName: string; humanName: string; personaPrompt: string }
   tts: { backendDir: string; refAudioPath: string; refText: string; refLang: string; textLang: string }
+  gateway: { enabled: boolean; port: number }
 }
 
 export interface SettingsPatch {
@@ -83,6 +84,7 @@ export interface SettingsPatch {
   asr?: Partial<{ enabled: boolean }>
   olvt?: Partial<{ characterName: string; humanName: string; personaPrompt: string }>
   tts?: Partial<{ backendDir: string; refAudioPath: string; refText: string; refLang: string; textLang: string }>
+  gateway?: Partial<{ enabled: boolean; port: number }>
 }
 
 export interface ComponentStatus {
@@ -98,6 +100,16 @@ export interface ComponentStatus {
 export interface ComponentProgress {
   id: string
   progress: number
+}
+
+export interface GatewayStatusView {
+  running: boolean
+  port: number
+  urls: string[]
+  caFingerprint: string
+  devices: Array<{ name: string; addedAt: string; lastSeen: string | null }>
+  pairing: { code: string; expiresAt: number } | null
+  error?: string
 }
 
 export interface ActionRequest {

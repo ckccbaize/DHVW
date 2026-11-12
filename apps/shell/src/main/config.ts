@@ -15,6 +15,8 @@ export interface ShellConfig {
   olvt: { dir: string; characterName: string; humanName: string; personaPrompt: string }
   /** GPT-SoVITS：backendDir 为本机后端目录（含 api_v2.py 与 runtime/python.exe），留空则用占位 worker */
   tts: { backendDir: string; refAudioPath: string; refText: string; refLang: string; textLang: string }
+  /** 局域网网关：自签证书 + HTTPS/WSS 反代，端口固定便于设备记住地址 */
+  gateway: { enabled: boolean; port: number }
   /** 把占位 sidecar 换成真实进程：id -> 可执行文件 + 参数（{port} 替换为分配端口） */
   sidecars: Record<string, { command: string[]; cwd?: string; env?: Record<string, string> }>
   /** 组件下载地址覆盖（企业镜像/离线包），不填则用内置镜像列表 */
@@ -38,6 +40,7 @@ const DEFAULTS: ShellConfig = {
     personaPrompt: '你是住在数字人虚拟仓里的小仓，语气自然、口语化，回答简短。不要使用 Markdown，不要输出括号里的动作描写。',
   },
   tts: { backendDir: '', refAudioPath: '', refText: '', refLang: 'ja', textLang: 'zh' },
+  gateway: { enabled: true, port: 8443 },
   sidecars: {},
   componentUrls: {},
   pipIndex: 'https://mirrors.aliyun.com/pypi/simple',
@@ -87,6 +90,7 @@ export function loadConfig(): ShellConfig {
       asr: { ...DEFAULTS.asr, ...raw.asr },
       olvt: { ...DEFAULTS.olvt, ...raw.olvt },
       tts: { ...DEFAULTS.tts, ...raw.tts },
+      gateway: { ...DEFAULTS.gateway, ...raw.gateway },
       sidecars: { ...DEFAULTS.sidecars, ...raw.sidecars },
       componentUrls: { ...DEFAULTS.componentUrls, ...raw.componentUrls },
     }
