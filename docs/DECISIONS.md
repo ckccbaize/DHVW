@@ -41,7 +41,7 @@
 |---|---|---|---|---|
 | ★D1 | 核心机跑在哪 | ①浏览器 Worker ②独立进程 ③PC 侧 | **已定 ①** | 批次 2 |
 | ★D2 | 端侧能否直接调 LLM | ①默认关+超时才开 ②只走 PC ③常开 | **已定：常开，PC 在线时关；时机由核心机定** | 批次 5 |
-| ★D3 | 状态机选型 | ①XState ②纯 reducer ③robot3 | **已定：需统计+可视化+恢复+心情** | 批次 2 |
+| ★D3 | 状态机选型 | ①XState ②纯 reducer ③robot3 | **已定：纯 reducer + GRAPH**（spike 见 `spikes/fsm/REPORT.md`） | 批次 2 |
 | ★D4 | 记忆查询放哪 | ①本地倒排+PC 代理 ②一期本地 embedding ③只走 PC | **已定：必要；归纳可调 LLM；本地优先** | 批次 4 |
 | ★D5 | 同步模型 | ①append-only+uuid ②CRDT | **已定：会出现同时处理 → 所有权+LWW** | 批次 3 |
 | ★D6 | Agent 层 | ①自研薄层 ②AI SDK ③LangGraph.js | **已定：先自研，优先可运行** | 批次 5 |

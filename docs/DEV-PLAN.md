@@ -63,7 +63,7 @@
 | ID | 开发项 | 产出 | 验收 | 依赖 |
 |---|---|---|---|---|
 | W1 | core.worker 骨架与消息总线 | `core/worker.js`、`core/bus.js`、`core/client.js`：init/state/event/health/reply | 主线程发 `input` 能收到 `state` 回包 | A3 | **已有**（8 项测试 + `debug-core.html` 实测） |
-| W2 | 状态机 spike（XState vs 纯 reducer） | `spikes/fsm/`：同一状态图两种实现 + 快照恢复 | 3 天内给出选型结论（体积/可读性/快照） | A2 |
+| W2 | 状态机 spike（XState vs 纯 reducer） | `spikes/fsm/`：同一状态图两种实现 + 快照恢复 + 报告 | **已定：纯 reducer**（等价 6/6；XState 需 vendor 41.5KB gzip；快照 62B vs 183B） | A2 | **已有** |
 | W3 | 世界状态机 | `core/machine/world.js`：显示态 × 主机可达 × 档位（§10.1 矩阵） | 非法组合 0 次；迁移日志逐条可复现 | W2 |
 | W4 | 生活状态机 | `core/machine/life.js`：作息 7 段 → 房间/动作 | 拨时间可见行为变化 | W3 |
 | W5 | 事件日志 | `core/log/`：append-only + `seq` + 环形 2000 + 崩溃恢复 | 写 2001 条剩 2000；重启后 `seq` 连续 | W1 |
