@@ -8,6 +8,7 @@
 node_modules/
 
 # 运行时/临时
+/data/
 /.tmp/
 *.log
 *.pid
