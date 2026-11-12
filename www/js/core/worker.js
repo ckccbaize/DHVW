@@ -3,6 +3,7 @@
 
 import { makeMsg, validateMsg, errorMsg, replyMsg } from "./bus.js";
 import { createWorldRuntime, GRAPH } from "./machine/world.js";
+import { createLifeRuntime } from "./machine/life.js";
 
 const LOG_CAP = 200;
 const WORLD_EVENTS = new Set([
@@ -29,6 +30,7 @@ const state = {
   jobs: 0,
   doctor: { status: "ok", lastCheck: 0 },
   machine: null,
+  life: null,
 };
 
 const logs = [];
@@ -36,6 +38,8 @@ let startedAt = 0;
 let heartbeat = null;
 let ticks = 0;
 let lastTickAt = 0;
+
+const life = createLifeRuntime({ minute: 8 * 60 });
 
 const world = createWorldRuntime({
   log(rec) {
@@ -67,6 +71,7 @@ function syncWorld() {
     tier: m.tier,
     machine: { ...m },
     transitions: world.records.length,
+    life: life.snapshot(),
   };
 }
 
@@ -84,6 +89,7 @@ function health() {
     world: { ...world.state },
     transitions: world.records.length,
     illegal: world.state.illegal,
+    life: life.snapshot(),
     doctor: state.doctor,
     logs: logs.length,
   };
@@ -107,11 +113,12 @@ const handlers = {
   "core:init"(p) {
     startedAt = Date.now();
     world.reset();
+    life.reset({ minute: p.clock?.minute ?? 8 * 60, mood: p.mood });
     if (p.scene) state.scene = p.scene.id || p.scene;
     if (p.clock) state.clock = { day: p.clock.day ?? 1, minute: p.clock.minute ?? 480 };
     if (p.mood) Object.assign(state.mood, p.mood);
     log("info", "init", { scene: state.scene });
-    patch({ ...state, ...syncWorld() });
+    patch({ ...state, ...syncWorld(), life: life.snapshot() });
     post("core:event", { ev: { uuid: `boot-${startedAt}`, kind: "core_ready", t: Date.now() } });
     startHeartbeat();
     return { ok: true, scene: state.scene, world: world.state };
@@ -153,7 +160,7 @@ const handlers = {
   "core:snapshot"() {
     patch({ ...state });
     post("core:health", health());
-    return { ok: true, world: world.state, graph: GRAPH };
+    return { ok: true, world: world.state, life: life.snapshot(), graph: GRAPH };
   },
 
   "core:command"(p) {
@@ -163,6 +170,21 @@ const handlers = {
         throw Object.assign(new Error("world 命令需要 args.event"), { code: "bad_payload" });
       }
       return dispatchWorld(ev);
+    }
+    if (p.name === "life_advance") {
+      life.advance(p.args?.minutes ?? 60);
+      patch({ life: life.snapshot() });
+      return { ok: true, life: life.snapshot() };
+    }
+    if (p.name === "life_mood") {
+      life.applyMood(p.args?.deltas || {});
+      patch({ life: life.snapshot() });
+      return { ok: true, life: life.snapshot() };
+    }
+    if (p.name === "life_pick") {
+      const chosen = life.pick(p.args?.hotspots || [], p.args?.from || null);
+      patch({ life: life.snapshot() });
+      return { ok: true, chosen, life: life.snapshot() };
     }
     if (p.name === "world_reset") {
       world.reset();

@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-12T12:42:38.699Z",
+ "built_at": "2026-11-12T12:53:44.636Z",
  "files": [
   {
    "path": "assets/scenes/home/home.built.json",
@@ -34,8 +34,8 @@
   },
   {
    "path": "debug-core.html",
-   "size": 5703,
-   "sha256": "9983210ebe823315f4dcbb103e9108986b2012ca4d1adf17837bd72457b039c4"
+   "size": 7639,
+   "sha256": "0c2dfcf757bf88f9f0c1b3959521c0fa414a1ffc385c8a98a53ed35dd77a1d37"
   },
   {
    "path": "index.html",
@@ -83,6 +83,11 @@
    "sha256": "e13e801142015f9f83b7a5033b1687b9c51c06e997b89736e691c4d9c15092cc"
   },
   {
+   "path": "js/core/machine/life.js",
+   "size": 6548,
+   "sha256": "633cd9478e15b7427fa4cf9c0e927a588273f170f89ee831b086bee8de038fe8"
+  },
+  {
    "path": "js/core/machine/world.js",
    "size": 5913,
    "sha256": "a02645bf27670e934b7f384b1d996b2716aa0b44643c739a65eeeae76c23c28f"
@@ -99,8 +104,8 @@
   },
   {
    "path": "js/core/worker.js",
-   "size": 5250,
-   "sha256": "97196de2178a5f5db1f7b29b1dff518935edda127f0530056ed70518ec57d460"
+   "size": 6107,
+   "sha256": "d0fc0df498e265d7e69be5786526b64be2ecf547dbc4cad45315e4c7d337aa37"
   },
   {
    "path": "js/forge/grammar.js",
