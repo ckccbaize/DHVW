@@ -108,7 +108,19 @@ createManagerAgent({ llm, registry, subAgents: { "plot-writer": (args) => plotAg
 - 设备侧裁成 960×540（cover），JPEG 质量递减到 ≤200KB，单色图直接拒绝；
 - 结果字节存 kv `bg_last`，元数据进 `health.bg`。
 
-## 7. 新增技能
+## 7. 地图子 Agent（W16）
+
+`core/agent/subs/map.js` 消费出门/剧情的 `mapSpec`：
+
+- `forge/layout.js`：`pick_layout.py` 的 JS 版，生成封闭房间/开间/门/分区；
+- `buildGrid`：输出 intGrid（0 走 / 1 墙 / 2 门 / 3 窗）；
+- `validateMap`：房间数、开放面积 ≥50%、门指向、BFS 全房间可达；
+- `generateMap`：同 seed 确定性，失败自动换 seed 重试 ≤6 次；
+- 命令 `map_generate` / `map_scenes`；结果落 kv `generated_scenes`（环形 5）。
+
+像素绘制（`paint_home.py` 移植）仍属 W31；当前调试页用 intGrid 直接上色预览。
+
+## 8. 新增技能
 
 工艺约束提炼自：
 

@@ -21,6 +21,7 @@ import { createPlotAgent, EVENT_POOL } from "./agent/subs/plot.js";
 import { createEventPoolAgent } from "./agent/subs/events.js";
 import { planOuting, pickDestination, dateKey, SPECIAL_DATES } from "./life/outing.js";
 import { buildDigest, createDigestStore } from "./digest.js";
+import { generateMap } from "./agent/subs/map.js";
 import { createBgAgent } from "./agent/subs/bg.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
 
@@ -85,6 +86,7 @@ let pcActions = [];
 let digestStore = null;
 let digestTimer = null;
 let lastDigestAt = 0;
+let generatedScenes = [];
 
 const PC_ACTIONS = new Set(["map.generate", "app.open", "media.play", "notify", "web.open"]);
 
@@ -212,6 +214,7 @@ const ready = (async () => {
   agenda = (await kvBackend.get("agenda")) || [];
   sceneRequests = (await kvBackend.get("scene_requests")) || [];
   pcActions = (await kvBackend.get("pc_actions")) || [];
+  generatedScenes = (await kvBackend.get("generated_scenes")) || [];
   digestStore = createDigestStore({ backend: kvBackend });
   scheduler.register("event_pool", async () => {
     await refreshEventPool(6);
@@ -297,6 +300,7 @@ async function writeDigest() {
     eventPool: { total: eventPool.events.length, updatedAt: eventPool.updatedAt },
     outing: outingView(),
     digest: { ts: lastDigestAt, agenda: agenda.length, scenes: sceneRequests.length, pcActions: pcActions.length },
+    map: { scenes: generatedScenes.length, last: generatedScenes[0]?.name || null },
     lastPlot: await kvBackend.get("last_plot"),
   });
   await digestStore.save(d);
@@ -551,6 +555,7 @@ function health() {
     eventPool: { total: eventPool.events.length, updatedAt: eventPool.updatedAt },
     outing: outingView(),
     digest: { ts: lastDigestAt, agenda: agenda.length, scenes: sceneRequests.length, pcActions: pcActions.length },
+    map: { scenes: generatedScenes.length, last: generatedScenes[0]?.name || null },
     life: life.snapshot(),
     log: { ...logStats },
     doctor: state.doctor,
@@ -787,6 +792,32 @@ const handlers = {
         if (r.pcAction?.action) enqueuePcAction(r.pcAction.action, r.pcAction.args);
       }
       return { ...r, life: life.snapshot() };
+    }
+    if (p.name === "map_generate") {
+      const r = generateMap({ mapSpec: p.args?.mapSpec || {}, seed: p.args?.seed, w: p.args?.w, h: p.args?.h });
+      if (r.ok) {
+        generatedScenes.unshift({ ...r.scene, ts: Date.now() });
+        generatedScenes = generatedScenes.slice(0, 5);
+        await kvBackend.put("generated_scenes", generatedScenes);
+        const req = sceneRequests.find((s) => s.mapSpec?.seed === r.scene.seed && s.status === "pending");
+        if (req) {
+          req.status = "ready";
+          await kvBackend.put("scene_requests", sceneRequests);
+        }
+        await appendEvent("scene:generated", {
+          name: r.scene.name,
+          seed: r.scene.seed,
+          rooms: r.scene.rooms.length,
+          doors: r.scene.doors.length,
+          attempts: r.attempts,
+        });
+        patch({ map: { scenes: generatedScenes.length, last: r.scene.name } });
+        scheduleDigest();
+      }
+      return r;
+    }
+    if (p.name === "map_scenes") {
+      return { ok: true, scenes: generatedScenes.map(({ intGrid, ...rest }) => rest) };
     }
     if (p.name === "digest_get") {
       return { ok: true, digest: await writeDigest() };

@@ -78,7 +78,7 @@
 | W13 | 管理层 Agent | `core/agent/manager.js`：意图 → 任务分解 → 派发 → schema 校验 → 落库 | 一次意图产出 1–3 个任务，非法输出被丢弃 | W11, W12 | **已有**（8 项测试 + 假 LLM 端到端） |
 | W14 | 子 Agent：剧情 | `core/agent/subs/plot.js` + `subs/events.js` | 30–80 字、时间锚点、24h 去重；事件池可定时扩展 | W13 | **已有**（12 项测试 + 端到端实测） |
 | W15 | 子 Agent：背景 | `core/agent/subs/bg.js` | 960×540、非单色、体积达标 | W13 | **已有**（搜索/下载/裁切/压缩，实测 60KB） |
-| W16 | 子 Agent：地图 | `core/agent/subs/map.js`（依赖 W31 绘制移植） | 生成合法 intGrid + 可渲染 | W13, W31 |
+| W16 | 子 Agent：地图 | `core/agent/subs/map.js` + `forge/layout.js`（像素绘制待 W31） | 生成合法 intGrid + 可渲染 | W13, W31 | **已有**（布局/intGrid/可达校验；调试页渲染） |
 | W17 | 资源治理与 24/7 | `core/governor.js`：内存水位、降频、息屏、看门狗 | 8h 不断档；水位超限按 P4→P3→P2 降级 | W10 |
 | W18 | 观测 | `state_log` / 任务账本 / `health` 字段 | 一条命令看到状态机+队列+预算+索引 | W17 |
 | W19 | 与 PC 同步 | 事件批、资产清单、记忆结果合并；`world:digest` 统一摘要 | 假 PC 收批、uuid 去重、重复不重复入 | W9, W5 | 摘要已有（`core/digest.js`） |
@@ -96,7 +96,7 @@
 | W29 | **地点图与旅行（含跨夜、动态注册表）** | `core/places/`：place graph + 步行时间 + 抽象地点 + 地图产出契约 + `SCENE_ADDED/REMOVED` 原子更新 | 跨夜旅行产生事件与证据；新地图可被消费；删除当前场景时回 home | W27 | 出门意愿已有（`core/life/outing.js`） |
 | W32 | **Doctor 自检与自愈**（未来功能） | `core/doctor.js`：周期检测、日志包、LLM 诊断、白名单动作、安全模式 | 注入 5 类故障可检测；动作 100% 在白名单；日志脱敏 | W17, W11 |
 | W33 | **心情/行为外部引导与深层管理**（未来） | `core/mood/policy.js`：来源优先级、TTL、限频、episode/baseline、剧情 setpoint | 唤醒/剧情可引导行为且可解释；越权被拒 | W4, W21, W14 |
-| W31 | **地图绘制移植**（设备侧自己画） | `forge/painter.js` + `forge/layout.js`：`paint_home.py`/`pick_layout.py` 的 JS 版 + 同源闸门 | 同 spec 与 Python 逐像素一致；设备烘焙 ≤50ms | B4, W27 |
+| W31 | **地图绘制移植**（设备侧自己画） | `forge/painter.js` + `forge/layout.js`：`paint_home.py`/`pick_layout.py` 的 JS 版 + 同源闸门 | 同 spec 与 Python 逐像素一致；设备烘焙 ≤50ms | B4, W27 | `layout.js` 已移植；`painter.js` 待做 |
 | W30 | **显现 iframe 宿主**（P1 已定） | `view/present-host.js` + PC 侧 HTTPS/证书要求：iframe 全屏、`allow=microphone;autoplay`、失败回总观 | 显现期间 `health` 连续；麦克风可用；关闭后内存回落 | A2, W9 |
 
 ## 3.5 T 组 · 产出工具（"产出工具齐全"清单）
