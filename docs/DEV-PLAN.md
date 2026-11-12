@@ -68,7 +68,7 @@
 | W4 | 生活状态机 | `core/machine/life.js`：作息 7 段 → 房间/动作 + 心情四维/五档 + 打分选点 | 拨时间可见行为变化 | W3 | **已有**（12 项测试 + 浏览器实测） |
 | W5 | 事件日志 | `core/log/`：append-only + `seq` + 环形 2000 + IndexedDB 持久化 + uuid 幂等 | 写 2001 条剩 2000；重启后 `seq` 连续 | W1 | **已有**（9 项测试 + 浏览器重载实测） |
 | W6 | 快照与恢复 | `core/snapshot.js`：world/life/lastSeq 落 IndexedDB kv；2s 防抖 + 30s 定期 | kill Worker 后 ≤2s 恢复且不重复处理 | W3, W5 | **已有**（7 项测试 + 浏览器重载实测） |
-| W7 | 记忆查询（本地） | `core/memory/local.js`：MiniSearch + bigram 分词，索引摘要 | 5000 条摘要 ≤10MB、查询 ≤20ms | W5 |
+| W7 | 记忆查询（本地） | `core/memory/`：自研 bigram 倒排 + 时间衰减 + IndexedDB 持久化（不引 MiniSearch） | 5000 条摘要 ≤10MB、查询 ≤20ms | W5 | **已有**（7 项测试 + 浏览器重载实测） |
 | W8 | 记忆查询（PC 代理） | `core/memory/remote.js`：`memory:query` 请求/超时/降级 | 主机不可达时 200ms 内降级到本地 | W7, W9 |
 | W9 | 主机可达与同步通道 | `core/host.js` + `runtime/remote.js`：心跳 5s、60s 判死、hello 校时、present:begin/end、events:batch | 假主机单测 + `tools/fake-pc.mjs` 联调 | W1 | **已有**（6 项测试 + 真实 WS 联调） |
 | W10 | 调度器 | `core/sched/`：优先级、切片 ≤5s、让位、持久队列 | 活跃期不跑生成；息屏满速；挂起保留队列 | W5 |

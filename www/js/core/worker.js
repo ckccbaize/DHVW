@@ -9,6 +9,7 @@ import { openCoreDb, createIdbEventBackend } from "./log/idb.js";
 import { createSnapshotStore, createMemorySnapshotStore, validateSnapshot } from "./snapshot.js";
 import { createHostBridge } from "./host.js";
 import { createRemoteRuntime } from "../runtime/remote.js";
+import { createLocalMemory, createIdbMemoryBackend, createMemoryDocBackend } from "./memory/local.js";
 
 const LOG_CAP = 200;
 const WORLD_EVENTS = new Set([
@@ -51,6 +52,7 @@ let snapMeta = { ts: 0, lastSeq: 0, resumed: false };
 let saveTimer = null;
 let remote = null;
 let lastSyncedSeq = 0;
+let localMemory = null;
 
 const life = createLifeRuntime({ minute: 8 * 60 });
 
@@ -84,16 +86,24 @@ function withTimeout(promise, ms, label) {
 }
 
 const ready = (async () => {
+  let memoryBackend = null;
   try {
     const db = await withTimeout(openCoreDb(), 3000, "indexedDB open");
     eventLog = createEventLog({ backend: createIdbEventBackend(db) });
     snapStore = createSnapshotStore(db);
+    memoryBackend = createIdbMemoryBackend(db);
   } catch (err) {
     log("warn", "idb_unavailable", { msg: err.message });
     eventLog = createEventLog({ backend: createMemoryBackend() });
     snapStore = createMemorySnapshotStore();
+    memoryBackend = createMemoryDocBackend();
   }
+  localMemory = createLocalMemory({
+    backend: memoryBackend,
+    now: () => Date.now() + (host ? host.offsetMs : 0),
+  });
   await eventLog.init();
+  await localMemory.init();
   logStats = eventLog.stats;
 })();
 
@@ -197,6 +207,7 @@ function health() {
       session: host.sessionId,
     },
     lastSyncedSeq,
+    memory: { count: localMemory ? localMemory.count : 0, terms: localMemory ? localMemory.terms : 0 },
     life: life.snapshot(),
     log: { ...logStats },
     doctor: state.doctor,
@@ -309,8 +320,10 @@ const handlers = {
     return { ok: true };
   },
 
-  "core:query"(p) {
-    return { hits: [], semantic: false, query: p.text || "" };
+  async "core:query"(p) {
+    await ready;
+    const hits = localMemory.search(p.text || "", { k: p.k || 5 });
+    return { hits, semantic: false, query: p.text || "" };
   },
 
   async "core:snapshot"() {
@@ -362,6 +375,23 @@ const handlers = {
     }
     if (p.name === "log_latest") {
       return { ok: true, events: await eventLog.latest(p.args?.n || 10), stats: eventLog.stats };
+    }
+    if (p.name === "memory_add") {
+      const doc = await localMemory.add(p.args || {});
+      patch({ memory: { count: localMemory.count, terms: localMemory.terms } });
+      return { ok: true, doc, stats: { count: localMemory.count, terms: localMemory.terms } };
+    }
+    if (p.name === "memory_search") {
+      const hits = localMemory.search(p.args?.text || "", { k: p.args?.k || 5 });
+      return { ok: true, hits, semantic: false };
+    }
+    if (p.name === "memory_clear") {
+      await localMemory.clear();
+      patch({ memory: { count: 0, terms: 0 } });
+      return { ok: true };
+    }
+    if (p.name === "memory_stats") {
+      return { ok: true, count: localMemory.count, terms: localMemory.terms };
     }
     if (p.name === "host_flush") {
       const n = await flushEvents();
