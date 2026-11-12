@@ -62,6 +62,8 @@
 
 ### 2.2 `interactions.json`（产出侧定义，设备执行）
 
+> 完整设计（效果枚举、条件枚举、执行状态机、打分与打断）见 `docs/INTERACTION-LAYER.md`。
+
 ```jsonc
 {
   "sleep":  { "prop": ["bed"], "requires": [], "duration_min": 480,

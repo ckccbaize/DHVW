@@ -104,7 +104,7 @@
 | T2 | `tools/intake.mjs` | 产出侧目录 → `www/assets/scenes/<id>/`，生成 manifest，拒绝不合格包 | 不合格包不落盘 | 待做 |
 | T3 | `js/view/scene-loader.js` | 加载 + 校验 + 解码，失败回退内置场景 | 缺图不白屏 | 待做 |
 | T4 | `js/view/animator.js` | 按 `sheet.json` 播放（方向/动作/帧率） | 4 向 + 5 动作可播 | 待做 |
-| T5 | `js/core/interactions.js` | 执行 `interactions.json`（数据驱动） | 改 JSON 即改行为 | 待做 |
+| T5 | `js/core/interactions.js` | Registry + Resolver + Executor + EffectApplier（见 `INTERACTION-LAYER.md`） | 改 JSON 即改行为；打断/条件不满足有明确结果 | 待做 |
 | T6 | `www/debug.html` 场景页 | 碰撞/热点/可达性可视化 | 一眼看出哪格挡路、哪个热点不可达 | 与 W22 合并 |
 | T7 | `tools/pack.mjs` / `verify.mjs` | 资源包清单与完整性 | 已通过 | **已有** |
 
