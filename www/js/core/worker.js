@@ -1,9 +1,11 @@
-// 核心机骨架（W1）+ 世界状态机（W3）。
-// 契约见 docs/CONTRACTS.md §1；状态机见 core/machine/world.js。
+// 核心机骨架（W1）+ 世界状态机（W3）+ 生活状态机（W4）+ 事件日志（W5）。
+// 契约见 docs/CONTRACTS.md §1；状态机见 core/machine/*；日志见 core/log/*。
 
 import { makeMsg, validateMsg, errorMsg, replyMsg } from "./bus.js";
 import { createWorldRuntime, GRAPH } from "./machine/world.js";
 import { createLifeRuntime } from "./machine/life.js";
+import { createEventLog, createMemoryBackend } from "./log/events.js";
+import { openEventDb, createIdbEventBackend } from "./log/idb.js";
 
 const LOG_CAP = 200;
 const WORLD_EVENTS = new Set([
@@ -38,15 +40,29 @@ let startedAt = 0;
 let heartbeat = null;
 let ticks = 0;
 let lastTickAt = 0;
+let eventLog = null;
+let logStats = { count: 0, lastSeq: 0, dropped: 0 };
 
 const life = createLifeRuntime({ minute: 8 * 60 });
 
 const world = createWorldRuntime({
   log(rec) {
     log("info", "world", rec);
-    post("core:event", { ev: { uuid: `w-${rec.seq}-${rec.t}`, kind: "world_transition", t: rec.t, payload: rec } });
+    void appendEvent("world_transition", rec);
   },
 });
+
+const ready = (async () => {
+  try {
+    const db = await openEventDb();
+    eventLog = createEventLog({ backend: createIdbEventBackend(db) });
+  } catch (err) {
+    log("warn", "idb_unavailable", { msg: err.message });
+    eventLog = createEventLog({ backend: createMemoryBackend() });
+  }
+  await eventLog.init();
+  logStats = eventLog.stats;
+})();
 
 function log(level, msg, data) {
   logs.push({ t: Date.now(), level, msg, data });
@@ -60,6 +76,17 @@ function post(type, payload, extra) {
 function patch(partial) {
   Object.assign(state, partial);
   post("core:state", { patch: partial });
+}
+
+async function appendEvent(kind, payload = {}, src = "device") {
+  await ready;
+  const res = await eventLog.append({ kind, payload, src });
+  if (!res.duplicate) {
+    logStats = eventLog.stats;
+    patch({ log: { ...logStats } });
+    post("core:event", { ev: res.record });
+  }
+  return res;
 }
 
 /** 把状态机结果镜像到扁平 state（UI 只读扁平字段）。 */
@@ -90,6 +117,7 @@ function health() {
     transitions: world.records.length,
     illegal: world.state.illegal,
     life: life.snapshot(),
+    log: { ...logStats },
     doctor: state.doctor,
     logs: logs.length,
   };
@@ -110,7 +138,8 @@ function dispatchWorld(event) {
 }
 
 const handlers = {
-  "core:init"(p) {
+  async "core:init"(p) {
+    await ready;
     startedAt = Date.now();
     world.reset();
     life.reset({ minute: p.clock?.minute ?? 8 * 60, mood: p.mood });
@@ -118,10 +147,10 @@ const handlers = {
     if (p.clock) state.clock = { day: p.clock.day ?? 1, minute: p.clock.minute ?? 480 };
     if (p.mood) Object.assign(state.mood, p.mood);
     log("info", "init", { scene: state.scene });
-    patch({ ...state, ...syncWorld(), life: life.snapshot() });
-    post("core:event", { ev: { uuid: `boot-${startedAt}`, kind: "core_ready", t: Date.now() } });
+    patch({ ...state, ...syncWorld() });
+    await appendEvent("core_ready", { scene: state.scene, lastSeq: eventLog.lastSeq });
     startHeartbeat();
-    return { ok: true, scene: state.scene, world: world.state };
+    return { ok: true, scene: state.scene, world: world.state, log: eventLog.stats };
   },
 
   "core:input"(p) {
@@ -157,13 +186,21 @@ const handlers = {
     return { hits: [], semantic: false, query: p.text || "" };
   },
 
-  "core:snapshot"() {
+  async "core:snapshot"() {
+    await ready;
     patch({ ...state });
     post("core:health", health());
-    return { ok: true, world: world.state, life: life.snapshot(), graph: GRAPH };
+    return {
+      ok: true,
+      world: world.state,
+      life: life.snapshot(),
+      graph: GRAPH,
+      log: { stats: eventLog.stats, latest: await eventLog.latest(10) },
+    };
   },
 
-  "core:command"(p) {
+  async "core:command"(p) {
+    await ready;
     if (p.name === "world") {
       const ev = p.args?.event;
       if (!ev || typeof ev.type !== "string") {
@@ -189,6 +226,18 @@ const handlers = {
       patch({ life: life.snapshot() });
       return { ok: true, chosen, life: life.snapshot() };
     }
+    if (p.name === "log_append") {
+      const res = await appendEvent(p.args?.kind || "debug", p.args?.payload || {});
+      return { ok: true, ...res, stats: eventLog.stats };
+    }
+    if (p.name === "log_latest") {
+      return { ok: true, events: await eventLog.latest(p.args?.n || 10), stats: eventLog.stats };
+    }
+    if (p.name === "log_clear") {
+      await eventLog.clear();
+      logStats = eventLog.stats;
+      return { ok: true, stats: logStats };
+    }
     if (p.name === "world_reset") {
       world.reset();
       patch(syncWorld());
@@ -199,7 +248,7 @@ const handlers = {
   },
 };
 
-self.onmessage = (e) => {
+self.onmessage = async (e) => {
   const msg = e.data;
   const v = validateMsg(msg);
   if (!v.ok) {
@@ -212,7 +261,7 @@ self.onmessage = (e) => {
     return;
   }
   try {
-    const result = handler(msg.payload || {});
+    const result = await handler(msg.payload || {});
     if (result !== undefined) self.postMessage(replyMsg(msg.id, result));
   } catch (err) {
     log("error", "handler_failed", { type: msg.type, msg: err.message });

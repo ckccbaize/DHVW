@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>核心机骨架（W1/W3/W4）</title>
+<title>核心机骨架（W1/W3/W4/W5）</title>
 <style>
   :root { color-scheme: dark; }
   body { margin: 0; padding: 18px; background: #0f1218; color: #e6e9f0;
@@ -22,10 +22,11 @@
 </style>
 </head>
 <body>
-<h1>核心机骨架（W1/W3/W4）· <span id="status">启动中…</span></h1>
+<h1>核心机骨架（W1/W3/W4/W5）· <span id="status">启动中…</span></h1>
 
 <div class="machine" id="machine">display=— conn=— tier=— illegal=0 transitions=0</div>
 <div class="machine" id="life">minute=— phase=— band=—</div>
+<div class="machine" id="logstats">log seq=— count=— dropped=—</div>
 
 <h2>世界事件（点击即派发）</h2>
 <div class="row">
@@ -45,6 +46,13 @@
   <button id="btnLife3h">+3 小时</button>
   <button id="btnMoodUp">心情 +0.2</button>
   <button id="btnPick">选一个热点</button>
+</div>
+
+<h2>事件日志（W5）</h2>
+<div class="row">
+  <button id="btnLogAppend">append 一条</button>
+  <button id="btnLogLatest">latest 5</button>
+  <button id="btnLogClear">clear</button>
 </div>
 
 <h2>基础</h2>
@@ -80,6 +88,12 @@ function pushLine(text) {
   logEl.textContent = lines.join("\n");
 }
 
+function renderLog(l) {
+  if (!l) return;
+  document.querySelector("#logstats").innerHTML =
+    `log seq=<b>${l.lastSeq}</b> count=<b>${l.count}</b> dropped=<b>${l.dropped}</b>`;
+}
+
 function renderLife(l) {
   if (!l) return;
   const hh = String(Math.floor(l.minute / 60)).padStart(2, "0");
@@ -104,6 +118,7 @@ const client = createCoreClient({
       stateEl.textContent = JSON.stringify(p, null, 1);
       if (p.machine) renderMachine({ ...p.machine, transitions: p.transitions });
       if (p.life) renderLife(p.life);
+      if (p.log) renderLog(p.log);
       if (p.display || p.conn || p.tier) {
         renderMachine({ ...(p.machine || {}), display: p.display ?? p.machine?.display, conn: p.conn ?? p.machine?.conn, tier: p.tier ?? p.machine?.tier, transitions: p.transitions });
       }
@@ -112,6 +127,7 @@ const client = createCoreClient({
       healthEl.textContent = JSON.stringify(msg.payload, null, 1);
       renderMachine({ ...msg.payload.world, transitions: msg.payload.transitions });
       renderLife(msg.payload.life);
+      renderLog(msg.payload.log);
     }
     if (msg.type === "core:event" && msg.payload.ev?.kind === "world_transition") {
       const r = msg.payload.ev.payload;
@@ -149,6 +165,24 @@ try {
 for (const btn of document.querySelectorAll("[data-ev]")) {
   btn.onclick = () => dispatch(btn.dataset.ev);
 }
+$("#btnLogAppend").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "log_append", args: { kind: "debug", payload: { t: Date.now() } } });
+    pushLine(`log append → seq=${r.record?.seq ?? "dup"}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnLogLatest").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "log_latest", args: { n: 5 } });
+    pushLine(`log latest → ${r.events.map((e) => e.seq + ":" + e.kind).join(", ")}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnLogClear").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "log_clear" });
+    pushLine(`log clear → seq=${r.stats.lastSeq}`);
+  } catch (e) { pushLine(e.message); }
+};
 $("#btnLife1h").onclick = () => client.request("core:command", { name: "life_advance", args: { minutes: 60 } }).catch((e) => pushLine(e.message));
 $("#btnLife3h").onclick = () => client.request("core:command", { name: "life_advance", args: { minutes: 180 } }).catch((e) => pushLine(e.message));
 $("#btnMoodUp").onclick = () => client.request("core:command", { name: "life_mood", args: { deltas: { valence: 0.2 } } }).catch((e) => pushLine(e.message));
