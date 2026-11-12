@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-12T13:45:33.271Z",
+ "built_at": "2026-11-12T14:00:49.406Z",
  "files": [
   {
    "path": "assets/scenes/home/home.built.json",
@@ -34,8 +34,8 @@
   },
   {
    "path": "debug-core.html",
-   "size": 11847,
-   "sha256": "20c95726ddbd3123dfae36fa0e58686d548b09aedda67beb9811ab8733d8016f"
+   "size": 13748,
+   "sha256": "b3e16c0e5be349281e1b68628c808af7c3004910d04df6434f67873e4ddfe460"
   },
   {
    "path": "index.html",
@@ -94,8 +94,8 @@
   },
   {
    "path": "js/core/log/idb.js",
-   "size": 3104,
-   "sha256": "f5adbfbe06d96c30a84ecaaaffda969a3ef0bf585bd05b85c1938b31193d0f8c"
+   "size": 3236,
+   "sha256": "0629ddc80fc56b5a2dff98f8a9e8ed6121488f9661841828c7b320f790cabc3c"
   },
   {
    "path": "js/core/machine/life.js",
@@ -133,14 +133,19 @@
    "sha256": "dfa4c98e57c85102d903532341cc18b848bee2965c46035a781e58ed94ebbdac"
   },
   {
+   "path": "js/core/sched/scheduler.js",
+   "size": 6748,
+   "sha256": "33270c83cdd6ca753e0adcce0f98a65bfedc723eef0663ef52cb55eb54b3a840"
+  },
+  {
    "path": "js/core/snapshot.js",
    "size": 1495,
    "sha256": "2f160f70d0ea4c1157e5aaf78dc864ff223ecfc0290c71b1c657ecd830fe22c8"
   },
   {
    "path": "js/core/worker.js",
-   "size": 14467,
-   "sha256": "e986f44ea2ffb2bff48d2890199a599e09b3560e17897b9aa1bed96bf0762778"
+   "size": 16700,
+   "sha256": "040bf04d4a66ef47cb5decc4acfd404c99f5702e07d124063277092bfe247072"
   },
   {
    "path": "js/forge/grammar.js",

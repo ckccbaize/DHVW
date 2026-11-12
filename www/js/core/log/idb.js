@@ -1,7 +1,7 @@
-// 核心机 IndexedDB（W5/W6/W7）。
-// 库：dhvw-core v3；store：events + kv（快照）+ memory（本地记忆文档）。
+// 核心机 IndexedDB（W5/W6/W7/W10）。
+// 库：dhvw-core v4；store：events + kv（快照）+ memory（记忆）+ jobs（调度队列）。
 
-export function openCoreDb(indexedDBImpl = globalThis.indexedDB, name = "dhvw-core", version = 3) {
+export function openCoreDb(indexedDBImpl = globalThis.indexedDB, name = "dhvw-core", version = 4) {
   if (!indexedDBImpl) return Promise.reject(new Error("indexedDB 不可用"));
   return new Promise((resolve, reject) => {
     const req = indexedDBImpl.open(name, version);
@@ -16,6 +16,9 @@ export function openCoreDb(indexedDBImpl = globalThis.indexedDB, name = "dhvw-co
       }
       if (!db.objectStoreNames.contains("memory")) {
         db.createObjectStore("memory", { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains("jobs")) {
+        db.createObjectStore("jobs", { keyPath: "id" });
       }
     };
     req.onsuccess = () => {

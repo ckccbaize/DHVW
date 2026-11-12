@@ -11,6 +11,7 @@ import { createHostBridge } from "./host.js";
 import { createRemoteRuntime } from "../runtime/remote.js";
 import { createLocalMemory, createIdbMemoryBackend, createMemoryDocBackend } from "./memory/local.js";
 import { createRemoteMemory } from "./memory/remote.js";
+import { createScheduler, createIdbJobBackend, createMemoryJobBackend } from "./sched/scheduler.js";
 
 const LOG_CAP = 200;
 const WORLD_EVENTS = new Set([
@@ -54,6 +55,7 @@ let saveTimer = null;
 let remote = null;
 let lastSyncedSeq = 0;
 let localMemory = null;
+let scheduler = null;
 
 const life = createLifeRuntime({ minute: 8 * 60 });
 
@@ -94,23 +96,45 @@ function withTimeout(promise, ms, label) {
 
 const ready = (async () => {
   let memoryBackend = null;
+  let jobBackend = null;
   try {
     const db = await withTimeout(openCoreDb(), 3000, "indexedDB open");
     eventLog = createEventLog({ backend: createIdbEventBackend(db) });
     snapStore = createSnapshotStore(db);
     memoryBackend = createIdbMemoryBackend(db);
+    jobBackend = createIdbJobBackend(db);
   } catch (err) {
     log("warn", "idb_unavailable", { msg: err.message });
     eventLog = createEventLog({ backend: createMemoryBackend() });
     snapStore = createMemorySnapshotStore();
     memoryBackend = createMemoryDocBackend();
+    jobBackend = createMemoryJobBackend();
   }
   localMemory = createLocalMemory({
     backend: memoryBackend,
     now: () => Date.now() + (host ? host.offsetMs : 0),
   });
+  scheduler = createScheduler({
+    backend: jobBackend,
+    maxSliceMs: 5000,
+    onEvent: (e) => {
+      log("debug", "sched", { type: e.type, id: e.job?.id, kind: e.job?.kind });
+      patch({ sched: scheduler.stats });
+    },
+  });
+  scheduler.register("debug", async (payload, { shouldYield }) => {
+    const ms = Math.max(10, Number(payload.ms) || 50);
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+      if (shouldYield()) throw Object.assign(new Error("yield"), { code: "yield" });
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    return { ok: true, ms };
+  });
+
   await eventLog.init();
   await localMemory.init();
+  await scheduler.init();
   logStats = eventLog.stats;
 })();
 
@@ -232,6 +256,7 @@ function health() {
       terms: localMemory ? localMemory.terms : 0,
       remote: remoteMemory.stats,
     },
+    sched: scheduler ? scheduler.stats : null,
     life: life.snapshot(),
     log: { ...logStats },
     doctor: state.doctor,
@@ -250,6 +275,7 @@ function dispatchWorld(event) {
   }
   const res = world.dispatch(event);
   patch(syncWorld());
+  if (scheduler) scheduler.setPresent(world.state.display === "present");
   if (event.type === "PRESENT_REQUEST" && !res.illegal) host.presentBegin();
   if (event.type === "PRESENT_EXIT" && !res.illegal) host.presentEnd();
   scheduleSnapshot();
@@ -397,6 +423,42 @@ const handlers = {
     }
     if (p.name === "log_latest") {
       return { ok: true, events: await eventLog.latest(p.args?.n || 10), stats: eventLog.stats };
+    }
+    if (p.name === "sched_enqueue") {
+      const job = scheduler.enqueue({
+        kind: p.args?.kind || "debug",
+        priority: p.args?.priority ?? 5,
+        payload: p.args?.payload || {},
+      });
+      return { ok: true, job, stats: scheduler.stats };
+    }
+    if (p.name === "sched_stats") {
+      return { ok: true, stats: scheduler.stats, queue: scheduler.queue };
+    }
+    if (p.name === "sched_activity") {
+      scheduler.setActivity(p.args?.level || "active");
+      patch({ sched: scheduler.stats });
+      return { ok: true, stats: scheduler.stats };
+    }
+    if (p.name === "sched_present") {
+      scheduler.setPresent(!!p.args?.on);
+      patch({ sched: scheduler.stats });
+      return { ok: true, stats: scheduler.stats };
+    }
+    if (p.name === "sched_pause") {
+      scheduler.pause();
+      patch({ sched: scheduler.stats });
+      return { ok: true, stats: scheduler.stats };
+    }
+    if (p.name === "sched_resume") {
+      scheduler.resume();
+      patch({ sched: scheduler.stats });
+      return { ok: true, stats: scheduler.stats };
+    }
+    if (p.name === "sched_cancel") {
+      const ok = scheduler.cancel(p.args?.id);
+      patch({ sched: scheduler.stats });
+      return { ok, stats: scheduler.stats };
     }
     if (p.name === "memory_query") {
       return { ok: true, ...(await queryMemory(p.args?.text || "", p.args?.k || 5)) };
