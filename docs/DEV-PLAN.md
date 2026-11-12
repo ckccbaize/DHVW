@@ -71,7 +71,7 @@
 | W7 | 记忆查询（本地） | `core/memory/`：自研 bigram 倒排 + 时间衰减 + IndexedDB 持久化（不引 MiniSearch） | 5000 条摘要 ≤10MB、查询 ≤20ms | W5 | **已有**（7 项测试 + 浏览器重载实测） |
 | W8 | 记忆查询（PC 代理） | `core/memory/remote.js`：`memory:query` 请求 + `req_id` 关联 + 200ms 超时 + 本地降级 | 主机不可达时 200ms 内降级到本地 | W7, W9 | **已有**（5 项测试 + 假 PC 联调） |
 | W9 | 主机可达与同步通道 | `core/host.js` + `runtime/remote.js`：心跳 5s、60s 判死、hello 校时、present:begin/end、events:batch | 假主机单测 + `tools/fake-pc.mjs` 联调 | W1 | **已有**（6 项测试 + 真实 WS 联调） |
-| W10 | 调度器 | `core/sched/`：优先级、切片 ≤5s、让位、持久队列 | 活跃期不跑生成；息屏满速；挂起保留队列 | W5 |
+| W10 | 调度器 | `core/sched/`：优先级、切片 ≤5s、让位、持久队列；**只调度生成/归纳任务，不调度 life tick** | 活跃期生成排队不跑；息屏 tick 1/min 但生成满速；present 全停；挂起保留队列 | W5 |
 | W11 | LLM 客户端与预算账本 | `core/agent/llm.js` + `budget.js`：超时/中止/用量/日上限 | 超时可控；超预算只停生成不停生活 | W10 |
 | W12 | Prompt / Skill 注册表 | `skills/<name>/SKILL.md` + `prompts/*.md` → 构建期 `skills.json` | 改 prompt 不动代码；清单可校验 | A6 |
 | W13 | 管理层 Agent | `core/agent/manager.js`：意图 → 任务分解 → 派发 → schema 校验 → 落库 | 一次意图产出 1–3 个任务，非法输出被丢弃 | W11, W12 |
