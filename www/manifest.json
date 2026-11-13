@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T09:57:54.703Z",
+ "built_at": "2026-11-13T10:10:41.431Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -511,6 +511,11 @@
    "path": "js/view/switch.js",
    "size": 2261,
    "sha256": "04215f2299723831b6d27c30aa516dc82b8a5d1dc616b959f3059cacf4fa62e6"
+  },
+  {
+   "path": "observe.html",
+   "size": 7063,
+   "sha256": "bb5f7dd83995d43dbe5e3a868649fb5107d42f2a81c2ed4c8dc2c4fae00232d2"
   },
   {
    "path": "workers/forge.worker.js",
