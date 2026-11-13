@@ -250,7 +250,9 @@ export function createOverview({ canvas, scene, store, onCharacterClick, onMoveR
     },
     draw,
     say(text, ttl = 2600) {
-      bubble = { text, until: performance.now() + ttl };
+      const t = text == null ? "" : String(text);
+      if (!t) return;
+      bubble = { text: t, until: performance.now() + ttl };
     },
     clearBubble() {
       bubble = null;

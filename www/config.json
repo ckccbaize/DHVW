@@ -15,5 +15,8 @@
     "hysteresisMs": 20000,
     "switchSource": "virtual"
   },
-  "forgeIntervalMs": 45000
+  "forgeIntervalMs": 45000,
+  "present": {
+    "url": ""
+  }
 }

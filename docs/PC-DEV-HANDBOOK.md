@@ -222,7 +222,7 @@ PC 执行后回 `pc:action:ack {id, ok, result}`；设备更新 `pcActions[].sta
 | 3 | 不能 `X-Frame-Options: DENY/SAMEORIGIN` | iframe 空白 |
 | 4 | CSP `frame-ancestors` 允许 `http://127.0.0.1:8080` | 同上 |
 | 5 | 1080p 全屏布局，不依赖地址栏/新窗口 | 布局错位 |
-| 6 | `/health` 探活 | 设备无法预判可用性 |
+| 6 | `/health` 探活，且允许设备来源跨域（`Access-Control-Allow-Origin`） | 设备无法预判可用性（跨域 fetch 会被浏览器拦截） |
 | 7 | 进入/退出各发一次 `present:begin/end` | 设备无法静音/接收记忆 |
 
 **唤醒归属**：显现期间由 **PC/OLVT** 负责唤醒与回合；ARM 的 `wake` 挂起（不计数、不推进、不产出）。退出显现后 ARM 重新起算。PC 断线时设备先退显现，再恢复设备档。

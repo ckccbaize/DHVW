@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T02:28:02.226Z",
+ "built_at": "2026-11-13T02:53:21.180Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -29,13 +29,13 @@
   },
   {
    "path": "config.json",
-   "size": 335,
-   "sha256": "b50eaf64f863786c05b18d12966375f40ed8eb50ce503accdcd70bc3ff221ace"
+   "size": 369,
+   "sha256": "4e085cf1daa4796a2c24bb26777a7f699a9e75efb6abeace7e7f48b759b1febc"
   },
   {
    "path": "css/app.css",
-   "size": 6438,
-   "sha256": "751c536eb0f31f7f8f542a02e68cf0740e14639d8ad6f1574f36b36451a81a80"
+   "size": 6820,
+   "sha256": "9d54fd11bba7b7de058bdc3251c221560731ff612a9041c9e0cd11493bab371f"
   },
   {
    "path": "debug-core.html",
@@ -44,13 +44,13 @@
   },
   {
    "path": "index.html",
-   "size": 2170,
-   "sha256": "9c0b19d5141785cbe3d0053b4761fb4a1a8cc19b86b5c7bca47fe172ecb02bb3"
+   "size": 2310,
+   "sha256": "686a9a3d5433973014e9bd23b7c382944e4cb5da31fb3e9f8c9a23807aeda511"
   },
   {
    "path": "js/app.js",
-   "size": 14570,
-   "sha256": "7738d9ef3fb10b1add2d6d7e78eab14b25585dacc601f9284cdc409fc9ec8036"
+   "size": 15200,
+   "sha256": "bf9975e5ae2f932ac6b33fa4b8dee8b0497959a64630f25e4d11bdfee2ecc00e"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -304,13 +304,18 @@
   },
   {
    "path": "js/view/overview.js",
-   "size": 8387,
-   "sha256": "5ded82b01ed03b871bbdda86ea9d1d7e2d568ca7d8c8707564f6f5543e848a9f"
+   "size": 8462,
+   "sha256": "8e21019122fc01055ec6db1db4564b0304424224706e06f9ed0a4a4da37ada13"
+  },
+  {
+   "path": "js/view/present-host.js",
+   "size": 1298,
+   "sha256": "ded102006e8e76cebd39b775ade0f339d2affe3e96fca801f605c29e1fe544ed"
   },
   {
    "path": "js/view/present.js",
-   "size": 2015,
-   "sha256": "a7667eb570e8b00bcd69d1a3c590d35dfee633f533b85c3326a88f2803f6819f"
+   "size": 3557,
+   "sha256": "1c207dade85bca0f4ec54b7b2e5bafc4c9e466bdf2c7e9d8e29e22daeb9f34e8"
   },
   {
    "path": "js/view/switch.js",

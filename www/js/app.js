@@ -13,12 +13,14 @@ import { createOverview } from "./view/overview.js";
 import { createPresent } from "./view/present.js";
 import { createHud } from "./view/hud.js";
 import { createSwitch, createSwitchSource } from "./view/switch.js";
+import { normalizePresentUrl, probePresent } from "./view/present-host.js";
 
 const DEFAULTS = {
   host: { wsUrl: "", probeUrl: "", ttsUrl: "" },
   life: { minutesPerSecond: 1, tickMs: 1000 },
   assetQuotaBytes: 500 * 1024 * 1024,
   display: { backToOverviewMs: 90000, hostLostGraceMs: 10000, hysteresisMs: 20000 },
+  present: { url: "" },
   forgeIntervalMs: 45000,
 };
 
@@ -35,6 +37,7 @@ async function loadConfig() {
       host: { ...DEFAULTS.host, ...(raw.host || {}) },
       life: { ...DEFAULTS.life, ...(raw.life || {}) },
       display: { ...DEFAULTS.display, ...(raw.display || {}) },
+      present: { ...DEFAULTS.present, ...(raw.present || {}) },
     };
   } catch {
     return DEFAULTS;
@@ -187,10 +190,18 @@ async function boot() {
     if (store.state.display === "present") return;
     const tts = await probeTts();
     const bg = await bestBackground();
+    const presentUrl = normalizePresentUrl(cfg.present?.url || cfg.host?.presentUrl || "");
+    if (presentUrl) {
+      const probe = await probePresent(presentUrl);
+      if (!probe.ok) {
+        overview.say("显现页不可用，先留在总观", 3000);
+        return;
+      }
+    }
     local.suspend();
     remote.send({ type: "world:stop" });
     remote.send({ type: "present:request", t: Date.now() });
-    present.open({ backgroundUrl: bg, live2d: false, tts });
+    present.open({ backgroundUrl: bg, iframeUrl: presentUrl || "", live2d: false, tts });
     store.patch({ display: "present" });
     displayChangedAt = performance.now();
     presentOpenedAt = displayChangedAt;
@@ -207,6 +218,7 @@ async function boot() {
     if (store.state.tier === "edge") local.setTier("edge");
     remote.send({ type: "world:resume" });
     if (reason === "host_lost") overview.say("主机断开了，我先回去", 3000);
+    if (reason === "iframe_timeout" || reason === "iframe_error") overview.say("显现页加载失败，先回总观", 3000);
     store.emit("state", { display: "overview", reason });
   }
 
@@ -334,7 +346,7 @@ async function boot() {
   // ---------- 端侧资产 ----------
 
   function handleAsset(meta) {
-    if (meta.kind === "bg" && present.isOpen) {
+    if (meta.kind === "bg" && present.isOpen && !present.usingIframe) {
       void bestBackground().then((url) => {
         if (url) present.open({ backgroundUrl: url, live2d: false, tts: false });
       });

@@ -98,7 +98,7 @@
 | W32 | **Doctor 自检与自愈**（未来功能） | `core/doctor.js`：周期检测、日志包、LLM 诊断、白名单动作、安全模式 | 注入 5 类故障可检测；动作 100% 在白名单；日志脱敏 | W17, W11 |
 | W33 | **心情/行为外部引导与深层管理**（未来） | `core/mood/policy.js`：来源优先级、TTL、限频、episode/baseline、剧情 setpoint | 唤醒/剧情可引导行为且可解释；越权被拒 | W4, W21, W14 |
 | W31 | **地图绘制移植**（设备侧自己画） | `forge/painter.js` + `forge/layout.js`：`paint_home.py`/`pick_layout.py` 的 JS 版 + 同源闸门 | 同 spec 与 Python 逐像素一致；设备烘焙 ≤50ms | B4, W27 | `layout.js` 已移植；`painter.js` 待做 |
-| W30 | **显现 iframe 宿主**（P1 已定） | `view/present-host.js` + PC 侧 HTTPS/证书要求：iframe 全屏、`allow=microphone;autoplay`、失败回总观 | 显现期间 `health` 连续；麦克风可用；关闭后内存回落 | A2, W9 |
+| W30 | **显现 iframe 宿主**（P1 已定） | `view/present-host.js` + `present.js`：iframe 全屏、`allow=microphone;autoplay`、探活/超时失败回总观 | 显现期间 `health` 连续；麦克风可用；关闭后内存回落 | A2, W9 | **已有**（探活 + 加载/超时回退；麦克风待真机） |
 
 ## 3.5 T 组 · 产出工具（"产出工具齐全"清单）
 

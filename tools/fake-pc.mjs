@@ -18,6 +18,19 @@ function frame(obj) {
 }
 
 const server = http.createServer((req, res) => {
+  if (req.url === "/health") {
+    res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+    res.end(JSON.stringify({ ok: true, host: "fake-pc" }));
+    return;
+  }
+  if (req.url.startsWith("/present")) {
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Access-Control-Allow-Origin": "*" });
+    res.end(`<!doctype html><title>fake present</title>
+<body style="margin:0;background:#123;color:#eee;font:16px sans-serif">
+<div id="t">fake OLVT present</div>
+<script>addEventListener("message",e=>{if(e.data?.type==="dhvw:say")document.getElementById("t").textContent="say: "+e.data.text});</script>`);
+    return;
+  }
   res.writeHead(200, { "Content-Type": "text/plain" });
   res.end("fake-pc\n");
 });
@@ -43,6 +56,7 @@ server.on("upgrade", (req, socket) => {
     parse();
   });
   socket.on("close", () => console.log("[fake-pc] device disconnected"));
+  socket.on("error", (err) => console.log(`[fake-pc] socket error: ${err.code || err.message}`));
 
   function parse() {
     while (buf.length >= 2) {
