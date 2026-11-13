@@ -15,6 +15,7 @@ export function buildDigest({
   eventPool = null,
   outing = null,
   lastPlot = null,
+  mood = null,
 } = {}) {
   return {
     v: 1,
@@ -31,6 +32,7 @@ export function buildDigest({
     eventPool,
     outing,
     lastPlot,
+    mood,
   };
 }
 

@@ -110,6 +110,7 @@
 | `events:ack` | `{seq}` | **确认已收到该 seq 及之前的事件**；设备据此推进同步游标 |
 | `llm:config` | `{baseUrl?, apiKey?, model?, timeoutMs?, maxAttempts?, retryBaseMs?}` | **PC 直接修改设备 LLM 服务商配置**（落库生效） |
 | `digest:get` | `{}` | 请求设备重发 `world:digest` |
+| `mood:get` | `{}` | 请求当前心情可视化载荷（回 `mood:state`） |
 | `scene:ready` | `{id}` | PC 已完成某条 `sceneRequests` 的地图生成 |
 | `pc:action:ack` | `{id, ok, result?}` | PC 执行完设备下发的 `pc:action` |
 
@@ -129,6 +130,7 @@
 | `wake:state` | `{mode, next_wake_at, last_outcome}` | 设备档唤醒状态 |
 | `llm:state` | `{configured, baseUrl, model, maskedKey, stats}` | 设备 LLM 配置与调用统计（不含明文 key） |
 | `world:digest` | `{digest}` | 统一世界摘要（状态/日程/场景请求/PC 动作） |
+| `mood:state` | `{v,ts,minute,band,dims,series,sources}` | 心情 4 维当前值 + 最近序列 + 来源分布（≤5s 节流） |
 | `pc:action` | `{id, action, args}` | 设备请求 PC 执行白名单动作 |
 
 ### 3.4 世界摘要（world:digest）

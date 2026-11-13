@@ -146,6 +146,23 @@
 
 设备发 `events:batch {events, from_seq, batch_id}`，PC 处理完必须回 `events:ack {seq}`；设备只在收到 ack 后推进游标，未确认的批次在超时/重连后重发。PC 回传 `memory:facts` 时，设备按 `id` 去重合并并回 `facts:ack {accepted, merged, rejected}`。
 
+## 心情可视化
+
+设备推送 `mood:state`（变化后 ≤5s 节流），PC 也可发 `mood:get` 主动拉取：
+
+```json
+{
+  "v": 1, "ts": 0, "minute": 480, "band": "calm",
+  "dims": {"energy":0.55,"valence":0.55,"social":0.4,"focus":0.5},
+  "series": [{"t":0,"minute":480,"band":"calm","mood":{...}}],
+  "sources": {"plot": 2, "tick": 5}
+}
+```
+
+- `series` 最近 120 个采样（设备环形 480），可直接画折线/雷达；
+- `sources` 是最近 50 次心情写入的来源计数（plot/wake/interaction/user…）；
+- 同一分钟同来源同 band 的采样会被覆盖，避免刷屏。
+
 ## 世界摘要（联动入口）
 
 设备生成统一摘要 `world:digest`，并写入 `data/digest.json`（`GET /__digest` 可读）：

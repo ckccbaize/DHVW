@@ -25,6 +25,7 @@ import { generateMap } from "./agent/subs/map.js";
 import { allowedAt, checkWatchdog, createGovernor } from "./governor.js";
 import { createStateLog, createTaskLedger } from "./observe.js";
 import { createSyncManager, mergeFacts } from "./sync.js";
+import { buildMoodView, createMoodSeries } from "./mood.js";
 import { createBgAgent } from "./agent/subs/bg.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
 
@@ -98,6 +99,8 @@ let ledger = null;
 let heapInfo = null;
 let sync = null;
 let mergedFactIds = new Set();
+let moodSeries = null;
+let lastMoodPushAt = 0;
 let lastHealthAt = Date.now();
 
 const PC_ACTIONS = new Set(["map.generate", "app.open", "media.play", "notify", "web.open"]);
@@ -115,6 +118,9 @@ const remoteMemory = createRemoteMemory({
   timeoutMs: 200,
 });
 host.setMemoryHandler((payload) => remoteMemory.handle(payload));
+host.on("mood:get", () => {
+  host.sendRaw({ type: "mood:state", payload: moodView() });
+});
 host.on("events:ack", (p) => {
   if (!sync) return;
   if (sync.onAck(p)) {
@@ -310,6 +316,8 @@ const ready = (async () => {
   });
   lastSyncedSeq = await sync.init();
   mergedFactIds = new Set((await kvBackend.get("pc_fact_ids")) || []);
+  moodSeries = createMoodSeries({ backend: kvBackend });
+  await moodSeries.init();
   await localMemory.init();
   await scheduler.init();
   if (Date.now() - eventPool.updatedAt > 6 * 3600 * 1000) {
@@ -390,12 +398,14 @@ async function writeDigest() {
     governor: governorLast
       ? { tier: governorLast.tier, reasons: governorLast.reasons, metrics: governorLast.metrics }
       : { tier: governor ? governor.tier : "P4", reasons: [], metrics: null },
+    mood: moodSeries ? { ...moodSeries.stats(), band: life.snapshot().band, dims: life.snapshot().mood } : null,
     observe: {
       stateLog: stateLog ? stateLog.stats() : null,
       ledger: ledger ? ledger.stats() : null,
       heap: heapInfo,
     },
     lastPlot: await kvBackend.get("last_plot"),
+    mood: moodView(60),
   });
   await digestStore.save(d);
   if (host.conn === "up") host.sendRaw({ type: "world:digest", payload: { digest: d } });
@@ -409,6 +419,36 @@ async function writeDigest() {
     },
   });
   return d;
+}
+
+function moodView(limit = 120) {
+  const snap = life.snapshot();
+  return buildMoodView({
+    now: Date.now(),
+    minute: snap.minute,
+    mood: snap.mood,
+    band: snap.band,
+    series: moodSeries ? moodSeries.history({ limit: 480 }) : [],
+    moodLog: snap.moodLog || [],
+    limit,
+  });
+}
+
+async function sampleMood(source, reason = "") {
+  if (!moodSeries) return;
+  const snap = life.snapshot();
+  await moodSeries.sample({ minute: snap.minute, mood: snap.mood, band: snap.band, source, reason });
+  maybePushMood();
+}
+
+function maybePushMood(force = false) {
+  if (!moodSeries) return;
+  const now = Date.now();
+  if (!force && now - lastMoodPushAt < 5000) return;
+  lastMoodPushAt = now;
+  const view = moodView();
+  if (host.conn === "up") host.sendRaw({ type: "mood:state", payload: view });
+  patch({ moodView: { band: view.band, dims: view.dims, ts: view.ts } });
 }
 
 function outingView() {
@@ -461,6 +501,7 @@ async function maybeOuting({ force = false } = {}) {
   };
   life.applyMood(destination.mood, { source: "plot", reason: `出门:${destination.name}` });
   patch({ life: life.snapshot(), outing: outingView() });
+  void sampleMood("plot", `出门:${destination.name}`);
   scheduleSnapshot();
   await kvBackend.put("outing_state", outing);
   await appendEvent("outing:intent", outing.plan);
@@ -648,6 +689,7 @@ function health() {
     governor: governorLast
       ? { tier: governorLast.tier, reasons: governorLast.reasons, metrics: governorLast.metrics }
       : { tier: governor ? governor.tier : "P4", reasons: [], metrics: null },
+    mood: moodSeries ? { ...moodSeries.stats(), band: life.snapshot().band, dims: life.snapshot().mood } : null,
     observe: {
       stateLog: stateLog ? stateLog.stats() : null,
       ledger: ledger ? ledger.stats() : null,
@@ -834,6 +876,7 @@ const handlers = {
         });
       }
       patch({ life: after });
+      void sampleMood("tick", "life_advance");
       scheduleSnapshot();
       void maybeOuting();
       return { ok: true, life: life.snapshot() };
@@ -887,6 +930,7 @@ const handlers = {
       if (r.ok) {
         life.applyMood(r.mood, { source: "plot", reason: r.event });
         patch({ life: life.snapshot() });
+        void sampleMood("plot", r.event);
         scheduleSnapshot();
         await kvBackend.put("plot_recent", [r.text, ...recent].slice(0, 20));
         await kvBackend.put("plot_events", [r.event, ...recentEvents].slice(0, 10));
@@ -989,6 +1033,16 @@ const handlers = {
       await stateLog.clear();
       await ledger.clear();
       return { ok: true, stateLog: stateLog.stats(), ledger: ledger.stats() };
+    }
+    if (p.name === "mood_state") {
+      return { ok: true, mood: moodView(p.args?.limit || 120) };
+    }
+    if (p.name === "mood_history") {
+      return { ok: true, series: moodSeries.history({ since: p.args?.since || 0, limit: p.args?.limit || 240 }) };
+    }
+    if (p.name === "mood_clear") {
+      const st = await moodSeries.clear();
+      return { ok: true, stats: st };
     }
     if (p.name === "governor_check") {
       const r = governor.check();

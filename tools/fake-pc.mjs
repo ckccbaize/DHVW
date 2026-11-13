@@ -106,6 +106,9 @@ server.on("upgrade", (req, socket) => {
       if (msg.type === "pc:action") {
         sendMsg("pc:action:ack", { id: msg.payload?.id, ok: true, result: { fake: true } });
       }
+      if (msg.type === "mood:state") {
+        console.log(`[fake-pc]   mood band=${msg.payload?.band} series=${msg.payload?.series?.length}`);
+      }
       if (msg.type === "world:digest") {
         const d = msg.payload?.digest;
         console.log(`[fake-pc]   digest agenda=${d?.agenda?.length} scenes=${d?.sceneRequests?.length} pc=${d?.pcActions?.length}`);
@@ -116,6 +119,7 @@ server.on("upgrade", (req, socket) => {
   setTimeout(() => {
     sendMsg("hello", { host_id: "fake-pc", t_server: Date.now(), tts: true, live2d: false, world_tier: "idle" });
     sendMsg("say", { text: "主机上线了", ttl: 3000 });
+    sendMsg("mood:get", {});
     sendMsg("memory:facts", {
       since: 0,
       facts: [
