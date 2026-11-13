@@ -159,7 +159,9 @@ const llm = http.createServer((req, res) => {
   req.on("data", (c) => (body += c));
   req.on("end", () => {
     console.log(`[fake-llm] ← ${req.headers.authorization || "no-auth"} ${body.slice(0, 120)}`);
-    const content = body.includes("归纳 3-8 条稳定事实")
+    const content = body.includes("写一句 20 字内的独白")
+      ? "窗外的光有点晃，她多看了两眼。"
+      : body.includes("归纳 3-8 条稳定事实")
       ? JSON.stringify({
           facts: [
             { text: "她喜欢在雨天开窗，听楼下的雨声。", tier: "L2" },

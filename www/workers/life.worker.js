@@ -4,6 +4,7 @@
 
 import { createClock, phaseOf } from "../js/core/clock.js";
 import { pickLine as pickLineCore, tickInterval, weatherForDay as weatherForDayCore } from "../js/core/life/lines.js";
+import { pickDuration } from "../js/core/life/acts.js";
 
 const cfg = {
   minutesPerSecond: 1, // 活跃档：1 现实秒 = 1 游戏分钟
@@ -19,7 +20,12 @@ let timer = null;
 let suspended = false;
 let activity = "active"; // active | idle | asleep
 let lastIntentMinute = -1e9;
-let pending = null; // {x,y,act,room}
+let pending = null; // {x,y,act,room,durationMin}
+let busyUntil = -1e9;
+let recentSpots = [];
+let llmCfg = null;
+let lastLlmMinute = -1e9;
+let llmBusy = false;
 let saidToday = new Map(); // text -> day
 let recentLines = [];
 let stats = { ticks: 0, intents: 0, says: 0, sinceResume: { rooms: 0, says: 0, sleeps: 0 } };
@@ -128,23 +134,73 @@ function pickTarget() {
   const inRoom = hotspotsIn(room);
   // 35% 概率去别的房间，避免一直在同一角落
   const roam = inRoom.length > 0 && Math.random() < 0.35;
-  const pool = roam ? scene.hotspots || [] : inRoom.length ? inRoom : scene.hotspots || [];
-  if (!pool.length) return null;
+  const base = roam ? scene.hotspots || [] : inRoom.length ? inRoom : scene.hotspots || [];
+  if (!base.length) return null;
   // 优先当前时段动作，其次同房间任意热点
-  const preferred = roam ? [] : pool.filter((h) => h.act === PHASE_ACT[phase]);
-  const list = preferred.length ? preferred : pool;
+  const preferred = roam ? [] : base.filter((h) => h.act === PHASE_ACT[phase]);
+  let list = preferred.length ? preferred : base;
+  // 避开最近去过的热点，减少原地重复
+  const fresh = list.filter((h) => !recentSpots.includes(`${h.x},${h.y}`));
+  if (fresh.length) list = fresh;
   const h = list[Math.floor(Math.random() * list.length)];
-  return { x: h.x, y: h.y, act: h.act, room: h.room || room };
+  return { x: h.x, y: h.y, act: h.act, room: h.room || room, durationMin: pickDuration(h.act) };
+}
+
+async function maybeLlmThought() {
+  if (!llmCfg?.baseUrl || !llmCfg?.model || llmBusy) return;
+  if (clock.minute - lastLlmMinute < 30) return;
+  lastLlmMinute = clock.minute;
+  llmBusy = true;
+  try {
+    const res = await fetch("/__llm/chat/completions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        baseUrl: llmCfg.baseUrl,
+        apiKey: llmCfg.apiKey,
+        body: {
+          model: llmCfg.model,
+          messages: [
+            {
+              role: "user",
+              content: `她在${currentRoom || "家里"}，${phase}，天气${weather}。写一句 20 字内的独白，不要台词，不要解释。`,
+            },
+          ],
+          max_tokens: 60,
+          temperature: 0.8,
+        },
+      }),
+    });
+    const data = await res.json();
+    const text = data?.choices?.[0]?.message?.content?.trim();
+    if (text) {
+      emit({ type: "say", text: text.slice(0, 40), ttl: 3200 });
+      event("llm_thought", { text });
+    }
+  } catch (err) {
+    event("llm_failed", { msg: err.message });
+  } finally {
+    llmBusy = false;
+  }
 }
 
 function requestIntent(reason) {
   if (pending) return;
+  if (clock.minute < busyUntil) return;
   const target = pickTarget();
   if (!target) return;
   pending = target;
   lastIntentMinute = clock.minute;
   stats.intents += 1;
-  emit({ type: "intent", x: target.x, y: target.y, act: target.act, room: target.room, reason });
+  emit({
+    type: "intent",
+    x: target.x,
+    y: target.y,
+    act: target.act,
+    room: target.room,
+    durationMin: target.durationMin,
+    reason,
+  });
 }
 
 function tick() {
@@ -181,6 +237,7 @@ function tick() {
   if (activity !== "asleep" && clock.minute - lastIntentMinute >= 10) {
     requestIntent("roam");
   }
+  void maybeLlmThought();
 
   emit({
     type: "tick",
@@ -190,6 +247,7 @@ function tick() {
     weather,
     room: currentRoom,
     activity,
+    busyUntil,
   });
 }
 
@@ -208,6 +266,7 @@ self.onmessage = (e) => {
       clock = createClock({ day: msg.day ?? 1, minute: msg.minute ?? 8 * 60 });
       if (msg.minutesPerSecond) cfg.minutesPerSecond = msg.minutesPerSecond;
       if (msg.tickMs) cfg.tickMs = msg.tickMs;
+      llmCfg = msg.llm || null;
       weather = weatherForDayCore(clock.day);
       phase = phaseOf(clock.minute);
       currentRoom = PHASE_ROOM[phase] || "living";
@@ -225,7 +284,11 @@ self.onmessage = (e) => {
         event("enter", { room });
       }
       const act = msg.act || pending?.act || null;
-      event("act", { act, room });
+      const durationMin = pending?.durationMin || 10;
+      event("act", { act, room, durationMin });
+      busyUntil = clock.minute + durationMin;
+      recentSpots.push(`${msg.x ?? pending?.x ?? -1},${msg.y ?? pending?.y ?? -1}`);
+      if (recentSpots.length > 6) recentSpots.shift();
       pending = null;
       if (activity !== "asleep") {
         const text = pickLineCore({

@@ -377,6 +377,7 @@ export function createLocalRuntime({
         minute: minute ?? 8 * 60,
         minutesPerSecond: config.life?.minutesPerSecond ?? 1,
         tickMs: config.life?.tickMs ?? 1000,
+        llm: config.llm || null,
       });
       postForge({
         type: "init",

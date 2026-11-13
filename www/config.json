@@ -18,5 +18,10 @@
   "forgeIntervalMs": 45000,
   "present": {
     "url": ""
+  },
+  "llm": {
+    "baseUrl": "",
+    "apiKey": "",
+    "model": ""
   }
 }
