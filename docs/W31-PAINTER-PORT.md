@@ -59,6 +59,13 @@ npm run golden:terrain
 - Python 与 JS 各有一个解释器，同一份定义逐像素一致；
 - 验证：`npm run golden:custom`。
 
+## AI 决定家具位置
+
+- `furniture-plan` 技能/提示词：模型输出 `{"props":[...]}`；
+- `forge/placement.js` 校验：房间内、不重叠、门 3×3 净空、大件贴墙且唯一、未知家具拒绝；
+- `core/agent/subs/place.js`：失败带原因重试 ≤3 次；
+- 命令 `furniture_plan`；调试页「AI 摆家具」端到端验证（3 props → 384×256）。
+
 ## 待做
 
 1. 家具层（`furniture.png`）：床/沙发/桌/柜/厨卫/墙面装饰/小物；

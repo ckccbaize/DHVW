@@ -32,6 +32,7 @@ import { pickBehavior } from "./actions/plan.js";
 import { createWakeRuntime } from "./wake/runtime.js";
 import { createRecordAgent } from "./agent/subs/record.js";
 import { createBrowsePlanner, searchBing, validatePublicUrl } from "./actions/browse.js";
+import { createPlaceAgent } from "./agent/subs/place.js";
 import { createPlaceGraph, HOME_ID, planTravel } from "./places/graph.js";
 import { createBgAgent } from "./agent/subs/bg.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
@@ -116,6 +117,7 @@ let browseUrl = "https://www.weather.com.cn/weather/101010100.shtml";
 let wakeRuntime = null;
 let recordAgent = null;
 let browsePlanner = null;
+let placeAgent = null;
 let places = null;
 let currentPlace = HOME_ID;
 let lastHealthAt = Date.now();
@@ -346,6 +348,7 @@ const ready = (async () => {
   await wakeRuntime.init();
   recordAgent = createRecordAgent({ llm, registry: agentRegistry });
   browsePlanner = createBrowsePlanner({ llm, registry: agentRegistry });
+  placeAgent = createPlaceAgent({ llm, registry: agentRegistry });
   places = createPlaceGraph({
     places: [
       ...DESTINATIONS.map((d) => ({ id: d.id, name: d.name, kind: d.kind, distance: d.distance })),
@@ -1203,6 +1206,13 @@ const handlers = {
         if (r.pcAction?.action) enqueuePcAction(r.pcAction.action, r.pcAction.args);
       }
       return { ...r, life: life.snapshot() };
+    }
+    if (p.name === "furniture_plan") {
+      return await placeAgent.run({
+        layout: p.args?.layout || { rooms: [], doors: [] },
+        intent: p.args?.intent || "",
+        furnitureDefs: p.args?.furnitureDefs || {},
+      });
     }
     if (p.name === "map_generate") {
       const blocked = degraded("plot");

@@ -159,7 +159,15 @@ const llm = http.createServer((req, res) => {
   req.on("data", (c) => (body += c));
   req.on("end", () => {
     console.log(`[fake-llm] ← ${req.headers.authorization || "no-auth"} ${body.slice(0, 120)}`);
-    const content = body.includes("决定这次上网看什么")
+    const content = body.includes("可用家具") && body.includes("只输出 JSON")
+      ? JSON.stringify({
+          props: [
+            { id: "chair", x: 10, y: 6 },
+            { id: "plant", x: 15, y: 2 },
+            { id: "rug", x: 10, y: 3 },
+          ],
+        })
+      : body.includes("决定这次上网看什么")
       ? JSON.stringify({
           query: "北京 明天 天气",
           reason: "想知道明天要不要带伞",

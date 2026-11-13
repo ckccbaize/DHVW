@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T06:28:02.718Z",
+ "built_at": "2026-11-13T06:40:29.251Z",
  "files": [
   {
    "path": "agent/registry.json",
-   "size": 8580,
-   "sha256": "057ff8b0f3cfe5002a577f535066a2d18e99c6a60b7dac68e8f02bcfc7c1d83c"
+   "size": 9721,
+   "sha256": "382fcf852cb7e41712d53333083e1d16612a0fc51a912cf43279e823983be0d3"
   },
   {
    "path": "assets/scenes/home/home.built.json",
@@ -39,8 +39,8 @@
   },
   {
    "path": "debug-core.html",
-   "size": 33829,
-   "sha256": "a00663039e016b04d9a91b226e05a473aad0336494ee482a3b04552f16f2ff50"
+   "size": 34987,
+   "sha256": "ea7aa25f4c8e7d9adb13fbed83403e2d9d9f14979159fe7f03416ffc0874255b"
   },
   {
    "path": "index.html",
@@ -96,6 +96,11 @@
    "path": "js/core/agent/subs/map.js",
    "size": 4355,
    "sha256": "3b99b759f61f53c9dc299804408e3f296e02ba2b8875154b9d1d89c358c7481e"
+  },
+  {
+   "path": "js/core/agent/subs/place.js",
+   "size": 2319,
+   "sha256": "48f4d82b5b886af8edda6a55035bbf079b6c5017c5df4891c61474b97fd1e6ee"
   },
   {
    "path": "js/core/agent/subs/plot.js",
@@ -274,13 +279,13 @@
   },
   {
    "path": "js/core/worker.js",
-   "size": 61491,
-   "sha256": "ab94328f40476ed657996c6ccd2e165879d8d9d840d29a0e97db07aa4137325f"
+   "size": 61880,
+   "sha256": "8295078ef03105b3f886c92b15691cb79a041da5347c00d83a678a9bca75eb8f"
   },
   {
    "path": "js/forge/furniture.js",
-   "size": 17997,
-   "sha256": "103802d07c94a1f44380ac4b3c3ca6f7cfa545f58db2b849eab399046d68f3c0"
+   "size": 18089,
+   "sha256": "d8880fff288fa780503576b53738414bba9a6f32a0a11c57058855f86775a71e"
   },
   {
    "path": "js/forge/grammar.js",
@@ -296,6 +301,11 @@
    "path": "js/forge/painter.js",
    "size": 11008,
    "sha256": "b6a501751d16335535cc515623a1dfea32747f008b2cf534dff2abc1116825e2"
+  },
+  {
+   "path": "js/forge/placement.js",
+   "size": 2458,
+   "sha256": "9b604298e45cdffcdd5d009822001e97fc65bd5e216637944020a149540650f0"
   },
   {
    "path": "js/forge/scene.js",

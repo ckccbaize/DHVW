@@ -500,6 +500,9 @@ const FURNITURE = {
 const WALLPROPS = { picture:w_picture, clock:w_clock, wall_shelf:w_wall_shelf, mirror:w_mirror, towel:w_towel, wall_lamp:w_wall_lamp };
 const DECOR = { book:d_book, mug:d_mug, yarn:d_yarn, watering_can:d_watering_can, keys:d_keys, slippers:d_slippers };
 
+export const FURNITURE_SIZES = SIZES;
+export const FURNITURE_IDS = Object.keys(FURNITURE);
+
 export function paintFurniture(spec) {
   const W = spec.grid.w, H = spec.grid.h;
   const cv = createCanvas(W * T, H * T, [0, 0, 0, 0]);
