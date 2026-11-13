@@ -25,7 +25,8 @@ export function expressionGate({
   const hour = d.getHours() + d.getMinutes() / 60;
   const silent = hour >= cfg.silentFrom || hour < cfg.silentTo;
 
-  if (present) return { allow: "trace", reason: "present" };
+  // 显现由 PC/OLVT 接管唤醒：设备侧完全静默，不产出独白或气泡。
+  if (present) return { allow: "silent", reason: "present" };
   if (silent) return { allow: "silent", reason: "quiet_hours" };
   if (lastInteractionAt && now - lastInteractionAt < cfg.interactionWindowMs) {
     return { allow: "silent", reason: "recent_interaction" };

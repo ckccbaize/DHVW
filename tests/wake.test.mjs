@@ -16,7 +16,7 @@ test("gate：静默时段 / 交互窗口 / 最小间隔", () => {
 test("gate：小时/日上限、显现、首日、连续无回应", () => {
   assert.equal(expressionGate({ now: at(12), wakesThisHour: 2 }).reason, "hourly_cap");
   assert.equal(expressionGate({ now: at(12), wakesToday: 8 }).reason, "daily_cap");
-  assert.deepEqual(expressionGate({ now: at(12), present: true }), { allow: "trace", reason: "present" });
+  assert.deepEqual(expressionGate({ now: at(12), present: true }), { allow: "silent", reason: "present" });
   assert.equal(expressionGate({ now: at(12), firstDay: true }).allow, "trace");
   assert.equal(expressionGate({ now: at(12), noResponseStreak: 3 }).reason, "no_response_streak");
   assert.equal(expressionGate({ now: at(12) }).allow, "message");
@@ -47,11 +47,11 @@ test("engine：未到点 silent，到点按闸门出 thought/bubble", async () =
   assert.equal(second.kind, "bubble");
 });
 
-test("engine：present 降为 thought；交互后 silent", async () => {
+test("engine：present 静默；交互后 silent", async () => {
   let t = at(12);
   const eng = createWakeEngine({ now: () => t, random: () => 0.5 });
   const r = await eng.tick({ present: true, text: "x" });
-  assert.equal(r.kind, "thought");
+  assert.equal(r.kind, "silent");
   assert.equal(r.reason, "present");
 
   t += 61 * 60_000;
@@ -83,6 +83,23 @@ test("engine：PC 时间线优先，失败回落设备档", async () => {
   });
   const r2 = await offline.tick({ text: "本地" });
   assert.equal(r2.source, "device");
+});
+
+test("engine：suspend 期间完全不醒，resume 重新起算", async () => {
+  let t = at(12);
+  const eng = createWakeEngine({ now: () => t, random: () => 0.5 });
+  eng.suspend();
+  const r = await eng.tick({ text: "x" });
+  assert.equal(r.kind, "silent");
+  assert.equal(r.reason, "suspended");
+  assert.equal(eng.state.lastWakeAt, 0);
+  assert.equal(eng.state.wakesToday, 0);
+
+  t += 5 * 60 * 60_000;
+  eng.resume();
+  assert.ok(eng.state.nextWakeAt > t);
+  const r2 = await eng.tick({ text: "y" });
+  assert.equal(r2.reason, "not_due");
 });
 
 test("engine：snapshot/restore 保留状态", async () => {

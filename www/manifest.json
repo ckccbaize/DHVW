@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T01:12:01.002Z",
+ "built_at": "2026-11-13T01:18:58.405Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -234,18 +234,18 @@
   },
   {
    "path": "js/core/wake/engine.js",
-   "size": 4259,
-   "sha256": "f27a42ddceccaade8680f743fec59046ba6493bd1781117c42b486e0b4de32e9"
+   "size": 4782,
+   "sha256": "b3dcb46d2aaa4ff8533c4fe5a0cdc87a5b1dd04a71d68e03261d2e8a6b2d51d0"
   },
   {
    "path": "js/core/wake/gate.js",
-   "size": 1500,
-   "sha256": "6b51f94376c39182059ee0ced34ea629b384a40c877566a2c348a67125b379bb"
+   "size": 1591,
+   "sha256": "b154e6a1aed08a6ee20d37fdb91fe469aa183f2df43b300b6a6c6e81a5714d7a"
   },
   {
    "path": "js/core/worker.js",
-   "size": 46272,
-   "sha256": "8556e58ba3972e359fa82bf30db271b8647321141bd543b1db30af27bf7b4589"
+   "size": 46333,
+   "sha256": "04b339e84e93da83b6e303a2444e50f37c540199d2990c5fb93c45fdaaf919b1"
   },
   {
    "path": "js/forge/grammar.js",

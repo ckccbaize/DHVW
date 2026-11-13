@@ -146,6 +146,10 @@
 
 设备发 `events:batch {events, from_seq, batch_id}`，PC 处理完必须回 `events:ack {seq}`；设备只在收到 ack 后推进游标，未确认的批次在超时/重连后重发。PC 回传 `memory:facts` 时，设备按 `id` 去重合并并回 `facts:ack {accepted, merged, rejected}`。
 
+## 显现期间的唤醒归属
+
+显现打开后，**唤醒与回合由 PC/OLVT 负责**；设备侧 `wake` 挂起（不计数、不推进、不产出 thought/bubble），退出显现后重新起算。PC 断线时设备先退显现，再恢复设备档唤醒。
+
 ## 心情可视化
 
 设备推送 `mood:state`（变化后 ≤5s 节流），PC 也可发 `mood:get` 主动拉取：

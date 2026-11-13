@@ -32,6 +32,7 @@ export function createWakeEngine({
   let wakesThisHour = 0;
   let noResponseStreak = 0;
   let firstDay = true;
+  let suspended = false;
   const history = [];
 
   function roll(ts) {
@@ -62,11 +63,23 @@ export function createWakeEngine({
   }
 
   return {
+    suspend() {
+      suspended = true;
+    },
+    resume() {
+      if (!suspended) return;
+      suspended = false;
+      // 退出显现后重新起算，避免补醒连发。
+      nextWakeAt = now() + nextInterval({ random }) * 60_000;
+    },
+    get suspended() {
+      return suspended;
+    },
     setTimelineUrl(url) {
       timelineUrl = url || "";
     },
     get state() {
-      return { lastWakeAt, nextWakeAt, wakesToday, wakesThisHour, noResponseStreak, firstDay };
+      return { lastWakeAt, nextWakeAt, wakesToday, wakesThisHour, noResponseStreak, firstDay, suspended };
     },
     recordInteraction(ts = now()) {
       lastInteractionAt = ts;
@@ -84,15 +97,19 @@ export function createWakeEngine({
       wakesThisHour = snap.wakesThisHour || 0;
       noResponseStreak = snap.noResponseStreak || 0;
       firstDay = snap.firstDay !== false;
+      suspended = !!snap.suspended;
       dayKey = snap.dayKey || "";
       hourKey = snap.hourKey || "";
     },
     snapshot() {
-      return { lastWakeAt, nextWakeAt, wakesToday, wakesThisHour, noResponseStreak, firstDay, dayKey, hourKey };
+      return { lastWakeAt, nextWakeAt, wakesToday, wakesThisHour, noResponseStreak, firstDay, dayKey, hourKey, suspended };
     },
     /** 主动醒一次；返回 {source, kind, reason, text?}。 */
     async tick({ mood = {}, present = false, text = "" } = {}) {
       const ts = now();
+      if (suspended || present) {
+        return { source: "device", kind: "silent", reason: suspended ? "suspended" : "present" };
+      }
       roll(ts);
 
       const pc = await pullTimeline();

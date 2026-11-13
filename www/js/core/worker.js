@@ -737,8 +737,14 @@ function dispatchWorld(event) {
   }
   patch(syncWorld());
   if (scheduler) scheduler.setPresent(world.state.display === "present");
-  if (event.type === "PRESENT_REQUEST" && !res.illegal) host.presentBegin();
-  if (event.type === "PRESENT_EXIT" && !res.illegal) host.presentEnd();
+  if (event.type === "PRESENT_REQUEST" && !res.illegal) {
+    wake?.suspend();
+    host.presentBegin();
+  }
+  if (event.type === "PRESENT_EXIT" && !res.illegal) {
+    wake?.resume();
+    host.presentEnd();
+  }
   scheduleSnapshot();
   return { ok: true, illegal: res.illegal, state: world.state };
 }
