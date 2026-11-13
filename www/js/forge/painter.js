@@ -2,6 +2,8 @@
 // 只处理 terrain 层；家具/装饰/光照后续批次。
 // 目标：同 spec 与 Python terrain.png 逐像素一致。
 
+import { drawFurnitureDef, validateFurnitureDef } from "./shapes.js";
+
 export const T = 16;
 
 const WOOD = [
@@ -198,6 +200,20 @@ function paintRailing(cv, x, y) {
   rect(cv, px, py + 12, T, 2, WOOD[1]);
   for (let i = 0; i < T; i += 5) rect(cv, px + i + 1, py + 4, 2, 8, WOOD[1]);
   hline(cv, px, px + T - 1, py + 2, WOOD[3]);
+}
+
+/** 只画 spec.furnitureDefs 中的自定义家具（透明底），用于黄金图对比。 */
+export function paintFurnitureDefs(spec) {
+  const W = spec.grid.w;
+  const H = spec.grid.h;
+  const cv = createCanvas(W * T, H * T, [0, 0, 0, 0]);
+  const defs = spec.furnitureDefs || {};
+  for (const p of spec.props || []) {
+    const def = defs[p.id];
+    if (!def || validateFurnitureDef(def) !== null) continue;
+    drawFurnitureDef(cv, def, p.x * T, p.y * T);
+  }
+  return cv;
 }
 
 export function paintTerrain(spec) {

@@ -84,7 +84,9 @@ test("门格不是 2 → door", () => {
 });
 
 test("门指向不存在的场景 → door", () => {
-  const r = run({ graph: new Map() });
+  const s = baseScene();
+  s.entities[1] = { ...s.entities[1], to: "ghost" };
+  const r = run({ scene: s, graph: new Map() });
   assert.ok(codes(r).includes("door"));
 });
 

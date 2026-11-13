@@ -200,7 +200,9 @@ export function validateScene({
         err("door", `door (${d.x},${d.y}) 指向未知房间 "${d.to}"`);
       }
     } else if (graph) {
-      if (!graph.has(d.to)) err("door", `door (${d.x},${d.y}) 指向不存在的场景 "${d.to}"`);
+      if (d.to === "outside") {
+        // 契约允许大门通向场景外的 "outside"：它不是场景图节点，不做 anchor 校验
+      } else if (!graph.has(d.to)) err("door", `door (${d.x},${d.y}) 指向不存在的场景 "${d.to}"`);
       else if (d.anchor && !graph.get(d.to).has(d.anchor)) {
         err("door", `door (${d.x},${d.y}) 的目标场景 "${d.to}" 没有 anchor "${d.anchor}"`);
       }
@@ -453,6 +455,16 @@ async function main(argv) {
   }
 
   const scene = await loadJson(scenePath);
+  // 契约（CONTENT-CONTRACT §2.1 / MAP-SCENE-DESIGN §15.1）里 intGrid 是文件名 "intgrid.bin"；
+  // 这里按 scene.json 所在目录解析成字节，再交给 parseIntGrid（它认 Uint8Array）。
+  if (typeof scene.intGrid === "string") {
+    const binPath = path.join(dir, scene.intGrid);
+    if (!fs.existsSync(binPath)) {
+      console.error(`✗ scene.intGrid="${scene.intGrid}" 指向的文件不存在（${binPath}）`);
+      process.exit(2);
+    }
+    scene.intGrid = Uint8Array.from(await fsp.readFile(binPath));
+  }
   const interactions = fs.existsSync(path.join(dir, "interactions.json"))
     ? await loadJson(path.join(dir, "interactions.json"))
     : null;

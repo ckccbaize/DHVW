@@ -27,6 +27,29 @@ npm run golden:terrain
 
 当前结果：`✓ 逐像素一致`（320×240）。
 
+## 模型后加家具（数据驱动）
+
+`map.json` 可带 `furnitureDefs`，模型只写 JSON，不写代码：
+
+```json
+"furnitureDefs": {
+  "desk_lamp": {
+    "size": [1, 1],
+    "shapes": [
+      {"op":"shadow","x":1,"y":1,"w":12,"h":12,"color":[40,28,30,70]},
+      {"op":"rect","x":2,"y":2,"w":12,"h":12,"color":[92,62,44]},
+      {"op":"outline","x":2,"y":2,"w":12,"h":12,"color":[46,34,36]}
+    ]
+  }
+}
+```
+
+- 支持 `rect / line / outline / shadow / pixel`，颜色 RGBA；
+- 坐标是 16px 格子内局部像素；
+- `props` 里用 `{"id":"desk_lamp","x":..,"y":..,"w":1,"h":1}` 放置；
+- Python 与 JS 各有一个解释器，同一份定义逐像素一致；
+- 验证：`npm run golden:custom`。
+
 ## 待做
 
 1. 家具层（`furniture.png`）：床/沙发/桌/柜/厨卫/墙面装饰/小物；

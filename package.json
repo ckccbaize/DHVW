@@ -15,7 +15,8 @@
     "spike:fsm": "node spikes/fsm/compare.mjs",
     "build:agent": "node tools/build-agent.mjs",
     "check:agent": "node tools/build-agent.mjs --check",
-    "golden:terrain": "node tools/paint-terrain.mjs ../assets/scenes/home/home.map.json .tmp/terrain-js.png && python tools/compare-terrain.py .tmp/terrain-js.png ../assets/scenes/home/dist/terrain.png"
+    "golden:terrain": "node tools/paint-terrain.mjs ../assets/scenes/home/home.map.json .tmp/terrain-js.png && python tools/compare-terrain.py .tmp/terrain-js.png ../assets/scenes/home/dist/terrain.png",
+    "golden:custom": "node tools/paint-custom.mjs tests/fixtures/custom-furniture.json .tmp/custom-js.png && python tools/paint-custom.py tests/fixtures/custom-furniture.json .tmp/custom-py.png && python tools/compare-terrain.py .tmp/custom-js.png .tmp/custom-py.png"
   },
   "devDependencies": {
     "xstate": "5.33.4"
