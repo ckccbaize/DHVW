@@ -27,7 +27,7 @@ export function createLlmClient({
           ...(provider.apiKey ? { Authorization: `Bearer ${provider.apiKey}` } : {}),
         };
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs ?? provider.timeoutMs ?? 30000);
     if (externalSignal) {
       if (externalSignal.aborted) ctrl.abort();
       else externalSignal.addEventListener("abort", () => ctrl.abort(), { once: true });

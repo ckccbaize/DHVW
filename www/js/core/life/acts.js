@@ -7,6 +7,7 @@ export const ACT_DURATION = Object.freeze({
   eat: 30,
   cook: 35,
   work: 45,
+  write: 40,
   rest: 20,
   watch: 30,
   bath: 25,

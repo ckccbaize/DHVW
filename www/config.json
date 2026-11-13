@@ -6,7 +6,8 @@
   },
   "life": {
     "minutesPerSecond": 1,
-    "tickMs": 1000
+    "tickMs": 1000,
+    "startMinute": 480
   },
   "assetQuotaBytes": 524288000,
   "display": {

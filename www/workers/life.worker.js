@@ -143,7 +143,12 @@ function pickTarget() {
   const fresh = list.filter((h) => !recentSpots.includes(`${h.x},${h.y}`));
   if (fresh.length) list = fresh;
   const h = list[Math.floor(Math.random() * list.length)];
-  return { x: h.x, y: h.y, act: h.act, room: h.room || room, durationMin: pickDuration(h.act) };
+  let act = h.act;
+  // 晚上有概率改成写作（桌边/沙发/床边都行）
+  if ((phase === "evening" || phase === "night") && Math.random() < 0.18) {
+    act = "write";
+  }
+  return { x: h.x, y: h.y, act, room: h.room || room, durationMin: pickDuration(act) };
 }
 
 async function maybeLlmThought() {
@@ -151,6 +156,7 @@ async function maybeLlmThought() {
   if (clock.minute - lastLlmMinute < 30) return;
   lastLlmMinute = clock.minute;
   llmBusy = true;
+  const t0 = Date.now();
   try {
     const res = await fetch("/__llm/chat/completions", {
       method: "POST",
@@ -177,8 +183,17 @@ async function maybeLlmThought() {
       emit({ type: "say", text: text.slice(0, 40), ttl: 3200 });
       event("llm_thought", { text });
     }
+    emit({
+      type: "llm_call",
+      agent: "thought",
+      ok: true,
+      ms: Date.now() - t0,
+      prompt: `她在${currentRoom || "家里"}，${phase}，天气${weather}`,
+      response: text || "",
+    });
   } catch (err) {
     event("llm_failed", { msg: err.message });
+    emit({ type: "llm_call", agent: "thought", ok: false, ms: Date.now() - t0, prompt: "", response: err.message });
   } finally {
     llmBusy = false;
   }
@@ -222,6 +237,7 @@ function tick() {
       event("sleep", { from: prev });
       stats.sinceResume.sleeps += 1;
       pending = null;
+      busyUntil = clock.minute;
       requestIntent("phase:sleep");
     } else if (prev === "sleep") {
       event("wake", { to: phase });
@@ -287,6 +303,7 @@ self.onmessage = (e) => {
       const durationMin = pending?.durationMin || 10;
       event("act", { act, room, durationMin });
       busyUntil = clock.minute + durationMin;
+      if (act === "write") emit({ type: "write", room, act, day: clock.day, minute: clock.minute });
       recentSpots.push(`${msg.x ?? pending?.x ?? -1},${msg.y ?? pending?.y ?? -1}`);
       if (recentSpots.length > 6) recentSpots.shift();
       pending = null;

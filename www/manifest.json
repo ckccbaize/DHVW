@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T12:28:38.660Z",
+ "built_at": "2026-11-13T12:54:59.711Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -559,8 +559,8 @@
   },
   {
    "path": "config.json",
-   "size": 438,
-   "sha256": "6ab6d8ac0cc5dd56267ebc8b1bb3b5fd4b2aa144294629772a85777fbb50d22d"
+   "size": 462,
+   "sha256": "c563cf110646207655bb8e15cd1d5858195214ff52b13c3284780db0555f8521"
   },
   {
    "path": "css/app.css",
@@ -579,8 +579,13 @@
   },
   {
    "path": "debug-core.html",
-   "size": 38049,
-   "sha256": "327d2f059238863edfd08b8ee3f472676d6862f1fd173a5259b74ea8e888c389"
+   "size": 38152,
+   "sha256": "76afd2547dc75af80e05349d1370cf634b61fa37d5b5b1eba5f5581ff1f1884a"
+  },
+  {
+   "path": "debug-life.html",
+   "size": 6129,
+   "sha256": "781865318b024b1c44fd84785604b3dd0369a93e6b0cfefd3ea94fc522cafbfb"
   },
   {
    "path": "index.html",
@@ -589,8 +594,8 @@
   },
   {
    "path": "js/app.js",
-   "size": 15033,
-   "sha256": "926343e69da5d574f4be40c6a8df2c34371ab58fdd2d62f42cda0f3b5d9d9e05"
+   "size": 15058,
+   "sha256": "27539a077f5141055fbeae6845173eb651a93a4bfc1d2ef3a50f37389e45a3b8"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -689,8 +694,8 @@
   },
   {
    "path": "js/core/grid.js",
-   "size": 5791,
-   "sha256": "9e30d19391cfca630afed5c06e86a505c23e6c24ef1718f8adf65650c720cee2"
+   "size": 5792,
+   "sha256": "ab89120c89eb752d9de9761d2b19266dc43b25c6f7964dc0bcd849fd45dd4c94"
   },
   {
    "path": "js/core/host.js",
@@ -704,13 +709,13 @@
   },
   {
    "path": "js/core/life/acts.js",
-   "size": 546,
-   "sha256": "d098179ed484ae2cd67100b9bf0fc7140ba1a1f1f8d4c48dc5caa9f1f997441a"
+   "size": 559,
+   "sha256": "fcde6a1884b8bf74950e4e8df8842de571c1705352da282a7f1438901e4d6874"
   },
   {
    "path": "js/core/life/lines.js",
-   "size": 3988,
-   "sha256": "5ad8a74bedcb3e65d7c9913b40960ac0977670ff9e5edf5b45502562437c3811"
+   "size": 4067,
+   "sha256": "78e6b4802aacc59a09cbca33f1bfed114308cd96230ce89eba81d225e86b1505"
   },
   {
    "path": "js/core/life/outing.js",
@@ -734,8 +739,8 @@
   },
   {
    "path": "js/core/llm/client.js",
-   "size": 5237,
-   "sha256": "0a5ca680a5d8591c2e2345c69a4e61bfd9d09ef31970535392d65b92948c5210"
+   "size": 5268,
+   "sha256": "ee9df4fd9717064e947a9e30d667fd4dfd6fbd4f871dedadee38396005084239"
   },
   {
    "path": "js/core/llm/provider.js",
@@ -899,8 +904,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 13341,
-   "sha256": "489d142230940537cc84aeb8fa1ec2600b59a9a3f00cd20bce99e99e31f80887"
+   "size": 17867,
+   "sha256": "57b938390ccd7b58341fbe79507698aaf43f0d7a2d19bbc73e2c0aee36300e2a"
   },
   {
    "path": "js/runtime/remote.js",
@@ -954,8 +959,8 @@
   },
   {
    "path": "workers/life.worker.js",
-   "size": 10972,
-   "sha256": "11a6501fcce0db23b73162435090bbaf52e687145ff820be365bbeb403e50bbf"
+   "size": 11639,
+   "sha256": "32402cdb32e96697bf4b0cf8e28f17b71a04918879cd5b2780b28d6e92294376"
   }
  ]
 }

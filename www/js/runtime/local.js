@@ -3,9 +3,44 @@
 
 import { selectEvictions } from "../core/assetstore.js";
 import { lightFor } from "../core/light.js";
+import { createLlmClient } from "../core/llm/client.js";
+import { createAgentRegistry } from "../core/agent/registry.js";
+import { createLocalMemory } from "../core/memory/local.js";
+import { createMemoryPipeline } from "../core/memory/pipeline.js";
 
 const EVENT_CAP = 2000;
 const DEFAULT_QUOTA = 500 * 1024 * 1024;
+
+/** 用 kv 存记忆文档，避免 IndexedDB 版本升级。 */
+function kvMemoryBackend(backend, key = "memory_docs") {
+  let docs = null;
+  const load = async () => {
+    if (!docs) docs = (await backend.getKV(key)) || [];
+    return docs;
+  };
+  return {
+    async put(doc) {
+      const list = await load();
+      const i = list.findIndex((d) => d.id === doc.id);
+      if (i >= 0) list[i] = doc;
+      else list.push(doc);
+      await backend.setKV(key, list);
+      return doc;
+    },
+    async delete(id) {
+      const list = await load();
+      docs = list.filter((d) => d.id !== id);
+      await backend.setKV(key, docs);
+    },
+    async getAll() {
+      return (await load()).slice();
+    },
+    async clear() {
+      docs = [];
+      await backend.setKV(key, []);
+    },
+  };
+}
 
 // ---------------- IndexedDB 后端（无 IDB 时退化为内存，便于测试/排障） ----------------
 
@@ -165,6 +200,12 @@ export function createLocalRuntime({
   let forgeFail = 0;
   let lastTick = null;
   let stats = { ticks: 0, intents: 0, says: 0, assets: 0, fails: 0 };
+  let llm = null;
+  let registry = null;
+  let localMemory = null;
+  let memoryPipeline = null;
+  let lastMemoryAt = 0;
+  let eventsSinceMemory = 0;
 
   const sceneSummary = () => ({
     grid: scene.grid,
@@ -217,8 +258,102 @@ export function createLocalRuntime({
         onSummary(msg.text);
         break;
       }
+      case "llm_call": {
+        void logLlm(msg);
+        break;
+      }
+      case "write": {
+        void generateWriting(msg);
+        break;
+      }
       default:
         break;
+    }
+  }
+
+  async function appendKv(key, item, cap) {
+    const list = (await backend.getKV(key)) || [];
+    list.push(item);
+    if (list.length > cap) list.splice(0, list.length - cap);
+    await backend.setKV(key, list);
+    return list;
+  }
+
+  async function logLlm(entry) {
+    if (!backend) return;
+    const row = { ...entry, t: now() };
+    await appendKv("llm_log", row, 200);
+    store.emit("llm", row);
+  }
+
+  async function setupBrain() {
+    if (!config.llm?.baseUrl || !config.llm?.model) return;
+    llm = createLlmClient({
+      getProvider: () => config.llm,
+      onUsage: () => {},
+    });
+    registry = createAgentRegistry();
+    await registry.load();
+    localMemory = createLocalMemory({ backend: kvMemoryBackend(backend) });
+    await localMemory.init();
+    memoryPipeline = createMemoryPipeline({ llm, registry, localMemory, seen: new Set() });
+    store.patch({ memory: { count: localMemory.count, terms: localMemory.terms } });
+  }
+
+  async function maybeMemory() {
+    if (!memoryPipeline || suspended) return;
+    if (eventsSinceMemory < 20 && now() - lastMemoryAt < 60000) return;
+    const events = await backend.oldestEvents(40);
+    if (events.length < 3) return;
+    lastMemoryAt = now();
+    eventsSinceMemory = 0;
+    const res = await memoryPipeline.run(events);
+    if (res.ok) {
+      store.patch({ memory: { count: localMemory.count, terms: localMemory.terms } });
+      await logLlm({
+        agent: "memory",
+        ok: true,
+        prompt: `events=${res.scanned}`,
+        response: res.facts.map((f) => f.text).join(" | "),
+      });
+      store.emit("memory", res);
+    } else {
+      await logLlm({ agent: "memory", ok: false, response: `${res.reason}: ${res.error || ""}` });
+    }
+  }
+
+  async function generateWriting(ctx) {
+    if (!llm) return;
+    const kind = Math.random() < 0.5 ? "diary" : "novel";
+    const prompt =
+      kind === "diary"
+        ? `写一篇角色日记，第一人称，120-200 字。时间：第${ctx.day}天 ${Math.floor(ctx.minute / 60)}:${String(Math.floor(ctx.minute % 60)).padStart(2, "0")}，地点：${ctx.room}。只输出正文。`
+        : `写一段角色正在创作的小说片段，第三人称，150-250 字。时间：第${ctx.day}天，地点：${ctx.room}。只输出正文。`;
+    const t0 = now();
+    try {
+      const res = await llm.complete({
+        messages: [{ role: "user", content: prompt }],
+        maxTokens: 400,
+        temperature: 0.9,
+        cls: "work",
+        kind: "writing",
+      });
+      const text = res.text.trim();
+      if (!text) throw new Error("空文本");
+      const item = {
+        id: `w-${now()}`,
+        kind,
+        text,
+        day: ctx.day,
+        minute: ctx.minute,
+        room: ctx.room,
+        created_at: now(),
+      };
+      await appendKv("writings", item, 50);
+      await logLlm({ agent: "writing", ok: true, ms: now() - t0, prompt, response: text });
+      store.emit("writing", item);
+    } catch (err) {
+      await logLlm({ agent: "writing", ok: false, ms: now() - t0, prompt, response: err.message });
     }
   }
 
@@ -226,6 +361,8 @@ export function createLocalRuntime({
     if (!backend) return;
     try {
       await backend.addEvent(ev);
+      eventsSinceMemory += 1;
+      void maybeMemory();
       const count = await backend.eventCount();
       if (count > EVENT_CAP) {
         const oldest = await backend.oldestEvents(count - EVENT_CAP);
@@ -359,6 +496,7 @@ export function createLocalRuntime({
         assets = [];
       }
       store.patch({ assets: countByKind(assets) });
+      await setupBrain();
 
       if (WorkerImpl) {
         lifeWorker = new WorkerImpl(new URL("../../workers/life.worker.js", import.meta.url), { type: "module" });
@@ -374,7 +512,7 @@ export function createLocalRuntime({
         type: "init",
         scene: sceneSummary(),
         day: day ?? 1,
-        minute: minute ?? 8 * 60,
+        minute: minute ?? config.life?.startMinute ?? 8 * 60,
         minutesPerSecond: config.life?.minutesPerSecond ?? 1,
         tickMs: config.life?.tickMs ?? 1000,
         llm: config.llm || null,

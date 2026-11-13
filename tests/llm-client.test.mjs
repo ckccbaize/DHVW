@@ -129,3 +129,15 @@ test("json 模式带 response_format", async () => {
   const body = JSON.parse(calls[0].opts.body);
   assert.deepEqual(body.response_format, { type: "json_object" });
 });
+
+test("provider 未给 timeoutMs：使用默认超时，不立即中止", async () => {
+  const c = createLlmClient({
+    getProvider: () => ({ baseUrl: "https://api.test/v1", model: "m", useProxy: false }),
+    fetchImpl: async () => {
+      await new Promise((r) => setTimeout(r, 20));
+      return okResponse("slow-ok");
+    },
+  });
+  const out = await c.complete({ messages: [] });
+  assert.equal(out.text, "slow-ok");
+});

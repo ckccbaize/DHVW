@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>生活调试台</title>
+<style>
+  :root { --ink:#1a1a2e; --bg:#f4efe6; --card:#fffaf0; --muted:#6b6b7b; --line:#1a1a2e; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:13px/1.5 ui-monospace,Consolas,monospace; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  .sub { color:var(--muted); margin-bottom:12px; }
+  .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+  section { background:var(--card); border:3px solid var(--line); box-shadow:4px 4px 0 var(--line); padding:10px; min-height:120px; }
+  section.wide { grid-column:1 / -1; }
+  h2 { font-size:14px; margin:0 0 8px; display:flex; justify-content:space-between; }
+  .count { color:var(--muted); font-weight:400; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th,td { text-align:left; vertical-align:top; padding:4px 6px; border-bottom:1px solid #ddd4c4; }
+  th { color:var(--muted); font-weight:400; }
+  .ok { color:#1f7a3d; } .bad { color:#b3261e; }
+  .pre { white-space:pre-wrap; word-break:break-word; max-height:160px; overflow:auto; }
+  .muted { color:var(--muted); }
+  .pill { display:inline-block; border:1px solid var(--line); padding:0 6px; margin-right:4px; background:#fff; }
+  .empty { color:var(--muted); padding:8px 0; }
+  @media (max-width:800px){ .grid{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+<h1>生活调试台</h1>
+<div class="sub" id="status">读取中…</div>
+<div class="grid">
+  <section class="wide">
+    <h2>LLM 调用 <span class="count" id="llmCount"></span></h2>
+    <div id="llm"></div>
+  </section>
+  <section>
+    <h2>本地记忆 <span class="count" id="memCount"></span></h2>
+    <div id="mem"></div>
+  </section>
+  <section>
+    <h2>创作产出 <span class="count" id="writeCount"></span></h2>
+    <div id="writings"></div>
+  </section>
+  <section class="wide">
+    <h2>最近事件 <span class="count" id="evCount"></span></h2>
+    <div id="events"></div>
+  </section>
+</div>
+<script type="module">
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmt = (t) => (t ? new Date(t).toLocaleTimeString("zh-CN", { hour12: false }) : "");
+
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open("dhvw", 1);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+function getAll(db, store) {
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(store, "readonly").objectStore(store).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+function getKV(db, k) {
+  return new Promise((resolve, reject) => {
+    const req = db.transaction("kv", "readonly").objectStore("kv").get(k);
+    req.onsuccess = () => resolve(req.result ? req.result.v : undefined);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function renderLlm(rows) {
+  $("#llmCount").textContent = `${rows.length} 条`;
+  if (!rows.length) return ($("#llm").innerHTML = '<div class="empty">还没有 LLM 调用</div>');
+  $("#llm").innerHTML = `<table><tr><th>时间</th><th>Agent</th><th>结果</th><th>耗时</th><th>输入</th><th>输出</th></tr>${rows
+    .slice()
+    .reverse()
+    .map((r) => `<tr><td>${fmt(r.t)}</td><td><span class="pill">${esc(r.agent || r.kind || "?")}</span></td><td class="${r.ok ? "ok" : "bad"}">${r.ok ? "ok" : "fail"}</td><td>${r.ms ?? r.latencyMs ?? ""}ms</td><td class="pre">${esc(r.prompt || "")}</td><td class="pre">${esc(r.response || "")}</td></tr>`)
+    .join("")}</table>`;
+}
+function renderMem(rows) {
+  $("#memCount").textContent = `${rows.length} 条`;
+  $("#mem").innerHTML = rows.length
+    ? `<table><tr><th>层级</th><th>事实</th></tr>${rows.map((r) => `<tr><td>${esc(r.tier || "")}</td><td>${esc(r.text)}</td></tr>`).join("")}</table>`
+    : '<div class="empty">还没有记忆事实；需要至少 3 条事件并调用 memory-summarize</div>';
+}
+function renderWritings(rows) {
+  $("#writeCount").textContent = `${rows.length} 篇`;
+  $("#writings").innerHTML = rows.length
+    ? rows.slice().reverse().map((w) => `<div style="margin-bottom:8px"><span class="pill">${esc(w.kind)}</span><span class="muted">第${w.day}天 ${Math.floor(w.minute / 60)}:${String(Math.floor(w.minute % 60)).padStart(2, "0")} · ${esc(w.room)}</span><div class="pre">${esc(w.text)}</div></div>`).join("")
+    : '<div class="empty">还没有创作产出</div>';
+}
+function renderEvents(rows) {
+  $("#evCount").textContent = `${rows.length} 条`;
+  $("#events").innerHTML = rows.length
+    ? `<table><tr><th>时间</th><th>事件</th><th>内容</th></tr>${rows.slice().reverse().map((e) => `<tr><td>${fmt(e.t_local)}</td><td><span class="pill">${esc(e.kind)}</span></td><td class="pre">${esc(JSON.stringify(e.payload || {}))}</td></tr>`).join("")}</table>`
+    : '<div class="empty">还没有事件</div>';
+}
+
+async function refresh() {
+  try {
+    const cfg = await fetch("config.json", { cache: "no-store" }).then((r) => r.json()).catch(() => ({}));
+    const llmCfg = cfg.llm || {};
+    $("#status").innerHTML = `LLM：<span class="${llmCfg.baseUrl && llmCfg.model ? "ok" : "bad"}">${llmCfg.baseUrl && llmCfg.model ? `${esc(llmCfg.model)} @ ${esc(llmCfg.baseUrl)}` : "未配置"}</span> · 每 2 秒刷新`;
+    const db = await openDb();
+    const [llmLog, mem, writings, events] = await Promise.all([
+      getKV(db, "llm_log"),
+      getKV(db, "memory_docs"),
+      getKV(db, "writings"),
+      getAll(db, "events"),
+    ]);
+    renderLlm(llmLog || []);
+    renderMem(mem || []);
+    renderWritings(writings || []);
+    renderEvents((events || []).sort((a, b) => a.t_corrected - b.t_corrected).slice(-80));
+  } catch (err) {
+    $("#status").innerHTML = `<span class="bad">读取失败：${esc(err.message)}</span>`;
+  }
+}
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>

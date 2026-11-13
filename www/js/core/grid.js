@@ -21,7 +21,7 @@ export const PROP_ACT = Object.freeze({
   armchair: "rest",
   tv: "watch",
   bookshelf: "read",
-  desk: "work",
+  desk: "write",
   cat_tree: "play",
   bathtub: "bath",
   sink: "wash",

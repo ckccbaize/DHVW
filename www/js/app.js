@@ -56,7 +56,7 @@ async function boot() {
 
   const [sx, sy] = spawnPoint(scene);
   const agent = createAgent(sx, sy);
-  const clock = createClock({ day: 1, minute: 8 * 60 });
+  const clock = createClock({ day: 1, minute: cfg.life?.startMinute ?? 8 * 60 });
 
   const store = createStore({
     display: "overview",

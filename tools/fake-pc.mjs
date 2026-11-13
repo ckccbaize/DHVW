@@ -161,6 +161,10 @@ const llm = http.createServer((req, res) => {
     console.log(`[fake-llm] ← ${req.headers.authorization || "no-auth"} ${body.slice(0, 120)}`);
     const content = body.includes("写一句 20 字内的独白")
       ? "窗外的光有点晃，她多看了两眼。"
+      : body.includes("写一篇角色日记")
+      ? "第 1 天。\n今天起得很早，屋里还留着昨天的味道。我把窗开了一条缝，风把桌角的纸吹得响了一下。\n没什么要紧事，只是忽然想记下来。"
+      : body.includes("小说片段")
+      ? "她把杯子放在窗台上，水面晃了一圈。楼下的灯一盏盏亮起来，像有人在远处慢慢数数。她没动，等那圈水纹自己停下来。"
       : body.includes("归纳 3-8 条稳定事实")
       ? JSON.stringify({
           facts: [
