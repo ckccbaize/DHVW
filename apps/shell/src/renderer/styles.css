@@ -287,6 +287,86 @@ main {
   opacity: 0.8;
 }
 
+/* ---------- 世界状态（只读，单行 pill + 一行心情条，避免挤占右列） ---------- */
+
+.world {
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.world h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.world-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.world-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 3px 7px;
+  border: 2px solid var(--ink);
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.world-item b {
+  overflow-wrap: anywhere;
+}
+
+.world-dims {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.world-dim {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.world-dim .k {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  opacity: 0.65;
+}
+
+.world-dim .bar {
+  display: inline-block;
+  width: 46px;
+  height: 8px;
+  padding: 0;
+  border: 2px solid var(--ink);
+}
+
+.world-dim .bar > span {
+  display: block;
+  height: 100%;
+  background: var(--sunset);
+}
+
+.world-dim .v {
+  min-width: 30px;
+}
+
+.world .hint.bad {
+  color: #b3242f;
+}
+
 .comp {
   display: flex;
   align-items: center;

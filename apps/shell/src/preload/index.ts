@@ -9,6 +9,7 @@ import type {
   LlmProtocol,
   SettingsPatch,
   SettingsView,
+  WorldView,
 } from '../shared/types'
 
 const api = {
@@ -33,6 +34,7 @@ const api = {
   clearApiKey: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:clearApiKey'),
   components: (): Promise<ComponentStatus[]> => ipcRenderer.invoke('dhvw:components'),
   gateway: (): Promise<GatewayStatusView | null> => ipcRenderer.invoke('dhvw:gateway'),
+  world: (): Promise<WorldView> => ipcRenderer.invoke('dhvw:world'),
   gatewayPair: (): Promise<{ code: string; expiresAt: number } | null> => ipcRenderer.invoke('dhvw:gatewayPair'),
   gatewayClosePair: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:gatewayClosePair'),
   gatewayForget: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:gatewayForget'),

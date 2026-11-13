@@ -6,7 +6,15 @@ import { log } from './logger'
 import { loadConfig, saveConfig, type ShellConfig } from './config'
 import { allocatePorts, isPortFree } from './ports'
 import { HostSupervisor } from './host'
-import type { ActionRequest, AppSnapshot, ServiceDef, SettingsPatch, SettingsView } from '../shared/types'
+import type {
+  ActionRequest,
+  AppSnapshot,
+  ServiceDef,
+  SettingsPatch,
+  SettingsView,
+  WorkTier,
+  WorldView,
+} from '../shared/types'
 import { createTray } from './tray'
 import { applyNetworkHardening, hardenSessionSetup } from './hardening'
 import { listModels, probeLlm } from './network'
@@ -61,6 +69,73 @@ async function pushOrchestratorConfig(): Promise<boolean> {
     return true
   } catch (err) {
     return false
+  }
+}
+
+/**
+ * 世界状态快照：编排器是唯一数据源，界面只做只读展示。
+ * 编排器没起来不是错误——返回 reachable:false，界面显示「未运行」。
+ */
+async function readWorld(): Promise<WorldView> {
+  const empty: WorldView = {
+    reachable: false,
+    device: { connected: false, id: null, tier: 'idle' },
+    memory: 0,
+    digest: null,
+    mood: null,
+  }
+  if (!orchestratorPort) return empty
+  const get = async (p: string): Promise<Record<string, unknown>> => {
+    const res = await fetch(`http://127.0.0.1:${orchestratorPort}${p}`, { signal: AbortSignal.timeout(1500) })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return (await res.json()) as Record<string, unknown>
+  }
+  try {
+    const health = await get('/health')
+    const [digestRaw, moodRaw] = await Promise.all([
+      get('/dhvw/digest').catch(() => ({}) as Record<string, unknown>),
+      get('/dhvw/mood').catch(() => ({}) as Record<string, unknown>),
+    ])
+    const device = (health.device ?? {}) as Record<string, unknown>
+    const clock = (digestRaw.clock ?? {}) as Record<string, unknown>
+    const agenda = Array.isArray(digestRaw.agenda) ? (digestRaw.agenda as Array<Record<string, unknown>>) : []
+    const scenes = Array.isArray(digestRaw.sceneRequests)
+      ? (digestRaw.sceneRequests as Array<Record<string, unknown>>)
+      : []
+    const dims = (moodRaw.dims ?? {}) as Record<string, unknown>
+    const hasDigest = Object.keys(digestRaw).length > 0
+    const hasMood = Object.keys(moodRaw).length > 0
+    return {
+      reachable: true,
+      device: {
+        connected: Boolean(device.connected),
+        id: typeof device.id === 'string' ? device.id : null,
+        tier: (device.tier === 'host' || device.tier === 'edge' ? device.tier : 'idle') as WorkTier,
+      },
+      memory: Number(health.memory ?? 0),
+      digest: hasDigest
+        ? {
+            ts: Number(digestRaw.ts ?? 0),
+            seq: Number(digestRaw.seq ?? 0),
+            day: String(clock.day ?? ''),
+            minute: Number(clock.minute ?? 0),
+            phase: String(clock.phase ?? ''),
+            display: String((digestRaw.world as Record<string, unknown> | undefined)?.display ?? ''),
+            agendaDone: agenda.filter((a) => a.status === 'done').length,
+            agendaTotal: agenda.length,
+            scenesPending: scenes.filter((s) => s.status === 'pending').length,
+            pcActions: Array.isArray(digestRaw.pcActions) ? digestRaw.pcActions.length : 0,
+          }
+        : null,
+      mood: hasMood
+        ? {
+            band: String(moodRaw.band ?? ''),
+            dims: Object.entries(dims).map(([key, value]) => ({ key, value: Number(value) })),
+          }
+        : null,
+    }
+  } catch (err) {
+    return { ...empty, error: err instanceof Error ? err.message : String(err) }
   }
 }
 
@@ -204,6 +279,7 @@ function registerIpc(): void {
     gateway?.forgetDevices()
     return { ok: true }
   })
+  ipcMain.handle('dhvw:world', () => readWorld())
   ipcMain.handle('dhvw:gatewayRestart', async () => {
     await gateway?.stop()
     gateway?.start()

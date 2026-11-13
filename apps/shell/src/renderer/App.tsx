@@ -1,5 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import type { AppSnapshot, ComponentStatus, GatewayStatusView, HostEvent, LlmProtocol, SettingsView, WorkerSnapshot } from '../shared/types'
+import type {
+  AppSnapshot,
+  ComponentStatus,
+  GatewayStatusView,
+  HostEvent,
+  LlmProtocol,
+  SettingsView,
+  WorkerSnapshot,
+  WorldView,
+} from '../shared/types'
 import type { DhvwApi } from '../preload'
 
 // 窗口 API 直接复用预加载层的导出类型，避免两处手写签名漂移
@@ -363,6 +372,7 @@ export default function App(): React.ReactElement {
   const [probing, setProbing] = useState(false)
   const [components, setComponents] = useState<ComponentStatus[]>([])
   const [gateway, setGateway] = useState<GatewayStatusView | null>(null)
+  const [world, setWorld] = useState<WorldView | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [showGateway, setShowGateway] = useState(false)
   const [settings, setSettings] = useState<SettingsView | null>(null)
@@ -375,6 +385,7 @@ export default function App(): React.ReactElement {
     void window.dhvw.probeLlm().then(setProbe)
     void window.dhvw.components().then(setComponents)
     void window.dhvw.gateway().then(setGateway)
+    void window.dhvw.world().then(setWorld)
     void window.dhvw.settings().then(setSettings)
     const offComp = window.dhvw.onComponentProgress(({ id, progress }) =>
       setComponents((prev) => prev.map((c) => (c.id === id ? { ...c, progress } : c))),
@@ -388,6 +399,7 @@ export default function App(): React.ReactElement {
     const timer = setInterval(() => {
       void refreshLog()
       void window.dhvw.gateway().then(setGateway)
+      void window.dhvw.world().then(setWorld)
     }, 2000)
     return () => {
       offSnap()
@@ -538,6 +550,50 @@ export default function App(): React.ReactElement {
               <EventLine key={`${e.ts}-${i}`} e={e} />
             ))}
           </div>
+        </section>
+
+        <section className="panel world">
+          <h2>
+            世界
+            <span className={`pill ${world?.reachable ? (world.device.connected ? 'ok' : '') : 'bad'}`}>
+              {world?.reachable ? (world.device.connected ? `设备在线 · ${world.device.id ?? '?'}` : '编排器在线 · 无设备') : '编排器未运行'}
+            </span>
+          </h2>
+          {world?.error && <div className="hint bad">{world.error}</div>}
+          <div className="world-line">
+            <span className="world-item">档位 <b className="mono">{world?.device.tier ?? '—'}</b></span>
+            <span className="world-item">
+              世界时刻{' '}
+              <b className="mono">
+                {world?.digest
+                  ? `${world.digest.day.slice(5)} ${String(Math.floor(world.digest.minute / 60)).padStart(2, '0')}:${String(world.digest.minute % 60).padStart(2, '0')}`
+                  : '—'}
+              </b>
+            </span>
+            <span className="world-item">时段 <b className="mono">{world?.digest?.phase || '—'}</b></span>
+            <span className="world-item">显示 <b className="mono">{world?.digest?.display || '—'}</b></span>
+            <span className="world-item">
+              日程 <b className="mono">{world?.digest ? `${world.digest.agendaDone}/${world.digest.agendaTotal}` : '—'}</b>
+            </span>
+            <span className="world-item">
+              待生成场景 <b className="mono">{world?.digest ? world.digest.scenesPending : '—'}</b>
+            </span>
+            <span className="world-item">心情 <b className="mono">{world?.mood?.band || '—'}</b></span>
+            <span className="world-item">记忆 <b className="mono">{world?.reachable ? world.memory : '—'}</b></span>
+          </div>
+          {world?.mood && world.mood.dims.length > 0 && (
+            <div className="world-dims">
+              {world.mood.dims.map((d) => (
+                <span className="world-dim" key={d.key}>
+                  <span className="k">{d.key}</span>
+                  <span className="bar">
+                    <span style={{ width: `${Math.max(0, Math.min(1, d.value)) * 100}%` }} />
+                  </span>
+                  <span className="v mono">{d.value.toFixed(2)}</span>
+                </span>
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="panel components">

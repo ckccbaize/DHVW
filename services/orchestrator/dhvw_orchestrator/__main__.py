@@ -395,7 +395,8 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
             pass
         finally:
             orch.clients.discard(ws)
-            orch.connected = False
+            # 以存活连接为准：旧连接的 finally 晚于新连接握手时，不能把在线判成离线
+            orch.connected = bool(orch.clients)
             log("info", "设备断开", clients=len(orch.clients), peer=peer)
 
     return app

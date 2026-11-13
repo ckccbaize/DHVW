@@ -112,6 +112,29 @@ export interface GatewayStatusView {
   error?: string
 }
 
+export type WorkTier = 'idle' | 'host' | 'edge'
+
+/** 编排器侧世界状态（只读展示，数据源是设备的 world:digest / mood:state） */
+export interface WorldView {
+  reachable: boolean
+  device: { connected: boolean; id: string | null; tier: WorkTier }
+  memory: number
+  digest: {
+    ts: number
+    seq: number
+    day: string
+    minute: number
+    phase: string
+    display: string
+    agendaDone: number
+    agendaTotal: number
+    scenesPending: number
+    pcActions: number
+  } | null
+  mood: { band: string; dims: Array<{ key: string; value: number }> } | null
+  error?: string
+}
+
 export interface ActionRequest {
   id: string
   action: 'start' | 'stop' | 'restart'
