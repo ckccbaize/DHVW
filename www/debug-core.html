@@ -102,6 +102,8 @@
   <button id="btnTravelCafe">去咖啡馆</button>
   <button id="btnTravelHome">回家</button>
   <button id="btnDoctor">自检</button>
+  <button id="btnMoodGuide">心情引导</button>
+  <button id="btnMoodPolicy">策略状态</button>
 </div>
 <canvas id="mapCanvas" width="480" height="320" style="width:480px;height:320px;image-rendering:pixelated;border:1px solid #444"></canvas>
 
@@ -495,6 +497,21 @@ $("#btnAgentPlot").onclick = async () => {
     pushLine(r.ok
       ? `plot ok(${r.attempts}) → [${r.event}/${r.place}] ${r.text}`
       : `plot rejected → ${r.reason}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnMoodGuide").onclick = async () => {
+  try {
+    const r = await client.request("core:command", {
+      name: "mood_apply",
+      args: { source: "user", reason: "手动引导", setpoint: { valence: 0.8, energy: 0.7 }, ttlMs: 60000 },
+    });
+    pushLine(r.ok ? `mood guide → ${r.mode}` : `mood guide rejected → ${r.reason}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnMoodPolicy").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "mood_policy" });
+    pushLine(`moodPolicy effects=${r.stats.effects} log=${r.stats.log}`);
   } catch (e) { pushLine(e.message); }
 };
 $("#btnDoctor").onclick = async () => {

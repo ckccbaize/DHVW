@@ -34,6 +34,7 @@ import { createRecordAgent } from "./agent/subs/record.js";
 import { createBrowsePlanner, searchBing, validatePublicUrl } from "./actions/browse.js";
 import { createPlaceAgent } from "./agent/subs/place.js";
 import { createDoctor } from "./doctor.js";
+import { createMoodPolicy } from "./mood/policy.js";
 import { createPlaceGraph, HOME_ID, planTravel } from "./places/graph.js";
 import { createBgAgent } from "./agent/subs/bg.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
@@ -121,6 +122,7 @@ let browsePlanner = null;
 let placeAgent = null;
 let doctor = null;
 let doctorTimer = null;
+let moodPolicy = null;
 let places = null;
 let currentPlace = HOME_ID;
 let lastHealthAt = Date.now();
@@ -352,6 +354,7 @@ const ready = (async () => {
   recordAgent = createRecordAgent({ llm, registry: agentRegistry });
   browsePlanner = createBrowsePlanner({ llm, registry: agentRegistry });
   placeAgent = createPlaceAgent({ llm, registry: agentRegistry });
+  moodPolicy = createMoodPolicy();
   doctor = createDoctor({
     llm,
     registry: agentRegistry,
@@ -417,6 +420,19 @@ function degraded(kind) {
   return { ok: false, reason: `degraded:${governor.tier}` };
 }
 
+function applyGuidedMood({ source = "system", reason = "", deltas = null, setpoint = null, ttlMs = 0 } = {}) {
+  const r = moodPolicy.apply({ source, reason, deltas, setpoint, ttlMs });
+  if (!r.ok) {
+    log("debug", "mood_rejected", { source, reason: r.reason });
+    return r;
+  }
+  if (r.mode === "setpoint") life.setMood(setpoint, { source, reason });
+  else life.applyMood(deltas || {}, { source, reason });
+  patch({ life: life.snapshot() });
+  void sampleMood(source, reason);
+  return r;
+}
+
 async function doctorApply(type, args = {}) {
   switch (type) {
     case "clear_event_log":
@@ -438,10 +454,12 @@ async function doctorApply(type, args = {}) {
       break;
     case "enter_safe_mode":
       scheduler.setSafeMode(true);
+      applyGuidedMood({ source: "doctor", reason: "安全模式", setpoint: { social: 0.15 }, ttlMs: 30 * 60_000 });
       patch({ doctor: { status: "safe_mode", lastCheck: Date.now() } });
       break;
     case "exit_safe_mode":
       scheduler.setSafeMode(false);
+      moodPolicy.reset();
       patch({ doctor: { status: "ok", lastCheck: Date.now() } });
       break;
     case "snapshot_save":
@@ -510,6 +528,7 @@ async function writeDigest() {
       ? { tier: governorLast.tier, reasons: governorLast.reasons, metrics: governorLast.metrics }
       : { tier: governor ? governor.tier : "P4", reasons: [], metrics: null },
     mood: moodSeries ? { ...moodSeries.stats(), band: life.snapshot().band, dims: life.snapshot().mood } : null,
+    moodPolicy: moodPolicy ? moodPolicy.stats() : null,
     wake: wake ? wake.state : null,
     behaviors: behaviors ? { count: behaviors.list().length, custom: behaviors.custom().length, recent: behaviorLog.slice(0, 5) } : null,
     places: { current: currentPlace, count: places ? places.list().length : 0 },
@@ -657,9 +676,7 @@ async function runBehavior(behavior, { reason = "wake" } = {}) {
   } else if (behavior.kind === "network") {
     result = await browseBehavior();
   } else {
-    life.applyMood(behavior.effects || {}, { source: "plot", reason: behavior.name });
-    patch({ life: life.snapshot() });
-    void sampleMood("plot", behavior.name);
+    applyGuidedMood({ source: "plot", reason: behavior.name, deltas: behavior.effects || {} });
     await appendEvent("behavior:done", { id: behavior.id, name: behavior.name, kind: behavior.kind });
     result = { ok: true, kind: behavior.kind };
   }
@@ -787,9 +804,8 @@ async function maybeOuting({ force = false } = {}) {
       seed: `${day}-${outing.count}`,
     },
   };
-  life.applyMood(destination.mood, { source: "plot", reason: `出门:${destination.name}` });
+  applyGuidedMood({ source: "plot", reason: `出门:${destination.name}`, deltas: destination.mood });
   patch({ life: life.snapshot(), outing: outingView() });
-  void sampleMood("plot", `出门:${destination.name}`);
   scheduleSnapshot();
   await kvBackend.put("outing_state", outing);
   await appendEvent("outing:intent", outing.plan);
@@ -978,6 +994,7 @@ function health() {
       ? { tier: governorLast.tier, reasons: governorLast.reasons, metrics: governorLast.metrics }
       : { tier: governor ? governor.tier : "P4", reasons: [], metrics: null },
     mood: moodSeries ? { ...moodSeries.stats(), band: life.snapshot().band, dims: life.snapshot().mood } : null,
+    moodPolicy: moodPolicy ? moodPolicy.stats() : null,
     wake: wake ? wake.state : null,
     behaviors: behaviors ? { count: behaviors.list().length, custom: behaviors.custom().length, recent: behaviorLog.slice(0, 5) } : null,
     places: { current: currentPlace, count: places ? places.list().length : 0 },
@@ -1234,9 +1251,7 @@ const handlers = {
         extraEvents: eventPool.events,
       });
       if (r.ok) {
-        life.applyMood(r.mood, { source: "plot", reason: r.event });
-        patch({ life: life.snapshot() });
-        void sampleMood("plot", r.event);
+        applyGuidedMood({ source: "plot", reason: r.event, deltas: r.mood });
         scheduleSnapshot();
         await kvBackend.put("plot_recent", [r.text, ...recent].slice(0, 20));
         await kvBackend.put("plot_events", [r.event, ...recentEvents].slice(0, 10));
@@ -1274,6 +1289,23 @@ const handlers = {
         if (r.pcAction?.action) enqueuePcAction(r.pcAction.action, r.pcAction.args);
       }
       return { ...r, life: life.snapshot() };
+    }
+    if (p.name === "mood_apply") {
+      const r = applyGuidedMood({
+        source: p.args?.source || "user",
+        reason: p.args?.reason || "手动引导",
+        deltas: p.args?.deltas || null,
+        setpoint: p.args?.setpoint || null,
+        ttlMs: p.args?.ttlMs || 0,
+      });
+      return { ok: r.ok, ...r, life: life.snapshot() };
+    }
+    if (p.name === "mood_policy") {
+      return { ok: true, stats: moodPolicy.stats(), log: moodPolicy.log() };
+    }
+    if (p.name === "mood_policy_reset") {
+      moodPolicy.reset();
+      return { ok: true };
     }
     if (p.name === "doctor_check") {
       const r = await doctor.check();

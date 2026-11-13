@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T08:22:57.695Z",
+ "built_at": "2026-11-13T09:23:26.206Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -169,8 +169,8 @@
   },
   {
    "path": "debug-core.html",
-   "size": 36418,
-   "sha256": "e888485c1346706602971997d676e8772deeffa0517413620dcada7b841676f1"
+   "size": 37144,
+   "sha256": "d22d0a3a05e73a00f58390f787c11fcd3316dfc94f240d61c18cca4991e49c6a"
   },
   {
    "path": "index.html",
@@ -334,8 +334,8 @@
   },
   {
    "path": "js/core/machine/life.js",
-   "size": 8140,
-   "sha256": "d9264dbf8ca6432b2ec198cd84c29abc10fc58efccfd81e1e2c7eba0fd58b5ec"
+   "size": 8756,
+   "sha256": "22b79ad290fe629d12685268399be82243e2dbcb9ce936b1485538b341666f13"
   },
   {
    "path": "js/core/machine/world.js",
@@ -361,6 +361,11 @@
    "path": "js/core/mood.js",
    "size": 2408,
    "sha256": "f6bdc4e6c6b30920b09093f3e03c2b6d62fa0f2921f90803a28c32cadfd783f5"
+  },
+  {
+   "path": "js/core/mood/policy.js",
+   "size": 3118,
+   "sha256": "e8985884fe20a2726fd2a4aeca78dbc56236eb06df2e45f3329845ffdbb59065"
   },
   {
    "path": "js/core/observe.js",
@@ -414,8 +419,8 @@
   },
   {
    "path": "js/core/worker.js",
-   "size": 64803,
-   "sha256": "51d6635bdb6ff809f0f501867ceeddf8f3424615a493fbcb53b5c64e365e5f0a"
+   "size": 66045,
+   "sha256": "5d7f2b82c30447d80c9a2b8c4acb8fd07379480a5540e5a54f71594576ac1398"
   },
   {
    "path": "js/forge/client.js",

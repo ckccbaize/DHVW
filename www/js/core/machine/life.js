@@ -221,6 +221,23 @@ export function createLifeRuntime({ minute = 8 * 60, mood = MOOD_BASE } = {}) {
       if (moodLog.length > 50) moodLog.shift();
       return snapshot();
     },
+    /** W33：直接设定心情（setpoint），仍写 moodLog。 */
+    setMood(values = {}, { source = "system", reason = "" } = {}) {
+      const before = { ...moodState };
+      for (const [k, v] of Object.entries(values)) {
+        if (MOOD_DIMENSIONS.includes(k) && Number.isFinite(v)) moodState[k] = clamp01(v);
+      }
+      moodLog.push({
+        t: m,
+        source: MOOD_SOURCES.includes(source) ? source : "system",
+        reason,
+        deltas: { ...values },
+        before,
+        after: { ...moodState },
+      });
+      if (moodLog.length > 50) moodLog.shift();
+      return snapshot();
+    },
     noteAct(act) {
       recent.push({ act, minute: m });
       if (recent.length > 50) recent.shift();
