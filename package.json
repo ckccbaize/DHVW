@@ -14,7 +14,8 @@
     "validate": "node tools/validate-scene.mjs",
     "spike:fsm": "node spikes/fsm/compare.mjs",
     "build:agent": "node tools/build-agent.mjs",
-    "check:agent": "node tools/build-agent.mjs --check"
+    "check:agent": "node tools/build-agent.mjs --check",
+    "golden:terrain": "node tools/paint-terrain.mjs ../assets/scenes/home/home.map.json .tmp/terrain-js.png && python tools/compare-terrain.py .tmp/terrain-js.png ../assets/scenes/home/dist/terrain.png"
   },
   "devDependencies": {
     "xstate": "5.33.4"

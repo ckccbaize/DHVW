@@ -84,6 +84,7 @@
   <button id="btnDigestWrite">写摘要</button>
   <button id="btnPcAction">PC 生成地图</button>
   <button id="btnMapGenerate">本地生成地图</button>
+  <button id="btnPaintTerrain">画地形层</button>
   <button id="btnGovernorCheck">检查治理</button>
   <button id="btnObserve">看观测</button>
   <button id="btnMood">取心情曲线</button>
@@ -158,6 +159,7 @@
 
 <script type="module">
 import { createCoreClient } from "./js/core/client.js";
+import { paintTerrain } from "./js/forge/painter.js";
 import { makeMsg } from "./js/core/bus.js";
 
 const $ = (s) => document.querySelector(s);
@@ -551,6 +553,20 @@ $("#btnGovernorCheck").onclick = async () => {
   try {
     const r = await client.request("core:command", { name: "governor_check" });
     pushLine(`governor → ${r.tier} (${r.reasons.join(",") || "ok"})`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnPaintTerrain").onclick = async () => {
+  try {
+    const res = await fetch("assets/scenes/home/home.built.json", { cache: "no-store" });
+    const spec = await res.json();
+    const cv = paintTerrain(spec);
+    const canvas = document.querySelector("#mapCanvas");
+    canvas.width = cv.w;
+    canvas.height = cv.h;
+    const ctx = canvas.getContext("2d");
+    const img = new ImageData(new Uint8ClampedArray(cv.data), cv.w, cv.h);
+    ctx.putImageData(img, 0, 0);
+    pushLine(`terrain → ${cv.w}x${cv.h}`);
   } catch (e) { pushLine(e.message); }
 };
 $("#btnMapGenerate").onclick = async () => {

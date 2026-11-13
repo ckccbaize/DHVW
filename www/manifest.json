@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T02:53:21.180Z",
+ "built_at": "2026-11-13T05:25:24.168Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -39,8 +39,8 @@
   },
   {
    "path": "debug-core.html",
-   "size": 31772,
-   "sha256": "4d0c31ded8c58b903e250eb10c758d76127124c9a14a128d97fbdc672a45e807"
+   "size": 32437,
+   "sha256": "77f64f052688c44adf92c7ccf3aed49ca89098ba60bedb28bdd047c1e77175b5"
   },
   {
    "path": "index.html",
@@ -286,6 +286,11 @@
    "path": "js/forge/layout.js",
    "size": 6675,
    "sha256": "d0ced24ffa4413d94ddba8bb39aba42fe0c5b32a58342b13580a190a2689a041"
+  },
+  {
+   "path": "js/forge/painter.js",
+   "size": 9308,
+   "sha256": "bfc1849fb1869b07894536b2984f875b438ad2a51274125ed1572b8c6d3c1ad4"
   },
   {
    "path": "js/runtime/local.js",
