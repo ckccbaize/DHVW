@@ -67,6 +67,18 @@
   </div>
   <div class="hint" id="triggerMsg" style="margin-top:8px">点击后由主页面执行；结果看下方事件流与 LLM 调用</div>
 </section>
+<section style="margin-bottom:12px">
+  <h2>时间倍速 <span class="count" id="speedNow">1×</span></h2>
+  <div class="actions" style="display:flex;flex-wrap:wrap;gap:8px">
+    <button type="button" data-speed="0.5">0.5×</button>
+    <button type="button" data-speed="1">1×</button>
+    <button type="button" data-speed="2">2×</button>
+    <button type="button" data-speed="5">5×</button>
+    <button type="button" data-speed="10">10×</button>
+    <button type="button" data-speed="30">30×</button>
+  </div>
+  <div class="hint" style="margin-top:8px">1× = 1 现实秒 1 游戏分钟；倍速只影响时钟，不改变行为间隔（默认 30 游戏分钟）</div>
+</section>
 <div class="grid">
   <section class="wide">
     <h2>LLM 调用 <span class="count" id="llmCount"></span></h2>
@@ -242,6 +254,22 @@ async function refresh() {
     $("#status").innerHTML = `<span class="bad">读取失败：${esc(err.message)}</span>`;
   }
 }
+const SPEED_KEY = "dhvw_speed";
+function showSpeed(v) {
+  $("#speedNow").textContent = `${v}×`;
+}
+showSpeed(Number(localStorage.getItem(SPEED_KEY) || "1"));
+document.querySelectorAll("[data-speed]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const v = Number(btn.dataset.speed);
+    localStorage.setItem(SPEED_KEY, String(v));
+    showSpeed(v);
+    try {
+      new BroadcastChannel("dhvw-debug").postMessage({ type: "speed", value: v });
+    } catch {}
+  });
+});
+
 document.querySelectorAll("[data-trigger]").forEach((btn) => {
   btn.addEventListener("click", () => {
     const kind = btn.dataset.trigger;

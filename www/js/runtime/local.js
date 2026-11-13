@@ -515,6 +515,7 @@ export function createLocalRuntime({
         minute: minute ?? config.life?.startMinute ?? 8 * 60,
         minutesPerSecond: config.life?.minutesPerSecond ?? 1,
         tickMs: config.life?.tickMs ?? 1000,
+        roamMin: config.life?.roamMin ?? 30,
         llm: config.llm || null,
       });
       postForge({
@@ -586,6 +587,10 @@ export function createLocalRuntime({
     async persistClock(day, minute) {
       await backend.setKV("day", day).catch(() => {});
       await backend.setKV("minute", minute).catch(() => {});
+    },
+    setSpeed(value) {
+      const v = Math.max(0.1, Math.min(60, Number(value) || 1));
+      postLife({ type: "setSpeed", minutesPerSecond: v });
     },
     trigger(kind, act) {
       if (kind === "memory") {

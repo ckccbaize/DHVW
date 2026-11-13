@@ -9,6 +9,7 @@ import { pickDuration } from "../js/core/life/acts.js";
 const cfg = {
   minutesPerSecond: 1, // 活跃档：1 现实秒 = 1 游戏分钟
   tickMs: 1000,
+  roamMin: 30, // 两次自主行为之间至少隔多少游戏分钟
 };
 
 let scene = null; // { grid:{w,h,data}, rooms, props, doors, start, hotspots }
@@ -285,7 +286,7 @@ function tick() {
   }
 
   // 漫游：活跃档每 10 游戏分钟换一次目标；息屏档不漫游
-  if (activity !== "asleep" && clock.minute - lastIntentMinute >= 10) {
+  if (activity !== "asleep" && clock.minute - lastIntentMinute >= cfg.roamMin) {
     requestIntent("roam");
   }
   void maybeLlmThought();
@@ -317,6 +318,7 @@ self.onmessage = (e) => {
       clock = createClock({ day: msg.day ?? 1, minute: msg.minute ?? 8 * 60 });
       if (msg.minutesPerSecond) cfg.minutesPerSecond = msg.minutesPerSecond;
       if (msg.tickMs) cfg.tickMs = msg.tickMs;
+      if (msg.roamMin) cfg.roamMin = msg.roamMin;
       llmCfg = msg.llm || null;
       weather = weatherForDayCore(clock.day);
       phase = phaseOf(clock.minute);
@@ -395,6 +397,10 @@ self.onmessage = (e) => {
           : `你不在的这段时间，她换了 ${s.rooms} 次地方，说了 ${s.says} 句，睡了 ${s.sleeps} 觉。`;
       stats.sinceResume = { rooms: 0, says: 0, sleeps: 0 };
       emit({ type: "summary", text });
+      break;
+    }
+    case "setSpeed": {
+      cfg.minutesPerSecond = Math.max(0.1, Math.min(60, Number(msg.minutesPerSecond) || 1));
       break;
     }
     case "debug_trigger": {

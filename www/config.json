@@ -7,7 +7,8 @@
   "life": {
     "minutesPerSecond": 1,
     "tickMs": 1000,
-    "startMinute": 480
+    "startMinute": 480,
+    "roamMin": 30
   },
   "assetQuotaBytes": 524288000,
   "display": {

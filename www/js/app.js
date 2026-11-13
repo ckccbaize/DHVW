@@ -19,7 +19,7 @@ import { normalizePresentUrl, probePresent } from "./view/present-host.js";
 
 const DEFAULTS = {
   host: { wsUrl: "", probeUrl: "", ttsUrl: "" },
-  life: { minutesPerSecond: 1, tickMs: 1000 },
+  life: { minutesPerSecond: 1, tickMs: 1000, roamMin: 30 },
   assetQuotaBytes: 500 * 1024 * 1024,
   display: { backToOverviewMs: 90000, hostLostGraceMs: 10000, hysteresisMs: 20000 },
   present: { url: "" },
@@ -41,11 +41,14 @@ async function loadConfig() {
     } catch {
       saved = null;
     }
+    const speed = Number(localStorage.getItem("dhvw_speed") || "0");
+    const life = { ...DEFAULTS.life, ...(raw.life || {}) };
+    if (speed > 0) life.minutesPerSecond = speed;
     return {
       ...DEFAULTS,
       ...raw,
       host: { ...DEFAULTS.host, ...(raw.host || {}) },
-      life: { ...DEFAULTS.life, ...(raw.life || {}) },
+      life,
       display: { ...DEFAULTS.display, ...(raw.display || {}) },
       present: { ...DEFAULTS.present, ...(raw.present || {}) },
       llm: { ...DEFAULTS.llm, ...(raw.llm || {}), ...(saved || {}) },
@@ -478,6 +481,7 @@ async function boot() {
     ch.onmessage = (e) => {
       if (e.data === "llm-updated") location.reload();
       else if (e.data?.type === "trigger") local.trigger(e.data.kind, e.data.act);
+      else if (e.data?.type === "speed") local.setSpeed(e.data.value);
     };
   } catch {}
 
