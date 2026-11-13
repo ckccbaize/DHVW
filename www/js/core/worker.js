@@ -30,6 +30,7 @@ import { createWakeEngine } from "./wake/engine.js";
 import { createBehaviorRegistry } from "./actions/registry.js";
 import { pickBehavior } from "./actions/plan.js";
 import { createWakeRuntime } from "./wake/runtime.js";
+import { createRecordAgent } from "./agent/subs/record.js";
 import { createBgAgent } from "./agent/subs/bg.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
 
@@ -111,6 +112,7 @@ let behaviorLog = [];
 let netLog = [];
 let browseUrl = "https://www.weather.com.cn/weather/101010100.shtml";
 let wakeRuntime = null;
+let recordAgent = null;
 let lastHealthAt = Date.now();
 
 const PC_ACTIONS = new Set(["map.generate", "app.open", "media.play", "notify", "web.open"]);
@@ -337,6 +339,7 @@ const ready = (async () => {
     lock: globalThis.navigator?.locks || null,
   });
   await wakeRuntime.init();
+  recordAgent = createRecordAgent({ llm, registry: agentRegistry });
   behaviors = createBehaviorRegistry({ custom: (await kvBackend.get("behavior_pool")) || [] });
   behaviorLog = (await kvBackend.get("behavior_log")) || [];
   netLog = (await kvBackend.get("net_log")) || [];
@@ -488,6 +491,7 @@ async function browseBehavior() {
 
 async function runBehavior(behavior, { reason = "wake" } = {}) {
   const at = Date.now();
+  const before = life.snapshot().mood;
   let result;
   if (behavior.kind === "travel") {
     const r = await maybeOuting({ force: true });
@@ -501,7 +505,38 @@ async function runBehavior(behavior, { reason = "wake" } = {}) {
     await appendEvent("behavior:done", { id: behavior.id, name: behavior.name, kind: behavior.kind });
     result = { ok: true, kind: behavior.kind };
   }
-  behaviorLog.unshift({ id: behavior.id, name: behavior.name, kind: behavior.kind, at, ok: result.ok, reason });
+  const after = life.snapshot().mood;
+  let record = null;
+  if (recordAgent) {
+    const rec = await recordAgent.run({
+      behavior,
+      before,
+      after,
+      place: behavior.kind === "travel" ? "外面" : "家里",
+      detail: result.detail?.name || result.url || "",
+    });
+    record = rec.ok
+      ? { summary: rec.summary, mood: rec.mood, evidence: rec.evidence, ts: rec.ts }
+      : { error: rec.reason };
+    if (rec.ok) {
+      await appendEvent("behavior:recorded", {
+        id: behavior.id,
+        summary: rec.summary,
+        mood: rec.mood,
+        evidence: rec.evidence,
+      });
+    }
+  }
+  behaviorLog.unshift({
+    id: behavior.id,
+    name: behavior.name,
+    kind: behavior.kind,
+    at,
+    ok: result.ok,
+    reason,
+    mood: { before, after },
+    record,
+  });
   behaviorLog = behaviorLog.slice(0, 50);
   await kvBackend.put("behavior_log", behaviorLog);
   patch({ behaviors: { count: behaviors.list().length, custom: behaviors.custom().length, recent: behaviorLog.slice(0, 5) } });

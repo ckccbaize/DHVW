@@ -200,7 +200,7 @@ function renderBehavior(b) {
   if (!b) return;
   const last = b.recent?.[0];
   document.querySelector("#behavior").innerHTML =
-    `behavior count=<b>${b.count}</b> custom=<b>${b.custom}</b> last=<b>${last ? last.id + "/" + (last.ok ? "ok" : "fail") : "—"}</b>`;
+    `behavior count=<b>${b.count}</b> custom=<b>${b.custom}</b> last=<b>${last ? last.id + "/" + (last.ok ? "ok" : "fail") : "—"}</b>${last?.record?.summary ? " · " + last.record.summary : ""}`;
 }
 
 function renderWake(w) {

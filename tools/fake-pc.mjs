@@ -145,7 +145,13 @@ const llm = http.createServer((req, res) => {
   req.on("data", (c) => (body += c));
   req.on("end", () => {
     console.log(`[fake-llm] ← ${req.headers.authorization || "no-auth"} ${body.slice(0, 120)}`);
-    const content = body.includes("严格输出 JSON") && body.includes("outcome")
+    const content = body.includes("写一条") && body.includes("心情变化")
+      ? JSON.stringify({
+          summary: "她把面煮好，吃完觉得暖了一点。",
+          mood: "energy +0.08, valence +0.05",
+          evidence: "",
+        })
+      : body.includes("严格输出 JSON") && body.includes("outcome")
       ? JSON.stringify({
           outcome: "message",
           fact: "雨停了，她开了窗",

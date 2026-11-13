@@ -133,7 +133,19 @@ createManagerAgent({ llm, registry, subAgents: { "plot-writer": (args) => plotAg
 
 命令：`wake_run` / `wake_event_add` / `wake_events` / `wake_threads` / `wake_thread_close` / `wake_runtime_state` / `wake_runtime_clear`。
 
-## 9. 新增技能
+## 9. 行为留档
+
+每次自主行为执行完，`subs/record.js` 用 `behavior-record` 技能让角色 LLM 产出：
+
+```json
+{"summary":"她把面煮好，吃完觉得暖了一点。","mood":"energy +0.08, valence +0.05","evidence":""}
+```
+
+- summary 20–60 字，必须包含“做了什么 + 心情变化”；
+- 写入 `behavior_log`（含 before/after 心情快照）与 `behavior:recorded` 事件；
+- LLM 失败时记 `record.error`，行为本身不回滚。
+
+## 10. 新增技能
 
 工艺约束提炼自：
 
