@@ -10,6 +10,7 @@ const cfg = {
   timeScale: 1, // 1× = 现实时间；30× = 1 现实秒 = 1 游戏分钟
   tickMs: 1000,
   roamMin: 30, // 两次自主行为之间至少隔多少游戏分钟
+  thoughtMin: 240, // 两次独白之间至少隔多少游戏分钟
 };
 
 let scene = null; // { grid:{w,h,data}, rooms, props, doors, start, hotspots }
@@ -156,7 +157,8 @@ function pickTarget() {
 
 async function maybeLlmThought() {
   if (!llmCfg?.baseUrl || !llmCfg?.model || llmBusy) return;
-  if (clock.minute - lastLlmMinute < 30) return;
+  if (phase === "sleep") return;
+  if (clock.minute - lastLlmMinute < cfg.thoughtMin) return;
   lastLlmMinute = clock.minute;
   llmBusy = true;
   const t0 = Date.now();
@@ -183,10 +185,9 @@ async function maybeLlmThought() {
     });
     const data = await res.json();
     const text = data?.choices?.[0]?.message?.content?.trim();
-    if (text) {
-      emit({ type: "say", text: text.slice(0, 40), ttl: 3200 });
-      event("llm_thought", { text });
-    }
+    if (!text) throw new Error("空文本");
+    emit({ type: "say", text: text.slice(0, 40), ttl: 3200 });
+    event("llm_thought", { text });
     emit({
       type: "llm_call",
       agent: "thought",
@@ -332,10 +333,12 @@ self.onmessage = (e) => {
       else if (msg.minutesPerSecond) cfg.timeScale = msg.minutesPerSecond * 30;
       if (msg.tickMs) cfg.tickMs = msg.tickMs;
       if (msg.roamMin) cfg.roamMin = msg.roamMin;
+      if (msg.thoughtMin) cfg.thoughtMin = msg.thoughtMin;
       llmCfg = msg.llm || null;
       weather = weatherForDayCore(clock.day);
       phase = phaseOf(clock.minute);
       currentRoom = PHASE_ROOM[phase] || "living";
+      lastLlmMinute = clock.minute;
       resetAnchor();
       schedule();
       emit({ type: "ready", day: clock.day, minute: clock.minute, phase, weather });

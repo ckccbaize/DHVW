@@ -530,6 +530,7 @@ export function createLocalRuntime({
         timeScale: config.life?.timeScale ?? 1,
         tickMs: config.life?.tickMs ?? 1000,
         roamMin: config.life?.roamMin ?? 30,
+        thoughtMin: config.life?.thoughtMin ?? 240,
         llm: config.llm || null,
       });
       postForge({

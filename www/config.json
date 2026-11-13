@@ -8,6 +8,7 @@
     "tickMs": 1000,
     "startMinute": 480,
     "roamMin": 30,
+    "thoughtMin": 240,
     "timeScale": 1
   },
   "assetQuotaBytes": 524288000,
