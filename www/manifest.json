@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T09:50:41.682Z",
+ "built_at": "2026-11-13T09:57:54.703Z",
  "files": [
   {
    "path": "agent/registry.json",
-   "size": 10799,
-   "sha256": "4e37d75f8613cd06733676f713842fce13b1b098f70621a52efac3898b2681bd"
+   "size": 11747,
+   "sha256": "91428dc5fa155633994fe718cb7e06f8544894e44436e7e704d619c6f6cc02a7"
   },
   {
    "path": "assets/scenes/home/character/sheet.json",
@@ -169,8 +169,8 @@
   },
   {
    "path": "debug-core.html",
-   "size": 37689,
-   "sha256": "b5ff0e34bc1ebf355ed961cb0ba949aaeb7ba416ddaea3abbeb284cd7ac74d6b"
+   "size": 38049,
+   "sha256": "327d2f059238863edfd08b8ee3f472676d6862f1fd173a5259b74ea8e888c389"
   },
   {
    "path": "index.html",
@@ -353,6 +353,11 @@
    "sha256": "e0e57047fae9c8a3b4858a446cc613a27a0ce0a740b0619ac9cf30f49e0893f1"
   },
   {
+   "path": "js/core/memory/pipeline.js",
+   "size": 3071,
+   "sha256": "8da769cbf482c1baaccda99ffe03e83a3b4f4d7ac3aa6ab007a8fd898bedee98"
+  },
+  {
    "path": "js/core/memory/remote.js",
    "size": 1920,
    "sha256": "d57916089deb13e517e7a89a9549422f83d20f5d1630bb207521f204b0102b8b"
@@ -424,8 +429,8 @@
   },
   {
    "path": "js/core/worker.js",
-   "size": 66712,
-   "sha256": "50cdb01a12deb9e4b81d8e07504450f659d0d1a7e101d9af6ba4b1ce8d5aa81e"
+   "size": 68796,
+   "sha256": "43fb0ed833eccdbaeaade1fb15107e8016a8b501d691697bc3bdc35eaf7b58fa"
   },
   {
    "path": "js/forge/client.js",

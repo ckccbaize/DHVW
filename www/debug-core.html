@@ -105,6 +105,7 @@
   <button id="btnMoodGuide">心情引导</button>
   <button id="btnMoodPolicy">策略状态</button>
   <button id="btnMerge">合并测试</button>
+  <button id="btnMemoryPipeline">记忆管线</button>
 </div>
 <canvas id="mapCanvas" width="480" height="320" style="width:480px;height:320px;image-rendering:pixelated;border:1px solid #444"></canvas>
 
@@ -498,6 +499,12 @@ $("#btnAgentPlot").onclick = async () => {
     pushLine(r.ok
       ? `plot ok(${r.attempts}) → [${r.event}/${r.place}] ${r.text}`
       : `plot rejected → ${r.reason}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnMemoryPipeline").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "memory_pipeline" });
+    pushLine(r.ok ? `memory pipeline → ${r.facts.length} facts (${r.scanned} events)` : `memory pipeline → ${r.reason}`);
   } catch (e) { pushLine(e.message); }
 };
 $("#btnMerge").onclick = async () => {

@@ -159,7 +159,14 @@ const llm = http.createServer((req, res) => {
   req.on("data", (c) => (body += c));
   req.on("end", () => {
     console.log(`[fake-llm] ← ${req.headers.authorization || "no-auth"} ${body.slice(0, 120)}`);
-    const content = body.includes("diagnosis") && body.includes("safeMode")
+    const content = body.includes("归纳 3-8 条稳定事实")
+      ? JSON.stringify({
+          facts: [
+            { text: "她喜欢在雨天开窗，听楼下的雨声。", tier: "L2" },
+            { text: "她常去咖啡馆坐一会儿。", tier: "L2" },
+          ],
+        })
+      : body.includes("diagnosis") && body.includes("safeMode")
       ? JSON.stringify({ diagnosis: "本地记忆为空，先保存快照", actions: [{ type: "snapshot_save" }], safeMode: false })
       : body.includes("可用家具") && body.includes("只输出 JSON")
       ? JSON.stringify({

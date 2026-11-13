@@ -36,6 +36,7 @@ import { createPlaceAgent } from "./agent/subs/place.js";
 import { createDoctor } from "./doctor.js";
 import { createMoodPolicy } from "./mood/policy.js";
 import { cleanupTombstones, mergeBatch, mergeRecord } from "./sync/merge.js";
+import { createMemoryPipeline } from "./memory/pipeline.js";
 import { createPlaceGraph, HOME_ID, planTravel } from "./places/graph.js";
 import { createBgAgent } from "./agent/subs/bg.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
@@ -124,6 +125,10 @@ let placeAgent = null;
 let doctor = null;
 let doctorTimer = null;
 let moodPolicy = null;
+let memoryPipeline = null;
+let pipelineSeen = new Set();
+let lastPipelineSeq = 0;
+let pipelineLast = null;
 let places = null;
 let currentPlace = HOME_ID;
 let lastHealthAt = Date.now();
@@ -356,6 +361,15 @@ const ready = (async () => {
   browsePlanner = createBrowsePlanner({ llm, registry: agentRegistry });
   placeAgent = createPlaceAgent({ llm, registry: agentRegistry });
   moodPolicy = createMoodPolicy();
+  pipelineSeen = new Set((await kvBackend.get("memory_seen")) || []);
+  lastPipelineSeq = (await kvBackend.get("pipeline_state"))?.lastSeq || 0;
+  memoryPipeline = createMemoryPipeline({
+    llm,
+    registry: agentRegistry,
+    localMemory,
+    seen: pipelineSeen,
+    sendCandidates: (payload) => host.sendRaw({ type: "facts:candidates", payload }),
+  });
   doctor = createDoctor({
     llm,
     registry: agentRegistry,
@@ -396,6 +410,14 @@ const ready = (async () => {
       patch({ doctor: { status: r.issues?.length ? "issues" : "ok", lastCheck: Date.now(), issues: r.issues, diagnosis: r.diagnosis } });
     });
   }, 30_000);
+  scheduler.register("memory", async () => {
+    await runMemoryPipeline();
+  });
+  setInterval(() => {
+    if (scheduler.queue.some((j) => j.kind === "memory")) return;
+    if (eventLog.lastSeq - lastPipelineSeq < 20) return;
+    scheduler.enqueue({ kind: "memory", priority: 4 });
+  }, 30 * 60_000);
   doctorTimer = setInterval(() => {
     void doctor.check().then((r) => {
       if (r.issues?.length) log("warn", "doctor", { issues: r.issues, diagnosis: r.diagnosis });
@@ -431,6 +453,21 @@ function applyGuidedMood({ source = "system", reason = "", deltas = null, setpoi
   else life.applyMood(deltas || {}, { source, reason });
   patch({ life: life.snapshot() });
   void sampleMood(source, reason);
+  return r;
+}
+
+async function runMemoryPipeline() {
+  const events = await eventLog.since(lastPipelineSeq, 200);
+  if (events.length < 3) return { ok: false, reason: "not_enough_events", count: events.length };
+  const r = await memoryPipeline.run(events);
+  if (r.ok) {
+    lastPipelineSeq = events[events.length - 1].seq;
+    await kvBackend.put("pipeline_state", { lastSeq: lastPipelineSeq, at: Date.now() });
+    await kvBackend.put("memory_seen", [...pipelineSeen].slice(-500));
+    pipelineLast = { at: Date.now(), facts: r.facts.length, scanned: r.scanned };
+    await appendEvent("memory:pipeline", { facts: r.facts.length, scanned: r.scanned });
+    patch({ memory: { count: localMemory.count, terms: localMemory.terms }, memoryPipeline: pipelineLast });
+  }
   return r;
 }
 
@@ -530,6 +567,7 @@ async function writeDigest() {
       : { tier: governor ? governor.tier : "P4", reasons: [], metrics: null },
     mood: moodSeries ? { ...moodSeries.stats(), band: life.snapshot().band, dims: life.snapshot().mood } : null,
     moodPolicy: moodPolicy ? moodPolicy.stats() : null,
+    memoryPipeline: { lastSeq: lastPipelineSeq, seen: pipelineSeen.size, last: pipelineLast },
     wake: wake ? wake.state : null,
     behaviors: behaviors ? { count: behaviors.list().length, custom: behaviors.custom().length, recent: behaviorLog.slice(0, 5) } : null,
     places: { current: currentPlace, count: places ? places.list().length : 0 },
@@ -996,6 +1034,7 @@ function health() {
       : { tier: governor ? governor.tier : "P4", reasons: [], metrics: null },
     mood: moodSeries ? { ...moodSeries.stats(), band: life.snapshot().band, dims: life.snapshot().mood } : null,
     moodPolicy: moodPolicy ? moodPolicy.stats() : null,
+    memoryPipeline: { lastSeq: lastPipelineSeq, seen: pipelineSeen.size, last: pipelineLast },
     wake: wake ? wake.state : null,
     behaviors: behaviors ? { count: behaviors.list().length, custom: behaviors.custom().length, recent: behaviorLog.slice(0, 5) } : null,
     places: { current: currentPlace, count: places ? places.list().length : 0 },
@@ -1290,6 +1329,13 @@ const handlers = {
         if (r.pcAction?.action) enqueuePcAction(r.pcAction.action, r.pcAction.args);
       }
       return { ...r, life: life.snapshot() };
+    }
+    if (p.name === "memory_pipeline") {
+      const r = await runMemoryPipeline();
+      return { ok: r.ok, ...r, lastSeq: lastPipelineSeq };
+    }
+    if (p.name === "memory_pipeline_state") {
+      return { ok: true, lastSeq: lastPipelineSeq, seen: pipelineSeen.size, last: pipelineLast };
     }
     if (p.name === "merge_record") {
       return mergeRecord(p.args?.local || null, p.args?.incoming || null, { ownership: p.args?.ownership });
