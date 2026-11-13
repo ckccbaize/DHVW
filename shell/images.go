@@ -269,30 +269,29 @@ func (s *server) serveImageFetch(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, io.LimitReader(resp.Body, 6<<20))
 }
 
-// imageHTTPClient 固定解析到公网 IP，防 DNS 重绑定与内网探测。
-var imageHTTPClient = &http.Client{
-	Timeout: 12 * time.Second,
-	Transport: &http.Transport{
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			host, port, err := net.SplitHostPort(addr)
-			if err != nil {
-				return nil, err
+// publicTransport 固定解析到公网 IP，防 DNS 重绑定与内网探测。
+var publicTransport = &http.Transport{
+	DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			return nil, err
+		}
+		ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+		if err != nil {
+			return nil, err
+		}
+		for _, ip := range ips {
+			if !isPublicIP(ip.IP) {
+				continue
 			}
-			ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
-			if err != nil {
-				return nil, err
-			}
-			for _, ip := range ips {
-				if !isPublicIP(ip.IP) {
-					continue
-				}
-				d := net.Dialer{Timeout: 8 * time.Second}
-				return d.DialContext(ctx, network, net.JoinHostPort(ip.IP.String(), port))
-			}
-			return nil, fmt.Errorf("拒绝非公网地址: %s", host)
-		},
+			d := net.Dialer{Timeout: 8 * time.Second}
+			return d.DialContext(ctx, network, net.JoinHostPort(ip.IP.String(), port))
+		}
+		return nil, fmt.Errorf("拒绝非公网地址: %s", host)
 	},
 }
+
+var imageHTTPClient = &http.Client{Timeout: 12 * time.Second, Transport: publicTransport}
 
 func isPublicIP(ip net.IP) bool {
 	if ip == nil || ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() ||

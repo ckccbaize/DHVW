@@ -27,6 +27,8 @@ import { createStateLog, createTaskLedger } from "./observe.js";
 import { createSyncManager, mergeFacts } from "./sync.js";
 import { buildMoodView, createMoodSeries } from "./mood.js";
 import { createWakeEngine } from "./wake/engine.js";
+import { createBehaviorRegistry } from "./actions/registry.js";
+import { pickBehavior } from "./actions/plan.js";
 import { createBgAgent } from "./agent/subs/bg.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
 
@@ -103,6 +105,10 @@ let mergedFactIds = new Set();
 let moodSeries = null;
 let lastMoodPushAt = 0;
 let wake = null;
+let behaviors = null;
+let behaviorLog = [];
+let netLog = [];
+let browseUrl = "https://www.weather.com.cn/weather/101010100.shtml";
 let lastHealthAt = Date.now();
 
 const PC_ACTIONS = new Set(["map.generate", "app.open", "media.play", "notify", "web.open"]);
@@ -322,6 +328,11 @@ const ready = (async () => {
   await moodSeries.init();
   wake = createWakeEngine();
   wake.restore((await kvBackend.get("wake_state")) || {});
+  behaviors = createBehaviorRegistry({ custom: (await kvBackend.get("behavior_pool")) || [] });
+  behaviorLog = (await kvBackend.get("behavior_log")) || [];
+  netLog = (await kvBackend.get("net_log")) || [];
+  const bcfg = await kvBackend.get("behavior_config");
+  if (bcfg?.browseUrl) browseUrl = bcfg.browseUrl;
   await localMemory.init();
   await scheduler.init();
   if (Date.now() - eventPool.updatedAt > 6 * 3600 * 1000) {
@@ -404,6 +415,7 @@ async function writeDigest() {
       : { tier: governor ? governor.tier : "P4", reasons: [], metrics: null },
     mood: moodSeries ? { ...moodSeries.stats(), band: life.snapshot().band, dims: life.snapshot().mood } : null,
     wake: wake ? wake.state : null,
+    behaviors: behaviors ? { count: behaviors.list().length, custom: behaviors.custom().length, recent: behaviorLog.slice(0, 5) } : null,
     observe: {
       stateLog: stateLog ? stateLog.stats() : null,
       ledger: ledger ? ledger.stats() : null,
@@ -412,6 +424,8 @@ async function writeDigest() {
     lastPlot: await kvBackend.get("last_plot"),
     mood: moodView(60),
     wake: wake ? wake.state : null,
+    behaviors: behaviorLog.slice(0, 10),
+    net: netLog.slice(0, 5),
   });
   await digestStore.save(d);
   if (host.conn === "up") host.sendRaw({ type: "world:digest", payload: { digest: d } });
@@ -425,6 +439,56 @@ async function writeDigest() {
     },
   });
   return d;
+}
+
+async function browseBehavior() {
+  const url = browseUrl;
+  const t0 = Date.now();
+  try {
+    const res = await fetch(`/__fetch?url=${encodeURIComponent(url)}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(`fetch_http_${res.status}`);
+    const data = await res.json();
+    const excerpt = String(data.text || "").slice(0, 600);
+    netLog.unshift({ url, ts: Date.now(), bytes: data.bytes || 0, excerpt });
+    netLog = netLog.slice(0, 50);
+    await kvBackend.put("net_log", netLog);
+    await appendEvent("behavior:browse", { url, bytes: data.bytes || 0, excerpt: excerpt.slice(0, 200) });
+    if (ledger) void ledger.record({ kind: "browse", ok: true, ms: Date.now() - t0, meta: { url } });
+    return { ok: true, kind: "network", url, excerpt };
+  } catch (err) {
+    if (ledger) void ledger.record({ kind: "browse", ok: false, ms: Date.now() - t0, error: err.message });
+    return { ok: false, reason: err.message };
+  }
+}
+
+async function runBehavior(behavior, { reason = "wake" } = {}) {
+  const at = Date.now();
+  let result;
+  if (behavior.kind === "travel") {
+    const r = await maybeOuting({ force: true });
+    result = { ok: !!r.ok, kind: "outing", detail: r.destination || null };
+  } else if (behavior.kind === "network") {
+    result = await browseBehavior();
+  } else {
+    life.applyMood(behavior.effects || {}, { source: "plot", reason: behavior.name });
+    patch({ life: life.snapshot() });
+    void sampleMood("plot", behavior.name);
+    await appendEvent("behavior:done", { id: behavior.id, name: behavior.name, kind: behavior.kind });
+    result = { ok: true, kind: behavior.kind };
+  }
+  behaviorLog.unshift({ id: behavior.id, name: behavior.name, kind: behavior.kind, at, ok: result.ok, reason });
+  behaviorLog = behaviorLog.slice(0, 50);
+  await kvBackend.put("behavior_log", behaviorLog);
+  patch({ behaviors: { count: behaviors.list().length, custom: behaviors.custom().length, recent: behaviorLog.slice(0, 5) } });
+  pushAgenda({
+    id: `behavior-${at.toString(36)}`,
+    kind: "behavior",
+    at,
+    status: result.ok ? "done" : "failed",
+    payload: { id: behavior.id, name: behavior.name, kind: behavior.kind, result },
+  });
+  scheduleDigest();
+  return result;
 }
 
 function moodView(limit = 120) {
@@ -697,6 +761,7 @@ function health() {
       : { tier: governor ? governor.tier : "P4", reasons: [], metrics: null },
     mood: moodSeries ? { ...moodSeries.stats(), band: life.snapshot().band, dims: life.snapshot().mood } : null,
     wake: wake ? wake.state : null,
+    behaviors: behaviors ? { count: behaviors.list().length, custom: behaviors.custom().length, recent: behaviorLog.slice(0, 5) } : null,
     observe: {
       stateLog: stateLog ? stateLog.stats() : null,
       ledger: ledger ? ledger.stats() : null,
@@ -1047,6 +1112,36 @@ const handlers = {
       await ledger.clear();
       return { ok: true, stateLog: stateLog.stats(), ledger: ledger.stats() };
     }
+    if (p.name === "behavior_list") {
+      patch({ behaviors: { count: behaviors.list().length, custom: behaviors.custom().length, recent: behaviorLog.slice(0, 5) } });
+      return { ok: true, behaviors: behaviors.list(), recent: behaviorLog.slice(0, 10) };
+    }
+    if (p.name === "behavior_register") {
+      const r = behaviors.register(p.args?.behavior || {});
+      if (r.ok) {
+        await kvBackend.put("behavior_pool", behaviors.custom());
+        scheduleDigest();
+      }
+      return r;
+    }
+    if (p.name === "behavior_remove") {
+      const ok = behaviors.remove(p.args?.id);
+      if (ok) await kvBackend.put("behavior_pool", behaviors.custom());
+      return { ok };
+    }
+    if (p.name === "behavior_run") {
+      const b = behaviors.get(p.args?.id);
+      if (!b) return { ok: false, reason: "not_found" };
+      return { ok: true, behavior: b.id, result: await runBehavior(b, { reason: "manual" }) };
+    }
+    if (p.name === "behavior_config") {
+      if (p.args?.browseUrl) browseUrl = String(p.args.browseUrl);
+      await kvBackend.put("behavior_config", { browseUrl });
+      return { ok: true, browseUrl };
+    }
+    if (p.name === "net_log") {
+      return { ok: true, log: netLog };
+    }
     if (p.name === "wake_tick") {
       const snap = life.snapshot();
       const r = await wake.tick({
@@ -1055,10 +1150,21 @@ const handlers = {
         text: p.args?.text || "",
       });
       if (r.kind === "bubble" && r.text) post("core:bubble", { text: r.text, ttl: 4000 });
+      let behavior = null;
+      if (r.kind !== "silent" && p.args?.behavior !== false) {
+        const picked = pickBehavior({
+          registry: behaviors,
+          now: Date.now(),
+          mood: snap.mood,
+          recent: behaviorLog,
+          network: true,
+        });
+        if (picked) behavior = { picked: picked.behavior.id, result: await runBehavior(picked.behavior, { reason: "wake" }) };
+      }
       await kvBackend.put("wake_state", wake.snapshot());
       await appendEvent(`wake:${r.kind}`, { source: r.source, reason: r.reason, text: r.text });
       patch({ wake: wake.state });
-      return { ok: true, ...r, state: wake.state };
+      return { ok: true, ...r, behavior, state: wake.state };
     }
     if (p.name === "wake_interaction") {
       wake.recordInteraction();
@@ -1068,6 +1174,12 @@ const handlers = {
     }
     if (p.name === "wake_response") {
       wake.recordResponse(!!p.args?.responded);
+      await kvBackend.put("wake_state", wake.snapshot());
+      patch({ wake: wake.state });
+      return { ok: true, state: wake.state };
+    }
+    if (p.name === "wake_reset") {
+      wake.restore({});
       await kvBackend.put("wake_state", wake.snapshot());
       patch({ wake: wake.state });
       return { ok: true, state: wake.state };
