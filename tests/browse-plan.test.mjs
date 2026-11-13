@@ -4,8 +4,10 @@ import assert from "node:assert/strict";
 import {
   createBrowsePlanner,
   DEFAULT_HOSTS,
+  pickSearchResult,
   targetUrl,
   validateBrowseTarget,
+  validatePublicUrl,
 } from "../www/js/core/actions/browse.js";
 import { createRegistryFromData } from "../www/js/core/agent/registry.js";
 
@@ -53,6 +55,22 @@ test("validateBrowseTarget：URL 安全与白名单", () => {
   assert.equal(validateBrowseTarget({ topic: "" }), "bad_topic");
 });
 
+test("validateBrowseTarget：query 自由搜索", () => {
+  assert.equal(validateBrowseTarget({ query: "北京 明天 天气" }), null);
+  assert.equal(validateBrowseTarget({ query: "" }), "bad_query");
+  assert.equal(validateBrowseTarget({ query: "x".repeat(81) }), "bad_query");
+});
+
+test("validatePublicUrl / pickSearchResult", () => {
+  assert.equal(validatePublicUrl("https://example.com/a"), null);
+  assert.equal(validatePublicUrl("http://127.0.0.1/a"), "private_host");
+  const picked = pickSearchResult([
+    { url: "http://10.0.0.1/x", title: "内网" },
+    { url: "https://example.com/ok", title: "可用" },
+  ]);
+  assert.equal(picked.url, "https://example.com/ok");
+});
+
 test("targetUrl：无 url 时拼 Bing 搜索", () => {
   assert.equal(targetUrl({ topic: "北京 天气" }), "https://cn.bing.com/search?q=%E5%8C%97%E4%BA%AC%20%E5%A4%A9%E6%B0%94");
   assert.equal(targetUrl({ url: "https://cn.bing.com/x" }), "https://cn.bing.com/x");
@@ -82,6 +100,17 @@ test("planner：非法域名/坏 JSON/LLM 失败", async () => {
 
   const fail = createBrowsePlanner({ llm: scripted([new Error("net")]), registry });
   assert.equal((await fail.plan()).reason, "llm_failed");
+});
+
+test("planner：query 模式交给搜索", async () => {
+  const p = createBrowsePlanner({
+    llm: scripted([JSON.stringify({ query: "北京 明天 天气", reason: "想知道带不带伞" })]),
+    registry,
+  });
+  const r = await p.plan();
+  assert.equal(r.ok, true);
+  assert.equal(r.mode, "search");
+  assert.equal(r.query, "北京 明天 天气");
 });
 
 test("planner：只给主题时生成搜索 URL", async () => {

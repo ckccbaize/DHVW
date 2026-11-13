@@ -147,8 +147,7 @@ const llm = http.createServer((req, res) => {
     console.log(`[fake-llm] ← ${req.headers.authorization || "no-auth"} ${body.slice(0, 120)}`);
     const content = body.includes("决定这次上网看什么")
       ? JSON.stringify({
-          topic: "北京天气",
-          url: "https://www.weather.com.cn/weather/101010100.shtml",
+          query: "北京 明天 天气",
           reason: "想知道明天要不要带伞",
         })
       : body.includes("写一条") && body.includes("心情变化")

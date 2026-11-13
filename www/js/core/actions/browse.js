@@ -20,8 +20,26 @@ function isPrivateHost(host) {
   return false;
 }
 
+export function validatePublicUrl(raw) {
+  let u;
+  try {
+    u = new URL(String(raw));
+  } catch {
+    return "bad_url";
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return "bad_scheme";
+  if (u.username || u.password) return "has_credentials";
+  if (isPrivateHost(u.hostname)) return "private_host";
+  return null;
+}
+
 export function validateBrowseTarget(obj, { hosts = DEFAULT_HOSTS } = {}) {
   if (!obj || typeof obj !== "object" || Array.isArray(obj)) return "not_object";
+  if (obj.query !== undefined) {
+    const q = String(obj.query).trim();
+    if (q.length < 2 || q.length > 80) return "bad_query";
+    return null;
+  }
   if (obj.url) {
     let u;
     try {
@@ -44,6 +62,20 @@ export function validateBrowseTarget(obj, { hosts = DEFAULT_HOSTS } = {}) {
 export function targetUrl({ topic = "", url = "" } = {}) {
   if (url) return url;
   return `https://cn.bing.com/search?q=${encodeURIComponent(topic)}`;
+}
+
+export async function searchBing(query, { fetchImpl = globalThis.fetch, n = 5 } = {}) {
+  const res = await fetchImpl(`/__search?q=${encodeURIComponent(query)}&n=${n}`, { cache: "no-store" });
+  if (!res.ok) return { ok: false, reason: `search_http_${res.status}`, results: [] };
+  const data = await res.json();
+  return { ok: true, query, results: data.results || [] };
+}
+
+export function pickSearchResult(results = []) {
+  for (const r of results) {
+    if (validatePublicUrl(r.url) === null) return r;
+  }
+  return null;
 }
 
 export function createBrowsePlanner({ llm, registry, hosts = DEFAULT_HOSTS, now = () => Date.now() } = {}) {
@@ -75,8 +107,18 @@ export function createBrowsePlanner({ llm, registry, hosts = DEFAULT_HOSTS, now 
     const obj = extractJson(res.text);
     const reason = obj ? validateBrowseTarget(obj, { hosts }) : "invalid_json";
     if (reason) return { ok: false, reason };
+    if (obj.query !== undefined) {
+      return {
+        ok: true,
+        mode: "search",
+        query: String(obj.query).trim(),
+        reason: String(obj.reason || "").trim(),
+        ts: now(),
+      };
+    }
     return {
       ok: true,
+      mode: "url",
       topic: String(obj.topic || "").trim(),
       url: targetUrl(obj),
       reason: String(obj.reason || "").trim(),

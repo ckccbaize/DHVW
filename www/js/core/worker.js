@@ -31,7 +31,7 @@ import { createBehaviorRegistry } from "./actions/registry.js";
 import { pickBehavior } from "./actions/plan.js";
 import { createWakeRuntime } from "./wake/runtime.js";
 import { createRecordAgent } from "./agent/subs/record.js";
-import { createBrowsePlanner } from "./actions/browse.js";
+import { createBrowsePlanner, searchBing, validatePublicUrl } from "./actions/browse.js";
 import { createBgAgent } from "./agent/subs/bg.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
 
@@ -472,6 +472,20 @@ async function writeDigest() {
   return d;
 }
 
+async function fetchPage(url) {
+  const t0 = Date.now();
+  try {
+    const res = await fetch(`/__fetch?url=${encodeURIComponent(url)}`, { cache: "no-store" });
+    if (!res.ok) return { ok: false, reason: `fetch_http_${res.status}`, ms: Date.now() - t0 };
+    const data = await res.json();
+    return { ok: true, data, ms: Date.now() - t0 };
+  } catch (err) {
+    return { ok: false, reason: err.message, ms: Date.now() - t0 };
+  }
+}
+
+const BOT_MARKERS = /安全校验|验证码|访问异常|人机验证|Just a moment/i;
+
 async function browseBehavior() {
   const t0 = Date.now();
   let plan = { ok: false };
@@ -482,37 +496,70 @@ async function browseBehavior() {
       mood: life.snapshot().mood,
     });
   }
-  const url = plan.ok ? plan.url : browseUrl;
-  try {
-    const res = await fetch(`/__fetch?url=${encodeURIComponent(url)}`, { cache: "no-store" });
-    if (!res.ok) throw new Error(`fetch_http_${res.status}`);
-    const data = await res.json();
-    const excerpt = String(data.text || "").slice(0, 600);
+
+  const candidates = [];
+  if (plan.ok && plan.mode === "search") {
+    const sr = await searchBing(plan.query);
+    for (const hit of sr.results.slice(0, 3)) {
+      if (validatePublicUrl(hit.url) !== null) continue;
+      candidates.push({ url: hit.url, topic: plan.query, reason: plan.reason, query: plan.query, resultTitle: hit.title, searchCount: sr.results.length });
+    }
+  } else if (plan.ok) {
+    candidates.push({ url: plan.url, topic: plan.topic || "", reason: plan.reason || "", query: "", resultTitle: "", searchCount: 0 });
+  }
+  if (!candidates.length) candidates.push({ url: browseUrl, topic: "", reason: "", query: "", resultTitle: "", searchCount: 0 });
+
+  const attempts = [];
+  for (const c of candidates) {
+    const r = await fetchPage(c.url);
+    if (!r.ok) {
+      attempts.push({ url: c.url, reason: r.reason });
+      continue;
+    }
+    const excerpt = String(r.data.text || "");
+    if (excerpt.length < 80 || BOT_MARKERS.test(excerpt)) {
+      attempts.push({ url: c.url, reason: excerpt.length < 80 ? "too_short" : "bot_check" });
+      continue;
+    }
     netLog.unshift({
-      url,
+      url: c.url,
       ts: Date.now(),
-      bytes: data.bytes || 0,
-      excerpt,
-      topic: plan.ok ? plan.topic : "",
-      reason: plan.ok ? plan.reason : "",
+      bytes: r.data.bytes || 0,
+      excerpt: excerpt.slice(0, 600),
+      topic: c.topic,
+      reason: c.reason,
       planned: plan.ok,
+      query: c.query,
+      resultTitle: c.resultTitle,
+      searchCount: c.searchCount,
+      attempts: attempts.length,
     });
     netLog = netLog.slice(0, 50);
     await kvBackend.put("net_log", netLog);
     await appendEvent("behavior:browse", {
-      url,
-      bytes: data.bytes || 0,
+      url: c.url,
+      bytes: r.data.bytes || 0,
       excerpt: excerpt.slice(0, 200),
-      topic: plan.ok ? plan.topic : "",
-      reason: plan.ok ? plan.reason : "",
+      topic: c.topic,
+      reason: c.reason,
       planned: plan.ok,
+      query: c.query,
+      resultTitle: c.resultTitle,
+      attempts: attempts.length,
     });
-    if (ledger) void ledger.record({ kind: "browse", ok: true, ms: Date.now() - t0, meta: { url, planned: plan.ok } });
-    return { ok: true, kind: "network", url, excerpt, plan: plan.ok ? { topic: plan.topic, reason: plan.reason } : null };
-  } catch (err) {
-    if (ledger) void ledger.record({ kind: "browse", ok: false, ms: Date.now() - t0, error: err.message });
-    return { ok: false, reason: err.message };
+    if (ledger) void ledger.record({ kind: "browse", ok: true, ms: Date.now() - t0, meta: { url: c.url, planned: plan.ok } });
+    return {
+      ok: true,
+      kind: "network",
+      url: c.url,
+      excerpt,
+      plan: plan.ok ? { mode: plan.mode, topic: c.topic, query: c.query, reason: c.reason } : null,
+      search: c.searchCount ? { count: c.searchCount, title: c.resultTitle } : null,
+      attempts,
+    };
   }
+  if (ledger) void ledger.record({ kind: "browse", ok: false, ms: Date.now() - t0, error: "no_usable_page" });
+  return { ok: false, reason: "no_usable_page", attempts };
 }
 
 async function runBehavior(behavior, { reason = "wake" } = {}) {

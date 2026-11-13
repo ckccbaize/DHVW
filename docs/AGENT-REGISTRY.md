@@ -149,10 +149,11 @@ createManagerAgent({ llm, registry, subAgents: { "plot-writer": (args) => plotAg
 
 `core/actions/browse.js`：
 
-- LLM 输出 `{topic, url, reason}`，只能给一个目标；
-- URL 必须 http(s)、无凭据、非内网、域名在白名单（天气/Bing/维基/新闻）；
-- 只给 topic 时拼 `https://cn.bing.com/search?q=...`；
-- 抓取结果写 `net_log`（含 topic/reason/planned），并进入行为留档。
+- LLM 输出 `{query, reason}` 或 `{topic, url, reason}`，只能给一个目标；
+- `query` 走 `/__search`（Bing HTML 解析，无 key），模型可自由决定搜索词；
+- 搜索结果逐个尝试，跳过内网/拦截页/过短正文，最多 3 个；
+- 直接给 URL 时必须 http(s)、无凭据、非内网、域名在白名单；
+- 抓取结果写 `net_log`（含 query/resultTitle/attempts），并进入行为留档。
 
 ## 11. 新增技能
 

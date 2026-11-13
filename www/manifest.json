@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T01:50:00.906Z",
+ "built_at": "2026-11-13T02:05:28.539Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -54,8 +54,8 @@
   },
   {
    "path": "js/core/actions/browse.js",
-   "size": 2985,
-   "sha256": "589d9b57280072beea4e33a20344a6455e5f6f47fb040eedf65fc5d8030fcd76"
+   "size": 4237,
+   "sha256": "db1008308832c6b10f26423a934a5ce00f99b3bed415013ccb0279c08ed50c87"
   },
   {
    "path": "js/core/actions/plan.js",
@@ -269,8 +269,8 @@
   },
   {
    "path": "js/core/worker.js",
-   "size": 55837,
-   "sha256": "7b4de6b9f6970291229864ca8efc513ec946e6efe031e9ce2e047c3c96586b20"
+   "size": 57529,
+   "sha256": "77dae733ce85a2a71eac295a2d6678df1a3187f6acb1398a1aa3d5e5511c7b20"
   },
   {
    "path": "js/forge/grammar.js",
