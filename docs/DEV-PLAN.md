@@ -79,7 +79,7 @@
 | W14 | 子 Agent：剧情 | `core/agent/subs/plot.js` + `subs/events.js` | 30–80 字、时间锚点、24h 去重；事件池可定时扩展 | W13 | **已有**（12 项测试 + 端到端实测） |
 | W15 | 子 Agent：背景 | `core/agent/subs/bg.js` | 960×540、非单色、体积达标 | W13 | **已有**（搜索/下载/裁切/压缩，实测 60KB） |
 | W16 | 子 Agent：地图 | `core/agent/subs/map.js` + `forge/layout.js`（像素绘制待 W31） | 生成合法 intGrid + 可渲染 | W13, W31 | **已有**（布局/intGrid/可达校验；调试页渲染） |
-| W17 | 资源治理与 24/7 | `core/governor.js`：内存水位、降频、息屏、看门狗 | 8h 不断档；水位超限按 P4→P3→P2 降级 | W10 |
+| W17 | 资源治理与 24/7 | `core/governor.js`：内存水位、降频、息屏、看门狗 | 8h 不断档；水位超限按 P4→P3→P2 降级 | W10 | **已有**（分级/闸门/看门狗；8h soak 待设备跑） |
 | W18 | 观测 | `state_log` / 任务账本 / `health` 字段 | 一条命令看到状态机+队列+预算+索引 | W17 |
 | W19 | 与 PC 同步 | 事件批、资产清单、记忆结果合并；`world:digest` 统一摘要 | 假 PC 收批、uuid 去重、重复不重复入 | W9, W5 | 摘要已有（`core/digest.js`） |
 

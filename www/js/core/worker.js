@@ -22,6 +22,7 @@ import { createEventPoolAgent } from "./agent/subs/events.js";
 import { planOuting, pickDestination, dateKey, SPECIAL_DATES } from "./life/outing.js";
 import { buildDigest, createDigestStore } from "./digest.js";
 import { generateMap } from "./agent/subs/map.js";
+import { allowedAt, checkWatchdog, createGovernor } from "./governor.js";
 import { createBgAgent } from "./agent/subs/bg.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
 
@@ -57,6 +58,7 @@ const state = {
 const logs = [];
 let startedAt = 0;
 let heartbeat = null;
+let governorTimer = null;
 let ticks = 0;
 let lastTickAt = 0;
 let eventLog = null;
@@ -87,6 +89,9 @@ let digestStore = null;
 let digestTimer = null;
 let lastDigestAt = 0;
 let generatedScenes = [];
+let governor = null;
+let governorLast = null;
+let lastHealthAt = Date.now();
 
 const PC_ACTIONS = new Set(["map.generate", "app.open", "media.play", "notify", "web.open"]);
 
@@ -216,6 +221,20 @@ const ready = (async () => {
   pcActions = (await kvBackend.get("pc_actions")) || [];
   generatedScenes = (await kvBackend.get("generated_scenes")) || [];
   digestStore = createDigestStore({ backend: kvBackend });
+  governor = createGovernor({
+    getMetrics: () => ({
+      heapRatio: heapRatio(),
+      eventCount: eventLog ? eventLog.stats.count : 0,
+      queue: scheduler ? scheduler.stats.queued : 0,
+    }),
+    onTier: (t) => {
+      governorLast = t;
+      log("info", "governor_tier", { tier: t.tier, reasons: t.reasons });
+      void appendEvent("governor:tier", { tier: t.tier, reasons: t.reasons, metrics: t.metrics });
+      scheduler.setSafeMode(t.tier === "P2");
+      patch({ governor: { tier: t.tier, reasons: t.reasons, metrics: t.metrics } });
+    },
+  });
   scheduler.register("event_pool", async () => {
     await refreshEventPool(6);
   });
@@ -247,6 +266,17 @@ const ready = (async () => {
   }, 30 * 60 * 1000);
   logStats = eventLog.stats;
 })();
+
+function heapRatio() {
+  const m = globalThis.performance?.memory;
+  return m && m.jsHeapSizeLimit ? m.usedJSHeapSize / m.jsHeapSizeLimit : 0;
+}
+
+function degraded(kind) {
+  if (!governor) return null;
+  if (allowedAt(governor.tier, kind)) return null;
+  return { ok: false, reason: `degraded:${governor.tier}` };
+}
 
 function pushAgenda(entry) {
   agenda.unshift(entry);
@@ -301,6 +331,9 @@ async function writeDigest() {
     outing: outingView(),
     digest: { ts: lastDigestAt, agenda: agenda.length, scenes: sceneRequests.length, pcActions: pcActions.length },
     map: { scenes: generatedScenes.length, last: generatedScenes[0]?.name || null },
+    governor: governorLast
+      ? { tier: governorLast.tier, reasons: governorLast.reasons, metrics: governorLast.metrics }
+      : { tier: governor ? governor.tier : "P4", reasons: [], metrics: null },
     lastPlot: await kvBackend.get("last_plot"),
   });
   await digestStore.save(d);
@@ -556,6 +589,9 @@ function health() {
     outing: outingView(),
     digest: { ts: lastDigestAt, agenda: agenda.length, scenes: sceneRequests.length, pcActions: pcActions.length },
     map: { scenes: generatedScenes.length, last: generatedScenes[0]?.name || null },
+    governor: governorLast
+      ? { tier: governorLast.tier, reasons: governorLast.reasons, metrics: governorLast.metrics }
+      : { tier: governor ? governor.tier : "P4", reasons: [], metrics: null },
     life: life.snapshot(),
     log: { ...logStats },
     doctor: state.doctor,
@@ -565,7 +601,19 @@ function health() {
 
 function startHeartbeat() {
   clearInterval(heartbeat);
-  heartbeat = setInterval(() => post("core:health", health()), 5000);
+  heartbeat = setInterval(() => {
+    lastHealthAt = Date.now();
+    post("core:health", health());
+  }, 5000);
+  clearInterval(governorTimer);
+  governorTimer = setInterval(() => {
+    if (governor) governorLast = governor.check();
+    const w = checkWatchdog({ lastBeatAt: lastHealthAt, now: Date.now(), timeoutMs: 30000 });
+    if (w.stale) {
+      log("warn", "watchdog_stall", w);
+      lastHealthAt = Date.now();
+    }
+  }, 30000);
 }
 
 function dispatchWorld(event) {
@@ -738,6 +786,8 @@ const handlers = {
       return { ok: true, skills: agentRegistry ? agentRegistry.list() : [], stats: agentRegistry.stats() };
     }
     if (p.name === "agent_run") {
+      const blocked = degraded("plot");
+      if (blocked) return blocked;
       const r = await manager.run(p.args?.intent, p.args?.ctx || {});
       return { ...r };
     }
@@ -794,6 +844,8 @@ const handlers = {
       return { ...r, life: life.snapshot() };
     }
     if (p.name === "map_generate") {
+      const blocked = degraded("plot");
+      if (blocked) return blocked;
       const r = generateMap({ mapSpec: p.args?.mapSpec || {}, seed: p.args?.seed, w: p.args?.w, h: p.args?.h });
       if (r.ok) {
         generatedScenes.unshift({ ...r.scene, ts: Date.now() });
@@ -818,6 +870,18 @@ const handlers = {
     }
     if (p.name === "map_scenes") {
       return { ok: true, scenes: generatedScenes.map(({ intGrid, ...rest }) => rest) };
+    }
+    if (p.name === "governor_check") {
+      const r = governor.check();
+      governorLast = r;
+      patch({ governor: { tier: r.tier, reasons: r.reasons, metrics: r.metrics } });
+      return { ok: true, ...r };
+    }
+    if (p.name === "governor_reset") {
+      governor.reset();
+      scheduler.setSafeMode(false);
+      governorLast = null;
+      return { ok: true, tier: governor.tier };
     }
     if (p.name === "digest_get") {
       return { ok: true, digest: await writeDigest() };
@@ -863,6 +927,8 @@ const handlers = {
       return { ok: true, outing: outingView() };
     }
     if (p.name === "event_pool_refresh") {
+      const blocked = degraded("event_pool");
+      if (blocked) return blocked;
       return await refreshEventPool(p.args?.count || 6);
     }
     if (p.name === "event_pool_list") {
@@ -884,6 +950,8 @@ const handlers = {
       return await bgAgent.search(p.args?.query, { n: p.args?.n, provider: p.args?.provider });
     }
     if (p.name === "bg_prepare") {
+      const blocked = degraded("bg");
+      if (blocked) return blocked;
       const r = await bgAgent.prepare(p.args?.url);
       if (r.ok) {
         const { bytes, ...meta } = r;
@@ -895,6 +963,8 @@ const handlers = {
       return rest;
     }
     if (p.name === "bg_generate") {
+      const blocked = degraded("bg");
+      if (blocked) return blocked;
       const r = await bgAgent.generate(p.args?.query, { n: p.args?.n, provider: p.args?.provider });
       if (r.ok) {
         const { bytes, ...meta } = r;
