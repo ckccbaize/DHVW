@@ -230,7 +230,7 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 - **落盘**：事件进 `data/life.db`（`uuid` 幂等，重复批次不重复入库），摘要原子写 `data/digest.json`，心情与记忆进 `data/memory.db`。
 - **记忆检索**：SQLite FTS5 + **二元组**索引（`"京 都 的 枫 叶"` 形式），2 字中文查询可命中；`fts5(tokenize='trigram')` 对 2 字中文零命中，不用。索引与正文行数不符时自动重建。
 - **显现闸门**：`present:request` 在 TTS 未就绪时回 `present:deny{reason}`；`present:begin/end` 把 `tier` 切到 `host`/`idle`。TTS 就绪状态由外壳随配置一起下发（见下）。
-- **动作白名单**：`web.open` / `media.play` / `app.open` 可执行；`map.generate` 交给场景作业（见下节），提交成功即回 `{job,dir}`；`notify` **未接线**，返回 `ok:false` + 中文原因，不假装成功。
+- **动作白名单**：`web.open` / `media.play` / `app.open` / `map.generate` 可执行（`map.generate` 交给场景作业，见下节，提交成功即回 `{job,dir}`）；`notify` **未接线**，返回 `ok:false` + 中文原因，不假装成功。
 - **显示态下行**：`POST /dhvw/display {state:"overview"|"present"}` → 广播 `display:set {state,t_server}`，返回 `{delivered}`；设备未连接时 `ok:false`。这是对设备契约的**新增消息**，固件未实现前只会有投递、没有效果，前端按 6 s 无确认如实提示。
 - **配置来源**：外壳持有解密后的 API Key（DPAPI），启动、设置保存、密钥保存、worker 健康变化以及每分钟一次，向 `POST http://127.0.0.1:8877/dhvw/config` 回环下发 `{tts,live2d,llm:{baseUrl,model,apiKey}}`；`llm` 变化即时以 `llm:config` 转给设备。Python 服务不碰 safeStorage。
 - **界面**：世界状态在两处出现——首页舞台的「总观」与配置页的「世界」卡片。数据由主进程 `dhvw:world` 汇总 `GET /health` + `/dhvw/digest` + `/dhvw/mood`，`dhvw:stats` 另取 `/dhvw/stats`，均 2 s 刷新；编排器没起来显示「编排器未运行」，设备断开显示「编排器在线 · 无设备」（此时摘要仍是上一次的）。
@@ -241,7 +241,7 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 
 ```bash
 cd apps/shell
-npm run test:dhvw          # 直连 8877 的假设备，29 项断言
+npm run test:dhvw          # 直连 8877 的假设备，33 项断言
 npm run test:dhvw -- --wss # 同一套断言走网关 wss://127.0.0.1:8443/ws/orchestrator?token=…
 ```
 
@@ -253,10 +253,11 @@ npm run test:dhvw -- --wss # 同一套断言走网关 wss://127.0.0.1:8443/ws/or
 
 链路在 `services/orchestrator/dhvw_orchestrator/scene.py`：
 
-1. `POST /dhvw/scene {kind,name,seed,distance,note}` → 建工作目录 `%APPDATA%/DigitalHuman/data/scenes/<id>/`（`GET /dhvw/scenes` 查任务表）。
+1. 两条入口：GUI 的 `POST /dhvw/scene {kind,name,seed,distance,note}`；设备摘要里的 `sceneRequests`（`status:"pending"` + `mapSpec`）由编排器在每次 `world:digest` 后自动受理。都建工作目录 `%APPDATA%/DigitalHuman/data/scenes/<id>/`（`GET /dhvw/scenes` 查任务表与请求账本 `requests`）。
 2. 编排器以 **pi CLI** 拉起 agent：`pi -p --mode json --provider dhvw --model <settings.model> --skill <toolchain>/docs/MAP-SCENE-DESIGN.md`，`HOME`/`USERPROFILE` 指向 `data/agent-home`（隔离，不污染用户自己的 `~/.pi`），`.pi/agent/models.json` 由编排器按当前设置的 `baseUrl/apiKey/model` 生成（`compat.supportsDeveloperRole/supportsReasoningEffort=false`）。
-3. agent 写 `<id>.map.json` 并跑 `paint_home.py` → `pack_scene.py` → `validate_scene.py`；编排器随后**自己再跑一次** `validate_scene.py` 作为收包闸门，通过才发 `scene:ready {id,path,name}` 给设备。
+3. agent 写 `<id>.map.json` 并跑 `paint_home.py` → `pack_scene.py` → `validate_scene.py`；编排器随后**自己再跑一次** `validate_scene.py` 作为收包闸门，通过才发 `scene:ready {id,job,path,name}` 给设备——`id` 是设备那条 `sceneRequests` 的 id（PC 直接提交的任务用作业 id 兜底）。
 4. 判定只看闸门：agent 进程退出码非 0 但产物齐全且校验通过时，任务标「已完成（有告警）」，告警原样显示在 Agent 页。
+5. 幂等与重试：设备每 5 s 重发摘要，同一条 `sceneRequests` 只受理一次（账本落 `kv.scene_requests`，重启仍在）；失败**不自动重试**（避免坏 spec 反复烧 token），要重试走 `POST /dhvw/scene/retry {id}`，它按当前摘要里的 `mapSpec` 重提一条。
 
 前置条件（缺任一都在提交时显式失败，不产占位包）：
 

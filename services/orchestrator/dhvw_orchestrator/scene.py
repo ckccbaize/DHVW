@@ -8,7 +8,7 @@
                      ─► pi -p --skill docs/MAP-SCENE-DESIGN.md（HOME 隔离，写入 models.json）
                      ─► agent 写 <id>.map.json 并跑 paint_home / pack_scene / validate_scene
                      ─► 编排器自己再跑一次 validate_scene.py 作为收包闸门
-                     ─► 通过则向设备发 scene:ready {id}
+                     ─► 通过则向设备发 scene:ready {id}（id 是设备的 sceneRequests 条目 id）
 任何一步缺失（pi 不在、缺 PIL、缺工具链、LLM 未配置）都显式失败，不产占位包。
 """
 
@@ -117,7 +117,11 @@ class SceneRunner:
         self.push = push
         self.llm: dict[str, Any] = {}
         self.jobs: dict[str, dict[str, Any]] = {}
+        # 设备的 sceneRequests 条目 -> 作业映射。设备每个 digest 会重复报同一条 pending，
+        # 靠这本账目做幂等：一个请求只生成一次，不论成功失败。
+        self.requests: dict[str, dict[str, Any]] = self.store.get_kv("scene_requests", {}) or {}
         self._load()
+        self._save_requests()
 
     # ---------- 持久化：重启后任务表仍在，running 视为 failed ----------
     def _load(self) -> None:
@@ -127,11 +131,41 @@ class SceneRunner:
                 if isinstance(job, dict) and job.get("id"):
                     if job.get("state") in ("queued", "running"):
                         job["state"] = "failed"
+                        job["stage"] = "失败（重启中断）"
+                        job["finishedAt"] = job.get("finishedAt") or int(time.time() * 1000)
                         job["error"] = "编排器重启，任务中断"
+                        rid = job.get("request")
+                        if rid:
+                            # 账本不能停在 running，否则界面显示「生成中」而作业早已中断
+                            self.requests[rid] = {
+                                **self.requests.get(rid, {}),
+                                "state": "failed",
+                                "job": job["id"],
+                                "reason": "编排器重启，任务中断",
+                                "ts": int(time.time() * 1000),
+                            }
+                    if job.get("state") == "failed" and str(job.get("error") or "").startswith("编排器重启"):
+                        job["stage"] = "失败（重启中断）"
                     self.jobs[job["id"]] = job
 
     def _save(self) -> None:
         self.store.put_kv("scene_jobs", list(self.jobs.values())[-50:])
+
+    def _save_requests(self) -> None:
+        # 只留最近 100 条，避免账本无限长
+        if len(self.requests) > 100:
+            keep = sorted(self.requests.items(), key=lambda kv: kv[1].get("ts", 0), reverse=True)[:100]
+            self.requests = dict(keep)
+        self.store.put_kv("scene_requests", self.requests)
+
+    def list_requests(self) -> list[dict[str, Any]]:
+        return [
+            {"id": rid, **info}
+            for rid, info in sorted(self.requests.items(), key=lambda kv: kv[1].get("ts", 0), reverse=True)
+        ]
+
+    def request_state(self, rid: str) -> dict[str, Any] | None:
+        return self.requests.get(rid)
 
     def list_jobs(self) -> list[dict[str, Any]]:
         return [public(j) for j in sorted(self.jobs.values(), key=lambda j: j.get("startedAt", 0), reverse=True)]
@@ -186,6 +220,40 @@ class SceneRunner:
         job["_pi"] = pi
         job["_python"] = py
         return job, None
+
+    def submit_request(self, request: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
+        """设备侧 sceneRequests 的一条 pending → 作业。同一条请求只处理一次。"""
+        rid = str(request.get("id") or "").strip()
+        if not rid:
+            return None, "sceneRequest 缺 id"
+        seen = self.requests.get(rid)
+        if seen:
+            return None, f"该请求已处理（{seen.get('state')}）"
+        spec = request.get("mapSpec") if isinstance(request.get("mapSpec"), dict) else {}
+        if not spec:
+            self.requests[rid] = {"state": "failed", "reason": "缺少 mapSpec", "ts": int(time.time() * 1000)}
+            self._save_requests()
+            return None, "缺少 mapSpec"
+        merged = {**spec}
+        reason = str(request.get("reason") or "").strip()
+        if reason:
+            merged["note"] = f"设备请求原因：{reason}"[:200]
+        job, err = self.submit(merged)
+        if job is None:
+            self.requests[rid] = {"state": "failed", "reason": err, "ts": int(time.time() * 1000)}
+            self._save_requests()
+            return None, err
+        job["request"] = rid
+        self.requests[rid] = {"state": "running", "job": job["id"], "ts": int(time.time() * 1000)}
+        self._save_requests()
+        return job, None
+
+    def mark_request(self, rid: str, state: str, **extra: Any) -> None:
+        if not rid:
+            return
+        entry = {**self.requests.get(rid, {}), "state": state, "ts": int(time.time() * 1000), **extra}
+        self.requests[rid] = entry
+        self._save_requests()
 
     async def run(self, job: dict[str, Any]) -> None:
         job_id = job["id"]
@@ -274,7 +342,12 @@ class SceneRunner:
             job["error"] = None
             job["warnings"] = warnings or None
             self._save()
-            await self.push("scene:ready", {"id": job_id, "path": str(workdir), "name": job["name"]})
+            self.mark_request(job.get("request") or "", "done", job=job_id)
+            # 设备的 sceneRequests 以它自己的 id 为准；纯 PC 提交的任务用作业 id 兜底
+            await self.push(
+                "scene:ready",
+                {"id": job.get("request") or job_id, "job": job_id, "path": str(workdir), "name": job["name"]},
+            )
         except Exception as err:  # 任何失败都如实记录，不留占位
             import traceback
 
@@ -286,6 +359,7 @@ class SceneRunner:
             from .__main__ import log
 
             log("error", "场景作业失败", job=job_id, error=str(err), trace=traceback.format_exc()[-1500:])
+            self.mark_request(job.get("request") or "", "failed", job=job_id, reason=str(err)[:300])
             self._save()
 
     async def _run_script(self, py: str, script: Path, workdir: Path) -> tuple[int, str]:

@@ -17,9 +17,9 @@ APPS = {
     "notepad": "notepad.exe",
 }
 
+# map.generate 由编排器直接交给场景作业（见 __main__.run_action），不走这里
 UNSUPPORTED = {
     "notify": "系统通知需要外壳窗口，暂未接线",
-    "map.generate": "场景像素生成管线未接（PC 侧待做，见 docs/ARM-CORE-INTEGRATION.md §3.3）",
 }
 
 
@@ -74,4 +74,8 @@ def run(action: str, args: dict) -> tuple[bool, dict]:
 
 
 def describe() -> dict:
-    return {"supported": ["web.open", "media.play", "app.open"], "unsupported": UNSUPPORTED, "env": sys.platform}
+    return {
+        "supported": ["web.open", "media.play", "app.open", "map.generate"],
+        "unsupported": UNSUPPORTED,
+        "env": sys.platform,
+    }

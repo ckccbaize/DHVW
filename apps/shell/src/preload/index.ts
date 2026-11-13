@@ -9,6 +9,7 @@ import type {
   LlmProtocol,
   SettingsPatch,
   SceneJobView,
+  SceneRequestView,
   SettingsView,
   StatsView,
   WorldView,
@@ -43,7 +44,7 @@ const api = {
     state: 'overview' | 'present',
   ): Promise<{ ok: boolean; delivered?: number; state?: string; error?: string }> =>
     ipcRenderer.invoke('dhvw:setDisplay', state),
-  scenes: (): Promise<{ reachable: boolean; jobs: SceneJobView[]; error?: string }> =>
+  scenes: (): Promise<{ reachable: boolean; jobs: SceneJobView[]; requests: SceneRequestView[]; error?: string }> =>
     ipcRenderer.invoke('dhvw:scenes'),
   sceneGenerate: (spec: {
     kind?: string
@@ -52,6 +53,8 @@ const api = {
     distance?: number
     note?: string
   }): Promise<{ ok: boolean; job?: SceneJobView; error?: string }> => ipcRenderer.invoke('dhvw:sceneGenerate', spec),
+  sceneRetry: (id: string): Promise<{ ok: boolean; job?: string; error?: string }> =>
+    ipcRenderer.invoke('dhvw:sceneRetry', id),
   setBoost: (enabled: boolean): Promise<{ ok: boolean; settings?: SettingsView }> =>
     ipcRenderer.invoke('dhvw:setBoost', enabled),
   gatewayPair: (): Promise<{ code: string; expiresAt: number } | null> => ipcRenderer.invoke('dhvw:gatewayPair'),

@@ -87,6 +87,8 @@ PC 端“完成”= 下列全部成立，缺一不算：
 | PCM7 | 桥接与接管 | BRIDGE / DESK | PCM4 | Stub 契约稳定；接管零冲突 |
 | PCM8 | 硬化 | SUP / OBS 收口 | 全部 | 72 h 长稳、冷启动、断网恢复达标 |
 
+> 进展（2026-11-13，设备场景请求闭环）：`world:digest` 里的 `sceneRequests`（`pending` + `mapSpec`）现在由编排器自动受理成场景作业，账本落 `kv.scene_requests` 做幂等（设备每 5 s 重发不重复生成），通过闸门后发 `scene:ready {id}`，`id` 用设备请求 id；失败不自动重试，`POST /dhvw/scene/retry {id}` 手动重提。`GET /dhvw/scenes` 增 `requests` 账本；`pc:action` 的 `map.generate` 从「未接线」改为转场景作业。实测：缺 `mapSpec` 的请求只受理一次并显式失败；`/dhvw/scene/retry` 能重提被中断的请求；编排器重启时账本与作业一起翻成 failed（不再显示「生成中」）。
+>
 > 进展（2026-11-13，舞台改自建 Live2D）：首页舞台不再嵌 OLVT 页面，改为自建页面 + 本地静态服务（pixi6 + pixi-live2d-display + cubism4 core + `mao_pro` 模型，随包 9.7 MB），角色常驻显示、idle 循环、鼠标跟随；页面骨架实测加载成功（1020/640 截图确认）。总观/显现改为设备侧二切：新增 `POST /dhvw/display` → `display:set`，以 `digest.world.display` 为唯一确认，6 s 未变化提示「设备未确认」，无设备时报「设备未连接」（假设备回环实测确认路径）。六档布局审计全绿； 扩到 29 项（新增 display:set 投递/载荷/非法态三条），直连与  均通过。
 >
 > 进展（2026-11-13，三页 + 场景作业）：GUI 重组为「首页 / Agent / 配置」——首页舞台支持 `总观 / 显现` 二切（显现为 OLVT iframe 的 Live2D，未就绪给明确文案）、世界模式增强开关（界面态 + 落 `config.db`，尚无生产行为）、ARM 状态机统计表（`GET /dhvw/stats`：device/digest 计数、档位迁移、近 24 h 事件、记忆、uptime）；配置页保留原全部面板。地图生成接入 **pi CLI + `MAP-SCENE-DESIGN` skill**：`POST /dhvw/scene` / `GET /dhvw/scenes`、`map.generate` 同源，输出 `data/scenes/<id>/` 场景包并以复跑 `validate_scene.py` 为唯一闸门，通过后发 `scene:ready`。实测三张场景包（8×7 书房、20×6 街道、4×4 单间）全部过闸，单任务 3–4 分钟。六档布局审计通过；`test:dhvw` 扩到 26 项（直连与 `--wss` 均通过）。未完成：embedding（`semantic=false`）、`sceneRequests` 队列消费（设备侧触发链路）、场景工具链的发行期分发策略。
@@ -119,6 +121,10 @@ PC 端“完成”= 下列全部成立，缺一不算：
 | GET | `/health` | 局域网 | `{ok,service,version,pid,uptime,device:{connected,id,tier},digest_ts,memory}` |
 | GET | `/dhvw/digest` | 127.0.0.1 | 最近一次 `world:digest` 原文；`digest_ts` 同时落 `data/digest.json` |
 | GET | `/dhvw/mood` | 127.0.0.1 | 最近一次 `mood:state` |
+| GET | `/dhvw/scenes` | 127.0.0.1 | 场景任务表 + 设备 `sceneRequests` 请求账本（`requests[{id,state,job,reason}]`） |
+| POST | `/dhvw/scene` | 127.0.0.1 | 直接提交一个场景作业 `{kind,name,seed,distance,note}` |
+| POST | `/dhvw/scene/retry` | 127.0.0.1 | `{id}` 重提一条设备场景请求（按当前摘要的 `mapSpec`） |
+| POST | `/dhvw/display` | 127.0.0.1 | 设备显示态二切，广播 `display:set {state,t_server}`，返回 `{delivered}` |
 | GET | `/dhvw/events?limit=` | 127.0.0.1 | 最近事件（按插入倒序），验收与 GUI 用 |
 | GET | `/dhvw/actions` | 127.0.0.1 | 动作执行记录（`pc:action` 的 ok/reason/耗时） |
 | POST | `/dhvw/facts` | 127.0.0.1 | PC 侧写入事实（`src=pc`），随即按增量回流设备；返回 `{ok,accepted,merged,rejected,pushed}` |
@@ -129,11 +135,11 @@ PC 端“完成”= 下列全部成立，缺一不算：
 - `hello` → 回 `hello`（带 `t_server` 校时）；连上即主动发 `digest:get`、`mood:get`，有 LLM 配置时补 `llm:config`。
 - `heartbeat` → 更新在线与 `tier`；>60 s 无心跳判离线并回 `tier: idle`。
 - `events:batch` → 按 `uuid` 幂等入库（`life.db` 的 `events`），回 `events:ack{seq,inserted,duplicated}`；重复批次不重复入库。
-- `world:digest` → 原子写 `data/digest.json` 并留最近一份内存快照。
+- `world:digest` → 原子写 `data/digest.json` 并留最近一份内存快照；随后消费 `sceneRequests` 里 `status:"pending"` 的条目（同 id 只受理一次，账本落 `kv.scene_requests`），生成通过闸门后回 `scene:ready {id}`（id 即请求 id）。
 - `mood:state` → 落库并留快照。
 - `facts:candidates` / `memory:push` → `memory.db`（`mem_meta` + `mem_fts`，中文按二元组建索引），同文本 LWW 合并，回 `facts:ack{accepted,merged,rejected}`。当前 `semantic=false`（无随包 embedding 模型）。
 - `memory:query` → `memory:result{req_id,hits,semantic:false}`，`req_id` 原样带回。
-- `pc:action` → 白名单 `web.open` / `media.play` / `app.open`；`notify`、`map.generate` 未接线，回 `ok:false` + 中文原因。
+- `pc:action` → 白名单 `web.open` / `media.play` / `app.open` / `map.generate`（后者转场景作业，受理即回 `{job,dir}`）；`notify` 未接线，回 `ok:false` + 中文原因。
 - `present:request` → `present:grant` / `present:deny{reason}`（`tts_ready=false` 时拒绝）。
 - `present:begin` / `present:end` → 切 `tier` 为 `host` / `idle`。
 

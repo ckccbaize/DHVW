@@ -176,6 +176,15 @@ export interface SceneJobView {
   logTail?: string
 }
 
+/** 设备摘要里 sceneRequests 的一条在 PC 侧的受理状态（账本 kv.scene_requests） */
+export interface SceneRequestView {
+  id: string
+  state: SceneState
+  job?: string
+  reason?: string
+  ts: number
+}
+
 export interface ActionRequest {
   id: string
   action: 'start' | 'stop' | 'restart'

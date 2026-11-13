@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import type { SceneJobView } from '../../shared/types'
+import type { SceneJobView, SceneRequestView } from '../../shared/types'
 
 const KINDS = [
   { value: 'home', label: '家（室内）' },
@@ -27,6 +27,8 @@ export function AgentView(): React.ReactElement {
   const [distance, setDistance] = useState('')
   const [note, setNote] = useState('')
   const [jobs, setJobs] = useState<SceneJobView[]>([])
+  const [requests, setRequests] = useState<SceneRequestView[]>([])
+  const [retryError, setRetryError] = useState<string | null>(null)
   const [reachable, setReachable] = useState(false)
   const [listError, setListError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -38,6 +40,7 @@ export function AgentView(): React.ReactElement {
     setReachable(res.reachable)
     setListError(res.error ?? null)
     setJobs(res.jobs)
+    setRequests(res.requests ?? [])
   }, [])
 
   useEffect(() => {
@@ -45,6 +48,13 @@ export function AgentView(): React.ReactElement {
     const timer = setInterval(() => void refresh(), 2000)
     return () => clearInterval(timer)
   }, [refresh])
+
+  const retry = async (id: string): Promise<void> => {
+    setRetryError(null)
+    const res = await window.dhvw.sceneRetry(id)
+    if (!res.ok) setRetryError(`${id}：${res.error ?? '重试失败'}`)
+    await refresh()
+  }
 
   const submit = async (): Promise<void> => {
     setBusy(true)
@@ -120,6 +130,31 @@ export function AgentView(): React.ReactElement {
           </button>
           <button onClick={() => void refresh()}>刷新任务</button>
         </div>
+      </section>
+
+      <section className="panel agent-requests">
+        <h2>
+          设备场景请求
+          <span className="pill mono">{requests.length} 条</span>
+        </h2>
+        <p className="hint">设备摘要里的 sceneRequests：每条只受理一次，失败不自动重试。</p>
+        {retryError && <p className="msg bad">{retryError}</p>}
+        {requests.length === 0 && <div className="empty">设备还没有提出场景请求</div>}
+        {requests.map((r) => (
+          <div className={`job ${r.state}`} key={r.id}>
+            <div className="job-head">
+              <span className="job-name mono">{r.id}</span>
+              <span className={`pill ${r.state === 'done' ? 'ok' : r.state === 'failed' ? 'bad' : ''}`}>
+                {STATE_TEXT[r.state] ?? r.state}
+              </span>
+              {r.job && <span className="job-meta mono">作业 {r.job}</span>}
+              <button disabled={r.state === 'running' || r.state === 'queued'} onClick={() => void retry(r.id)}>
+                重试
+              </button>
+            </div>
+            {r.reason && <div className="comp-err">{r.reason}</div>}
+          </div>
+        ))}
       </section>
 
       <section className="panel agent-jobs">

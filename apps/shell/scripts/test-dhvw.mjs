@@ -239,6 +239,38 @@ const badDisp = await fetch(`${BASE}/dhvw/display`, {
 })
 check('非法显示态被拒', badDisp.status === 400)
 
+// 11) 设备 sceneRequests 消费：同一条 pending 只处理一次；缺 mapSpec 显式失败
+const reqId = `scene-test-${Date.now()}`
+const digestWith = (requests) =>
+  send('world:digest', {
+    digest: {
+      ts: Date.now(),
+      seq: Math.floor(Date.now() / 1000),
+      clock: { day: '2026-11-13', minute: 540, phase: 'morning' },
+      world: { display: 'overview', conn: 'up', tier: 'idle' },
+      agenda: [],
+      sceneRequests: requests,
+      pcActions: [],
+      recentEvents: [],
+    },
+  })
+const badReq = [{ id: reqId, reason: 'test', status: 'pending' }]
+digestWith(badReq)
+await new Promise((r) => setTimeout(r, 600))
+digestWith(badReq)
+await new Promise((r) => setTimeout(r, 600))
+const reqs = (await (await fetch(`${BASE}/dhvw/scenes`)).json()).requests ?? []
+const mine = reqs.filter((r) => r.id === reqId)
+check('pending sceneRequest 被受理一次', mine.length === 1 && mine[0].state === 'failed', JSON.stringify(mine[0] ?? null))
+check('缺 mapSpec 显式失败', /mapSpec/.test(mine[0]?.reason ?? ''))
+
+const retryMissing = await (await fetch(`${BASE}/dhvw/scene/retry`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ id: 'scene-does-not-exist' }),
+})).json()
+check('重试不存在的请求明确失败', retryMissing.ok === false && Boolean(retryMissing.error), JSON.stringify(retryMissing))
+
 const scenes = await (await fetch(`${BASE}/dhvw/scenes`)).json()
 check('场景任务表可读', scenes.ok === true && Array.isArray(scenes.jobs))
 

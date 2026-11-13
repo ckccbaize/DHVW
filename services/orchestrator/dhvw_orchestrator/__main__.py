@@ -142,6 +142,28 @@ class Orchestrator:
         log("info", "记忆回流下发", count=len(facts), since=since)
         return len(facts)
 
+    async def consume_scene_requests(self) -> None:
+        """设备 digest 里的 pending sceneRequests → 场景作业；同一 id 只做一次。
+
+        设备每 5 s 重发摘要，pending 会反复出现；幂等靠 SceneRunner 的请求账本，
+        失败也不自动重试（避免坏 spec 无限烧 token），重试走 /dhvw/scene/retry。
+        """
+        items = (self.digest or {}).get("sceneRequests")
+        if not isinstance(items, list):
+            return
+        for req in items:
+            if not isinstance(req, dict) or str(req.get("status") or "") != "pending":
+                continue
+            rid = str(req.get("id") or "")
+            if not rid or self.scenes.request_state(rid):
+                continue
+            job, err = self.scenes.submit_request(req)
+            if job is None:
+                log("warn", "场景请求未受理", request=rid, reason=err)
+                continue
+            log("info", "受理设备场景请求", request=rid, job=job["id"], kind=job["kind"])
+            asyncio.create_task(self.scenes.run(job))
+
     async def set_tier(self, value: str) -> None:
         if value == self.tier:
             return
@@ -246,9 +268,7 @@ class Orchestrator:
             if isinstance(digest, dict):
                 self.digest = digest
                 self.store.write_digest(digest)
-                pending = [s for s in digest.get("sceneRequests") or [] if s.get("status") == "pending"]
-                if pending:
-                    log("warn", "有待生成的场景请求", count=len(pending), ids=[s.get("id") for s in pending])
+                await self.consume_scene_requests()
             return
 
         if type_ == "mood:state":
@@ -437,7 +457,31 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
 
     @app.get("/dhvw/scenes")
     async def scenes_list() -> JSONResponse:
-        return JSONResponse({"ok": True, "jobs": orch.scenes.list_jobs()})
+        return JSONResponse(
+            {"ok": True, "jobs": orch.scenes.list_jobs(), "requests": orch.scenes.list_requests()}
+        )
+
+    @app.post("/dhvw/scene/retry")
+    async def scene_retry(request: Request) -> JSONResponse:
+        """重试一条设备场景请求：丢掉旧账本条目后按摘要里的 mapSpec 重提。"""
+        body = await request.json()
+        rid = str((body or {}).get("id") or "").strip() if isinstance(body, dict) else ""
+        if not rid:
+            return JSONResponse({"ok": False, "error": "缺 id"}, status_code=400)
+        items = (orch.digest or {}).get("sceneRequests")
+        req = next(
+            (i for i in items or [] if isinstance(i, dict) and str(i.get("id") or "") == rid),
+            None,
+        )
+        if req is None:
+            return JSONResponse({"ok": False, "error": "当前摘要里没有这条 sceneRequest"})
+        orch.scenes.requests.pop(rid, None)
+        job, reason = orch.scenes.submit_request(req)
+        if job is None:
+            return JSONResponse({"ok": False, "error": reason})
+        asyncio.create_task(orch.scenes.run(job))
+        log("info", "重试场景请求", request=rid, job=job["id"])
+        return JSONResponse({"ok": True, "job": job["id"], "request": rid})
 
     @app.post("/dhvw/scene")
     async def scene_create(request: Request) -> JSONResponse:

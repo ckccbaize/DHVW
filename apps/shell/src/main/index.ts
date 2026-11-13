@@ -13,6 +13,7 @@ import type {
   ServiceDef,
   SettingsPatch,
   SceneJobView,
+  SceneRequestView,
   SettingsView,
   StatsView,
   WorkTier,
@@ -213,15 +214,40 @@ async function setDisplay(
 }
 
 /** 场景任务列表：编排器不可达时返回空表并带上原因 */
-async function readScenes(): Promise<{ reachable: boolean; jobs: SceneJobView[]; error?: string }> {
-  if (!orchestratorPort) return { reachable: false, jobs: [] }
+async function readScenes(): Promise<{
+  reachable: boolean
+  jobs: SceneJobView[]
+  requests: SceneRequestView[]
+  error?: string
+}> {
+  if (!orchestratorPort) return { reachable: false, jobs: [], requests: [] }
   try {
     const res = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/scenes`, { signal: AbortSignal.timeout(2000) })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const raw = (await res.json()) as { jobs?: SceneJobView[] }
-    return { reachable: true, jobs: Array.isArray(raw.jobs) ? raw.jobs : [] }
+    const raw = (await res.json()) as { jobs?: SceneJobView[]; requests?: SceneRequestView[] }
+    return {
+      reachable: true,
+      jobs: Array.isArray(raw.jobs) ? raw.jobs : [],
+      requests: Array.isArray(raw.requests) ? raw.requests : [],
+    }
   } catch (err) {
-    return { reachable: false, jobs: [], error: err instanceof Error ? err.message : String(err) }
+    return { reachable: false, jobs: [], requests: [], error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/** 重提一条设备场景请求（失败后手动重试，避免坏 spec 自动反复烧 token） */
+async function retryScene(id: string): Promise<{ ok: boolean; job?: string; error?: string }> {
+  if (!orchestratorPort) return { ok: false, error: '编排器未运行' }
+  try {
+    const res = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/scene/retry`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id }),
+      signal: AbortSignal.timeout(3000),
+    })
+    return (await res.json()) as { ok: boolean; job?: string; error?: string }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
 }
 
@@ -393,6 +419,7 @@ function registerIpc(): void {
   ipcMain.handle('dhvw:setDisplay', (_e, state: 'overview' | 'present') => setDisplay(state))
   ipcMain.handle('dhvw:scenes', () => readScenes())
   ipcMain.handle('dhvw:sceneGenerate', (_e, spec: Record<string, unknown>) => requestScene(spec))
+  ipcMain.handle('dhvw:sceneRetry', (_e, id: string) => retryScene(id))
   ipcMain.handle('dhvw:setBoost', (_e, enabled: boolean) => {
     config = { ...config, boost: { enabled: Boolean(enabled) } }
     saveConfig(config)
