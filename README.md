@@ -45,6 +45,7 @@ curl -s http://127.0.0.1:8080/__health
 
 ```
 docs/DEVICE-DESIGN.md   设备侧设计（范围/契约/状态机/预算/阻塞项）
+docs/PC-DEV-HANDBOOK.md PC 侧开发需求手册（主线修正、通讯、数据契约、验收）
 shell/                  离线只读静态壳（Go，交叉编译 arm64/armv7）
 www/                    资源包：页面 + 模块 + Worker + 家园场景
 deploy/                 systemd / kiosk / 禁休眠 / 安装

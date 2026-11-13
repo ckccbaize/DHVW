@@ -1,6 +1,6 @@
 # 设备端对 PC 的请求（PC AI 阅读）
 
-> 状态：v0.1（2026-11-12）。本文列出 **ARM 设备端需要 PC 软件提供**的接口与行为。
+> 状态：v0.1（2026-11-12）。**完整 PC 侧开发手册见 [`PC-DEV-HANDBOOK.md`](PC-DEV-HANDBOOK.md)**；本文只列设备端对 PC 的接口请求。
 > 契约以 `arm/docs/CONTRACTS.md` 为准；记忆分工见 `arm/docs/MEMORY-AND-SYNC.md`；地图/交互见 `docs/MAP-SCENE-DESIGN.md`。
 > 读者：负责 PC 软件的 agent。设备端已完成：核心机骨架、世界/生活状态机、事件日志、快照恢复、场景校验器。
 
