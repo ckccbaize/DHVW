@@ -350,6 +350,11 @@ self.onmessage = (e) => {
         event("enter", { room });
       }
       const act = msg.act || pending?.act || null;
+      // 睡觉期间只接受 sleep 行为；旧路径/用户点击到达不得把角色带出卧室
+      if (phase === "sleep" && act !== "sleep" && !pending) {
+        pending = null;
+        break;
+      }
       const durationMin = pending?.durationMin || 10;
       event("act", { act, room, durationMin });
       busyUntil = clock.minute + durationMin;

@@ -315,13 +315,23 @@ async function boot() {
 
   // ---------- 移动 ----------
 
+  function cancelMovement() {
+    agent.path = [];
+    agent.state = "idle";
+    agent.act = null;
+    pendingArrival = null;
+  }
+
   function handleIntent({ x, y, act, room }) {
     const path = bfsPath(scene.grid, agent.gx, agent.gy, x, y);
     if (path === null) {
+      // 新意图不可达时必须取消旧路径，否则旧路径到达会把房间/动作写错
+      cancelMovement();
       local.intentFailed();
       return;
     }
     if (path.length === 0) {
+      cancelMovement();
       local.arrived(room, act);
       return;
     }
