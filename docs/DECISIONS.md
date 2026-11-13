@@ -268,4 +268,5 @@
 - **后果**：
   - 续传能否生效取决于镜像是否支持 `Range`。实测 `gh-proxy.com` / `ghfast.top` 对 `Range` 请求返回 200（不支持），此时 aria2 会整体重下；`.aria2` 控制文件仍会保留，换成支持 `Range` 的源即可接着下。这条限制写进 README，不对外宣称「一定续传」。
   - 分发 GPLv2 二进制，`scripts/fetch-aria2.mjs` 同时抓取 `COPYING` 到 `tools/aria2-COPYING.txt` 随包保留。
-  - 组件下载多一个约 5.4 MB 的固定体积；安装包仍在 500 MB 软阈值内。
+  - 组件下载多一个约 5.4 MB 的固定体积；安装包 137.3 MB → 139.4 MB，仍在 500 MB 软阈值内。
+  - 构建期下载（`scripts/lib/mirror.mjs`）在 `build/tools/aria2c.exe` 已存在时复用同一引擎，原来「整包读进内存」的单连接实现只在缺 exe 时使用。

@@ -296,6 +296,7 @@ OLVT 本体不随安装包，首次使用时从「组件」面板下载：
 
 ASR 模型与既有实验环境一致（`sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17`，`model.int8.onnx` + `tokens.txt`），不随包，首次需要时下载到 `<安装目录>\resources\components\asr-sensevoice\2024-07-17`。
 
+- 构建期下载（`fetch-runtime.mjs` / `fetch-uv.mjs` / `fetch-aria2.mjs` 走的 `scripts/lib/mirror.mjs`）在 `build/tools/aria2c.exe` 已存在时同样用它，去掉原来「整包读进内存」的单连接实现。
 - 下载引擎是随包的 `resources/tools/aria2c.exe`（aria2 1.37.0，见 ADR-PC-024）：多连接分段（`-x8 --split=8`）、多镜像当同一文件的多 URI、失败自动重试，`.aria2` 控制文件每 5 s 落盘。找不到 exe 时自动回退 `fetch`（带 `Range` 续传），行为与旧版一致。
 - 续传是「尽力」：`gh-proxy.com` / `ghfast.top` 目前对 `Range` 请求回 200（不支持分段），此时中断后只能整体重下；换成支持 `Range` 的源（GitHub 直连、自建镜像）即可接着下。要指定自定义 exe：`DHVW_ARIA2=<路径>`。
 - 进度：`HEAD` 探 `content-length`，探不到用 aria2 摘要行里的总量；都没有（chunked 镜像）时进度条走不确定态动画，不伪造百分比。下载日志落在 `shell.jsonl` 的 `scope=download`（引擎、字节、耗时）。

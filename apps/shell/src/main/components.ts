@@ -190,7 +190,10 @@ function installDeps(
   if (!spec.requirements) return
   const bundled = spec.requirementsBundled ? path.join(bundledResourceDir(), spec.requirementsBundled) : ''
   const req = bundled && fs.existsSync(bundled) ? bundled : path.join(dir, spec.requirements)
-  if (!fs.existsSync(req)) return
+  if (!fs.existsSync(req)) {
+    log('warn', 'component', '缺少依赖清单，跳过依赖安装', { component: spec.id, req })
+    return
+  }
   const runtime = runtimeDir()
   const uv =
     process.env.DHVW_UV ??
@@ -199,6 +202,7 @@ function installDeps(
     )
   if (!uv) throw new Error('缺少 uv（打包时应随 tools/uv.exe 提供）')
   onProgress(60)
+  log('info', 'component', '安装组件依赖', { component: spec.id, req, uv })
   const args = [
     'pip',
     'install',
@@ -213,11 +217,13 @@ function installDeps(
     '-r',
     req,
   ]
+  const startedDeps = Date.now()
   const out = spawnSync(uv, args, { encoding: 'utf8', timeout: 30 * 60 * 1000 })
   if (out.error) throw out.error
   if (out.status !== 0) {
     throw new Error(`依赖安装失败：${String(out.stderr ?? '').slice(-400) || String(out.stdout ?? '').slice(-400)}`)
   }
+  log('info', 'component', '组件依赖已安装', { component: spec.id, ms: Date.now() - startedDeps })
   onProgress(100)
 }
 
