@@ -233,6 +233,41 @@ export function applyTone(cv) {
   return cv;
 }
 
+export function paintLight(spec) {
+  const W = spec.grid.w;
+  const H = spec.grid.h;
+  const cw = W * T;
+  const ch = H * T;
+  const light = new Float32Array(cw * ch);
+  for (const { x: wx, y: wy } of spec.windows) {
+    const cx = wx * T + Math.floor(T / 2);
+    const south = wy === H - 1;
+    for (let dy = 1; dy < 7 * T; dy++) {
+      const y = south ? (wy - 1) * T - dy : (wy + 2) * T + dy - 1;
+      if (y < 0 || y >= ch) break;
+      const spread = Math.floor(dy * 0.45) + 4;
+      const a = Math.max(0, 1 - dy / (6 * T)) * 0.2;
+      const x0 = Math.max(0, cx - spread);
+      const x1 = Math.min(cw, cx + spread);
+      for (let x = x0; x < x1; x++) {
+        const i = y * cw + x;
+        if (a > light[i]) light[i] = a;
+      }
+    }
+  }
+  const cv = createCanvas(cw, ch, [0, 0, 0, 0]);
+  for (let i = 0; i < light.length; i++) {
+    const a = light[i];
+    if (a <= 0.002) continue;
+    const j = i * 4;
+    cv.data[j] = Math.min(255, Math.round(a * 255));
+    cv.data[j + 1] = Math.min(255, Math.round(a * 216));
+    cv.data[j + 2] = Math.min(255, Math.round(a * 148));
+    cv.data[j + 3] = 255;
+  }
+  return cv;
+}
+
 export function paintTerrain(spec) {
   const W = spec.grid.w;
   const H = spec.grid.h;

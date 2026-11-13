@@ -8,11 +8,16 @@ import sys
 from PIL import Image, ImageChops
 
 def main():
-    if len(sys.argv) != 3:
-        print("用法: compare-terrain.py <js.png> <golden.png>")
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    max_diff = 0
+    for a in sys.argv[1:]:
+        if a.startswith("--max-diff="):
+            max_diff = int(a.split("=", 1)[1])
+    if len(args) != 2:
+        print("用法: compare-terrain.py <js.png> <golden.png> [--max-diff=N]")
         return 2
-    a = Image.open(sys.argv[1]).convert("RGBA")
-    b = Image.open(sys.argv[2]).convert("RGBA")
+    a = Image.open(args[0]).convert("RGBA")
+    b = Image.open(args[1]).convert("RGBA")
     if a.size != b.size:
         print(f"尺寸不同: {a.size} vs {b.size}")
         return 1
@@ -37,7 +42,10 @@ def main():
                 maxd = max(maxd, d)
                 if first is None:
                     first = (x, y, da, db)
-    print(f"✗ 差异像素 {count}/{w*h}，最大通道差 {maxd}，首个 {first}")
+    print(f"差异像素 {count}/{w*h}，最大通道差 {maxd}，首个 {first}")
+    if count <= max_diff:
+        print(f"✓ 在容忍范围内（≤{max_diff}）")
+        return 0
     return 1
 
 if __name__ == "__main__":

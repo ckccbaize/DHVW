@@ -9,6 +9,8 @@
 |---|---|---|
 | 布局（房间/开间/门/分区） | ✅ | `www/js/forge/layout.js` |
 | 地形层（地板/墙/门/窗/栏杆/墙脚阴影/暗角） | ✅ 逐像素一致 | `www/js/forge/painter.js` |
+| 光照层（窗户投射） | ✅ 逐像素一致 | `www/js/forge/painter.js` |
+| 家具层（26 家具/6 墙面/6 小物） | ✅ 视觉一致（98.6% 像素） | `www/js/forge/furniture.js` |
 | PNG 编码（离线导出） | ✅ | `tools/png.mjs` |
 | 黄金图对比 | ✅ | `tools/paint-terrain.mjs` + `tools/compare-terrain.py` |
 
@@ -25,7 +27,10 @@ python tools/compare-terrain.py .tmp/terrain-js.png ../assets/scenes/home/dist/t
 npm run golden:terrain
 ```
 
-当前结果：`✓ 逐像素一致`（320×240）。
+当前结果：
+- `npm run golden:terrain` → ✓ 逐像素一致
+- `npm run golden:light` → ✓ 逐像素一致
+- `npm run golden:furniture` → 差异 1049/76800（98.6%），在 1200 像素容忍内
 
 ## 模型后加家具（数据驱动）
 
