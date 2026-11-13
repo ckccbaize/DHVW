@@ -104,6 +104,7 @@
   <button id="btnDoctor">自检</button>
   <button id="btnMoodGuide">心情引导</button>
   <button id="btnMoodPolicy">策略状态</button>
+  <button id="btnMerge">合并测试</button>
 </div>
 <canvas id="mapCanvas" width="480" height="320" style="width:480px;height:320px;image-rendering:pixelated;border:1px solid #444"></canvas>
 
@@ -497,6 +498,18 @@ $("#btnAgentPlot").onclick = async () => {
     pushLine(r.ok
       ? `plot ok(${r.attempts}) → [${r.event}/${r.place}] ${r.text}`
       : `plot rejected → ${r.reason}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnMerge").onclick = async () => {
+  try {
+    const r = await client.request("core:command", {
+      name: "merge_record",
+      args: {
+        local: { id: "m1", updated_at: 100, origin: "device", fields: { mood: 0.2, text: "old" } },
+        incoming: { id: "m1", updated_at: 200, origin: "pc", fields: { mood: 0.9, text: "new" } },
+      },
+    });
+    pushLine(`merge → ${r.decision} mood=${r.record.fields.mood} text=${r.record.fields.text}`);
   } catch (e) { pushLine(e.message); }
 };
 $("#btnMoodGuide").onclick = async () => {

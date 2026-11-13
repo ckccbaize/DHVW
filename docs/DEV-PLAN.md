@@ -87,7 +87,7 @@
 | W21 | **唤醒机双档**（D2） | `core/wake/`：PC 档（拉 `/world/timeline`）与设备档（定时+事件+心情阈值）；显现期间 suspend | 假 PC 单测；离线时按闸门产出 thought/bubble/silent | W3, W20 | **已有**（8 项测试 + 面板实测；严格 JSON 待 W26） |
 | W22 | **统计与可视化**（D3） | `core/stats/` + `www/debug.html`：状态图 SVG、时间线、心情曲线、队列、预算 | 断网可用；状态迁移 1s 内上图 | W3, W20 |
 | W23 | **记忆管线**（D4） | `core/memory/pipeline.js`：预筛→LLM 归纳→事实→向量→索引 | 20 条事件归纳出 5–10 条事实；检索 top1 命中 | W7, W11 |
-| W24 | **并发合并协议**（D5） | `core/sync/merge.js`：所有权表 + LWW + tombstone + 幂等 | 双端同改一条：结果确定且可复现 | W5, W9 |
+| W24 | **并发合并协议**（D5） | `core/sync/merge.js`：所有权表 + LWW + tombstone + 幂等 | 双端同改一条：结果确定且可复现 | W5, W9 | **已有**（6 项测试 + 调试页实测） |
 | W25 | **LLM 预算账本（只统计不断闸）** | `core/llm/budget.js`：按 class/kind 记账、软告警、可手动停用 | 统计准确；不自动停止调用 | W11 | **已有**（6 项测试 + 浏览器实测） |
 
 | W26 | **设备档唤醒运行时（完整）** | `core/wake/runtime.js`：严格 JSON、三结局、`world_event` 租约、`free_window`、线头 ≤5、小作品、工具证据、residue 过期、唤醒锁 | 假模型单测：三结局 + 格式错误判失败；租约过期可重领；线头上限生效 | W21 | **已有**（7 项测试 + 假 LLM 端到端） |

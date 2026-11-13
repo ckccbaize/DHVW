@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T09:23:26.206Z",
+ "built_at": "2026-11-13T09:50:41.682Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -169,8 +169,8 @@
   },
   {
    "path": "debug-core.html",
-   "size": 37144,
-   "sha256": "d22d0a3a05e73a00f58390f787c11fcd3316dfc94f240d61c18cca4991e49c6a"
+   "size": 37689,
+   "sha256": "b5ff0e34bc1ebf355ed961cb0ba949aaeb7ba416ddaea3abbeb284cd7ac74d6b"
   },
   {
    "path": "index.html",
@@ -403,6 +403,11 @@
    "sha256": "64c423d13e014a0b5cb17a0e5ea932ffab867ed4e13ee1a774388c819e3d080e"
   },
   {
+   "path": "js/core/sync/merge.js",
+   "size": 3337,
+   "sha256": "4e9472dc0c9c3f75a513ae726330477e6d12a115c9175a27348f84bfdf587872"
+  },
+  {
    "path": "js/core/wake/engine.js",
    "size": 4782,
    "sha256": "b3dcb46d2aaa4ff8533c4fe5a0cdc87a5b1dd04a71d68e03261d2e8a6b2d51d0"
@@ -419,8 +424,8 @@
   },
   {
    "path": "js/core/worker.js",
-   "size": 66045,
-   "sha256": "5d7f2b82c30447d80c9a2b8c4acb8fd07379480a5540e5a54f71594576ac1398"
+   "size": 66712,
+   "sha256": "50cdb01a12deb9e4b81d8e07504450f659d0d1a7e101d9af6ba4b1ce8d5aa81e"
   },
   {
    "path": "js/forge/client.js",

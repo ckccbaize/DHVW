@@ -35,6 +35,7 @@ import { createBrowsePlanner, searchBing, validatePublicUrl } from "./actions/br
 import { createPlaceAgent } from "./agent/subs/place.js";
 import { createDoctor } from "./doctor.js";
 import { createMoodPolicy } from "./mood/policy.js";
+import { cleanupTombstones, mergeBatch, mergeRecord } from "./sync/merge.js";
 import { createPlaceGraph, HOME_ID, planTravel } from "./places/graph.js";
 import { createBgAgent } from "./agent/subs/bg.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
@@ -1289,6 +1290,17 @@ const handlers = {
         if (r.pcAction?.action) enqueuePcAction(r.pcAction.action, r.pcAction.args);
       }
       return { ...r, life: life.snapshot() };
+    }
+    if (p.name === "merge_record") {
+      return mergeRecord(p.args?.local || null, p.args?.incoming || null, { ownership: p.args?.ownership });
+    }
+    if (p.name === "merge_batch") {
+      const map = new Map(Object.entries(p.args?.local || {}));
+      const out = mergeBatch(map, p.args?.incoming || [], { ownership: p.args?.ownership });
+      return { ok: true, results: out, local: Object.fromEntries(map) };
+    }
+    if (p.name === "merge_cleanup") {
+      return { ok: true, records: cleanupTombstones(p.args?.records || [], { now: Date.now(), ttlMs: p.args?.ttlMs }) };
     }
     if (p.name === "mood_apply") {
       const r = applyGuidedMood({
