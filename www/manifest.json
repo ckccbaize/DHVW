@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T13:35:00.009Z",
+ "built_at": "2026-11-13T13:43:52.503Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -559,8 +559,8 @@
   },
   {
    "path": "config.json",
-   "size": 497,
-   "sha256": "dade2434d53d66967d1427eb138dfeb04c1fc3bcb3536d98b6458d4ffada9b5d"
+   "size": 516,
+   "sha256": "f1c66c99e5dbbb83b98afc4e7ea0aeef1a38a989013321f040e0cfb7fb42e4c0"
   },
   {
    "path": "css/app.css",
@@ -584,8 +584,8 @@
   },
   {
    "path": "debug-life.html",
-   "size": 13688,
-   "sha256": "8031e8b05d17bef0c8adb34874639812f3cf674e052e112f24b6a6bdcfee6287"
+   "size": 14449,
+   "sha256": "0ddca82eb2dbab2eb5cf1467ac20e80a7c7af6478ba6b34d3c95d2156ffa4676"
   },
   {
    "path": "index.html",
@@ -729,8 +729,8 @@
   },
   {
    "path": "js/core/light.js",
-   "size": 409,
-   "sha256": "e13e801142015f9f83b7a5033b1687b9c51c06e997b89736e691c4d9c15092cc"
+   "size": 471,
+   "sha256": "31f938845c47e2eaa1f3f0ecd8b61d198f13f870a9b78380b97a56f37ad99a40"
   },
   {
    "path": "js/core/llm/budget.js",
@@ -853,6 +853,11 @@
    "sha256": "62267d87ad99f50db776302820c3dd0e488e4967fef0abbe148022c17ed6545c"
   },
   {
+   "path": "js/core/weather.js",
+   "size": 1220,
+   "sha256": "3f5d05d7aa090bac5d1e00a70a4b3170772b2622ed812354077f67338bbe0724"
+  },
+  {
    "path": "js/core/worker.js",
    "size": 68796,
    "sha256": "43fb0ed833eccdbaeaade1fb15107e8016a8b501d691697bc3bdc35eaf7b58fa"
@@ -904,8 +909,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 19372,
-   "sha256": "6816e9b21392b38f359bbf271f6afea1c4fc8ba04fc5bf44689d829c1592ab6c"
+   "size": 21653,
+   "sha256": "2cf01154c91d2190a5a913e4e41578cb3023de9f4b40817da146c4e3b5290374"
   },
   {
    "path": "js/runtime/remote.js",
@@ -959,8 +964,8 @@
   },
   {
    "path": "workers/life.worker.js",
-   "size": 14820,
-   "sha256": "a8c4e2a401a83ff7fc83da428641e21379b06e6bab82589c31446cb95eb4a474"
+   "size": 14961,
+   "sha256": "a1c6ad311653cf0e288d23c5a42f1bedd18b0976ceef91aa14347643a82d20df"
   }
  ]
 }

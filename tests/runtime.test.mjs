@@ -221,7 +221,7 @@ test("LocalRuntime：资产落库并计数，配额淘汰 edge", async () => {
   local.stop();
 });
 
-test("LocalRuntime：端侧档 + 非活跃才产资产", async () => {
+test("LocalRuntime：端侧档产资产，活跃期只产剧情", async () => {
   const { local, setNow } = makeLocal();
   await local.start();
   const forge = FakeWorker.instances.find((w) => w.url.includes("forge.worker"));
@@ -229,24 +229,26 @@ test("LocalRuntime：端侧档 + 非活跃才产资产", async () => {
 
   const tick = { type: "tick", day: 1, minute: 600, phase: "noon", weather: "clear", room: "living" };
 
-  // 活跃期：不产
+  // 活跃期：只产剧情
   local.setTier("edge");
   life.emit(tick);
-  assert.equal(forge.has("enqueue"), false);
-
-  // 空闲期：产
-  local.setActivity("idle");
-  life.emit(tick);
   assert.equal(forge.has("enqueue"), true);
+  assert.equal(forge.last("enqueue").kind, "plot");
+
+  // 空闲期：继续产
+  local.setActivity("idle");
+  setNow(20_000_000);
+  life.emit(tick);
+  assert.equal(forge.posted.filter((m) => m.type === "enqueue").length, 2);
   const enq = forge.last("enqueue");
-  assert.equal(enq.kind, "plot");
+  assert.ok(["plot", "bg", "scene"].includes(enq.kind));
   assert.equal(enq.ctx.light, "day");
 
   // 主机档：不产
   local.setTier("idle");
-  setNow(20_000_000);
+  setNow(40_000_000);
   life.emit(tick);
-  assert.equal(forge.posted.filter((m) => m.type === "enqueue").length, 1);
+  assert.equal(forge.posted.filter((m) => m.type === "enqueue").length, 2);
   local.stop();
 });
 

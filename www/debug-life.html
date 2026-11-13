@@ -59,6 +59,7 @@
     <button type="button" data-trigger="thought">立即独白</button>
     <button type="button" data-trigger="memory">立即归纳记忆</button>
     <button type="button" data-trigger="write">立即写作</button>
+    <button type="button" data-trigger="plot">立即剧情</button>
     <button type="button" data-trigger="sleep">强制睡觉</button>
     <button type="button" data-trigger="wake">强制醒来</button>
     <button type="button" data-trigger="act" data-act="read">去阅读</button>
@@ -92,6 +93,10 @@
   <section>
     <h2>创作产出 <span class="count" id="writeCount"></span></h2>
     <div id="writings"></div>
+  </section>
+  <section>
+    <h2>剧情产出 <span class="count" id="plotCount"></span></h2>
+    <div id="plots"></div>
   </section>
   <section class="wide">
     <h2>最近事件 <span class="count" id="evCount"></span></h2>
@@ -146,6 +151,13 @@ function renderWritings(rows) {
     ? rows.slice().reverse().map((w) => `<div style="margin-bottom:8px"><span class="pill">${esc(w.kind)}</span><span class="muted">第${w.day}天 ${Math.floor(w.minute / 60)}:${String(Math.floor(w.minute % 60)).padStart(2, "0")} · ${esc(w.room)}</span><div class="pre">${esc(w.text)}</div></div>`).join("")
     : '<div class="empty">还没有创作产出</div>';
 }
+function renderPlots(rows) {
+  $("#plotCount").textContent = `${rows.length} 条`;
+  $("#plots").innerHTML = rows.length
+    ? rows.slice().reverse().map((p) => `<div style="margin-bottom:8px"><span class="pill">${esc(p.event || "剧情")}</span><span class="muted">第${p.day}天 ${Math.floor(p.minute / 60)}:${String(Math.floor(p.minute % 60)).padStart(2, "0")} · ${esc(p.place || "")}</span><div class="pre">${esc(p.text)}</div></div>`).join("")
+    : '<div class="empty">还没有剧情产出</div>';
+}
+
 function renderEvents(rows) {
   $("#evCount").textContent = `${rows.length} 条`;
   $("#events").innerHTML = rows.length
@@ -269,15 +281,17 @@ async function refresh() {
     const llmCfg = { ...(cfg.llm || {}), ...(auto || {}), ...(readOverride() || {}) };
     $("#status").innerHTML = `LLM：<span class="${llmCfg.baseUrl && llmCfg.model ? "ok" : "bad"}">${llmCfg.baseUrl && llmCfg.model ? `${esc(llmCfg.model)} @ ${esc(llmCfg.baseUrl)}` : "未配置"}</span> · 每 2 秒刷新`;
     const db = await openDb();
-    const [llmLog, mem, writings, events] = await Promise.all([
+    const [llmLog, mem, writings, plots, events] = await Promise.all([
       getKV(db, "llm_log"),
       getKV(db, "memory_docs"),
       getKV(db, "writings"),
+      getKV(db, "plots"),
       getAll(db, "events"),
     ]);
     renderLlm(llmLog || []);
     renderMem(mem || []);
     renderWritings(writings || []);
+    renderPlots(plots || []);
     renderEvents((events || []).sort((a, b) => a.t_corrected - b.t_corrected).slice(-80));
   } catch (err) {
     $("#status").innerHTML = `<span class="bad">读取失败：${esc(err.message)}</span>`;

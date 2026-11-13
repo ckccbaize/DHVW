@@ -7,6 +7,7 @@ import { createLlmClient } from "../core/llm/client.js";
 import { createAgentRegistry } from "../core/agent/registry.js";
 import { createLocalMemory } from "../core/memory/local.js";
 import { createMemoryPipeline } from "../core/memory/pipeline.js";
+import { extractJson } from "../core/agent/json.js";
 
 const EVENT_CAP = 2000;
 const DEFAULT_QUOTA = 500 * 1024 * 1024;
@@ -207,6 +208,8 @@ export function createLocalRuntime({
   let lastMemoryAt = 0;
   let eventsSinceMemory = 0;
   let lastMemoryDay = -1;
+  let lastPlotMinute = -1e9;
+  let recentPlots = [];
 
   const sceneSummary = () => ({
     grid: scene.grid,
@@ -235,6 +238,7 @@ export function createLocalRuntime({
           phase: msg.phase,
         });
         store.emit("tick", msg);
+        void maybePlot(msg);
         // 记忆每天只在夜里归纳一次
         if (msg.phase === "sleep" && lastMemoryDay !== msg.day) {
           lastMemoryDay = msg.day;
@@ -334,6 +338,55 @@ export function createLocalRuntime({
       store.emit("memory", res);
     } else {
       await logLlm({ agent: "memory", ok: false, response: `${res.reason}: ${res.error || ""}` });
+    }
+  }
+
+  async function maybePlot(tick, force = false) {
+    if (!llm || !registry || suspended) return;
+    if (tick.phase === "sleep") return;
+    const interval = config.life?.plotMin ?? 60;
+    if (!force && tick.minute - lastPlotMinute < interval) return;
+    lastPlotMinute = tick.minute;
+    const hh = String(Math.floor(tick.minute / 60)).padStart(2, "0");
+    const mm = String(Math.floor(tick.minute % 60)).padStart(2, "0");
+    const prompt = registry.render("plot", {
+      now: `第${tick.day}天 ${hh}:${mm}`,
+      period: tick.phase,
+      place: tick.room || scene.start,
+      input: "日常里突然发生一点变化",
+      mood: "平静",
+      recent: JSON.stringify(recentPlots.slice(-5)),
+    });
+    const t0 = now();
+    try {
+      const res = await llm.complete({
+        messages: [{ role: "user", content: prompt }],
+        maxTokens: 400,
+        temperature: 0.6,
+        json: true,
+        cls: "work",
+        kind: "plot",
+      });
+      const obj = extractJson(res.text);
+      const text = String(obj?.text || "").trim();
+      if (!text) throw new Error("空剧情");
+      const item = {
+        id: `p-${now()}`,
+        text,
+        event: obj?.event || "",
+        place: obj?.place || tick.room || scene.start,
+        day: tick.day,
+        minute: tick.minute,
+        created_at: now(),
+      };
+      recentPlots.push(text);
+      if (recentPlots.length > 20) recentPlots.shift();
+      await appendKv("plots", item, 50);
+      await logLlm({ agent: "plot", ok: true, ms: now() - t0, prompt, response: text });
+      store.emit("plot_event", item);
+      onSay(text, 4200);
+    } catch (err) {
+      await logLlm({ agent: "plot", ok: false, ms: now() - t0, prompt, response: err.message });
     }
   }
 
@@ -437,11 +490,12 @@ export function createLocalRuntime({
 
   function maybeForge(tick) {
     if (tier !== "edge" || suspended) return;
-    // forge 只在无互动/息屏时段跑，绝不抢活跃期（§10.7.3 调度）
-    if (activity === "active") return;
+    // 剧情机活跃期也跑（低频），背景/场景只在息屏/无互动时跑
+    const idle = activity !== "active";
+    const interval = idle ? forgeIntervalMs : Math.max(forgeIntervalMs, 120000);
     const t = now();
-    if (t - lastForgeAt < forgeIntervalMs) return;
-    const order = ["plot", "bg", "scene"];
+    if (t - lastForgeAt < interval) return;
+    const order = idle ? ["plot", "bg", "scene"] : ["plot"];
     let kind = null;
     let best = Infinity;
     for (const k of order) {
@@ -521,6 +575,7 @@ export function createLocalRuntime({
 
       const day = await backend.getKV("day").catch(() => undefined);
       const minute = await backend.getKV("minute").catch(() => undefined);
+      lastPlotMinute = minute ?? config.life?.startMinute ?? 8 * 60;
 
       postLife({
         type: "init",
@@ -612,6 +667,10 @@ export function createLocalRuntime({
         void maybeMemory(true);
         return;
       }
+      if (kind === "plot") {
+        void maybePlot(lastTick || { day: 1, minute: 0, phase: "morning", room: scene.start }, true);
+        return;
+      }
       if (kind === "write") {
         void generateWriting({
           day: lastTick?.day ?? 1,
@@ -630,6 +689,9 @@ export function createLocalRuntime({
     },
     async getLlmLog() {
       return (await backend.getKV("llm_log")) || [];
+    },
+    async getPlots() {
+      return (await backend.getKV("plots")) || [];
     },
     setQuota(bytes) {
       quota = bytes;

@@ -3,7 +3,8 @@
 // 用 setInterval 驱动（不用 rAF）：息屏后 rAF 会停，tick 不能停（§10.7.5）。
 
 import { createClock, phaseOf } from "../js/core/clock.js";
-import { pickLine as pickLineCore, tickInterval, weatherForDay as weatherForDayCore } from "../js/core/life/lines.js";
+import { pickLine as pickLineCore, tickInterval } from "../js/core/life/lines.js";
+import { weatherAt } from "../js/core/weather.js";
 import { pickDuration } from "../js/core/life/acts.js";
 
 const cfg = {
@@ -291,11 +292,13 @@ function tick() {
     } else if (prev === "sleep") {
       event("wake", { to: phase });
     }
-    const w = weatherForDay(clock.day);
-    if (w !== weather) {
-      weather = w;
-      event("weather", { weather });
-    }
+  }
+
+  // 天气每 3 游戏小时一个块，独立于时段
+  const w = weatherAt(clock.day, clock.minute);
+  if (w.state !== weather) {
+    weather = w.state;
+    event("weather", { weather, temp: w.temp, wind: w.wind, block: w.block });
   }
 
   // 漫游：活跃档每 10 游戏分钟换一次目标；息屏档不漫游
@@ -335,7 +338,7 @@ self.onmessage = (e) => {
       if (msg.roamMin) cfg.roamMin = msg.roamMin;
       if (msg.thoughtMin) cfg.thoughtMin = msg.thoughtMin;
       llmCfg = msg.llm || null;
-      weather = weatherForDayCore(clock.day);
+      weather = weatherAt(clock.day, clock.minute).state;
       phase = phaseOf(clock.minute);
       currentRoom = PHASE_ROOM[phase] || "living";
       lastLlmMinute = clock.minute;
