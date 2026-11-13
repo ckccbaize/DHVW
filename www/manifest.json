@@ -1,11 +1,411 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T10:10:41.431Z",
+ "built_at": "2026-11-13T10:24:53.848Z",
  "files": [
   {
    "path": "agent/registry.json",
    "size": 11747,
    "sha256": "91428dc5fa155633994fe718cb7e06f8544894e44436e7e704d619c6f6cc02a7"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Arrows.woff2",
+   "size": 2720,
+   "sha256": "2d633979a491ae92adcdb6db82ca4e470bc130b4231cf30487703f0fbe21b275"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Basic-Latin.woff2",
+   "size": 2312,
+   "sha256": "5e9530cc7e424fa63d6f19dca8c22f83f1f4de166627b9e05320d407c05621d5"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Block-Elements.woff2",
+   "size": 896,
+   "sha256": "7048863b9230619f8b080d0165999167162c2a0c04fa1ed94e00415b2f0b3bb6"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Bopomofo.woff2",
+   "size": 1512,
+   "sha256": "515e5fd87245473c30aa282cad4bc239c83727771d03212f1d3e558a3ad2822a"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Box-Drawing.woff2",
+   "size": 1940,
+   "sha256": "ba59b4db9b2dfffa1cc4dd5166539961ca63d3227248c7753f08ec1b52137dd6"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Braille-Patterns.woff2",
+   "size": 2300,
+   "sha256": "d79e89a6f48883b014be53a2aaf1f7bad6233ceb6287e20d25c2bf3d3aa4b2c4"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Compatibility-Forms.woff2",
+   "size": 1068,
+   "sha256": "ede82ed6fc6eba4f36376f89755fe80388d8ba01721126a4906279be341059a0"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Compatibility.woff2",
+   "size": 1920,
+   "sha256": "46a8573dd85c274bec925d025887a5f3120da78b20ac0e520177e80ceb3e5e75"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Radicals-Supplement.woff2",
+   "size": 3564,
+   "sha256": "9e1647b8a3689c51aa4d758e05b59636b565bd6d8b4f65e5133f5eeceeac9db3"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Symbols-and-Punctuation.woff2",
+   "size": 1916,
+   "sha256": "2dbd50ea36ceb08cc35fb15aeb3d2f29d475f1a63de46c125fc67e79af8675cc"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-001.woff2",
+   "size": 26208,
+   "sha256": "15a8345cc15ae5d02c92da9de4446f8dc6c0889a89c541be7b9699f4e06b7a06"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-002.woff2",
+   "size": 27968,
+   "sha256": "c9d50fb56e30c826f3c4dbfafd21f783381c83bcb2f7a56b8dd9bf7ede1e8cf0"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-003.woff2",
+   "size": 27792,
+   "sha256": "46e378f518702605128da1425731cad5734c136c74eecc393f8f58839b2fbe0f"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-004.woff2",
+   "size": 29156,
+   "sha256": "0b346ad2787afc826bd9b0ec5bac51c5e8de80d00e2a150be8792abbccb7e26c"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-005.woff2",
+   "size": 28112,
+   "sha256": "29be0ee3bd6ad45d2eb52e259d9c1ac5115b62a161920adc5bd1f87bae72bd7c"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-006.woff2",
+   "size": 29288,
+   "sha256": "177dae473df3157134334b62c8cec66c5935b9e38b1750125df51b63a8ec508f"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-007.woff2",
+   "size": 29460,
+   "sha256": "53914b1bdcec05c283a1a06601f017c1ee385aef6b477201dc1d334328b20aac"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-008.woff2",
+   "size": 30092,
+   "sha256": "3537a43e349f0fc9509dffaa544966fcc9e87549baa1a9a37c7687342c404b2e"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-009.woff2",
+   "size": 29628,
+   "sha256": "01c8a044fbec455f83f688107f960d17cbd2efff8e77b39b99522d4af38e247c"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-010.woff2",
+   "size": 30180,
+   "sha256": "d39cb21d65a0cf7cf2bc3c995a3722d21162e964337d1745c80f201d94b8c201"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-011.woff2",
+   "size": 29952,
+   "sha256": "e1d5f98757c658333cc54194f673d152d9551fb1acedc8b53c0049c8fb7700ad"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-012.woff2",
+   "size": 30524,
+   "sha256": "8ac76bdd64613feddb7977f4cc9dba307340e381b47e3f14cc8a704119cd95c2"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-013.woff2",
+   "size": 29060,
+   "sha256": "0a6db8c0b93a2a24c07b61626d7c6a630307092bf0d21da4045805446fe78699"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-014.woff2",
+   "size": 30524,
+   "sha256": "40ef6a94f11fc36214c888ddf9021f443d35fc73a20a80dd578528fb2304ca40"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-015.woff2",
+   "size": 30832,
+   "sha256": "4ebca75d687f7246f036bb99052fa17f6c73b6367b7c1d38960f7430f4f1d356"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-016.woff2",
+   "size": 29892,
+   "sha256": "890799ec650a1f2e2def9c4a33a3e6b98afbc09f24bc9b9a7e5bf97b5614c2ad"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-017.woff2",
+   "size": 30020,
+   "sha256": "658f22f1ecb28250b96de9aa7da41cdc2d00d5c89c7cc874041967404a994727"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-018.woff2",
+   "size": 31760,
+   "sha256": "3f97ea18b0d36edbc5aadba12090fb2e70dac37afd2a05381ded5cf9fc31dd78"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-019.woff2",
+   "size": 24904,
+   "sha256": "c9c97457ec4f2d12095167f7d02698e151a6d72728692942ff7d9ad237e3421e"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-Extension-A-001.woff2",
+   "size": 33160,
+   "sha256": "e66e4dc0d7fa5293d16ef5c573bad7afe3b17ea42a7c2b06ce17e7c5499d1872"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-Extension-A-002.woff2",
+   "size": 17776,
+   "sha256": "3190856cd1970701aa985383f81fe05c422f7078c6748494d7b176c6c333ebbc"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-Extension-B-001.woff2",
+   "size": 36288,
+   "sha256": "6f93a5cdba21a889fe4b4bccf8998a5f34f2bf57372fde90d7ac8e37c33d2f4a"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-Extension-B-002.woff2",
+   "size": 6204,
+   "sha256": "de46d537ca87ad8362930604d6a6ef8154dd82a55be9c7ad0968ac4dd0b388e9"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-Extension-C.woff2",
+   "size": 2332,
+   "sha256": "0835d12cb0f60606aac4f271d5d10342fc9f549ce6b716c737b55ffde1e8264c"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-Extension-D.woff2",
+   "size": 1200,
+   "sha256": "df928aae1f512a4bfae08166b03bf03b67e2c2234b56cbb2fc7c9564bd273e34"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-Extension-E.woff2",
+   "size": 2456,
+   "sha256": "a9162b8399c24d898636d6d089f97886c595fc05246b2c2bb7614dd80ab2386f"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-Extension-F.woff2",
+   "size": 784,
+   "sha256": "48b4d4d326cccdd6ebc64cdf5c956fb4f93654d6337b207724dc08264c77d65b"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-Extension-G.woff2",
+   "size": 884,
+   "sha256": "5de98b8dacd53f53d7429d03b0205fca57514876b315e39c5d727a5df8f02fca"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Cyrillic.woff2",
+   "size": 2920,
+   "sha256": "3d933b380a28180943afde5b7f54425ae18161f2ac4c4122d5ce75b766223449"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Dingbats.woff2",
+   "size": 1288,
+   "sha256": "8e169bef36569d11e9cf7daf2511539acb74e1a1aca1e920a1184015a7ecced0"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Enclosed-Alphanumeric-Supplement.woff2",
+   "size": 2864,
+   "sha256": "cc2159d0ab5aa68b5bcd8f6a5c04dfb6c83bceb2c40ddd49c51b0584cea05fd1"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Enclosed-Alphanumerics.woff2",
+   "size": 3644,
+   "sha256": "af5cf75fbd7e80cff6869ebec36b7fff1a71448349b2da88e04c8c5421433c97"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Enclosed-CJK-Letters-and-Months.woff2",
+   "size": 2956,
+   "sha256": "6cd994faade0e003d4866f295e0a769b70829f6044b33811861d0e616b7fea32"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.General-Punctuation.woff2",
+   "size": 1240,
+   "sha256": "f53eb6fc36479844f77eb9a19bba26b9cc042bf944ccd563346abb8bd80e94b4"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Geometric-Shapes.woff2",
+   "size": 2128,
+   "sha256": "6ff1ab3e4d8f28c0a2cabfc88c728024eedf20b7b310ccf9233c0fdd8f149beb"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Greek-and-Coptic.woff2",
+   "size": 2232,
+   "sha256": "53241cde8396ef60587b8b140e3de20e81c6f6f50f5eea93d6be598c92f70fd9"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Halfwidth-and-Fullwidth-Forms.woff2",
+   "size": 3400,
+   "sha256": "4da6988a1d54baf60ed0224b842ea63fe60e5d9991ec0947b32f4249d7d7f7a0"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Compatibility-Jamo.woff2",
+   "size": 2076,
+   "sha256": "a9f4b735aaec5af070779319829ec17d6ecc07b7a0274312869b4d9984b82467"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Syllables-001.woff2",
+   "size": 10620,
+   "sha256": "2f9fc13ab155cd745924279ab0366c6577f63b9688b8df6b1fa7949b3569e8b5"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Syllables-002.woff2",
+   "size": 10924,
+   "sha256": "d562052fcea1b24d50c72cea78b97d02315a68c3051a0e628fdb10b01d1e3768"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Syllables-003.woff2",
+   "size": 10124,
+   "sha256": "8070755376a94e327e20f6fbf095715f387cc9b9b7dc675f770ee8fe39b52396"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Syllables-004.woff2",
+   "size": 10788,
+   "sha256": "1d21fe1c34f14d0d75293e6d5dc160127b7699a94891747a4a509734365319b5"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Syllables-005.woff2",
+   "size": 11320,
+   "sha256": "58b3846dfc22fde0670dd16b29e2f6ca1ab7155d346f038a31db4925e598932f"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Syllables-006.woff2",
+   "size": 11216,
+   "sha256": "7a6d6bdd17bdf2532bdbd12a173215dcf3d3b8afb3f07c3fb6323d90f668232f"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Syllables-007.woff2",
+   "size": 11580,
+   "sha256": "0a192d2d36e348a5a7c94c1effa0a7080c4d8363421270eab599effa1d4a54f0"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Syllables-008.woff2",
+   "size": 10892,
+   "sha256": "9c82d198998c8706bcf14924731dc4c0a769d67770e5776d623bc127158f13c6"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Syllables-009.woff2",
+   "size": 12132,
+   "sha256": "3775444cd6d3ca985a4ff0fab133f09e2a517ca493b41b6b7674a2687758edd2"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Syllables-010.woff2",
+   "size": 11536,
+   "sha256": "4959be66c494f265333b674fd97ddbf7563ddd094be6936d1b2f53b9f1d980f6"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Syllables-011.woff2",
+   "size": 10184,
+   "sha256": "c2296d3f70d94173baa77430124182be1942e37311985a5091924fbe618b2c06"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hiragana.woff2",
+   "size": 2780,
+   "sha256": "de874d594bd9f9f666d600f8b83851b3ecf50ec828c3317ef9dc8492117b5ef7"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Ideographic-Description-Characters.woff2",
+   "size": 944,
+   "sha256": "80b78212201649d9706b16afbf8ac13eaf72c98ae10117e146bf18c87c563f17"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Ideographic-Symbols-and-Punctuation.woff2",
+   "size": 696,
+   "sha256": "215140c00ca1c6f9705fd919ffb246edae7af7f37e806a6779f15862ff8f6c81"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Kangxi-Radicals.woff2",
+   "size": 6292,
+   "sha256": "44aa3486b1b2dd376a601e509897c15b5598a120fc3f95427ca5da01efceaa83"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Katakana.woff2",
+   "size": 2524,
+   "sha256": "8f5843f48165349044f3ad02c5163e9069e04c7dbc6523a97a5c784f9e4a5aa9"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Latin-1-Supplement.woff2",
+   "size": 2280,
+   "sha256": "28fd3bca4110e42505ad2325ff4acf13d340697ca3a4ad8390cc2bba997579fe"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Latin-Extended-A.woff2",
+   "size": 2772,
+   "sha256": "115de8fcda48fe33debe569e1e2f742d98ede6a0a35efa37a580b3118fe0ba26"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Latin-Extended-Additional.woff2",
+   "size": 560,
+   "sha256": "d20521c3392b25a387eb10bc4cb3615d9c370716b4a8a0357ba396e2f8e1be48"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Latin-Extended-B.woff2",
+   "size": 3104,
+   "sha256": "2567dd6acd1d94fe0d0d885c0138f33bf3edd79d8d65f947feea960d8570da99"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Latin-Extended-C.woff2",
+   "size": 672,
+   "sha256": "7697f08ba8dd0a71fe8fbb49883fe6fbbcaea1cc9001ed5be0a36b092b5559de"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Latin-Extended-D.woff2",
+   "size": 756,
+   "sha256": "0a2458c992ced79e2876ed48cb6d6714947e4201ef0833221ddd4cfff4da47af"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Letterlike-Symbols.woff2",
+   "size": 900,
+   "sha256": "84aa6a8aa905799cd5c712c19d6bcf18a56163d1a07ff9b093667c5d46de4263"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Miscellaneous-Symbols.woff2",
+   "size": 5180,
+   "sha256": "309b0c18f23c49c67c474ad33eed429f966e21127328c5793d6246ecd962d60d"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Miscellaneous-Technical.woff2",
+   "size": 1604,
+   "sha256": "d588d8604b189a911fef71d9d878ddd650d1ed9586d5f13ea667a53e0cc5a1ec"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Number-Forms.woff2",
+   "size": 1740,
+   "sha256": "a84b49d95e60306232e6e6365eeae5c64ae8edc012adb718533a4758bcbe1f59"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Private-Use-Area.woff2",
+   "size": 5228,
+   "sha256": "6a1fdf7228c929aefd475d0adebd43339a0967df83fad22dbe32964f005b2a9a"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Specials.woff2",
+   "size": 648,
+   "sha256": "9d9d5458bba22a6ba9dcbf3ef8777f925c71328f74f4d1773191867fc9068775"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Superscripts-and-Subscripts.woff2",
+   "size": 1156,
+   "sha256": "f4843490bfbcb8c35969362ba0feb792a2e3bd50efc5c7260c1bb9c069d43b84"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Vertical-Forms.woff2",
+   "size": 756,
+   "sha256": "373938b93bb26424ac3bad526439367a893277ebfbafe605ba08ff017a41e5b3"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.css",
+   "size": 70892,
+   "sha256": "dce616e375aa6abe5e64e4401253f9471a4c9245964eafa58f2a6dc84e5d5f3a"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/LICENSE.txt",
+   "size": 1062,
+   "sha256": "8751c869c91bc13ba06dffadaf0c276f662917228f18072b28498b08c1e59ee6"
   },
   {
    "path": "assets/scenes/home/character/sheet.json",
@@ -168,14 +568,19 @@
    "sha256": "9d54fd11bba7b7de058bdc3251c221560731ff612a9041c9e0cd11493bab371f"
   },
   {
+   "path": "css/cel.css",
+   "size": 5012,
+   "sha256": "577f42cbb3a2b7bce24671a893cf09348e23dd49b4f3d1610dc2055b62204f7f"
+  },
+  {
    "path": "debug-core.html",
    "size": 38049,
    "sha256": "327d2f059238863edfd08b8ee3f472676d6862f1fd173a5259b74ea8e888c389"
   },
   {
    "path": "index.html",
-   "size": 2310,
-   "sha256": "686a9a3d5433973014e9bd23b7c382944e4cb5da31fb3e9f8c9a23807aeda511"
+   "size": 2464,
+   "sha256": "9071057c9a5776d3a1e211ef00c6c61b3fe8e2c3bbceb4a991c2690bdb07a723"
   },
   {
    "path": "js/app.js",
@@ -514,8 +919,8 @@
   },
   {
    "path": "observe.html",
-   "size": 7063,
-   "sha256": "bb5f7dd83995d43dbe5e3a868649fb5107d42f2a81c2ed4c8dc2c4fae00232d2"
+   "size": 8156,
+   "sha256": "0d33f7f7d1422f59abb7f467a0b06f8bb1e6c3070a4e00aa15c11542e46093b5"
   },
   {
    "path": "workers/forge.worker.js",
