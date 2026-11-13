@@ -19,7 +19,7 @@ import { normalizePresentUrl, probePresent } from "./view/present-host.js";
 
 const DEFAULTS = {
   host: { wsUrl: "", probeUrl: "", ttsUrl: "" },
-  life: { minutesPerSecond: 1, tickMs: 1000, roamMin: 30 },
+  life: { timeScale: 1, tickMs: 1000, roamMin: 30 },
   assetQuotaBytes: 500 * 1024 * 1024,
   display: { backToOverviewMs: 90000, hostLostGraceMs: 10000, hysteresisMs: 20000 },
   present: { url: "" },
@@ -43,7 +43,7 @@ async function loadConfig() {
     }
     const speed = Number(localStorage.getItem("dhvw_speed") || "0");
     const life = { ...DEFAULTS.life, ...(raw.life || {}) };
-    if (speed > 0) life.minutesPerSecond = speed;
+    if (speed > 0) life.timeScale = Math.max(0.5, Math.min(30, speed));
     return {
       ...DEFAULTS,
       ...raw,

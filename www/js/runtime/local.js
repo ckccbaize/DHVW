@@ -206,6 +206,7 @@ export function createLocalRuntime({
   let memoryPipeline = null;
   let lastMemoryAt = 0;
   let eventsSinceMemory = 0;
+  let lastMemoryDay = -1;
 
   const sceneSummary = () => ({
     grid: scene.grid,
@@ -234,6 +235,12 @@ export function createLocalRuntime({
           phase: msg.phase,
         });
         store.emit("tick", msg);
+        // 记忆每天只在夜里归纳一次
+        if (msg.phase === "sleep" && lastMemoryDay !== msg.day) {
+          lastMemoryDay = msg.day;
+          void backend.setKV("last_memory_day", msg.day).catch(() => {});
+          void maybeMemory(true);
+        }
         maybeForge(msg);
         break;
       }
@@ -296,13 +303,21 @@ export function createLocalRuntime({
     await registry.load();
     localMemory = createLocalMemory({ backend: kvMemoryBackend(backend) });
     await localMemory.init();
+    // 清掉历史重复事实，只保留每个文本的第一条
+    const seenText = new Set();
+    for (const d of localMemory.all()) {
+      const key = String(d.text || "").replace(/\s+/g, "");
+      if (seenText.has(key)) await localMemory.remove(d.id);
+      else seenText.add(key);
+    }
     memoryPipeline = createMemoryPipeline({ llm, registry, localMemory, seen: new Set() });
+    lastMemoryDay = (await backend.getKV("last_memory_day")) ?? -1;
     store.patch({ memory: { count: localMemory.count, terms: localMemory.terms } });
   }
 
   async function maybeMemory(force = false) {
     if (!memoryPipeline || suspended) return;
-    if (!force && eventsSinceMemory < 20 && now() - lastMemoryAt < 60000) return;
+    if (!force && now() - lastMemoryAt < 60000) return;
     const events = await backend.oldestEvents(40);
     if (events.length < 3) return;
     lastMemoryAt = now();
@@ -362,7 +377,6 @@ export function createLocalRuntime({
     try {
       await backend.addEvent(ev);
       eventsSinceMemory += 1;
-      void maybeMemory();
       const count = await backend.eventCount();
       if (count > EVENT_CAP) {
         const oldest = await backend.oldestEvents(count - EVENT_CAP);
@@ -513,7 +527,7 @@ export function createLocalRuntime({
         scene: sceneSummary(),
         day: day ?? 1,
         minute: minute ?? config.life?.startMinute ?? 8 * 60,
-        minutesPerSecond: config.life?.minutesPerSecond ?? 1,
+        timeScale: config.life?.timeScale ?? 1,
         tickMs: config.life?.tickMs ?? 1000,
         roamMin: config.life?.roamMin ?? 30,
         llm: config.llm || null,
@@ -589,8 +603,8 @@ export function createLocalRuntime({
       await backend.setKV("minute", minute).catch(() => {});
     },
     setSpeed(value) {
-      const v = Math.max(0.1, Math.min(60, Number(value) || 1));
-      postLife({ type: "setSpeed", minutesPerSecond: v });
+      const v = Math.max(0.5, Math.min(30, Number(value) || 1));
+      postLife({ type: "setSpeed", timeScale: v });
     },
     trigger(kind, act) {
       if (kind === "memory") {

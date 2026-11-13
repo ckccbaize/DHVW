@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T13:11:37.355Z",
+ "built_at": "2026-11-13T13:20:49.666Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -559,8 +559,8 @@
   },
   {
    "path": "config.json",
-   "size": 481,
-   "sha256": "ec96afb4ceb170cbe513078450d4d5be298b8a3dbec9f0411f79028438be75f2"
+   "size": 474,
+   "sha256": "8e9f19aa6bd7c5178970d4aa6f377f842889d300174e470ecedf46717368e163"
   },
   {
    "path": "css/app.css",
@@ -584,8 +584,8 @@
   },
   {
    "path": "debug-life.html",
-   "size": 12907,
-   "sha256": "5c0bc84e849a8a4312c3af03778c0fd97c5bfa316822431f045184504f8642e7"
+   "size": 12921,
+   "sha256": "c8daf6d7459885d179ac68ff4d5736f882a1f118aa584f41ad8e507b9700bdfe"
   },
   {
    "path": "index.html",
@@ -594,8 +594,8 @@
   },
   {
    "path": "js/app.js",
-   "size": 15842,
-   "sha256": "65064ff31115c9e1366bd01c2e128d75e2cac717cfe3c3f81519dc2342c1e8ba"
+   "size": 15857,
+   "sha256": "8bf4f4a1d239502ecf9f9f942ce7a5291fd766267cbcfd2afe9166ad12526ae6"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -779,8 +779,8 @@
   },
   {
    "path": "js/core/memory/pipeline.js",
-   "size": 3071,
-   "sha256": "8da769cbf482c1baaccda99ffe03e83a3b4f4d7ac3aa6ab007a8fd898bedee98"
+   "size": 4034,
+   "sha256": "e2643fdc9bb69c4233dcc4b3f4d6649329a1562329a911d1dca322adb892f77f"
   },
   {
    "path": "js/core/memory/remote.js",
@@ -904,8 +904,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 18734,
-   "sha256": "2aefeff9307db2388f56792e03b51fe75918ef911468d1d019457bb2ac815bda"
+   "size": 19320,
+   "sha256": "788d8c05d5a82eedb82005fe672d696b7ddb5801f01ac0f47c92ceedef1ac15f"
   },
   {
    "path": "js/runtime/remote.js",
@@ -959,8 +959,8 @@
   },
   {
    "path": "workers/life.worker.js",
-   "size": 13790,
-   "sha256": "f25e5f9df4def3f390c2815fe333bfcae50e1287866ad865c39042b7b609b3bd"
+   "size": 14291,
+   "sha256": "ad730abe4d1765b337133198fd197ff65821f782a9ba8b37936c757973eaef39"
   }
  ]
 }

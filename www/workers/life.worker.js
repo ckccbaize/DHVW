@@ -7,7 +7,7 @@ import { pickLine as pickLineCore, tickInterval, weatherForDay as weatherForDayC
 import { pickDuration } from "../js/core/life/acts.js";
 
 const cfg = {
-  minutesPerSecond: 1, // 活跃档：1 现实秒 = 1 游戏分钟
+  timeScale: 1, // 1× = 现实时间；30× = 1 现实秒 = 1 游戏分钟
   tickMs: 1000,
   roamMin: 30, // 两次自主行为之间至少隔多少游戏分钟
 };
@@ -31,6 +31,8 @@ let saidToday = new Map(); // text -> day
 let recentLines = [];
 let stats = { ticks: 0, intents: 0, says: 0, sinceResume: { rooms: 0, says: 0, sleeps: 0 } };
 let lastTs = 0;
+let anchorReal = 0;
+let anchorMinute = 0;
 
 // ---------- 短句池（本地素材，不是对话；端侧永不产出台词） ----------
 const LINES = {
@@ -254,6 +256,11 @@ function requestIntent(reason) {
   });
 }
 
+function resetAnchor() {
+  anchorReal = Date.now();
+  anchorMinute = clock.minute;
+}
+
 function tick() {
   const ts = nowMs();
   const elapsed = lastTs ? Math.min((ts - lastTs) / 1000, 5) : 0;
@@ -262,8 +269,12 @@ function tick() {
 
   stats.ticks += 1;
 
-  const speed = activity === "asleep" ? 1 / 60 : activity === "idle" ? 0.5 : cfg.minutesPerSecond;
-  clock.advance(elapsed * speed);
+  // 用墙钟锚点推进，tick 频率/FPS 不影响时间流速
+  const minutesPerSecond = activity === "active" ? cfg.timeScale / 30 : cfg.timeScale / 60;
+  const target = anchorMinute + ((Date.now() - anchorReal) / 1000) * minutesPerSecond;
+  clock.advance(target - clock.minute);
+  anchorMinute = clock.minute;
+  anchorReal = Date.now();
 
   const nextPhase = phaseOf(clock.minute);
   if (nextPhase !== phase) {
@@ -316,13 +327,15 @@ self.onmessage = (e) => {
     case "init": {
       scene = msg.scene;
       clock = createClock({ day: msg.day ?? 1, minute: msg.minute ?? 8 * 60 });
-      if (msg.minutesPerSecond) cfg.minutesPerSecond = msg.minutesPerSecond;
+      if (msg.timeScale) cfg.timeScale = msg.timeScale;
+      else if (msg.minutesPerSecond) cfg.timeScale = msg.minutesPerSecond * 30;
       if (msg.tickMs) cfg.tickMs = msg.tickMs;
       if (msg.roamMin) cfg.roamMin = msg.roamMin;
       llmCfg = msg.llm || null;
       weather = weatherForDayCore(clock.day);
       phase = phaseOf(clock.minute);
       currentRoom = PHASE_ROOM[phase] || "living";
+      resetAnchor();
       schedule();
       emit({ type: "ready", day: clock.day, minute: clock.minute, phase, weather });
       event("wake", { reason: "boot" });
@@ -370,6 +383,7 @@ self.onmessage = (e) => {
     }
     case "setActivity": {
       activity = msg.level === "asleep" ? "asleep" : msg.level === "idle" ? "idle" : "active";
+      resetAnchor();
       schedule();
       break;
     }
@@ -380,6 +394,7 @@ self.onmessage = (e) => {
     case "resume": {
       suspended = false;
       lastTs = 0;
+      resetAnchor();
       break;
     }
     case "sync": {
@@ -400,7 +415,8 @@ self.onmessage = (e) => {
       break;
     }
     case "setSpeed": {
-      cfg.minutesPerSecond = Math.max(0.1, Math.min(60, Number(msg.minutesPerSecond) || 1));
+      cfg.timeScale = Math.max(0.5, Math.min(30, Number(msg.timeScale ?? msg.minutesPerSecond) || 1));
+      resetAnchor();
       break;
     }
     case "debug_trigger": {

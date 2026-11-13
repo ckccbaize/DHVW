@@ -37,10 +37,20 @@ function fakeMemory() {
   const docs = [];
   return {
     docs,
+    get count() {
+      return docs.length;
+    },
+    all: () => docs.slice(),
     search: () => [],
     async add(doc) {
-      docs.push(doc);
+      const i = docs.findIndex((d) => d.id === doc.id);
+      if (i >= 0) docs[i] = doc;
+      else docs.push(doc);
       return doc;
+    },
+    async remove(id) {
+      const i = docs.findIndex((d) => d.id === id);
+      if (i >= 0) docs.splice(i, 1);
     },
   };
 }

@@ -5,10 +5,10 @@
     "ttsUrl": ""
   },
   "life": {
-    "minutesPerSecond": 1,
     "tickMs": 1000,
     "startMinute": 480,
-    "roamMin": 30
+    "roamMin": 30,
+    "timeScale": 1
   },
   "assetQuotaBytes": 524288000,
   "display": {

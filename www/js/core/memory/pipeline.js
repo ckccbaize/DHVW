@@ -39,6 +39,29 @@ export function validateFacts(facts = []) {
   return { facts: out, rejected };
 }
 
+const norm = (s) => String(s || "").replace(/[\s\p{P}\p{S}]+/gu, "");
+
+function grams(s) {
+  const out = new Set();
+  const chars = [...s];
+  if (chars.length < 2) return out;
+  for (let i = 0; i < chars.length - 1; i++) out.add(chars[i] + chars[i + 1]);
+  return out;
+}
+
+function similar(a, b) {
+  const x = norm(a);
+  const y = norm(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  if (x.length < 6 || y.length < 6) return false;
+  const gx = grams(x);
+  const gy = grams(y);
+  let hit = 0;
+  for (const g of gx) if (gy.has(g)) hit += 1;
+  return hit / Math.max(gx.size, gy.size) >= 0.9;
+}
+
 export function createMemoryPipeline({
   llm,
   registry,
@@ -79,13 +102,20 @@ export function createMemoryPipeline({
     if (!obj || !Array.isArray(obj.facts)) return { ok: false, reason: "invalid_json" };
     const { facts, rejected } = validateFacts(obj.facts);
     const accepted = [];
+    const known = localMemory ? localMemory.all() : [];
     for (const f of facts) {
       const key = fnv1a(f.text.replace(/\s+/g, ""));
       if (seen.has(key)) continue;
+      if (known.some((d) => similar(d.text, f.text))) continue;
       seen.add(key);
       const doc = { id: `fact-${key}`, text: f.text, t: now(), tier: f.tier, meta: { source: "pipeline" } };
       if (localMemory) await localMemory.add(doc);
+      known.push(doc);
       accepted.push(doc);
+    }
+    if (localMemory && localMemory.count > 200) {
+      const all = localMemory.all().sort((a, b) => a.t - b.t);
+      for (const d of all.slice(0, localMemory.count - 200)) await localMemory.remove(d.id);
     }
     if (accepted.length) sendCandidates({ facts: accepted, events: selected.slice(-20) });
     return { ok: true, facts: accepted, rejected, scanned: selected.length };
