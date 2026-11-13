@@ -1,19 +1,8 @@
 /* 赛璐璐动画风（arm/docs/design.md）——设备 UI 覆盖层。
    像素字体：Fusion Pixel 12px Proportional Simplified Chinese（随包）。 */
 
-:root {
-  --color-ink: #1a1a2e;
-  --color-cel-white: #fafaf5;
-  --color-red: #e63946;
-  --color-aqua: #4ea8de;
-  --color-grass: #2ecc71;
-  --color-sunset: #f1c40f;
-  --font-pixel: "Fusion Pixel 12px Proportional Simplified Chinese", "Noto Sans CJK SC", "Microsoft YaHei", monospace;
-  --shadow-hard: 4px 4px 0 var(--color-ink);
-  --shadow-hard-hover: 6px 6px 0 var(--color-ink);
-  --line: 3px solid var(--color-ink);
-  --ease-cel: 75ms linear;
-}
+/* 令牌见 tokens.css；本文件只做组件覆盖。 */
+:root { --line: 3px solid var(--color-ink); }
 
 html, body {
   background: var(--color-cel-white);
@@ -90,6 +79,7 @@ html, body {
 
 /* 开关：平涂 + 硬阴影 + 挤压 */
 .switch {
+  min-height: var(--touch-min);
   background: var(--color-cel-white);
   border: var(--line);
   border-radius: 0;
@@ -135,6 +125,7 @@ html, body {
 }
 
 .menu-card button {
+  min-height: var(--touch-min);
   background: var(--color-red);
   color: var(--color-cel-white);
   border: var(--line);
@@ -148,7 +139,7 @@ html, body {
   transition: transform var(--ease-cel), box-shadow var(--ease-cel), background var(--ease-cel);
 }
 
-.menu-card button:hover { background: #ff4d5a; transform: translateY(-4px); box-shadow: var(--shadow-hard-hover); }
+.menu-card button:hover { background: var(--color-red-hover); transform: translateY(-4px); box-shadow: var(--shadow-hard-hover); }
 .menu-card button:active { transform: scaleX(1.1) scaleY(0.9) translate(4px, 8px); box-shadow: none; }
 
 /* 显现降级页 */

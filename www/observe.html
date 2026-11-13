@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>核心机观测</title>
 <link rel="stylesheet" href="assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.css">
+<link rel="stylesheet" href="css/tokens.css">
 <style>
   :root {
     color-scheme: light;
@@ -18,7 +19,7 @@
   main { display: grid; grid-template-columns: 1.1fr 1fr; gap: 12px; padding: 12px; max-width: 1120px; margin: 0 auto; }
   section { background: var(--cel); border: 3px solid var(--ink); border-radius: 0; box-shadow: 4px 4px 0 var(--ink); padding: 10px 12px; }
   h2 { font-size: 13px; margin: 0 0 8px; color: var(--ink); font-weight: 900; letter-spacing: 0.04em; }
-  button { font: inherit; font-weight: 900; padding: 6px 12px; border: 3px solid var(--ink); border-radius: 0;
+  button { font: inherit; font-weight: 900; min-height: var(--touch-min); padding: 6px 12px; border: 3px solid var(--ink); border-radius: 0;
            background: var(--red); color: var(--cel); box-shadow: 3px 3px 0 var(--ink); cursor: pointer; }
   button:active { transform: scaleX(1.1) scaleY(0.9) translate(3px, 6px); box-shadow: none; }
   .graph { display: flex; gap: 12px; flex-wrap: wrap; }

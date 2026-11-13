@@ -136,18 +136,28 @@ export function createOverview({ canvas, scene, store, onCharacterClick, onMoveR
     if (!bubble || bubble.until < performance.now()) return;
     const agent = store.state.agent;
     const maxW = Math.min(W - 24, 400);
-    ctx.font = `${12 * scale}px "Microsoft YaHei", "Noto Sans CJK SC", sans-serif`;
+    ctx.font = `${12 * scale}px "Fusion Pixel 12px Proportional Simplified Chinese", "Microsoft YaHei", monospace`;
     const lines = wrap(bubble.text, maxW);
-    const lineH = 20 * scale;
-    const bw = Math.min(maxW, Math.max(...lines.map((l) => ctx.measureText(l).width)) + 20 * scale);
-    const bh = lines.length * lineH + 12 * scale;
+    const lineH = 18 * scale;
+    const border = 3;
+    const shadow = 4;
+    const bw = Math.min(maxW, Math.max(...lines.map((l) => ctx.measureText(l).width)) + 22 * scale);
+    const bh = lines.length * lineH + 14 * scale;
     let bx = Math.round(agent.px * cell * scale - bw / 2);
     bx = Math.max(8, Math.min(W - bw - 8, bx));
     const by = Math.max(8, Math.round(agent.py * cell * scale - 26 * scale - bh));
 
-    ctx.fillStyle = "rgba(250,250,246,0.96)";
-    roundRect(ctx, bx, by, bw, bh, 8 * scale);
-    ctx.fill();
+    // 硬阴影 + 平涂 + 3px 墨线（赛璐璐）
+    ctx.fillStyle = "#1a1a2e";
+    ctx.fillRect(bx + shadow, by + shadow, bw, bh);
+    ctx.fillStyle = "#fafaf5";
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = "#1a1a2e";
+    ctx.lineWidth = border;
+    ctx.strokeRect(bx + border / 2, by + border / 2, bw - border, bh - border);
+
+    // 小尾巴
+    ctx.fillStyle = "#1a1a2e";
     ctx.beginPath();
     ctx.moveTo(bx + bw / 2 - 6 * scale, by + bh);
     ctx.lineTo(bx + bw / 2, by + bh + 7 * scale);
@@ -155,10 +165,10 @@ export function createOverview({ canvas, scene, store, onCharacterClick, onMoveR
     ctx.closePath();
     ctx.fill();
 
-    ctx.fillStyle = "#2b3038";
+    ctx.fillStyle = "#1a1a2e";
     ctx.textBaseline = "top";
     lines.forEach((line, i) => {
-      ctx.fillText(line, bx + 10 * scale, by + 7 * scale + i * lineH);
+      ctx.fillText(line, bx + 11 * scale, by + 8 * scale + i * lineH);
     });
   }
 
@@ -179,15 +189,7 @@ export function createOverview({ canvas, scene, store, onCharacterClick, onMoveR
     return out.slice(0, 3);
   }
 
-  function roundRect(c, x, y, w, h, r) {
-    c.beginPath();
-    c.moveTo(x + r, y);
-    c.arcTo(x + w, y, x + w, y + h, r);
-    c.arcTo(x + w, y + h, x, y + h, r);
-    c.arcTo(x, y + h, x, y, r);
-    c.arcTo(x, y, x + w, y, r);
-    c.closePath();
-  }
+
 
   function draw(now) {
     const agent = store.state.agent;

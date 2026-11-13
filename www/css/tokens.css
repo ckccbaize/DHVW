@@ -1,0 +1,48 @@
+/* 设计令牌（S1）：赛璐璐动画风。所有颜色/字号/间距只从这里取。 */
+:root {
+  --color-ink: #1a1a2e;
+  --color-cel-white: #fafaf5;
+  --color-red: #e63946;
+  --color-red-hover: #ff4d5a;
+  --color-aqua: #4ea8de;
+  --color-grass: #2ecc71;
+  --color-sunset: #f1c40f;
+
+  --font-pixel: "Fusion Pixel 12px Proportional Simplified Chinese", "Noto Sans CJK SC", "Microsoft YaHei", monospace;
+  --font-weight-bold: 700;
+  --font-weight-black: 900;
+
+  --text-display: 56px;
+  --text-heading: 40px;
+  --text-subheading: 28px;
+  --text-body-lg: 16px;
+  --text-body: 14px;
+  --text-label: 14px;
+  --leading-body: 1.5;
+  --tracking-label: 0.04em;
+
+  --spacing-8: 8px;
+  --spacing-16: 16px;
+  --spacing-24: 24px;
+  --spacing-32: 32px;
+  --spacing-48: 48px;
+  --spacing-64: 64px;
+  --spacing-96: 96px;
+
+  --radius-cards: 0;
+  --radius-buttons: 0;
+  --radius-inputs: 0;
+  --radius-badges: 999px;
+
+  --line: 3px solid var(--color-ink);
+  --border-ink: 3px solid var(--color-ink);
+  --shadow-hard: 4px 4px 0 var(--color-ink);
+  --shadow-hard-hover: 6px 6px 0 var(--color-ink);
+  --ease-cel: 75ms linear;
+
+  --page-max-width: 1120px;
+  --section-gap: 80px;
+  --card-padding: 24px;
+  --element-gap: 16px;
+  --touch-min: 44px;
+}

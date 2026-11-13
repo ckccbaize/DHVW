@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T11:18:35.589Z",
+ "built_at": "2026-11-13T11:27:16.218Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -569,8 +569,13 @@
   },
   {
    "path": "css/cel.css",
-   "size": 5012,
-   "sha256": "577f42cbb3a2b7bce24671a893cf09348e23dd49b4f3d1610dc2055b62204f7f"
+   "size": 4751,
+   "sha256": "7366c502fecedf727dbdba2ccc349a735ae6707825a6b2b16fa09399f4c17c8d"
+  },
+  {
+   "path": "css/tokens.css",
+   "size": 1232,
+   "sha256": "be85176fef6d2144f9eb9a266b5f59512d2b2736e239edb46dfa1c508a9c3f71"
   },
   {
    "path": "debug-core.html",
@@ -579,8 +584,8 @@
   },
   {
    "path": "index.html",
-   "size": 2464,
-   "sha256": "9071057c9a5776d3a1e211ef00c6c61b3fe8e2c3bbceb4a991c2690bdb07a723"
+   "size": 2510,
+   "sha256": "ff8fa10d79a6d72b4ff0e830416c2f72501233683df578a1190ca02e3508e35e"
   },
   {
    "path": "js/app.js",
@@ -904,8 +909,8 @@
   },
   {
    "path": "js/view/overview.js",
-   "size": 8524,
-   "sha256": "cf75ad3bb8dd707bc6a98af437f346fd595e1306b71e5d0f401eef8622f2b0cb"
+   "size": 8633,
+   "sha256": "80a8a040aa813505329dd11c253a136f2e2c2cfd059505a55f929d37710e4f5b"
   },
   {
    "path": "js/view/present-host.js",
@@ -929,8 +934,8 @@
   },
   {
    "path": "observe.html",
-   "size": 8156,
-   "sha256": "0d33f7f7d1422f59abb7f467a0b06f8bb1e6c3070a4e00aa15c11542e46093b5"
+   "size": 8232,
+   "sha256": "3e57ea8f632e64a60d44cc8671e452ced8ad703cdeeaefcbc75738568d676ec9"
   },
   {
    "path": "workers/forge.worker.js",
