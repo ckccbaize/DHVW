@@ -21,9 +21,9 @@ const SHOE = "#2a2d36";
 
 export function createOverview({ canvas, scene, store, onCharacterClick, onMoveRequest, onBubble }) {
   const cell = scene.grid.cell || 16;
-  const scale = 2;
-  const W = scene.grid.w * cell * scale;
-  const H = scene.grid.h * cell * scale;
+  const scale = 1;
+  const W = scene.grid.w * cell;
+  const H = scene.grid.h * cell;
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d", { alpha: false });
@@ -40,8 +40,9 @@ export function createOverview({ canvas, scene, store, onCharacterClick, onMoveR
   function fit() {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const k = Math.min(vw / W, vh / H);
-    fitted = { w: Math.round(W * k), h: Math.round(H * k) };
+    // 整数倍最近邻：不做非整数缩放，避免像素糊边。
+    const k = Math.max(1, Math.floor(Math.min(vw / W, vh / H)));
+    fitted = { w: W * k, h: H * k, k };
     canvas.style.width = fitted.w + "px";
     canvas.style.height = fitted.h + "px";
   }

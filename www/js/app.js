@@ -1,7 +1,7 @@
 // 设备端启动与模式控制（M11-T1 设备侧口径 / PROJECT-PLAN §10.3）。
 // 显示态：总观 ⇄ 显现；连接态：up/down；世界档位：idle/host/edge。
 
-import { parseIntGrid, buildHotspots, spawnPoint, bfsPath, isWalkable } from "./core/grid.js";
+import { spawnPoint, bfsPath, isWalkable } from "./core/grid.js";
 import { createAgent, moveTo, step, applyChecksum } from "./core/pathagent.js";
 import { createStore } from "./core/lifestore.js";
 import { createClock } from "./core/clock.js";
@@ -13,6 +13,7 @@ import { createOverview } from "./view/overview.js";
 import { createPresent } from "./view/present.js";
 import { createHud } from "./view/hud.js";
 import { createSwitch, createSwitchSource } from "./view/switch.js";
+import { loadScene } from "./view/scene-loader.js";
 import { normalizePresentUrl, probePresent } from "./view/present-host.js";
 
 const DEFAULTS = {
@@ -46,21 +47,6 @@ async function loadConfig() {
   }
 }
 
-async function loadScene(name = "home") {
-  const base = `assets/scenes/${name}`;
-  const res = await fetch(`${base}/${name}.built.json`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`场景加载失败 ${res.status}`);
-  const raw = await res.json();
-  const parsed = parseIntGrid(raw.intGrid);
-  const scene = {
-    ...raw,
-    grid: { w: parsed.w, h: parsed.h, cell: raw.grid?.cell || 16, data: parsed.data },
-    imageUrl: `${base}/${raw.image || `${name}.png`}`,
-    image2xUrl: `${base}/${raw.image2x || `${name}@2x.png`}`,
-  };
-  scene.hotspots = buildHotspots(scene);
-  return scene;
-}
 
 async function boot() {
   const cfg = await loadConfig();
