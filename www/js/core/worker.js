@@ -23,6 +23,7 @@ import { planOuting, pickDestination, dateKey, SPECIAL_DATES } from "./life/outi
 import { buildDigest, createDigestStore } from "./digest.js";
 import { generateMap } from "./agent/subs/map.js";
 import { allowedAt, checkWatchdog, createGovernor } from "./governor.js";
+import { createStateLog, createTaskLedger } from "./observe.js";
 import { createBgAgent } from "./agent/subs/bg.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
 
@@ -91,6 +92,9 @@ let lastDigestAt = 0;
 let generatedScenes = [];
 let governor = null;
 let governorLast = null;
+let stateLog = null;
+let ledger = null;
+let heapInfo = null;
 let lastHealthAt = Date.now();
 
 const PC_ACTIONS = new Set(["map.generate", "app.open", "media.play", "notify", "web.open"]);
@@ -178,6 +182,14 @@ const ready = (async () => {
     maxSliceMs: 5000,
     onEvent: (e) => {
       log("debug", "sched", { type: e.type, id: e.job?.id, kind: e.job?.kind });
+      if (ledger && (e.type === "job_done" || e.type === "job_fail")) {
+        void ledger.record({
+          kind: e.job?.kind || "job",
+          ok: e.type === "job_done",
+          ms: Math.max(0, (e.job?.finishedAt || 0) - (e.job?.startedAt || 0)),
+          error: e.job?.error || null,
+        });
+      }
       patch({ sched: scheduler.stats });
     },
   });
@@ -221,9 +233,13 @@ const ready = (async () => {
   pcActions = (await kvBackend.get("pc_actions")) || [];
   generatedScenes = (await kvBackend.get("generated_scenes")) || [];
   digestStore = createDigestStore({ backend: kvBackend });
+  stateLog = createStateLog({ backend: kvBackend });
+  await stateLog.init();
+  ledger = createTaskLedger({ backend: kvBackend });
+  await ledger.init();
   governor = createGovernor({
     getMetrics: () => ({
-      heapRatio: heapRatio(),
+      heapRatio: heapInfo && Date.now() - heapInfo.ts < 60000 ? heapInfo.ratio : heapRatio(),
       eventCount: eventLog ? eventLog.stats.count : 0,
       queue: scheduler ? scheduler.stats.queued : 0,
     }),
@@ -334,6 +350,11 @@ async function writeDigest() {
     governor: governorLast
       ? { tier: governorLast.tier, reasons: governorLast.reasons, metrics: governorLast.metrics }
       : { tier: governor ? governor.tier : "P4", reasons: [], metrics: null },
+    observe: {
+      stateLog: stateLog ? stateLog.stats() : null,
+      ledger: ledger ? ledger.stats() : null,
+      heap: heapInfo,
+    },
     lastPlot: await kvBackend.get("last_plot"),
   });
   await digestStore.save(d);
@@ -592,6 +613,11 @@ function health() {
     governor: governorLast
       ? { tier: governorLast.tier, reasons: governorLast.reasons, metrics: governorLast.metrics }
       : { tier: governor ? governor.tier : "P4", reasons: [], metrics: null },
+    observe: {
+      stateLog: stateLog ? stateLog.stats() : null,
+      ledger: ledger ? ledger.stats() : null,
+      heap: heapInfo,
+    },
     life: life.snapshot(),
     log: { ...logStats },
     doctor: state.doctor,
@@ -620,7 +646,11 @@ function dispatchWorld(event) {
   if (!WORLD_EVENTS.has(event.type)) {
     throw Object.assign(new Error(`未知世界事件: ${event.type}`), { code: "bad_payload" });
   }
+  const before = world.state.display;
   const res = world.dispatch(event);
+  if (stateLog && (before !== res.state.display || res.illegal)) {
+    void stateLog.append({ kind: "world", from: before, to: res.state.display, meta: { event: event.type, illegal: res.illegal } });
+  }
   patch(syncWorld());
   if (scheduler) scheduler.setPresent(world.state.display === "present");
   if (event.type === "PRESENT_REQUEST" && !res.illegal) host.presentBegin();
@@ -754,8 +784,18 @@ const handlers = {
       return dispatchWorld(ev);
     }
     if (p.name === "life_advance") {
+      const before = life.snapshot();
       life.advance(p.args?.minutes ?? 60);
-      patch({ life: life.snapshot() });
+      const after = life.snapshot();
+      if (stateLog && (before.phase !== after.phase || before.band !== after.band)) {
+        void stateLog.append({
+          kind: "life",
+          from: `${before.phase}/${before.band}`,
+          to: `${after.phase}/${after.band}`,
+          meta: { minute: after.minute },
+        });
+      }
+      patch({ life: after });
       scheduleSnapshot();
       void maybeOuting();
       return { ok: true, life: life.snapshot() };
@@ -788,7 +828,11 @@ const handlers = {
     if (p.name === "agent_run") {
       const blocked = degraded("plot");
       if (blocked) return blocked;
+      const t0 = Date.now();
       const r = await manager.run(p.args?.intent, p.args?.ctx || {});
+      if (ledger) {
+        void ledger.record({ kind: "agent_run", ok: r.ok, ms: Date.now() - t0, error: r.reason || null, meta: { tasks: r.tasks?.length || 0 } });
+      }
       return { ...r };
     }
     if (p.name === "agent_plot") {
@@ -846,7 +890,9 @@ const handlers = {
     if (p.name === "map_generate") {
       const blocked = degraded("plot");
       if (blocked) return blocked;
+      const t0 = Date.now();
       const r = generateMap({ mapSpec: p.args?.mapSpec || {}, seed: p.args?.seed, w: p.args?.w, h: p.args?.h });
+      if (ledger) void ledger.record({ kind: "map", ok: r.ok, ms: Date.now() - t0, error: r.ok ? null : r.reason });
       if (r.ok) {
         generatedScenes.unshift({ ...r.scene, ts: Date.now() });
         generatedScenes = generatedScenes.slice(0, 5);
@@ -870,6 +916,41 @@ const handlers = {
     }
     if (p.name === "map_scenes") {
       return { ok: true, scenes: generatedScenes.map(({ intGrid, ...rest }) => rest) };
+    }
+    if (p.name === "heap_report") {
+      const used = Number(p.args?.used) || 0;
+      const limit = Number(p.args?.limit) || 0;
+      heapInfo = { used, limit, ratio: limit > 0 ? used / limit : 0, ts: Date.now() };
+      patch({ observe: { stateLog: stateLog.stats(), ledger: ledger.stats(), heap: heapInfo } });
+      return { ok: true, heap: heapInfo };
+    }
+    if (p.name === "observe_state") {
+      return { ok: true, stats: stateLog.stats(), events: stateLog.since(p.args?.since || 0) };
+    }
+    if (p.name === "observe_tasks") {
+      return { ok: true, stats: ledger.stats(), tasks: ledger.latest(p.args?.n || 20) };
+    }
+    if (p.name === "observe_health") {
+      patch({ observe: { stateLog: stateLog.stats(), ledger: ledger.stats(), heap: heapInfo } });
+      return {
+        ok: true,
+        health: {
+          world: { ...world.state },
+          life: life.snapshot(),
+          log: eventLog.stats,
+          sched: scheduler.stats,
+          budget: budget ? budget.stats() : null,
+          governor: governorLast,
+          stateLog: stateLog.stats(),
+          ledger: ledger.stats(),
+          heap: heapInfo,
+        },
+      };
+    }
+    if (p.name === "observe_clear") {
+      await stateLog.clear();
+      await ledger.clear();
+      return { ok: true, stateLog: stateLog.stats(), ledger: ledger.stats() };
     }
     if (p.name === "governor_check") {
       const r = governor.check();
@@ -965,7 +1046,9 @@ const handlers = {
     if (p.name === "bg_generate") {
       const blocked = degraded("bg");
       if (blocked) return blocked;
+      const t0 = Date.now();
       const r = await bgAgent.generate(p.args?.query, { n: p.args?.n, provider: p.args?.provider });
+      if (ledger) void ledger.record({ kind: "bg", ok: r.ok, ms: Date.now() - t0, error: r.ok ? null : r.reason });
       if (r.ok) {
         const { bytes, ...meta } = r;
         bgMeta = meta;
