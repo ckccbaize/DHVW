@@ -3,6 +3,7 @@
 // 用 setInterval 驱动（不用 rAF）：息屏后 rAF 会停，tick 不能停（§10.7.5）。
 
 import { createClock, phaseOf } from "../js/core/clock.js";
+import { pickLine as pickLineCore, tickInterval, weatherForDay as weatherForDayCore } from "../js/core/life/lines.js";
 
 const cfg = {
   minutesPerSecond: 1, // 活跃档：1 现实秒 = 1 游戏分钟
@@ -20,6 +21,7 @@ let activity = "active"; // active | idle | asleep
 let lastIntentMinute = -1e9;
 let pending = null; // {x,y,act,room}
 let saidToday = new Map(); // text -> day
+let recentLines = [];
 let stats = { ticks: 0, intents: 0, says: 0, sinceResume: { rooms: 0, says: 0, sleeps: 0 } };
 let lastTs = 0;
 
@@ -191,7 +193,7 @@ function tick() {
 
 function schedule() {
   clearInterval(timer);
-  const ms = activity === "asleep" ? 60000 : cfg.tickMs;
+  const ms = tickInterval(activity, cfg.tickMs);
   timer = setInterval(tick, ms);
   lastTs = 0;
 }
@@ -204,7 +206,7 @@ self.onmessage = (e) => {
       clock = createClock({ day: msg.day ?? 1, minute: msg.minute ?? 8 * 60 });
       if (msg.minutesPerSecond) cfg.minutesPerSecond = msg.minutesPerSecond;
       if (msg.tickMs) cfg.tickMs = msg.tickMs;
-      weather = weatherForDay(clock.day);
+      weather = weatherForDayCore(clock.day);
       phase = phaseOf(clock.minute);
       currentRoom = PHASE_ROOM[phase] || "living";
       schedule();
@@ -223,8 +225,16 @@ self.onmessage = (e) => {
       event("act", { act: msg.act || pending?.act || null, room });
       pending = null;
       if (activity !== "asleep") {
-        const text = pickLine();
+        const text = pickLineCore({
+          phase,
+          weather,
+          day: clock.day,
+          minute: Math.round(clock.minute),
+          recent: recentLines,
+        });
         if (text) {
+          recentLines.push({ text, day: clock.day, minute: Math.round(clock.minute) });
+          if (recentLines.length > 30) recentLines.shift();
           stats.says += 1;
           stats.sinceResume.says += 1;
           emit({ type: "say", text, ttl: 2600 });
