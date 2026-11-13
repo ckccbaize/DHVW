@@ -14,6 +14,7 @@ const MAX_INSTALLER_MB = 500
 for (const [name, ready] of [
   ['fetch-runtime.mjs', path.join(shellDir, 'runtime', 'python.exe')],
   ['fetch-uv.mjs', path.join(shellDir, 'build', 'tools', 'uv.exe')],
+  ['fetch-aria2.mjs', path.join(shellDir, 'build', 'tools', 'aria2c.exe')],
 ]) {
   if (fs.existsSync(ready)) continue
   const prep = spawnSync(process.execPath, [path.join(dir, name)], { cwd: shellDir, stdio: 'inherit' })

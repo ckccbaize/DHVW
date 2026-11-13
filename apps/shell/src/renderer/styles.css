@@ -339,6 +339,21 @@ main {
   transition: width 75ms linear;
 }
 
+/* 服务端没给总量（chunked 镜像）时，进度条改为来回扫动，避免“卡在 0%” */
+.bar.indeterminate > div {
+  background: repeating-linear-gradient(90deg, var(--sunset) 0 12px, var(--cel-white) 12px 24px);
+  animation: bar-scan 900ms linear infinite;
+}
+
+@keyframes bar-scan {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
 .panel:hover {
   box-shadow: var(--shadow-hi);
 }

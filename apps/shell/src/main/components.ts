@@ -4,6 +4,20 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
 import { bundledResourceDir, componentsRoot, dataDir, resourcesRoot, runtimeDir } from './paths'
+import { downloadFile } from './download'
+import { log } from './logger'
+
+/**
+ * 系统自带 bsdtar（Win10 1803+）：不能走 PATH —— Git for Windows 的 GNU tar 在 PATH 里
+ * 常排在前面，它会把 `D:/x` 当成远程主机 `D:`，报 "Cannot connect to D: resolve failed"。
+ */
+function systemTar(): string {
+  const candidates = [
+    process.env.SystemRoot ? path.join(process.env.SystemRoot, 'System32', 'tar.exe') : '',
+    'C:\\Windows\\System32\\tar.exe',
+  ]
+  return candidates.find((p) => p && fs.existsSync(p)) ?? 'tar'
+}
 
 /**
  * 可下载组件（ADR-PC-018 修订：OLVT 不随包，首次使用时下载）。
@@ -118,42 +132,14 @@ async function download(
   spec: ComponentSpec,
   onProgress: (pct: number) => void,
 ): Promise<void> {
-  const errors: string[] = []
-  for (const url of urls) {
-    try {
-      const res = await fetch(url, {
-        redirect: 'follow',
-        headers: { 'User-Agent': 'dhvw-shell/0.1' },
-        signal: AbortSignal.timeout(30 * 60 * 1000),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const total = Number(res.headers.get('content-length') ?? 0)
-      const hash = createHash('sha256')
-      let written = 0
-      // 不用 stream.pipeline：undici 的 body 在 Node 24 上遇背压会触发 Parser 断言，
-      // 直接按块写文件句柄，天然背压且不依赖 Web Stream 桥接。
-      const fh = await fs.promises.open(dest, 'w')
-      try {
-        for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
-          const buf = Buffer.from(chunk)
-          written += buf.length
-          hash.update(buf)
-          await fh.write(buf)
-          if (total > 0) onProgress(Math.min(99, Math.round((written / total) * 100)))
-        }
-      } finally {
-        await fh.close()
-      }
-      if (spec.minBytes && written < spec.minBytes) throw new Error(`文件过小：${written}`)
-      if (spec.sha256 && hash.digest('hex') !== spec.sha256) throw new Error('sha256 不匹配')
-      onProgress(100)
-      return
-    } catch (err) {
-      fs.rmSync(dest, { force: true })
-      errors.push(`${url} -> ${(err as Error).message}`)
-    }
-  }
-  throw new Error(`所有下载地址失败：\n${errors.join('\n')}`)
+  await downloadFile({
+    urls,
+    dest,
+    onProgress,
+    minBytes: spec.minBytes,
+    sha256: spec.sha256,
+    log: (level, message, extra) => log(level, 'download', message, { component: spec.id, ...extra }),
+  })
 }
 
 export async function ensureComponent(
@@ -174,7 +160,7 @@ export async function ensureComponent(
   try {
     await download(spec.urls, archive, spec, onProgress)
     // Windows 自带 bsdtar，可直接解 zip
-    const tar = spawnSync('tar', ['-xf', archive, '-C', dir], { encoding: 'utf8' })
+    const tar = spawnSync(systemTar(), ['-xf', archive, '-C', dir], { encoding: 'utf8' })
     if (tar.error) throw tar.error
     if (tar.status !== 0) throw new Error(`解压失败：${tar.stderr?.slice(0, 300)}`)
     fs.rmSync(archive, { force: true })

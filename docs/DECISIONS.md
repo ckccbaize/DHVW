@@ -254,3 +254,18 @@
   - 网关与会话强相关：主机改端口会被重建，已配对设备 token 仍有效（设备表独立于监听）。
   - 目前不提供吊销单个设备，只有「全部解除」；按设备吊销留给 PCM7 的管理面。
 
+## ADR-PC-024 组件下载改用内嵌 aria2c，镜像与续传由下载引擎负责
+
+- **日期**：2026-11-13 · **状态**：已接受
+- **决策**：
+  1. 组件下载（OLVT 源包、ASR 模型）不再用 Node `fetch` 单连接，改为随包分发 `tools/aria2c.exe`（aria2 1.37.0 静态 Windows x64 构建，5.4 MB），由主进程 `src/main/download.ts` 拉起。
+  2. 多个下载镜像作为 aria2 的多个 URI 参数传入（同一个文件的镜像语义），参数固定为 `--max-connection-per-server=8 --split=8 --min-split-size=1M --max-tries=6 --retry-wait=2 --continue --auto-save-interval=5 --file-allocation=none`。
+  3. `aria2c` 缺失（精简安装/CI/非 Windows）时自动回退原有 `fetch` 实现，行为不变；回退分支同样支持 `Range` 续传与 206 追加写。
+  4. 进度由我们自己算：先 `HEAD` 探 `content-length`，探不到则退用 aria2 摘要行里的总量；两者都没有（chunked 镜像）时不伪造百分比，UI 进度条走不确定态扫动动画。
+  5. `download.ts` 不 import `electron`、不 import 日志模块，日志通过 `opts.log` 注入，因此可在纯 node 下用 `scripts/test-download.mjs` 直接验证。
+  6. 校验失败（体积/sha256）抛 `VerifyError`，不触发「换引擎重试」——那是确定性失败，重试没有意义。
+- **理由**：弱网下最大的痛点是「断流即从 0 重来」。aria2 原生提供分段多连接、`.aria2` 控制文件续传、多镜像回退与自动重试；静态单 exe 无依赖，正好落在已有的 `build/tools` 打包路径内。自己实现多线程分段（含控制文件、校验、合并）成本远高于内嵌。
+- **后果**：
+  - 续传能否生效取决于镜像是否支持 `Range`。实测 `gh-proxy.com` / `ghfast.top` 对 `Range` 请求返回 200（不支持），此时 aria2 会整体重下；`.aria2` 控制文件仍会保留，换成支持 `Range` 的源即可接着下。这条限制写进 README，不对外宣称「一定续传」。
+  - 分发 GPLv2 二进制，`scripts/fetch-aria2.mjs` 同时抓取 `COPYING` 到 `tools/aria2-COPYING.txt` 随包保留。
+  - 组件下载多一个约 5.4 MB 的固定体积；安装包仍在 500 MB 软阈值内。

@@ -553,18 +553,22 @@ export default function App(): React.ReactElement {
                 <span className="comp-ver mono">v{c.version}</span>
               </div>
               {c.state === 'installing' && (
-                <div className="bar">
-                  <div style={{ width: `${c.progress ?? 0}%` }} />
+                <div className={`bar ${(c.progress ?? 0) === 0 ? 'indeterminate' : ''}`}>
+                  <div style={{ width: `${(c.progress ?? 0) === 0 ? 100 : c.progress}%` }} />
                 </div>
               )}
               {c.error && <div className="comp-err">{c.error}</div>}
               {c.state !== 'ready' && c.state !== 'installing' && (
                 <button
-                  onClick={() =>
+                  onClick={() => {
+                    // 先切到「下载中」：进度事件只更新已有的行，没有这一步永远看不到进度条
+                    setComponents((prev) =>
+                      prev.map((x) => (x.id === c.id ? { ...x, state: 'installing', progress: undefined, error: undefined } : x)),
+                    )
                     void window.dhvw.installComponent(c.id).then((st) =>
                       setComponents((prev) => prev.map((x) => (x.id === st.id ? st : x))),
                     )
-                  }
+                  }}
                 >
                   下载并安装
                 </button>
