@@ -25,6 +25,7 @@ const DEFAULTS = {
   present: { url: "" },
   scene: "home",
   forgeIntervalMs: 45000,
+  llm: { baseUrl: "", apiKey: "", model: "" },
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -34,6 +35,12 @@ async function loadConfig() {
     const res = await fetch("config.json", { cache: "no-store" });
     if (!res.ok) throw new Error(String(res.status));
     const raw = await res.json();
+    let saved = null;
+    try {
+      saved = JSON.parse(localStorage.getItem("dhvw_llm") || "null");
+    } catch {
+      saved = null;
+    }
     return {
       ...DEFAULTS,
       ...raw,
@@ -41,6 +48,7 @@ async function loadConfig() {
       life: { ...DEFAULTS.life, ...(raw.life || {}) },
       display: { ...DEFAULTS.display, ...(raw.display || {}) },
       present: { ...DEFAULTS.present, ...(raw.present || {}) },
+      llm: { ...DEFAULTS.llm, ...(raw.llm || {}), ...(saved || {}) },
       scene: raw.scene || DEFAULTS.scene,
     };
   } catch {
@@ -463,6 +471,14 @@ async function boot() {
   }, 60000);
 
   requestAnimationFrame(frame);
+
+  // 调试页保存 LLM 配置后，主页面自动重载
+  try {
+    const ch = new BroadcastChannel("dhvw-debug");
+    ch.onmessage = (e) => {
+      if (e.data === "llm-updated") location.reload();
+    };
+  } catch {}
 
   // 调试/自动化入口（浏览器实测与验收脚本用）
   window.__dhvw = {

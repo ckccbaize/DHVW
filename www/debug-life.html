@@ -23,12 +23,35 @@
   .muted { color:var(--muted); }
   .pill { display:inline-block; border:1px solid var(--line); padding:0 6px; margin-right:4px; background:#fff; }
   .empty { color:var(--muted); padding:8px 0; }
+  form.llm { display:grid; grid-template-columns:120px 1fr; gap:8px 10px; align-items:center; margin:8px 0; }
+  form.llm input { width:100%; padding:6px 8px; border:2px solid var(--line); background:#fff; font:inherit; }
+  form.llm .actions { grid-column:1 / -1; display:flex; gap:8px; align-items:center; }
+  button { border:2px solid var(--line); background:#fff; box-shadow:2px 2px 0 var(--line); padding:5px 10px; font:inherit; cursor:pointer; }
+  button:active { transform:translate(1px,1px); box-shadow:1px 1px 0 var(--line); }
+  .hint { color:var(--muted); }
   @media (max-width:800px){ .grid{grid-template-columns:1fr;} }
 </style>
 </head>
 <body>
 <h1>生活调试台</h1>
 <div class="sub" id="status">读取中…</div>
+<section style="margin-bottom:12px">
+  <h2>LLM 配置 <span class="count" id="llmSource"></span></h2>
+  <form class="llm" id="llmForm" autocomplete="off">
+    <label for="baseUrl">baseUrl</label>
+    <input id="baseUrl" name="baseUrl" placeholder="https://api.example.com/v1" spellcheck="false">
+    <label for="apiKey">apiKey</label>
+    <input id="apiKey" name="apiKey" type="password" placeholder="sk-..." spellcheck="false">
+    <label for="model">model</label>
+    <input id="model" name="model" placeholder="deepseek-chat" spellcheck="false">
+    <div class="actions">
+      <button type="submit">保存并重载</button>
+      <button type="button" id="btnTest">测试连接</button>
+      <button type="button" id="btnClear">清除覆盖</button>
+      <span class="hint" id="llmMsg">保存到本机 localStorage，主页面会自动重载</span>
+    </div>
+  </form>
+</section>
 <div class="grid">
   <section class="wide">
     <h2>LLM 调用 <span class="count" id="llmCount"></span></h2>
@@ -102,10 +125,92 @@ function renderEvents(rows) {
     : '<div class="empty">还没有事件</div>';
 }
 
+const LLM_KEY = "dhvw_llm";
+const llmForm = $("#llmForm");
+const llmMsg = $("#llmMsg");
+let baseConfig = null;
+
+function readOverride() {
+  try {
+    return JSON.parse(localStorage.getItem(LLM_KEY) || "null");
+  } catch {
+    return null;
+  }
+}
+
+async function loadLlmForm() {
+  try {
+    baseConfig = await fetch("config.json", { cache: "no-store" }).then((r) => r.json());
+  } catch {
+    baseConfig = {};
+  }
+  const saved = readOverride();
+  const cfg = { ...(baseConfig.llm || {}), ...(saved || {}) };
+  $("#baseUrl").value = cfg.baseUrl || "";
+  $("#apiKey").value = cfg.apiKey || "";
+  $("#model").value = cfg.model || "";
+  $("#llmSource").textContent = saved ? "本机覆盖" : "config.json";
+}
+
+llmForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const cfg = {
+    baseUrl: $("#baseUrl").value.trim(),
+    apiKey: $("#apiKey").value.trim(),
+    model: $("#model").value.trim(),
+  };
+  localStorage.setItem(LLM_KEY, JSON.stringify(cfg));
+  llmMsg.textContent = "已保存，正在重载主页面…";
+  try {
+    new BroadcastChannel("dhvw-debug").postMessage("llm-updated");
+  } catch {}
+  $("#llmSource").textContent = "本机覆盖";
+});
+
+$("#btnClear").addEventListener("click", () => {
+  localStorage.removeItem(LLM_KEY);
+  llmMsg.textContent = "已清除本机覆盖，重载后使用 config.json";
+  try {
+    new BroadcastChannel("dhvw-debug").postMessage("llm-updated");
+  } catch {}
+  void loadLlmForm();
+});
+
+$("#btnTest").addEventListener("click", async () => {
+  const cfg = {
+    baseUrl: $("#baseUrl").value.trim(),
+    apiKey: $("#apiKey").value.trim(),
+    model: $("#model").value.trim(),
+  };
+  if (!cfg.baseUrl || !cfg.model) {
+    llmMsg.textContent = "baseUrl 和 model 必填";
+    return;
+  }
+  llmMsg.textContent = "测试中…";
+  try {
+    const res = await fetch("/__llm/chat/completions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        baseUrl: cfg.baseUrl,
+        apiKey: cfg.apiKey,
+        body: { model: cfg.model, messages: [{ role: "user", content: "只回复 ok" }], max_tokens: 8, stream: false },
+      }),
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 120)}`);
+    const data = JSON.parse(text);
+    const content = data?.choices?.[0]?.message?.content;
+    llmMsg.textContent = content ? `连接成功：${content.slice(0, 40)}` : "连接成功，但返回缺少 content";
+  } catch (err) {
+    llmMsg.textContent = `失败：${err.message}`;
+  }
+});
+
 async function refresh() {
   try {
     const cfg = await fetch("config.json", { cache: "no-store" }).then((r) => r.json()).catch(() => ({}));
-    const llmCfg = cfg.llm || {};
+    const llmCfg = { ...(cfg.llm || {}), ...(readOverride() || {}) };
     $("#status").innerHTML = `LLM：<span class="${llmCfg.baseUrl && llmCfg.model ? "ok" : "bad"}">${llmCfg.baseUrl && llmCfg.model ? `${esc(llmCfg.model)} @ ${esc(llmCfg.baseUrl)}` : "未配置"}</span> · 每 2 秒刷新`;
     const db = await openDb();
     const [llmLog, mem, writings, events] = await Promise.all([
@@ -122,6 +227,7 @@ async function refresh() {
     $("#status").innerHTML = `<span class="bad">读取失败：${esc(err.message)}</span>`;
   }
 }
+void loadLlmForm();
 refresh();
 setInterval(refresh, 2000);
 </script>
