@@ -38,6 +38,11 @@ const api = {
   gateway: (): Promise<GatewayStatusView | null> => ipcRenderer.invoke('dhvw:gateway'),
   world: (): Promise<WorldView> => ipcRenderer.invoke('dhvw:world'),
   stats: (): Promise<StatsView> => ipcRenderer.invoke('dhvw:stats'),
+  live2d: (): Promise<{ url: string | null; error?: string }> => ipcRenderer.invoke('dhvw:live2d'),
+  setDisplay: (
+    state: 'overview' | 'present',
+  ): Promise<{ ok: boolean; delivered?: number; state?: string; error?: string }> =>
+    ipcRenderer.invoke('dhvw:setDisplay', state),
   scenes: (): Promise<{ reachable: boolean; jobs: SceneJobView[]; error?: string }> =>
     ipcRenderer.invoke('dhvw:scenes'),
   sceneGenerate: (spec: {

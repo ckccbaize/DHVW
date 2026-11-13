@@ -311,3 +311,18 @@
   - `--mode json` 的输出行会超过 asyncio 默认 64 KiB 流上限，必须 `limit=8 MiB` 并按块读；否则任务在 agent 已成功后被 `LimitOverrunError` 判失败（已踩）。
   - 首页统计表的「档位迁移」是进程内计数，编排器重启归零；需要跨重启趋势时得另落库。
   - boost 未接线期间，前端状态与后端 `kv.boost` 一致，但没有任何生产效果；接线时改的是编排器侧，协议不用动。
+
+## ADR-PC-027 角色舞台自建 Live2D 渲染，PC 不再嵌入 OLVT 前端
+
+- **日期**：2026-11-13 · **状态**：已接受
+- **背景**：首页舞台原先嵌 OLVT 的 Web 页面。实测两处硬伤：① OLVT 组件里 `frontend/` 是 git 子模块（branch `build`），组件安装不解子模块，后端 `/` 直接 404；② 即便补上构建产物，该前端与后端 1.2.1 不匹配，一上手就请求 `/undefined/undefined.model3.json`，角色不出现。舞台只需要「角色常驻显示」，不需要 OLVT 的聊天壳。
+- **决策**：
+  1. 舞台改成自建页面 `apps/shell/resources/live2d/index.html`：pixi 6 + pixi-live2d-display（cubism4）+ `live2dcubismcore.min.js`，模型用 `live2d-models/mao_pro`，透明背景、按窗口自适应、idle 动作循环、鼠标跟随，状态文案自绘。
+  2. 主进程起**只绑 127.0.0.1、随机端口、只读 static** 的服务提供 `resources/live2d`（`file://` 下模型 JSON 会被跨源检查拦掉）。渲染进程通过 `dhvw:live2d` 拿到 URL，舞台常驻 iframe。
+  3. 资源随包（`extraResources: resources/live2d → resources/live2d`，约 9.7 MB），不运行时下载（ADR-PC-017）。
+  4. 总观/显现改由设备负责：PC 新增下行 `display:set {state}`（`POST /dhvw/display`），确认只看设备回传的 `digest.world.display`，6 s 未变化即提示「设备未确认」。
+- **理由**：把「显示角色」从 OLVT 的页面栈里解耦后，舞台不再依赖组件是否完整、前后端版本是否匹配；模型文件本来就在 OLVT 组件里，复制进资源包即可，安装包仍在 500 MB 预算内。
+- **后果**：
+  - 舞台只有形象，没有历史/输入框/连接状态；对话与执行业务仍在 OLVT 后端（声纹合成、回合），两者通过编排器解耦。
+  - `display:set` 是新增消息，设备固件未实现前按钮只有投递没有效果——前端如实提示，不伪造状态。
+  - 换角色要改模型目录并在页面里指定 `?model=`；模型许可随包保留原文。

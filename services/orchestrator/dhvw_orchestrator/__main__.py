@@ -418,6 +418,23 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
     async def mood() -> JSONResponse:
         return JSONResponse(orch.mood)
 
+    @app.post("/dhvw/display")
+    async def display_set(request: Request) -> JSONResponse:
+        """设备显示态二切（总观 / 显现）：PC 只发指令，实际画面在设备上。
+
+        这是对设备契约的新增下行消息 `display:set {state}`；设备固件尚未实现时它会被忽略，
+        因此返回值只报「已投递到几条连接」，是否生效以设备回传的 digest.world.display 为准。
+        """
+        body = await request.json()
+        state = body.get("state") if isinstance(body, dict) else None
+        if state not in ("overview", "present"):
+            return JSONResponse({"ok": False, "error": "state 必须是 overview 或 present"}, status_code=400)
+        delivered = len(await orch.broadcast("display:set", {"state": state, "t_server": int(time.time() * 1000)}))
+        log("info", "下发显示态", state=state, delivered=delivered)
+        if delivered == 0:
+            return JSONResponse({"ok": False, "delivered": 0, "error": "设备未连接"})
+        return JSONResponse({"ok": True, "delivered": delivered, "state": state})
+
     @app.get("/dhvw/scenes")
     async def scenes_list() -> JSONResponse:
         return JSONResponse({"ok": True, "jobs": orch.scenes.list_jobs()})

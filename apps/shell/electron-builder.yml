@@ -23,6 +23,9 @@ extraResources:
       - '!site-packages/**'
   - from: build/tools
     to: tools
+  # 角色舞台：页面 + pixi/live2d 库 + 模型（本机 http 静态服务读取）
+  - from: resources/live2d
+    to: live2d
   - from: build/icon.png
     to: icon.png
   # 上游 OLVT 未开放 UA / extra_body，随包带两个补丁文件覆盖过去

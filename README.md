@@ -231,6 +231,7 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 - **记忆检索**：SQLite FTS5 + **二元组**索引（`"京 都 的 枫 叶"` 形式），2 字中文查询可命中；`fts5(tokenize='trigram')` 对 2 字中文零命中，不用。索引与正文行数不符时自动重建。
 - **显现闸门**：`present:request` 在 TTS 未就绪时回 `present:deny{reason}`；`present:begin/end` 把 `tier` 切到 `host`/`idle`。TTS 就绪状态由外壳随配置一起下发（见下）。
 - **动作白名单**：`web.open` / `media.play` / `app.open` 可执行；`map.generate` 交给场景作业（见下节），提交成功即回 `{job,dir}`；`notify` **未接线**，返回 `ok:false` + 中文原因，不假装成功。
+- **显示态下行**：`POST /dhvw/display {state:"overview"|"present"}` → 广播 `display:set {state,t_server}`，返回 `{delivered}`；设备未连接时 `ok:false`。这是对设备契约的**新增消息**，固件未实现前只会有投递、没有效果，前端按 6 s 无确认如实提示。
 - **配置来源**：外壳持有解密后的 API Key（DPAPI），启动、设置保存、密钥保存、worker 健康变化以及每分钟一次，向 `POST http://127.0.0.1:8877/dhvw/config` 回环下发 `{tts,live2d,llm:{baseUrl,model,apiKey}}`；`llm` 变化即时以 `llm:config` 转给设备。Python 服务不碰 safeStorage。
 - **界面**：世界状态在两处出现——首页舞台的「总观」与配置页的「世界」卡片。数据由主进程 `dhvw:world` 汇总 `GET /health` + `/dhvw/digest` + `/dhvw/mood`，`dhvw:stats` 另取 `/dhvw/stats`，均 2 s 刷新；编排器没起来显示「编排器未运行」，设备断开显示「编排器在线 · 无设备」（此时摘要仍是上一次的）。
 - **记忆回流**：PC 侧写事实走 `POST /dhvw/facts`（`src=pc`），编排器按 `updated_at` 增量以 `memory:facts{since,facts,summary}` 下发给在线设备；设备回 `facts:ack` 才把游标推进到本批最大 `updated_at`，上一批没 ack 不重复下发。
@@ -369,13 +370,15 @@ ASR 模型与既有实验环境一致（`sherpa-onnx-sense-voice-zh-en-ja-ko-yue
 
 | 页 | 内容 |
 |---|---|
-| 首页 | 左：舞台（`总观 / 显现` 二切）——总观读 `dhvw:world`（世界时刻、档位、显示、日程、心情维度），显现把 OLVT 页面用 iframe 嵌进来显示 Live2D（OLVT 未就绪时显示明确的未就绪文案，不留空白）；右：世界模式增强开关 + ARM 状态机统计表（`dhvw:stats`）。 |
+| 首页 | 顶部横幅是**设备显示态二切**（总观 / 显现）——它切换的是设备屏幕，PC 只是下发 `display:set`，并以设备回传的 `digest.world.display` 为唯一确认；左侧舞台**常驻角色 Live2D**（本机静态服务 + pixi + Live2D 模型，与 OLVT 后端无关），右列是世界模式增强开关 + 设备状态机统计表（`dhvw:stats`）。 |
 | Agent | 填写场景参数（类型/名称/种子/距离/额外要求）提交场景作业，右侧列出任务状态、阶段、告警与日志尾。 |
 | 配置 | 改造前的全部内容：服务表（含开机自启/重启宿主/端点检测）、事件流、世界卡片、组件下载、网关配对条、日志面板。 |
 
 约定：
 
-- **显现 / boost 都还不是生产行为**。显现只切舞台渲染；boost 只做界面态并写入 `config.db`（`boost.enabled`）后随配置下发，世界生产链路尚未消费它。文案里写明，不假装已生效。
+- **PC 舞台不做显示态切换**：总观/显现是设备的状态（`state.display`），本机永远显示角色。按钮下发 `display:set {state}`，设备 6 s 内没把 `digest.world.display` 改成目标值就显示「设备未确认：固件可能尚未实现 display:set」，不假装成功；设备不在线时直接报「设备未连接」。
+- 角色舞台资源在 `apps/shell/resources/live2d/`（页面 + pixi + pixi-live2d-display + `live2dcubismcore.min.js` + `models/mao_pro/runtime`），由主进程起一个**只绑 127.0.0.1 的临时 http 服务**提供（`file://` 下模型 JSON 会被跨源检查挡住）。骨架体积约 9.7 MB，打包经 `extraResources` 落在 `resources/live2d`。
+- **boost 还不是生产行为**：只做界面态并写入 `config.db`（`boost.enabled`）后随配置下发，世界生产链路尚未消费它。文案里写明，不假装已生效。
 - boost 是唯一带持续动效的控件（太阳黄底 + 斜向速度线扫过 + 脉冲指示点），`prefers-reduced-motion` 下停掉动效。
 - 统计表只显示真实收到的字段：设备离线时档位/心跳显示 `—`，编排器不可达时整表标「不可达」，不做推算。
 - 改界面后必须 `npm run audit:layout`（1020/900/760/640/520/420 六档全绿）并截图确认三个页签。

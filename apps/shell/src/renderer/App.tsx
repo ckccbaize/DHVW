@@ -362,6 +362,7 @@ export default function App(): React.ReactElement {
   const [showGateway, setShowGateway] = useState(false)
   const [settings, setSettings] = useState<SettingsView | null>(null)
   const [boostBusy, setBoostBusy] = useState(false)
+  const [live2d, setLive2d] = useState<{ url: string | null; error?: string } | null>(null)
 
   const refresh = useCallback(async () => setSnap(await window.dhvw.snapshot()), [])
   const refreshLog = useCallback(async () => setLogText(await window.dhvw.tailLog(selected, 120)), [selected])
@@ -374,6 +375,7 @@ export default function App(): React.ReactElement {
     void window.dhvw.world().then(setWorld)
     void window.dhvw.stats().then(setStats)
     void window.dhvw.settings().then(setSettings)
+    void window.dhvw.live2d().then(setLive2d)
     const offComp = window.dhvw.onComponentProgress(({ id, progress }) =>
       setComponents((prev) => prev.map((c) => (c.id === id ? { ...c, progress } : c))),
     )
@@ -433,7 +435,6 @@ export default function App(): React.ReactElement {
 
   const workers = snap?.workers ?? []
   const running = useMemo(() => workers.filter((w) => w.state === 'running').length, [workers])
-  const olvt = useMemo(() => workers.find((w) => w.id === 'olvt'), [workers])
 
   return (
     <div className="app">
@@ -488,7 +489,7 @@ export default function App(): React.ReactElement {
           <HomeView
             world={world}
             stats={stats}
-            olvt={olvt}
+            live2d={live2d}
             boost={settings?.boost?.enabled ?? false}
             onBoost={(next) => void setBoost(next)}
             busy={boostBusy}

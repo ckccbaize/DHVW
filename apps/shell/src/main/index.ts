@@ -6,6 +6,7 @@ import { log } from './logger'
 import { loadConfig, saveConfig, type ShellConfig } from './config'
 import { allocatePorts, isPortFree } from './ports'
 import { HostSupervisor } from './host'
+import { startLive2dServer, stopLive2dServer } from './live2d'
 import type {
   ActionRequest,
   AppSnapshot,
@@ -192,6 +193,25 @@ async function readStats(): Promise<StatsView> {
   }
 }
 
+/** 设备显示态二切：只发指令，成不生效看设备回传的 digest.world.display */
+async function setDisplay(
+  state: 'overview' | 'present',
+): Promise<{ ok: boolean; delivered?: number; state?: string; error?: string }> {
+  if (!orchestratorPort) return { ok: false, error: '编排器未运行' }
+  try {
+    const res = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/display`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ state }),
+      signal: AbortSignal.timeout(3000),
+    })
+    const raw = (await res.json()) as { ok?: boolean; delivered?: number; state?: string; error?: string }
+    return { ok: Boolean(raw.ok), delivered: raw.delivered, state: raw.state, error: raw.error }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
 /** 场景任务列表：编排器不可达时返回空表并带上原因 */
 async function readScenes(): Promise<{ reachable: boolean; jobs: SceneJobView[]; error?: string }> {
   if (!orchestratorPort) return { reachable: false, jobs: [] }
@@ -328,6 +348,10 @@ function createWindow(): void {
 }
 
 function registerIpc(): void {
+  ipcMain.handle('dhvw:live2d', () => ({
+    url: live2dUrl,
+    error: live2dUrl ? undefined : '角色资源缺失（resources/live2d）',
+  }))
   ipcMain.handle('dhvw:snapshot', () => snapshot())
   ipcMain.handle('dhvw:action', (_e, req: ActionRequest) => {
     if (!supervisor) return { ok: false, error: '宿主未启动' }
@@ -366,6 +390,7 @@ function registerIpc(): void {
   })
   ipcMain.handle('dhvw:world', () => readWorld())
   ipcMain.handle('dhvw:stats', () => readStats())
+  ipcMain.handle('dhvw:setDisplay', (_e, state: 'overview' | 'present') => setDisplay(state))
   ipcMain.handle('dhvw:scenes', () => readScenes())
   ipcMain.handle('dhvw:sceneGenerate', (_e, spec: Record<string, unknown>) => requestScene(spec))
   ipcMain.handle('dhvw:setBoost', (_e, enabled: boolean) => {
@@ -494,6 +519,8 @@ function registerIpc(): void {
   })
 }
 
+let live2dUrl: string | null = null
+
 async function boot(): Promise<void> {
   Menu.setApplicationMenu(null)
   hardenSessionSetup()
@@ -502,6 +529,16 @@ async function boot(): Promise<void> {
     electron: process.versions.electron,
     node: process.versions.node,
     resources: resourcesRoot(),
+  })
+
+  const live2dRoot = path.join(app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'resources'), 'live2d')
+  live2dUrl = await startLive2dServer(live2dRoot).catch((err) => {
+    log('warn', 'live2d', '角色舞台服务启动失败', { error: String(err) })
+    return null
+  })
+  log(live2dUrl ? 'info' : 'warn', 'live2d', live2dUrl ? '角色舞台就绪' : '角色资源缺失', {
+    url: live2dUrl ?? undefined,
+    root: live2dRoot,
   })
 
   const dynamic = await allocatePorts(SERVICE_CATALOG.length)
@@ -638,6 +675,8 @@ async function boot(): Promise<void> {
     app.exit(0)
   })
 }
+
+app.on('before-quit', () => stopLive2dServer())
 
 app.whenReady().then(boot).catch((err) => {
   log('error', 'app', '启动失败', { error: String(err) })
