@@ -431,8 +431,17 @@ export class Gateway {
     }
     wss.handleUpgrade(req, socket, head, (client) => {
       const upstream = new WebSocket(`ws://127.0.0.1:${target.port}${target.wsPath}`)
+      // 设备连上就发 hello，上游还没 open 时不能丢帧：先排队，连上再冲
+      const pending: Array<[Buffer, boolean]> = []
+      let open = false
+      client.on('message', (data, isBinary) => {
+        const buf = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer)
+        if (open && upstream.readyState === WebSocket.OPEN) upstream.send(buf, { binary: isBinary })
+        else pending.push([buf, isBinary])
+      })
       upstream.on('open', () => {
-        client.on('message', (data, isBinary) => upstream.readyState === WebSocket.OPEN && upstream.send(data, { binary: isBinary }))
+        open = true
+        for (const [buf, isBinary] of pending.splice(0)) upstream.send(buf, { binary: isBinary })
         upstream.on('message', (data, isBinary) => client.readyState === WebSocket.OPEN && client.send(data, { binary: isBinary }))
         client.on('close', () => upstream.close())
         upstream.on('close', () => client.close())

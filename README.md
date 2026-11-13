@@ -207,7 +207,7 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 - **免鉴权端点**：`GET /healthz`、`GET /ca.crt`（设备先取它信任证书）、`POST /pair`。
 - **配对**：弹层点「生成配对码」得到 6 位码（5 分钟有效、一次性），设备 `POST /pair {"code":"123456","name":"客厅屏"}` 换 32 字节 token，token 存 `gateway/devices.json`（0600）。连续 5 次错误码后该 IP 被锁，直到重新生成配对码。
 - **鉴权**：其余请求必须带 `X-DHVW-Token` 头或 `?token=`，未配对返回 401。
-- **反代**：`/<服务名>/...` 转发到本机对应端口（`olvt`、`orchestrator`、`waketrace`）；`/ws/<服务名>?token=...` 转发 WebSocket（OLVT 走 `/client-ws`）。
+- **反代**：`/<服务名>/...` 转发到本机对应端口（`olvt`、`orchestrator`、`waketrace`）；`/ws/<服务名>?token=...` 转发 WebSocket（OLVT 走 `/client-ws`，设备通道走 `/ws/orchestrator` → `ws://127.0.0.1:8877/dhvw`）。上游连接尚未建立时的设备帧会排队，连上后一次补发——设备连上就发 `hello`，不排队会丢掉握手。
 
 实测（本机，Node 客户端 + `--cacert` 等价校验）：
 
@@ -220,6 +220,29 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 | 同一配对码重放 | 403（一次性） |
 | 带 token 反代 `/olvt/health` | 200，上游 JSON 原样返回 |
 | `wss://…/ws/olvt?token=…` 走完一回合 | 收到回复与音频分片 |
+
+## 编排器与设备通道（`/dhvw`）
+
+真实服务在 `services/orchestrator/dhvw_orchestrator`（Python，FastAPI + uvicorn），由服务宿主托管，默认端口 8877，经网关以 `wss://<主机>:8443/ws/orchestrator?token=…` 暴露给设备。设备侧是 WebSocket **客户端**，消息信封与消息表以 `arm/docs/CONTRACTS.md` 为准，PC 侧只实现、不改契约。
+
+- **信封**：`{v,id,type,ts,payload,replyTo?}`；`v != 1` 回 `bad_version`，未知 `type` 回 `bad_type`，都在 `replyTo` 里带原 `id`。
+- **连接即推送**：设备连上后服务端主动发 `digest:get`、`mood:get`，配置里有 LLM 时补 `llm:config`。
+- **落盘**：事件进 `data/life.db`（`uuid` 幂等，重复批次不重复入库），摘要原子写 `data/digest.json`，心情与记忆进 `data/memory.db`。
+- **记忆检索**：SQLite FTS5 + **二元组**索引（`"京 都 的 枫 叶"` 形式），2 字中文查询可命中；`fts5(tokenize='trigram')` 对 2 字中文零命中，不用。索引与正文行数不符时自动重建。
+- **显现闸门**：`present:request` 在 TTS 未就绪时回 `present:deny{reason}`；`present:begin/end` 把 `tier` 切到 `host`/`idle`。TTS 就绪状态由外壳随配置一起下发（见下）。
+- **动作白名单**：`web.open` / `media.play` / `app.open` 可执行；`notify`、`map.generate` **未接线**，返回 `ok:false` + 中文原因，不假装成功。
+- **配置来源**：外壳持有解密后的 API Key（DPAPI），启动、设置保存、密钥保存、worker 健康变化以及每分钟一次，向 `POST http://127.0.0.1:8877/dhvw/config` 回环下发 `{tts,live2d,llm:{baseUrl,model,apiKey}}`；`llm` 变化即时以 `llm:config` 转给设备。Python 服务不碰 safeStorage。
+- **`semantic=false`**：随包没有 embedding 模型（ADR-PC-017 禁止运行时下载），`memory:result.semantic` 恒为 `false`，设备侧按契约降级为本地字面检索。
+
+调测：
+
+```bash
+cd apps/shell
+npm run test:dhvw          # 直连 8877 的假设备，18 项断言
+npm run test:dhvw -- --wss # 同一套断言走网关 wss://127.0.0.1:8443/ws/orchestrator?token=…
+```
+
+`--wss` 读 `%APPDATA%/DigitalHuman/gateway/{ca.crt.pem,devices.json}`，需先配对一台设备（`scripts/gateway-smoke.mjs`）。
 
 ## 语音链路（已跑通）
 

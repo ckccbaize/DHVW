@@ -15,7 +15,8 @@
     "dist": "npm run build && node scripts/pack.mjs",
     "pack": "node scripts/pack.mjs",
     "audit:layout": "node scripts/layout-audit.mjs",
-    "test:download": "node scripts/test-download.mjs"
+    "test:download": "node scripts/test-download.mjs",
+    "test:dhvw": "node scripts/test-dhvw.mjs"
   },
   "dependencies": {
     "node-forge": "^1.4.3",

@@ -87,6 +87,8 @@ PC 端“完成”= 下列全部成立，缺一不算：
 | PCM7 | 桥接与接管 | BRIDGE / DESK | PCM4 | Stub 契约稳定；接管零冲突 |
 | PCM8 | 硬化 | SUP / OBS 收口 | 全部 | 72 h 长稳、冷启动、断网恢复达标 |
 
+> 进展（2026-11-13）：编排器以 Python 服务落地（`services/orchestrator/dhvw_orchestrator`），设备 `/dhvw` 通道、事件幂等、摘要/心情落盘、事实与记忆检索、显现闸门、动作白名单、`state:overview` 全部实测（`npm run test:dhvw`，直连与网关 `--wss` 各 18 项通过）；外壳托管 + 端口 8877 + 网关 `/ws/orchestrator` 已通。未完成：embedding（`semantic=false`）、`sceneRequests`/`scene:ready`、`map.generate` 管线、`memory:facts` 回流、GUI 展示 digest/mood/tier。
+>
 > 进展（2026-11-12）：PCM1 已实测通过；PCM2 完成内置 CPython 3.12 运行时与镜像拉取；`config.sidecars` 可用真实进程替换占位 sidecar——`waketrace`（HTTP 探针 1.3 s）与 `tts`（GPT-SoVITS，TCP 探针 9.2 s）均已实测就绪；全局设置（端点/模型/密钥/端口/角色/ASR）在 GUI 落地，密钥 DPAPI 加密；OLVT 改为组件下载（不随包），启动前由主进程按设置生成 `conf.yaml` 并以真实进程拉起——内置 CPython 3.12.10 + 精简依赖（349 MB，无 torch）实测起到 `Uvicorn startup complete`（TCP 14.9 s）；安装包 137.3 MB（内嵌 aria2c 后 139.4 MB），`runtime/site-packages` 不随包。剩余：语音链路端到端（麦克风→ASR→LLM→TTS 首字延迟）、PCM3 网关。；语音链路已端到端跑通：`POST /asr` 识别 TTS 产出的 4.8 s 音频 0.13 s，`text-input` 一回合拿到分句音频（首段 3.2–19.3 s，差值在 LLM 首字），TTS 后端目录进 GUI 设置。；PCM3 网关已落地：自签 CA + SAN 主机证书、6 位一次性配对码换 token、HTTPS/WSS 反代（`/ws/olvt` 走完一回合），证书链与局域网 IP 均实测通过。；组件下载换成随包 `tools/aria2c.exe`（多连接/多镜像/重试，ADR-PC-024），缺 exe 自动回退 `fetch`；实测 OLVT 21.4 MB 经 `ghfast.top` 78 s、38 次进度回调，chunked 镜像（`gh-proxy.com`）无总量时 UI 走不确定进度条；两个镜像均不支持 `Range`，续传仅在支持分段的源上生效。
 
 **顺序理由**
@@ -103,33 +105,34 @@ PC 端“完成”= 下列全部成立，缺一不算：
 > 状态：**草案**，PCM4 冻结。冻结后任何变更必须同时改本文档与消费方，不允许“先实现后补文档”。
 > 绑定策略：能力面（设备可达）绑局域网；管理面（配置、记忆、桥接、世界控制）只绑 `127.0.0.1`。
 
-### 5.1 orchestrator · `:8877`
+### 5.1 orchestrator · `:8877`（v1，与设备 `arm/docs/CONTRACTS.md` 对齐）
+
+消息信封与消息表**以设备侧契约为准**（`arm/docs/CONTRACTS.md` §2–§3），本节只记 PC 侧已落地的实现。
 
 | 方法 | 路径 | 绑定 | 说明 |
 |---|---|---|---|
-| GET | `/health` | 局域网 | `{ok, uptime_s, services:{olvt,tts,waketrace}}` |
-| GET | `/state` | 局域网 | 当前完整状态快照 |
-| WS | `/ws/state` | 局域网 | 状态推送 5 s 一次；位置意图事件式下行 |
-| POST | `/display` | 局域网 | `{mode:"overview"\|"manifest"}` → `{ok, reason}`；主机不可达时拒绝 |
-| GET | `/agent/sessions` | 局域网 | `[{platform,task,state,progress,elapsed,pid}]` |
-| POST | `/world/start` `/world/stop` | 127.0.0.1 | GUI 手动控制；与自动与门取“与” |
-| POST | `/memory/query` | 127.0.0.1 | 调试与验收用，设备不直连 |
-| GET | `/state_log` | 127.0.0.1 | 迁移与中止原因分页查询 |
+| WS | `/dhvw` | 局域网（网关 `/ws/orchestrator`） | 设备通道：信封 `{v,id,type,ts,payload,replyTo?}`，`v!=1` 回 `bad_version`，未知 `type` 回 `bad_type` |
+| GET | `/health` | 局域网 | `{ok,service,version,pid,uptime,device:{connected,id,tier},digest_ts,memory}` |
+| GET | `/dhvw/digest` | 127.0.0.1 | 最近一次 `world:digest` 原文；`digest_ts` 同时落 `data/digest.json` |
+| GET | `/dhvw/mood` | 127.0.0.1 | 最近一次 `mood:state` |
+| GET | `/dhvw/events?limit=` | 127.0.0.1 | 最近事件（按插入倒序），验收与 GUI 用 |
+| GET | `/dhvw/actions` | 127.0.0.1 | 动作执行记录（`pc:action` 的 ok/reason/耗时） |
+| POST | `/dhvw/config` | 127.0.0.1 | 外壳回环下发 `{tts,live2d,llm:{baseUrl,model,apiKey}}`；`llm` 变更即时以 `llm:config` 推给设备 |
 
-状态快照字段（冻结候选）：
+设备侧上行（服务端处理）：
 
-```
-{
-  "ts": 1731214800,
-  "display_state": "overview" | "manifest",
-  "conn_state": "reachable" | "unreachable",
-  "work_tier": "idle" | "host" | "edge",
-  "host_available": true,
-  "agent_sessions": [...],
-  "tts_ready": true,
-  "pos_checksum": "grid:x,y"
-}
-```
+- `hello` → 回 `hello`（带 `t_server` 校时）；连上即主动发 `digest:get`、`mood:get`，有 LLM 配置时补 `llm:config`。
+- `heartbeat` → 更新在线与 `tier`；>60 s 无心跳判离线并回 `tier: idle`。
+- `events:batch` → 按 `uuid` 幂等入库（`life.db` 的 `events`），回 `events:ack{seq,inserted,duplicated}`；重复批次不重复入库。
+- `world:digest` → 原子写 `data/digest.json` 并留最近一份内存快照。
+- `mood:state` → 落库并留快照。
+- `facts:candidates` / `memory:push` → `memory.db`（`mem_meta` + `mem_fts`，中文按二元组建索引），同文本 LWW 合并，回 `facts:ack{accepted,merged,rejected}`。当前 `semantic=false`（无随包 embedding 模型）。
+- `memory:query` → `memory:result{req_id,hits,semantic:false}`，`req_id` 原样带回。
+- `pc:action` → 白名单 `web.open` / `media.play` / `app.open`；`notify`、`map.generate` 未接线，回 `ok:false` + 中文原因。
+- `present:request` → `present:grant` / `present:deny{reason}`（`tts_ready=false` 时拒绝）。
+- `present:begin` / `present:end` → 切 `tier` 为 `host` / `idle`。
+
+设备侧下行（服务端主动）：`hello`、`digest:get`、`mood:get`、`llm:config`、`tier`、`state:overview`（每 5 s，含 `clock{day,minute,phase}` 与 `work_tier`）。
 
 ### 5.2 OLVT 内部端点（本仓库补丁）
 

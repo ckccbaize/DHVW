@@ -29,11 +29,55 @@ let gatewayTargets: GatewayTarget[] = []
 let config: ShellConfig = loadConfig()
 let quitting = false
 
+/** 编排器端口（0 = 还没分配）；设备通道与配置下发都靠它 */
+let orchestratorPort = 0
+let refreshTimer: NodeJS.Timeout | null = null
+
+/**
+ * 把外壳侧的事实推给编排器：TTS 是否就绪（决定 present:grant/deny）、LLM 端点与密钥
+ * （编成 llm:config 下发给设备）。走回环 HTTP，不进设备通道，避免自己给自己发消息。
+ */
+async function pushOrchestratorConfig(): Promise<boolean> {
+  if (!orchestratorPort) return false
+  const tts = supervisor?.snapshots.find((s) => s.id === 'tts')?.healthy === true
+  const body = {
+    tts,
+    live2d: true,
+    llm: {
+      baseUrl: config.llm.baseUrl,
+      model: config.llm.model || undefined,
+      apiKey: readApiKey() || undefined,
+    },
+  }
+  try {
+    const res = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/config`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(3000),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    log('info', 'orchestrator', '已下发编排器配置', { tts, model: config.llm.model || '-' })
+    return true
+  } catch (err) {
+    return false
+  }
+}
+
+/** 编排器起步比外壳晚，启动阶段按 1 s 间隔重试，成功后不再打扰 */
+async function pushOrchestratorConfigUntilReady(tries = 30): Promise<void> {
+  for (let i = 0; i < tries; i++) {
+    if (await pushOrchestratorConfig()) return
+    await new Promise((r) => setTimeout(r, 1000))
+  }
+  log('warn', 'orchestrator', '编排器未就绪，配置未下发')
+}
+
 const SERVICE_CATALOG: Array<Omit<ServiceDef, 'port'>> = [
   { id: 'olvt', name: 'OLVT 后端', module: 'dhvw_worker', args: ['--name', 'olvt'], healthPath: '/health' },
   { id: 'tts', name: '语音合成', module: 'dhvw_worker', args: ['--name', 'tts'], healthPath: '/health' },
   { id: 'waketrace', name: '唤醒词', module: 'dhvw_worker', args: ['--name', 'waketrace'], healthPath: '/health' },
-  { id: 'orchestrator', name: '编排器', module: 'dhvw_worker', args: ['--name', 'orchestrator'] },
+  { id: 'orchestrator', name: '编排器', module: 'dhvw_orchestrator', args: [], healthPath: '/health' },
 ]
 
 /** 随包内置的 CPython（scripts/fetch-runtime.mjs 产出）；不存在则退回系统 Python。 */
@@ -216,6 +260,7 @@ function registerIpc(): void {
     saveConfig(next)
     config = next
     log('info', 'settings', '设置已保存', { llm: next.llm.baseUrl, model: next.llm.model, ports: next.ports })
+    void pushOrchestratorConfig()
     if (gatewayChanged && gateway) {
       // 端口/开关变化需要重建监听；CA 与设备表不变
       void gateway.stop().then(() => {
@@ -235,7 +280,11 @@ function registerIpc(): void {
         apiKey: req?.apiKey?.trim() || readApiKey(),
       }),
   )
-  ipcMain.handle('dhvw:saveApiKey', (_e, key: string) => saveApiKey(String(key ?? '')))
+  ipcMain.handle('dhvw:saveApiKey', (_e, key: string) => {
+    saveApiKey(String(key ?? ''))
+    void pushOrchestratorConfig()
+    return { ok: true }
+  })
   ipcMain.handle('dhvw:clearApiKey', () => {
     clearApiKey()
     return { ok: true }
@@ -285,7 +334,11 @@ async function boot(): Promise<void> {
   })
 
   const dynamic = await allocatePorts(SERVICE_CATALOG.length)
-  const fixed: Record<string, number> = { olvt: config.ports.olvt, tts: config.ports.tts }
+  const fixed: Record<string, number> = {
+    olvt: config.ports.olvt,
+    tts: config.ports.tts,
+    orchestrator: config.ports.orchestrator,
+  }
   const ports = await Promise.all(
     SERVICE_CATALOG.map(async (svc, i) => {
       const want = fixed[svc.id] ?? 0
@@ -373,14 +426,21 @@ async function boot(): Promise<void> {
   supervisor = new HostSupervisor({ pythonPath: resolvePython(), shellPid: process.pid, services })
   supervisor.on('event', (evt) => {
     if (win && !win.isDestroyed()) win.webContents.send('dhvw:event', evt)
+    // TTS 起来之后 present:grant 才有依据，健康变化就重推一次
+    if (evt.type === 'worker.healthy' || evt.type === 'worker.unhealthy') void pushOrchestratorConfig()
   })
   supervisor.on('state', broadcast)
   supervisor.start()
+  orchestratorPort = portOf('orchestrator')
+  void pushOrchestratorConfigUntilReady()
+  // 兜底刷新：设备重启/服务重连后配置不会被测试或旧值钉住
+  refreshTimer = setInterval(() => void pushOrchestratorConfig(), 60_000)
+  refreshTimer.unref()
 
   // 局域网网关：证书与配对独立于 sidecar，服务端口就绪即可转发
   gatewayTargets = [
     { name: 'olvt', port: portOf('olvt'), wsPath: '/client-ws' },
-    { name: 'orchestrator', port: portOf('orchestrator') },
+    { name: 'orchestrator', port: portOf('orchestrator'), wsPath: '/dhvw' },
     { name: 'waketrace', port: portOf('waketrace') },
   ]
   gateway = new Gateway({ port: config.gateway.port, targets: gatewayTargets })

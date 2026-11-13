@@ -9,7 +9,7 @@ export interface ShellConfig {
   window: { width: number; height: number }
   llm: { baseUrl: string; model: string; temperature: number; protocol: 'openai-compatible' | 'anthropic' }
   /** 固定端口（0 = 自动分配），用于对接外部工具或防火墙放行 */
-  ports: { olvt: number; tts: number }
+  ports: { olvt: number; tts: number; orchestrator: number }
   asr: { enabled: boolean }
   /** OLVT 后端：dir 为空时用组件目录；其余项直接写进生成的 conf.yaml */
   olvt: { dir: string; characterName: string; humanName: string; personaPrompt: string }
@@ -31,7 +31,7 @@ const DEFAULTS: ShellConfig = {
   autoLaunch: false,
   window: { width: 1020, height: 720 },
   llm: { baseUrl: 'https://codex.mintcat.work', model: '', temperature: 0.7, protocol: 'openai-compatible' },
-  ports: { olvt: 0, tts: 0 },
+  ports: { olvt: 0, tts: 0, orchestrator: 8877 },
   asr: { enabled: true },
   olvt: {
     dir: '',

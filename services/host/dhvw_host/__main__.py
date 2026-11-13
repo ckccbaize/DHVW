@@ -277,7 +277,12 @@ class Worker:
         out = log_path.open("a", encoding="utf-8", errors="replace")
         env = dict(os.environ)
         search = os.pathsep.join(
-            [str(self.services_root / "worker"), str(self.services_root / "host"), env.get("PYTHONPATH", "")]
+            [
+                str(self.services_root / "worker"),
+                str(self.services_root / "host"),
+                str(self.services_root / "orchestrator"),
+                env.get("PYTHONPATH", ""),
+            ]
         )
         env["PYTHONPATH"] = search
         # 内置嵌入式运行时走 sitecustomize，忽略 PYTHONPATH

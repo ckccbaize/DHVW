@@ -270,3 +270,22 @@
   - 分发 GPLv2 二进制，`scripts/fetch-aria2.mjs` 同时抓取 `COPYING` 到 `tools/aria2-COPYING.txt` 随包保留。
   - 组件下载多一个约 5.4 MB 的固定体积；安装包 137.3 MB → 139.4 MB，仍在 500 MB 软阈值内。
   - 构建期下载（`scripts/lib/mirror.mjs`）在 `build/tools/aria2c.exe` 已存在时复用同一引擎，原来「整包读进内存」的单连接实现只在缺 exe 时使用。
+
+## ADR-PC-025 编排器落在 Python 服务，设备通道按信封透传
+
+- **日期**：2026-11-13 · **状态**：已接受
+- **决策**：
+  1. 编排器不是 Electron 主进程里的模块，而是独立 Python 服务 `services/orchestrator/dhvw_orchestrator`（FastAPI + uvicorn），由既有服务宿主托管，端口 8877，健康检查 `/health`。
+  2. 设备通道 `WS /dhvw` 按 `arm/docs/CONTRACTS.md` 的信封原样收发：`v != 1` → `bad_version`，未知 `type` → `bad_type`，错误都带原 `id` 到 `replyTo`。PC 不新增/改名消息类型。
+  3. 事件按 `uuid` 幂等入库（`insert or ignore`），`events:ack` 回本批最大 `seq` 与实际写入量；重复批次只回 ack、不重复写。
+  4. 记忆用 SQLite FTS5 + **二元组**索引，不用 `tokenize='trigram'`（实测 sqlite 3.49.1 对 2 字中文查询零命中）。`mem_fts` 与 `mem_meta` 行数不符时自动重建索引。
+  5. `memory:result.semantic` 恒为 `false`：随包没有 embedding 模型，禁止运行时下载（ADR-PC-017）。不伪造 `true`。
+  6. 未接线的设备请求（`notify`、`map.generate`）显式失败：`ok:false` + 中文原因。禁止假成功。
+  7. 外壳 → 编排器的配置只走回环 `POST /dhvw/config`（`{tts,live2d,llm}`），编排器再以 `llm:config` 下发设备。API Key 只在外壳内存中出现，Python 服务不碰 `safeStorage`/DPAPI。
+  8. 网关转发 WS 时把上游 open 之前的客户端帧排队，连上后补发。
+- **理由**：运行时已有 fastapi/uvicorn/websockets/SQLite；记忆与 embedding 天然在 Python 生态；独立进程崩溃不影响外壳，符合既有「外壳只托管、不承载业务」的模型。设备端契约已冻结，PC 侧多改一个字段就是双端联调成本。
+- **后果**：
+  - 设备连上就发 `hello`，网关若直接丢弃未 open 期间的帧，握手会静默丢失——排队逻辑是必需项，不是优化。
+  - `present:grant/deny` 的依据是外壳下发的 `tts` 标志：外壳启动、设置保存、密钥保存、worker 健康变化与每 60 s 定时各推一次，避免 TTS 迟到就绪或重启后状态被旧值钉住。
+  - 记忆检索的召回质量受限于字面二元组；embedding 随包后改的是 `semantic` 与打分，不改协议。
+  - `semantic=false` 与未接线动作必须在文档与错误原因里写明，避免被当成缺陷反复排查。
