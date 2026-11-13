@@ -11,7 +11,9 @@ import type {
   AppSnapshot,
   ServiceDef,
   SettingsPatch,
+  SceneJobView,
   SettingsView,
+  StatsView,
   WorkTier,
   WorldView,
 } from '../shared/types'
@@ -51,6 +53,7 @@ async function pushOrchestratorConfig(): Promise<boolean> {
   const body = {
     tts,
     live2d: true,
+    boost: config.boost.enabled,
     llm: {
       baseUrl: config.llm.baseUrl,
       model: config.llm.model || undefined,
@@ -139,6 +142,87 @@ async function readWorld(): Promise<WorldView> {
   }
 }
 
+/** 状态机统计表：数据源只有编排器，拿不到就如实显示不可达 */
+async function readStats(): Promise<StatsView> {
+  const empty: StatsView = {
+    reachable: false,
+    device: { connected: false, id: null, tier: 'idle', lastSeenS: null },
+    digest: null,
+    tierTransitions: {},
+    events24h: {},
+    memory: 0,
+    uptime: 0,
+  }
+  if (!orchestratorPort) return empty
+  try {
+    const res = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/stats`, { signal: AbortSignal.timeout(2000) })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const raw = (await res.json()) as Record<string, any>
+    const device = raw.device ?? {}
+    const digest = raw.digest ?? null
+    return {
+      reachable: true,
+      device: {
+        connected: Boolean(device.connected),
+        id: typeof device.id === 'string' ? device.id : null,
+        tier: (device.tier === 'host' || device.tier === 'edge' ? device.tier : 'idle') as WorkTier,
+        lastSeenS: typeof device.last_seen_s === 'number' ? device.last_seen_s : null,
+      },
+      digest: digest
+        ? {
+            seq: Number(digest.seq ?? 0),
+            ageS: typeof digest.age_s === 'number' ? digest.age_s : null,
+            day: String(digest.clock?.day ?? ''),
+            minute: Number(digest.clock?.minute ?? 0),
+            phase: String(digest.clock?.phase ?? ''),
+            agenda: (digest.agenda ?? {}) as Record<string, number>,
+            sceneRequests: (digest.scene_requests ?? {}) as Record<string, number>,
+            pcActions: (digest.pc_actions ?? {}) as Record<string, number>,
+            behaviors: Number(digest.behaviors ?? 0),
+            eventPool: Number(digest.event_pool ?? 0),
+          }
+        : null,
+      tierTransitions: (raw.tier_transitions ?? {}) as Record<string, number>,
+      events24h: (raw.events_24h ?? {}) as Record<string, number>,
+      memory: Number(raw.memory ?? 0),
+      uptime: Number(raw.uptime ?? 0),
+    }
+  } catch (err) {
+    return { ...empty, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/** 场景任务列表：编排器不可达时返回空表并带上原因 */
+async function readScenes(): Promise<{ reachable: boolean; jobs: SceneJobView[]; error?: string }> {
+  if (!orchestratorPort) return { reachable: false, jobs: [] }
+  try {
+    const res = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/scenes`, { signal: AbortSignal.timeout(2000) })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const raw = (await res.json()) as { jobs?: SceneJobView[] }
+    return { reachable: true, jobs: Array.isArray(raw.jobs) ? raw.jobs : [] }
+  } catch (err) {
+    return { reachable: false, jobs: [], error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/** 提交一次地图生成（走编排器的场景任务，agent 由编排器拉起） */
+async function requestScene(spec: Record<string, unknown>): Promise<{ ok: boolean; job?: SceneJobView; error?: string }> {
+  if (!orchestratorPort) return { ok: false, error: '编排器未运行' }
+  try {
+    const res = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/scene`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(spec),
+      signal: AbortSignal.timeout(5000),
+    })
+    const raw = (await res.json()) as { ok?: boolean; job?: SceneJobView; error?: string }
+    if (!res.ok || !raw.ok) return { ok: false, error: raw.error ?? `HTTP ${res.status}` }
+    return { ok: true, job: raw.job }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
 /** 编排器起步比外壳晚，启动阶段按 1 s 间隔重试，成功后不再打扰 */
 async function pushOrchestratorConfigUntilReady(tries = 30): Promise<void> {
   for (let i = 0; i < tries; i++) {
@@ -178,6 +262,7 @@ const PROTOCOLS = ['openai-compatible', 'anthropic'] as const
 
 function settingsView(): SettingsView {
   return {
+    boost: { ...config.boost },
     llm: { ...config.llm, hasKey: hasApiKey() },
     ports: { ...config.ports },
     asr: { ...config.asr, ready: Boolean(asrModelPaths(config.asr.enabled).modelPath) },
@@ -280,6 +365,16 @@ function registerIpc(): void {
     return { ok: true }
   })
   ipcMain.handle('dhvw:world', () => readWorld())
+  ipcMain.handle('dhvw:stats', () => readStats())
+  ipcMain.handle('dhvw:scenes', () => readScenes())
+  ipcMain.handle('dhvw:sceneGenerate', (_e, spec: Record<string, unknown>) => requestScene(spec))
+  ipcMain.handle('dhvw:setBoost', (_e, enabled: boolean) => {
+    config = { ...config, boost: { enabled: Boolean(enabled) } }
+    saveConfig(config)
+    log('info', 'settings', '世界模式增强开关', { enabled: config.boost.enabled })
+    void pushOrchestratorConfig()
+    return { ok: true, settings: settingsView() }
+  })
   ipcMain.handle('dhvw:gatewayRestart', async () => {
     await gateway?.stop()
     gateway?.start()

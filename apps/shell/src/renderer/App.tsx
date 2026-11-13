@@ -6,23 +6,19 @@ import type {
   HostEvent,
   LlmProtocol,
   SettingsView,
-  WorkerSnapshot,
+  StatsView,
   WorldView,
 } from '../shared/types'
 import type { DhvwApi } from '../preload'
+import { HomeView } from './views/HomeView'
+import { AgentView } from './views/AgentView'
+import { ConfigView } from './views/ConfigView'
 
 // 窗口 API 直接复用预加载层的导出类型，避免两处手写签名漂移
 declare global {
   interface Window {
     dhvw: DhvwApi
   }
-}
-
-const stateLabel: Record<WorkerSnapshot['state'], string> = {
-  running: '运行中',
-  starting: '启动中',
-  stopped: '已停止',
-  failed: '失败',
 }
 
 function SettingsDialog({
@@ -349,20 +345,8 @@ function GatewayDialog({
   )
 }
 
-function EventLine({ e }: { e: HostEvent }): React.ReactElement {
-  return (
-    <div className={`ev ${e.type}`}>
-      <span className="ts">{new Date(e.ts).toLocaleTimeString('zh-CN', { hour12: false })}</span>
-      <span className="type">{e.type}</span>
-      {e.service && <span className="svc">{e.service}</span>}
-      {typeof e.pid === 'number' && <span className="kv">pid={e.pid}</span>}
-      {typeof e.code === 'number' && <span className="kv">code={e.code}</span>}
-      {e.message && <span className="msg">{e.message}</span>}
-    </div>
-  )
-}
-
 export default function App(): React.ReactElement {
+  const [tab, setTab] = useState<'home' | 'agent' | 'config'>('home')
   const [snap, setSnap] = useState<AppSnapshot | null>(null)
   const [events, setEvents] = useState<HostEvent[]>([])
   const [selected, setSelected] = useState<string>('host')
@@ -373,9 +357,11 @@ export default function App(): React.ReactElement {
   const [components, setComponents] = useState<ComponentStatus[]>([])
   const [gateway, setGateway] = useState<GatewayStatusView | null>(null)
   const [world, setWorld] = useState<WorldView | null>(null)
+  const [stats, setStats] = useState<StatsView | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [showGateway, setShowGateway] = useState(false)
   const [settings, setSettings] = useState<SettingsView | null>(null)
+  const [boostBusy, setBoostBusy] = useState(false)
 
   const refresh = useCallback(async () => setSnap(await window.dhvw.snapshot()), [])
   const refreshLog = useCallback(async () => setLogText(await window.dhvw.tailLog(selected, 120)), [selected])
@@ -386,6 +372,7 @@ export default function App(): React.ReactElement {
     void window.dhvw.components().then(setComponents)
     void window.dhvw.gateway().then(setGateway)
     void window.dhvw.world().then(setWorld)
+    void window.dhvw.stats().then(setStats)
     void window.dhvw.settings().then(setSettings)
     const offComp = window.dhvw.onComponentProgress(({ id, progress }) =>
       setComponents((prev) => prev.map((c) => (c.id === id ? { ...c, progress } : c))),
@@ -400,6 +387,7 @@ export default function App(): React.ReactElement {
       void refreshLog()
       void window.dhvw.gateway().then(setGateway)
       void window.dhvw.world().then(setWorld)
+      void window.dhvw.stats().then(setStats)
     }, 2000)
     return () => {
       offSnap()
@@ -423,56 +411,62 @@ export default function App(): React.ReactElement {
     }
   }
 
+  const setBoost = async (next: boolean): Promise<void> => {
+    setBoostBusy(true)
+    try {
+      const res = await window.dhvw.setBoost(next)
+      if (res.settings) setSettings(res.settings)
+    } finally {
+      setBoostBusy(false)
+    }
+  }
+
+  const installComponent = (id: string): void => {
+    // 先切到「下载中」：进度事件只更新已有的行，没有这一步永远看不到进度条
+    setComponents((prev) =>
+      prev.map((x) => (x.id === id ? { ...x, state: 'installing', progress: undefined, error: undefined } : x)),
+    )
+    void window.dhvw.installComponent(id).then((st) =>
+      setComponents((prev) => prev.map((x) => (x.id === st.id ? st : x))),
+    )
+  }
+
   const workers = snap?.workers ?? []
   const running = useMemo(() => workers.filter((w) => w.state === 'running').length, [workers])
+  const olvt = useMemo(() => workers.find((w) => w.id === 'olvt'), [workers])
 
   return (
     <div className="app">
       <header>
         <div className="brand">
-          <h1>DHVW 主机端</h1>
+          <h1>DHVW</h1>
           <span className={`pill ${snap?.hostReady ? 'ok' : 'bad'}`}>
             宿主 {snap?.hostReady ? '就绪' : '未就绪'}
             {snap?.hostPid ? ` · pid ${snap.hostPid}` : ''}
           </span>
-          <span className="pill">{running}/{workers.length} 服务运行</span>
-          {snap && <span className="pill mono">{snap.llm.model}</span>}
+          <span className="pill">{running}/{workers.length} 服务</span>
           {probe && (
             <span className={`pill ${probe.ok ? 'ok' : 'bad'}`} title={probe.note}>
-              端点 {probe.ok ? '可达' : '不可达'} · {probe.ms} ms
+              端点 {probe.ok ? '可达' : '不可达'}
             </span>
           )}
         </div>
+        <nav className="tabbar" aria-label="页面">
+          {(
+            [
+              ['home', '首页'],
+              ['agent', 'Agent'],
+              ['config', '配置'],
+            ] as const
+          ).map(([id, label]) => (
+            <button key={id} className={tab === id ? 'active' : ''} aria-current={tab === id} onClick={() => setTab(id)}>
+              {label}
+            </button>
+          ))}
+        </nav>
         <div className="actions">
-          <label className="switch">
-            <input
-              type="checkbox"
-              checked={snap?.autoLaunch ?? false}
-              onChange={(e) => void window.dhvw.setAutoLaunch(e.target.checked).then(refresh)}
-            />
-            开机自启
-          </label>
-          <button
-            disabled={probing}
-            onClick={() => {
-              setProbing(true)
-              void window.dhvw
-                .probeLlm()
-                .then(setProbe)
-                .finally(() => setProbing(false))
-            }}
-          >
-            检测端点
-          </button>
-          <button
-            className="primary"
-            disabled={busy}
-            onClick={() => void window.dhvw.restartHost().then(() => setTimeout(() => void refresh(), 800))}
-          >
-            重启宿主
-          </button>
           <button onClick={() => { setShowSettings(true); void window.dhvw.settings().then(setSettings) }}>设置</button>
-          <button onClick={() => void window.dhvw.openDataDir()}>打开数据目录</button>
+          <button onClick={() => void window.dhvw.openDataDir()}>数据目录</button>
         </div>
       </header>
 
@@ -489,166 +483,48 @@ export default function App(): React.ReactElement {
 
       {showGateway && <GatewayDialog status={gateway} onChange={setGateway} onClose={() => setShowGateway(false)} />}
 
-      <main>
-        <section className="panel services">
-          <h2>服务</h2>
-          <div className="table-wrap">
-            <table>
-            <thead>
-              <tr>
-                <th>服务</th>
-                <th>状态</th>
-                <th>端口</th>
-                <th className="col-optional">PID</th>
-                <th className="col-optional">重启</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {workers.map((w) => (
-                <tr key={w.id} className={w.state}>
-                  <td className="name">{w.name}</td>
-                  <td>
-                    <span className={`dot ${w.state === 'running' && w.healthy === false ? 'failed' : w.state}`} />
-                    {w.state === 'running' && w.healthy === false ? '无响应' : stateLabel[w.state]}
-                  </td>
-                  <td className="mono">{w.port || '—'}</td>
-                  <td className="mono col-optional">{w.pid ?? '—'}</td>
-                  <td className="mono col-optional">{w.restarts}</td>
-                  <td className="row-actions">
-                    <button disabled={busy} onClick={() => void act(w.id, 'restart')}>重启</button>
-                    {w.state === 'running' ? (
-                      <button disabled={busy} onClick={() => void act(w.id, 'stop')}>停止</button>
-                    ) : (
-                      <button disabled={busy} onClick={() => void act(w.id, 'start')}>启动</button>
-                    )}
-                    <button onClick={() => setSelected(w.id)}>日志</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            </table>
-          </div>
-          <div className="gw-strip">
-            <span className="pill mono">
-              <span className={`dot ${gateway?.running ? 'running' : 'failed'}`} />
-              设备接入 :{gateway?.port ?? '—'}
-            </span>
-            <code className="mono gw-strip-url">{gateway?.urls[0] ?? '未启动'}</code>
-            <button onClick={() => setShowGateway(true)}>配对 / 设备</button>
-          </div>
-          <p className="hint">数据目录：{snap?.dataDir ?? '…'} · Python：{snap?.pythonPath ?? '…'}</p>
-        </section>
-
-
-        <div className="col">
-        <section className="panel events">
-          <h2>事件</h2>
-          <div className="scroll">
-            {events.length === 0 && <div className="empty">等待宿主事件…</div>}
-            {events.map((e, i) => (
-              <EventLine key={`${e.ts}-${i}`} e={e} />
-            ))}
-          </div>
-        </section>
-
-        <section className="panel world">
-          <h2>
-            世界
-            <span className={`pill ${world?.reachable ? (world.device.connected ? 'ok' : '') : 'bad'}`}>
-              {world?.reachable ? (world.device.connected ? `设备在线 · ${world.device.id ?? '?'}` : '编排器在线 · 无设备') : '编排器未运行'}
-            </span>
-          </h2>
-          {world?.error && <div className="hint bad">{world.error}</div>}
-          <div className="world-line">
-            <span className="world-item">档位 <b className="mono">{world?.device.tier ?? '—'}</b></span>
-            <span className="world-item">
-              世界时刻{' '}
-              <b className="mono">
-                {world?.digest
-                  ? `${world.digest.day.slice(5)} ${String(Math.floor(world.digest.minute / 60)).padStart(2, '0')}:${String(world.digest.minute % 60).padStart(2, '0')}`
-                  : '—'}
-              </b>
-            </span>
-            <span className="world-item">时段 <b className="mono">{world?.digest?.phase || '—'}</b></span>
-            <span className="world-item">显示 <b className="mono">{world?.digest?.display || '—'}</b></span>
-            <span className="world-item">
-              日程 <b className="mono">{world?.digest ? `${world.digest.agendaDone}/${world.digest.agendaTotal}` : '—'}</b>
-            </span>
-            <span className="world-item">
-              待生成场景 <b className="mono">{world?.digest ? world.digest.scenesPending : '—'}</b>
-            </span>
-            <span className="world-item">心情 <b className="mono">{world?.mood?.band || '—'}</b></span>
-            <span className="world-item">记忆 <b className="mono">{world?.reachable ? world.memory : '—'}</b></span>
-          </div>
-          {world?.mood && world.mood.dims.length > 0 && (
-            <div className="world-dims">
-              {world.mood.dims.map((d) => (
-                <span className="world-dim" key={d.key}>
-                  <span className="k">{d.key}</span>
-                  <span className="bar">
-                    <span style={{ width: `${Math.max(0, Math.min(1, d.value)) * 100}%` }} />
-                  </span>
-                  <span className="v mono">{d.value.toFixed(2)}</span>
-                </span>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="panel components">
-          <h2>组件</h2>
-          {components.length === 0 && <div className="empty">读取中…</div>}
-          {components.map((c) => (
-            <div className="comp" key={c.id}>
-              <div className="comp-info">
-                <span className="comp-name">{c.name}</span>
-                <span className={`pill ${c.state === 'ready' ? 'ok' : c.state === 'failed' ? 'bad' : ''}`}>
-                  {c.state === 'ready' ? '就绪' : c.state === 'failed' ? '失败' : c.state === 'installing' ? '下载中' : '未安装'}
-                </span>
-                <span className="comp-ver mono">v{c.version}</span>
-              </div>
-              {c.state === 'installing' && (
-                <div className={`bar ${(c.progress ?? 0) === 0 ? 'indeterminate' : ''}`}>
-                  <div style={{ width: `${(c.progress ?? 0) === 0 ? 100 : c.progress}%` }} />
-                </div>
-              )}
-              {c.error && <div className="comp-err">{c.error}</div>}
-              {c.state !== 'ready' && c.state !== 'installing' && (
-                <button
-                  onClick={() => {
-                    // 先切到「下载中」：进度事件只更新已有的行，没有这一步永远看不到进度条
-                    setComponents((prev) =>
-                      prev.map((x) => (x.id === c.id ? { ...x, state: 'installing', progress: undefined, error: undefined } : x)),
-                    )
-                    void window.dhvw.installComponent(c.id).then((st) =>
-                      setComponents((prev) => prev.map((x) => (x.id === st.id ? st : x))),
-                    )
-                  }}
-                >
-                  下载并安装
-                </button>
-              )}
-            </div>
-          ))}
-        </section>
-
-        </div>
+      <main className={`page ${tab}`}>
+        {tab === 'home' && (
+          <HomeView
+            world={world}
+            stats={stats}
+            olvt={olvt}
+            boost={settings?.boost?.enabled ?? false}
+            onBoost={(next) => void setBoost(next)}
+            busy={boostBusy}
+          />
+        )}
+        {tab === 'agent' && <AgentView />}
+        {tab === 'config' && (
+          <ConfigView
+            snap={snap}
+            workers={workers}
+            events={events}
+            world={world}
+            components={components}
+            gateway={gateway}
+            busy={busy}
+            logText={logText}
+            selected={selected}
+            onSelect={setSelected}
+            onAct={(id, action) => void act(id, action)}
+            onOpenGateway={() => setShowGateway(true)}
+            onInstall={installComponent}
+            autoLaunch={snap?.autoLaunch ?? false}
+            onAutoLaunch={(next) => void window.dhvw.setAutoLaunch(next).then(refresh)}
+            onRestartHost={() => void window.dhvw.restartHost().then(() => setTimeout(() => void refresh(), 800))}
+            onProbe={() => {
+              setProbing(true)
+              void window.dhvw
+                .probeLlm()
+                .then(setProbe)
+                .finally(() => setProbing(false))
+            }}
+            probing={probing}
+            probeOk={probe ? probe.ok : null}
+          />
+        )}
       </main>
-
-      <footer className="panel logs">
-        <div className="logs-head">
-          <h2>日志 · {selected}</h2>
-          <div className="tabs">
-            {['host', ...workers.map((w) => w.id)].map((id) => (
-              <button key={id} className={id === selected ? 'active' : ''} onClick={() => setSelected(id)}>
-                {id}
-              </button>
-            ))}
-          </div>
-        </div>
-        <pre>{logText || '…'}</pre>
-      </footer>
     </div>
   )
 }

@@ -70,6 +70,8 @@ export interface ServiceDef {
 export type LlmProtocol = 'openai-compatible' | 'anthropic'
 
 export interface SettingsView {
+  /** 老配置库没有这个键，渲染层必须按可选处理 */
+  boost?: { enabled: boolean }
   llm: { baseUrl: string; model: string; temperature: number; protocol: LlmProtocol; hasKey: boolean }
   ports: { olvt: number; tts: number }
   asr: { enabled: boolean; ready: boolean }
@@ -133,6 +135,45 @@ export interface WorldView {
   } | null
   mood: { band: string; dims: Array<{ key: string; value: number }> } | null
   error?: string
+}
+
+export interface StatsView {
+  reachable: boolean
+  device: { connected: boolean; id: string | null; tier: WorkTier; lastSeenS: number | null }
+  digest: {
+    seq: number
+    ageS: number | null
+    day: string
+    minute: number
+    phase: string
+    agenda: Record<string, number>
+    sceneRequests: Record<string, number>
+    pcActions: Record<string, number>
+    behaviors: number
+    eventPool: number
+  } | null
+  tierTransitions: Record<string, number>
+  events24h: Record<string, number>
+  memory: number
+  uptime: number
+  error?: string
+}
+
+export type SceneState = 'queued' | 'running' | 'done' | 'failed'
+
+export interface SceneJobView {
+  id: string
+  name: string
+  kind: string
+  seed: string
+  note?: string
+  state: SceneState
+  startedAt: number
+  finishedAt?: number
+  stage?: string
+  error?: string
+  warnings?: string[] | null
+  logTail?: string
 }
 
 export interface ActionRequest {

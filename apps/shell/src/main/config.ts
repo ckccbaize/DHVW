@@ -21,6 +21,8 @@ export interface ShellConfig {
   sidecars: Record<string, { command: string[]; cwd?: string; env?: Record<string, string> }>
   /** 组件下载地址覆盖（企业镜像/离线包），不填则用内置镜像列表 */
   componentUrls: Record<string, string[]>
+  /** 世界模式增强：目前只是界面层开关（不改变生产行为），持久化以便后续接线 */
+  boost: { enabled: boolean }
   /** 组件依赖安装使用的 PyPI 镜像 */
   pipIndex: string
   services: Record<string, { enabled: boolean }>
@@ -42,6 +44,7 @@ const DEFAULTS: ShellConfig = {
   tts: { backendDir: '', refAudioPath: '', refText: '', refLang: 'ja', textLang: 'zh' },
   gateway: { enabled: true, port: 8443 },
   sidecars: {},
+  boost: { enabled: false },
   componentUrls: {},
   pipIndex: 'https://mirrors.aliyun.com/pypi/simple',
   services: {},
@@ -91,6 +94,7 @@ export function loadConfig(): ShellConfig {
       olvt: { ...DEFAULTS.olvt, ...raw.olvt },
       tts: { ...DEFAULTS.tts, ...raw.tts },
       gateway: { ...DEFAULTS.gateway, ...raw.gateway },
+      boost: { ...DEFAULTS.boost, ...raw.boost },
       sidecars: { ...DEFAULTS.sidecars, ...raw.sidecars },
       componentUrls: { ...DEFAULTS.componentUrls, ...raw.componentUrls },
     }

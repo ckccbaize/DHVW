@@ -230,9 +230,9 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 - **落盘**：事件进 `data/life.db`（`uuid` 幂等，重复批次不重复入库），摘要原子写 `data/digest.json`，心情与记忆进 `data/memory.db`。
 - **记忆检索**：SQLite FTS5 + **二元组**索引（`"京 都 的 枫 叶"` 形式），2 字中文查询可命中；`fts5(tokenize='trigram')` 对 2 字中文零命中，不用。索引与正文行数不符时自动重建。
 - **显现闸门**：`present:request` 在 TTS 未就绪时回 `present:deny{reason}`；`present:begin/end` 把 `tier` 切到 `host`/`idle`。TTS 就绪状态由外壳随配置一起下发（见下）。
-- **动作白名单**：`web.open` / `media.play` / `app.open` 可执行；`notify`、`map.generate` **未接线**，返回 `ok:false` + 中文原因，不假装成功。
+- **动作白名单**：`web.open` / `media.play` / `app.open` 可执行；`map.generate` 交给场景作业（见下节），提交成功即回 `{job,dir}`；`notify` **未接线**，返回 `ok:false` + 中文原因，不假装成功。
 - **配置来源**：外壳持有解密后的 API Key（DPAPI），启动、设置保存、密钥保存、worker 健康变化以及每分钟一次，向 `POST http://127.0.0.1:8877/dhvw/config` 回环下发 `{tts,live2d,llm:{baseUrl,model,apiKey}}`；`llm` 变化即时以 `llm:config` 转给设备。Python 服务不碰 safeStorage。
-- **界面**：服务面板旁的「世界」卡片是只读视图——档位、世界时刻、时段、显示态、日程完成数、待生成场景数、心情条、记忆条数。数据由主进程 `dhvw:world` 汇总 `GET /health` + `/dhvw/digest` + `/dhvw/mood`，2 s 刷新；编排器没起来显示「编排器未运行」，设备断开显示「编排器在线 · 无设备」（此时摘要仍是上一次的）。
+- **界面**：世界状态在两处出现——首页舞台的「总观」与配置页的「世界」卡片。数据由主进程 `dhvw:world` 汇总 `GET /health` + `/dhvw/digest` + `/dhvw/mood`，`dhvw:stats` 另取 `/dhvw/stats`，均 2 s 刷新；编排器没起来显示「编排器未运行」，设备断开显示「编排器在线 · 无设备」（此时摘要仍是上一次的）。
 - **记忆回流**：PC 侧写事实走 `POST /dhvw/facts`（`src=pc`），编排器按 `updated_at` 增量以 `memory:facts{since,facts,summary}` 下发给在线设备；设备回 `facts:ack` 才把游标推进到本批最大 `updated_at`，上一批没 ack 不重复下发。
 - **`semantic=false`**：随包没有 embedding 模型（ADR-PC-017 禁止运行时下载），`memory:result.semantic` 恒为 `false`，设备侧按契约降级为本地字面检索。
 
@@ -240,11 +240,33 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 
 ```bash
 cd apps/shell
-npm run test:dhvw          # 直连 8877 的假设备，18 项断言
+npm run test:dhvw          # 直连 8877 的假设备，21 项断言
 npm run test:dhvw -- --wss # 同一套断言走网关 wss://127.0.0.1:8443/ws/orchestrator?token=…
 ```
 
 `--wss` 读 `%APPDATA%/DigitalHuman/gateway/{ca.crt.pem,devices.json}`，需先配对一台设备（`scripts/gateway-smoke.mjs`）。
+
+## 场景作业（Agent 页 / `map.generate`）
+
+用户口径：**一个场景就是一张连续地图**（家、街道都一样），切换靠加载，不拆图。PC 只产出设备可运行的场景包（`docs/MAP-SCENE-DESIGN.md` §13.4 / §15.1），不渲染、不展示。
+
+链路在 `services/orchestrator/dhvw_orchestrator/scene.py`：
+
+1. `POST /dhvw/scene {kind,name,seed,distance,note}` → 建工作目录 `%APPDATA%/DigitalHuman/data/scenes/<id>/`（`GET /dhvw/scenes` 查任务表）。
+2. 编排器以 **pi CLI** 拉起 agent：`pi -p --mode json --provider dhvw --model <settings.model> --skill <toolchain>/docs/MAP-SCENE-DESIGN.md`，`HOME`/`USERPROFILE` 指向 `data/agent-home`（隔离，不污染用户自己的 `~/.pi`），`.pi/agent/models.json` 由编排器按当前设置的 `baseUrl/apiKey/model` 生成（`compat.supportsDeveloperRole/supportsReasoningEffort=false`）。
+3. agent 写 `<id>.map.json` 并跑 `paint_home.py` → `pack_scene.py` → `validate_scene.py`；编排器随后**自己再跑一次** `validate_scene.py` 作为收包闸门，通过才发 `scene:ready {id,path,name}` 给设备。
+4. 判定只看闸门：agent 进程退出码非 0 但产物齐全且校验通过时，任务标「已完成（有告警）」，告警原样显示在 Agent 页。
+
+前置条件（缺任一都在提交时显式失败，不产占位包）：
+
+| 依赖 | 说明 |
+|---|---|
+| 地图工具链 | 含 `docs/MAP-SCENE-DESIGN.md` 与 `scripts/` 的仓库根；自动向上探测，或设 `DHVW_MAP_TOOLCHAIN`。 |
+| pi CLI | `PI_BIN` 或 PATH/常见安装路径，找不到直接拒绝提交。 |
+| 带 PIL+numpy 的 Python | 画图脚本需要；`DHVW_MAP_PYTHON` 或 PATH 上的 `python`（内置 CPython 3.12 没有 PIL，跑不了这一步）。 |
+| LLM 密钥 | 设置页已保存（DPAPI），编排器拿外壳回环下发的明文副本写进 `models.json`。 |
+
+已实测：`room-smoke1`（8×7 书房）、`street-smoke2`（20×6 街道）、`room-diag4`（4×4 单间）三张都由 pi+skill 产出并通过 `validate_scene.py`，单任务 3–4 分钟、输出 8–9 万 token。踩过的坑：`--mode json` 单行会超过 asyncio 默认 64 KiB 流上限，必须提高 `limit` 并按块读，否则任务在收尾处被 `LimitOverrunError` 判死。
 
 ## 语音链路（已跑通）
 
@@ -340,6 +362,23 @@ ASR 模型与既有实验环境一致（`sherpa-onnx-sense-voice-zh-en-ja-ko-yue
 - `prefers-reduced-motion` 下关闭全部过渡与挤压。
 
 新增界面元素必须复用这些变量，不要引入第二套圆角、渐变或动效时长。
+
+## 页面布局（首页 / Agent / 配置）
+
+顶栏中央是三个页签，切换只改 `App.tsx` 的 `tab` 状态，不重载窗口：
+
+| 页 | 内容 |
+|---|---|
+| 首页 | 左：舞台（`总观 / 显现` 二切）——总观读 `dhvw:world`（世界时刻、档位、显示、日程、心情维度），显现把 OLVT 页面用 iframe 嵌进来显示 Live2D（OLVT 未就绪时显示明确的未就绪文案，不留空白）；右：世界模式增强开关 + ARM 状态机统计表（`dhvw:stats`）。 |
+| Agent | 填写场景参数（类型/名称/种子/距离/额外要求）提交场景作业，右侧列出任务状态、阶段、告警与日志尾。 |
+| 配置 | 改造前的全部内容：服务表（含开机自启/重启宿主/端点检测）、事件流、世界卡片、组件下载、网关配对条、日志面板。 |
+
+约定：
+
+- **显现 / boost 都还不是生产行为**。显现只切舞台渲染；boost 只做界面态并写入 `config.db`（`boost.enabled`）后随配置下发，世界生产链路尚未消费它。文案里写明，不假装已生效。
+- boost 是唯一带持续动效的控件（太阳黄底 + 斜向速度线扫过 + 脉冲指示点），`prefers-reduced-motion` 下停掉动效。
+- 统计表只显示真实收到的字段：设备离线时档位/心跳显示 `—`，编排器不可达时整表标「不可达」，不做推算。
+- 改界面后必须 `npm run audit:layout`（1020/900/760/640/520/420 六档全绿）并截图确认三个页签。
 
 ## 体积预算
 

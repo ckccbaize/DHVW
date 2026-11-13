@@ -8,7 +8,9 @@ import type {
   HostEvent,
   LlmProtocol,
   SettingsPatch,
+  SceneJobView,
   SettingsView,
+  StatsView,
   WorldView,
 } from '../shared/types'
 
@@ -35,6 +37,18 @@ const api = {
   components: (): Promise<ComponentStatus[]> => ipcRenderer.invoke('dhvw:components'),
   gateway: (): Promise<GatewayStatusView | null> => ipcRenderer.invoke('dhvw:gateway'),
   world: (): Promise<WorldView> => ipcRenderer.invoke('dhvw:world'),
+  stats: (): Promise<StatsView> => ipcRenderer.invoke('dhvw:stats'),
+  scenes: (): Promise<{ reachable: boolean; jobs: SceneJobView[]; error?: string }> =>
+    ipcRenderer.invoke('dhvw:scenes'),
+  sceneGenerate: (spec: {
+    kind?: string
+    name?: string
+    seed?: string
+    distance?: number
+    note?: string
+  }): Promise<{ ok: boolean; job?: SceneJobView; error?: string }> => ipcRenderer.invoke('dhvw:sceneGenerate', spec),
+  setBoost: (enabled: boolean): Promise<{ ok: boolean; settings?: SettingsView }> =>
+    ipcRenderer.invoke('dhvw:setBoost', enabled),
   gatewayPair: (): Promise<{ code: string; expiresAt: number } | null> => ipcRenderer.invoke('dhvw:gatewayPair'),
   gatewayClosePair: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:gatewayClosePair'),
   gatewayForget: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:gatewayForget'),

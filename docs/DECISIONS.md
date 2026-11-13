@@ -293,3 +293,21 @@
   - `present:grant/deny` 的依据是外壳下发的 `tts` 标志：外壳启动、设置保存、密钥保存、worker 健康变化与每 60 s 定时各推一次，避免 TTS 迟到就绪或重启后状态被旧值钉住。
   - 记忆检索的召回质量受限于字面二元组；embedding 随包后改的是 `semantic` 与打分，不改协议。
   - `semantic=false` 与未接线动作必须在文档与错误原因里写明，避免被当成缺陷反复排查。
+
+## ADR-PC-026 界面按「首页 / Agent / 配置」三页重组，地图生成交给嵌入式 pi CLI
+
+- **日期**：2026-11-13 · **状态**：已接受
+- **背景**：主界面把服务表、事件、世界、组件、日志全塞在两列里，日常看的总观与虚拟形象反而没有位置；同时「让 PC 生成地图」一直缺执行者——自研 agent 循环（工具调用、重试、上下文裁剪）既不划算也难维护。
+- **决策**：
+  1. 顶栏三页签：**首页**（舞台 + 世界模式增强 + ARM 状态机统计表）、**Agent**（设计地图 → 场景任务）、**配置**（原服务表/事件/世界/组件/网关/日志）。切页只改 `tab` 状态，不重载窗口。
+  2. 首页舞台是 `总观 / 显现` 二切：显现把 OLVT 页面用 iframe 嵌入（CSP 增加 `frame-src http://127.0.0.1:*`），OLVT 未就绪时给明确文案。**显现开关本身不触发 `present:*` 流程**，那仍由设备发起。
+  3. boost（世界模式增强）当前只是界面态：写 `config.db` 的 `boost.enabled`，随配置下发到编排器并落 `kv.boost`，**不改变生产行为**，文案与文档都写明。
+  4. ARM 状态机统计表只读 `GET /dhvw/stats`（`device`/`digest` 各状态计数、`tier_transitions`、近 24 h 事件按 kind、记忆条数、编排器 uptime），缺数据就显示 `—`，不做推算。
+  5. 地图生成嵌入 **pi CLI**（`pi -p --mode json --provider dhvw --model <settings.model> --skill docs/MAP-SCENE-DESIGN.md`），不自研 agent；`HOME`/`USERPROFILE` 指向 `data/agent-home` 隔离，`models.json` 由编排器按外壳下发的 `{baseUrl,apiKey,model}` 生成（`compat.supportsDeveloperRole/supportsReasoningEffort=false`）。
+  6. 成败以**收包闸门**为准：产物齐全 + 编排器自己复跑 `validate_scene.py` 退出码 0 → `done`（agent 退出码非 0 记为告警），否则 `failed` + 原因。缺工具链 / pi / 带 PIL 的 Python / 密钥时**提交阶段就拒绝**。
+- **理由**：UI 重组的判断标准是「一屏内能看到她、能看到世界、能动手」；agent 的可靠性用成熟 CLI 换来自研成本，模型只出参数、几何由确定性脚本产出（`MAP-SCENE-DESIGN` 的既有前提）。闸门复跑是不信任 agent 自报「已通过」的最低成本做法。
+- **后果**：
+  - 场景作业要三个额外运行时（地图工具链、pi、带 PIL 的 Python），对外部设备/迷你主机是明显门槛；当前只在开发机验证，发行打包前必须定下随包/引导策略。
+  - `--mode json` 的输出行会超过 asyncio 默认 64 KiB 流上限，必须 `limit=8 MiB` 并按块读；否则任务在 agent 已成功后被 `LimitOverrunError` 判失败（已踩）。
+  - 首页统计表的「档位迁移」是进程内计数，编排器重启归零；需要跨重启趋势时得另落库。
+  - boost 未接线期间，前端状态与后端 `kv.boost` 一致，但没有任何生产效果；接线时改的是编排器侧，协议不用动。

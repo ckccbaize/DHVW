@@ -889,3 +889,432 @@ button {
     font-size: 11px;
   }
 }
+
+/* ---------------- 三页布局（首页 / Agent / 配置） ---------------- */
+header {
+  row-gap: 10px;
+}
+.brand {
+  flex: 1 1 auto;
+}
+.tabbar {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+  order: 2;
+}
+.tabbar button {
+  box-shadow: 3px 3px 0 var(--ink);
+  background: var(--cel-white);
+  padding: 8px 18px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.tabbar button.active,
+.tabbar button.active:hover:not(:disabled) {
+  background: var(--ink);
+  color: var(--cel-white);
+}
+.actions {
+  order: 3;
+}
+main.page {
+  display: block;
+  flex: 1;
+  min-height: 0;
+}
+main.page.config {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+.config-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 16px;
+  min-height: 220px;
+}
+.page.config .logs {
+  flex: 0 0 auto;
+}
+
+/* ---------------- 首页 ---------------- */
+.home-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 16px;
+  height: 100%;
+  min-height: 320px;
+}
+.stage {
+  min-height: 0;
+}
+.stage-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.stage-head h2 {
+  margin: 0;
+}
+.seg {
+  display: flex;
+  gap: 0;
+}
+.seg button {
+  border-right-width: 0;
+}
+.seg button:last-child {
+  border-right-width: var(--line);
+}
+.seg button.active,
+.seg button.active:hover:not(:disabled) {
+  background: var(--ink);
+  color: var(--cel-white);
+}
+.stage-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.stage-body .stage-frame {
+  flex: 1;
+  width: 100%;
+  min-height: 220px;
+  border: var(--line) solid var(--ink);
+  background: #fff;
+}
+.stage-empty {
+  flex: 1;
+  min-height: 220px;
+  border: var(--line) solid var(--ink);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  text-align: center;
+  background-image: repeating-linear-gradient(45deg, transparent 0 10px, rgba(26, 26, 46, 0.06) 10px 20px);
+}
+.stage-empty-title {
+  font-weight: 700;
+  font-size: 16px;
+}
+.stage-empty-body {
+  font-size: 12px;
+  color: rgba(26, 26, 46, 0.7);
+  max-width: 32ch;
+}
+.overview-board {
+  flex: 1;
+  min-height: 220px;
+  border: var(--line) solid var(--ink);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #fff;
+}
+.ov-clock {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ov-clock-time {
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+.ov-clock-meta {
+  font-size: 12px;
+  color: rgba(26, 26, 46, 0.65);
+}
+.ov-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.ov-cell {
+  border: var(--line) solid var(--ink);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ov-cell .k {
+  font-size: 11px;
+  color: rgba(26, 26, 46, 0.65);
+}
+.ov-cell b {
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ov-dims {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ov-dim {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.ov-dim .bar {
+  height: 10px;
+  border: 2px solid var(--ink);
+  display: block;
+  overflow: hidden;
+}
+.ov-dim .bar > span {
+  display: block;
+  height: 100%;
+  background: var(--aqua);
+}
+
+/* boost：世界模式增强，唯一带持续动效的开关 */
+.home-col {
+  min-height: 0;
+}
+/* 只有统计表吃掉剩余高度，boost 卡按内容高度，避免卡片里出现大块空白 */
+.home-col .boost {
+  flex: 0 0 auto;
+}
+.home-col .stats {
+  flex: 1 1 auto;
+}
+.job-warn {
+  font-size: 11px;
+  border-left: 3px solid var(--sunset);
+  padding-left: 6px;
+  color: rgba(26, 26, 46, 0.8);
+}
+.boost {
+  position: relative;
+  overflow: hidden;
+  background: #fffdf0;
+}
+.boost.on {
+  background: var(--sunset);
+}
+.boost h2 {
+  position: relative;
+  z-index: 1;
+}
+.boost-desc {
+  position: relative;
+  z-index: 1;
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 8px 0 12px;
+  color: rgba(26, 26, 46, 0.75);
+}
+.boost-lines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--tick);
+}
+.boost.on .boost-lines {
+  opacity: 1;
+}
+.boost-lines span {
+  position: absolute;
+  top: -20%;
+  width: 3px;
+  height: 140%;
+  background: var(--ink);
+  transform: rotate(18deg);
+  opacity: 0.14;
+}
+.boost-lines span:nth-child(1) {
+  left: 12%;
+}
+.boost-lines span:nth-child(2) {
+  left: 40%;
+}
+.boost-lines span:nth-child(3) {
+  left: 68%;
+}
+.boost-lines span:nth-child(4) {
+  left: 90%;
+}
+.boost.on .boost-lines span {
+  animation: boost-sweep 1.1s linear infinite;
+}
+.boost.on .boost-lines span:nth-child(2) {
+  animation-delay: 0.25s;
+}
+.boost.on .boost-lines span:nth-child(3) {
+  animation-delay: 0.5s;
+}
+.boost.on .boost-lines span:nth-child(4) {
+  animation-delay: 0.75s;
+}
+@keyframes boost-sweep {
+  from {
+    transform: translateX(-40px) rotate(18deg);
+  }
+  to {
+    transform: translateX(40px) rotate(18deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .boost.on .boost-lines span {
+    animation: none;
+  }
+}
+.boost-btn {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 12px;
+  box-shadow: var(--shadow);
+  align-self: stretch;
+}
+.boost-btn.on,
+.boost-btn.on:hover:not(:disabled) {
+  background: var(--ink);
+  color: var(--cel-white);
+}
+.boost-dot {
+  width: 10px;
+  height: 10px;
+  border: 2px solid currentColor;
+  background: transparent;
+}
+.boost-btn.on .boost-dot {
+  background: var(--red);
+  border-color: var(--cel-white);
+  animation: boost-pulse 900ms linear infinite;
+}
+@keyframes boost-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* ARM 状态机统计表 */
+.stats {
+  min-height: 0;
+  overflow-y: auto;
+}
+.stats h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.stats-table {
+  width: 100%;
+  font-size: 12px;
+  border-collapse: collapse;
+}
+.stats-table th,
+.stats-table td {
+  border: 2px solid var(--ink);
+  padding: 5px 7px;
+  text-align: left;
+  vertical-align: top;
+  word-break: break-all;
+}
+.stats-table th {
+  width: 1%;
+  white-space: nowrap;
+  background: rgba(26, 26, 46, 0.06);
+  font-weight: 700;
+}
+
+/* ---------------- Agent 页 ---------------- */
+.agent-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 16px;
+  height: 100%;
+  min-height: 320px;
+}
+.agent-form,
+.agent-jobs {
+  overflow-y: auto;
+}
+.agent-jobs h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.job {
+  border: var(--line) solid var(--ink);
+  padding: 10px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.job.done {
+  box-shadow: 4px 4px 0 var(--grass);
+}
+.job.failed {
+  box-shadow: 4px 4px 0 var(--red);
+}
+.job-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.job-name {
+  font-weight: 700;
+}
+.job-meta {
+  font-size: 11px;
+  color: rgba(26, 26, 46, 0.65);
+}
+.job-log {
+  max-height: 220px;
+  overflow: auto;
+  border: 2px solid var(--ink);
+  padding: 8px;
+  font-size: 11px;
+  background: #fff;
+}
+
+@media (max-width: 900px) {
+  .home-grid,
+  .agent-grid,
+  .config-grid {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+  }
+  .ov-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .tabbar {
+    order: 4;
+    width: 100%;
+  }
+  .tabbar button {
+    flex: 1;
+  }
+}

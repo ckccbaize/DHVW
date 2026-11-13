@@ -25,6 +25,11 @@ const call = (method, params = {}) =>
   })
 await call('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false })
 await new Promise((r) => setTimeout(r, 600))
+// EVAL：截图前先执行一段页面脚本（切页 / 点开关），用于人工确认各状态布局
+if (process.env.EVAL) {
+  await call('Runtime.evaluate', { expression: process.env.EVAL, awaitPromise: true, returnByValue: true })
+  await new Promise((r) => setTimeout(r, 800))
+}
 if (process.env.SCROLL === '1') {
   await call('Runtime.evaluate', {
     expression: "(() => { const m = document.querySelector('main'); if (m) m.scrollTop = m.scrollHeight; const c = document.querySelector('.col'); if (c) c.scrollTop = c.scrollHeight; return 1 })()",
