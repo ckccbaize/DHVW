@@ -18,6 +18,8 @@ PC 端“完成”= 下列全部成立，缺一不算：
 
 ## 2. 分层与数据流
 
+> 设备侧（ARM 核心机）的职责、消息表与数据契约见 [`ARM-CORE-INTEGRATION.md`](ARM-CORE-INTEGRATION.md)。PC 不再运行世界/生活状态机与唤醒决策，只消费 `world:digest`、`mood:state` 并负责显现/OLVT/记忆向量/地图绘制。
+
 ```
                     ┌──────────── 外壳（Electron 45 / TypeScript）──────────┐
                     │ 托盘 GUI │ Supervisor │ 端口管理 │ 日志 │ 配置库 │
