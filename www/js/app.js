@@ -14,6 +14,7 @@ import { createPresent } from "./view/present.js";
 import { createHud } from "./view/hud.js";
 import { createSwitch, createSwitchSource } from "./view/switch.js";
 import { loadScene } from "./view/scene-loader.js";
+import { createPerfOverlay } from "./view/perf-overlay.js";
 import { normalizePresentUrl, probePresent } from "./view/present-host.js";
 
 const DEFAULTS = {
@@ -89,6 +90,9 @@ async function boot() {
   });
 
   const hud = createHud({ root, store });
+  if (new URLSearchParams(location.search).get("perf") === "1") {
+    createPerfOverlay({ getFps: () => overview.fps });
+  }
 
   let displayChangedAt = 0;
   let presentOpenedAt = 0;

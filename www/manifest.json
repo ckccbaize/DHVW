@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T11:27:16.218Z",
+ "built_at": "2026-11-13T11:55:34.054Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -569,8 +569,8 @@
   },
   {
    "path": "css/cel.css",
-   "size": 4751,
-   "sha256": "7366c502fecedf727dbdba2ccc349a735ae6707825a6b2b16fa09399f4c17c8d"
+   "size": 5040,
+   "sha256": "3a5ac5cb2c85f00f64e670c8e760539c981f6914a2f7371fecef5299163c5abf"
   },
   {
    "path": "css/tokens.css",
@@ -589,8 +589,8 @@
   },
   {
    "path": "js/app.js",
-   "size": 14848,
-   "sha256": "8e1c47b82bb969ebf53e8e8a3d49970918c57d540f6d15f836a6da9c6b324958"
+   "size": 15033,
+   "sha256": "926343e69da5d574f4be40c6a8df2c34371ab58fdd2d62f42cda0f3b5d9d9e05"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -911,6 +911,11 @@
    "path": "js/view/overview.js",
    "size": 8633,
    "sha256": "80a8a040aa813505329dd11c253a136f2e2c2cfd059505a55f929d37710e4f5b"
+  },
+  {
+   "path": "js/view/perf-overlay.js",
+   "size": 1156,
+   "sha256": "6309532a7745d380fae199bf99bfa8593997f62f19b1432b3054e3ae8af35e29"
   },
   {
    "path": "js/view/present-host.js",
