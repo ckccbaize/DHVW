@@ -477,6 +477,7 @@ async function boot() {
     const ch = new BroadcastChannel("dhvw-debug");
     ch.onmessage = (e) => {
       if (e.data === "llm-updated") location.reload();
+      else if (e.data?.type === "trigger") local.trigger(e.data.kind, e.data.act);
     };
   } catch {}
 

@@ -300,9 +300,9 @@ export function createLocalRuntime({
     store.patch({ memory: { count: localMemory.count, terms: localMemory.terms } });
   }
 
-  async function maybeMemory() {
+  async function maybeMemory(force = false) {
     if (!memoryPipeline || suspended) return;
-    if (eventsSinceMemory < 20 && now() - lastMemoryAt < 60000) return;
+    if (!force && eventsSinceMemory < 20 && now() - lastMemoryAt < 60000) return;
     const events = await backend.oldestEvents(40);
     if (events.length < 3) return;
     lastMemoryAt = now();
@@ -586,6 +586,30 @@ export function createLocalRuntime({
     async persistClock(day, minute) {
       await backend.setKV("day", day).catch(() => {});
       await backend.setKV("minute", minute).catch(() => {});
+    },
+    trigger(kind, act) {
+      if (kind === "memory") {
+        void maybeMemory(true);
+        return;
+      }
+      if (kind === "write") {
+        void generateWriting({
+          day: lastTick?.day ?? 1,
+          minute: lastTick?.minute ?? 0,
+          room: lastTick?.room || scene.start,
+        });
+        return;
+      }
+      postLife({ type: "debug_trigger", kind, act });
+    },
+    async getMemory() {
+      return localMemory ? localMemory.all() : [];
+    },
+    async getWritings() {
+      return (await backend.getKV("writings")) || [];
+    },
+    async getLlmLog() {
+      return (await backend.getKV("llm_log")) || [];
     },
     setQuota(bytes) {
       quota = bytes;

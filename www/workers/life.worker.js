@@ -199,6 +199,18 @@ async function maybeLlmThought() {
   }
 }
 
+function debugIntent(act) {
+  pending = null;
+  busyUntil = clock.minute;
+  const target = pickTarget();
+  if (!target) return;
+  const t = { ...target, act, durationMin: pickDuration(act) };
+  pending = t;
+  lastIntentMinute = clock.minute;
+  stats.intents += 1;
+  emit({ type: "intent", x: t.x, y: t.y, act: t.act, room: t.room, durationMin: t.durationMin, reason: "debug" });
+}
+
 function requestIntent(reason) {
   if (pending) return;
   if (clock.minute < busyUntil) return;
@@ -360,6 +372,30 @@ self.onmessage = (e) => {
           : `你不在的这段时间，她换了 ${s.rooms} 次地方，说了 ${s.says} 句，睡了 ${s.sleeps} 觉。`;
       stats.sinceResume = { rooms: 0, says: 0, sleeps: 0 };
       emit({ type: "summary", text });
+      break;
+    }
+    case "debug_trigger": {
+      const kind = msg.kind;
+      if (kind === "thought") {
+        lastLlmMinute = -1e9;
+        llmBusy = false;
+        void maybeLlmThought();
+      } else if (kind === "sleep") {
+        clock.set(clock.day, 23 * 60);
+        phase = "sleep";
+        pending = null;
+        busyUntil = clock.minute;
+        requestIntent("debug:sleep");
+      } else if (kind === "wake") {
+        clock.set(clock.day, 7 * 60);
+        phase = "wake";
+        pending = null;
+        busyUntil = clock.minute;
+        requestIntent("debug:wake");
+      } else if (kind === "act" && msg.act) {
+        debugIntent(msg.act);
+      }
+      emit({ type: "debug_triggered", kind, act: msg.act || null, minute: clock.minute });
       break;
     }
     case "stats": {

@@ -52,6 +52,21 @@
     </div>
   </form>
 </section>
+<section style="margin-bottom:12px">
+  <h2>主动触发 <span class="count">主页面需保持打开</span></h2>
+  <div class="actions" style="display:flex;flex-wrap:wrap;gap:8px">
+    <button type="button" data-trigger="thought">立即独白</button>
+    <button type="button" data-trigger="memory">立即归纳记忆</button>
+    <button type="button" data-trigger="write">立即写作</button>
+    <button type="button" data-trigger="sleep">强制睡觉</button>
+    <button type="button" data-trigger="wake">强制醒来</button>
+    <button type="button" data-trigger="act" data-act="read">去阅读</button>
+    <button type="button" data-trigger="act" data-act="cook">去做饭</button>
+    <button type="button" data-trigger="act" data-act="write">去写作</button>
+    <button type="button" data-trigger="act" data-act="bath">去洗澡</button>
+  </div>
+  <div class="hint" id="triggerMsg" style="margin-top:8px">点击后由主页面执行；结果看下方事件流与 LLM 调用</div>
+</section>
 <div class="grid">
   <section class="wide">
     <h2>LLM 调用 <span class="count" id="llmCount"></span></h2>
@@ -227,6 +242,19 @@ async function refresh() {
     $("#status").innerHTML = `<span class="bad">读取失败：${esc(err.message)}</span>`;
   }
 }
+document.querySelectorAll("[data-trigger]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const kind = btn.dataset.trigger;
+    const act = btn.dataset.act || null;
+    try {
+      new BroadcastChannel("dhvw-debug").postMessage({ type: "trigger", kind, act });
+      $("#triggerMsg").textContent = `已发送：${kind}${act ? ` / ${act}` : ""}（${new Date().toLocaleTimeString("zh-CN", { hour12: false })}）`;
+    } catch (err) {
+      $("#triggerMsg").textContent = `发送失败：${err.message}`;
+    }
+  });
+});
+
 void loadLlmForm();
 refresh();
 setInterval(refresh, 2000);
