@@ -149,7 +149,7 @@ export function buildHotspots(scene) {
   for (const prop of scene.props || []) {
     const act = PROP_ACT[prop.id];
     if (!act) continue;
-    const cell = adjacentCells(grid, prop)[0];
+    const cell = facingCell(grid, prop) || adjacentCells(grid, prop)[0];
     if (!cell) continue;
     const key = cell[1] * grid.w + cell[0];
     if (seen.has(key)) continue;
@@ -157,6 +157,24 @@ export function buildHotspots(scene) {
     out.push({ x: cell[0], y: cell[1], prop: prop.id, act, room: prop.room, face: prop.facing || "S" });
   }
   return out;
+}
+
+/** 按 facing 选使用面相邻格；不可走时回退任意相邻格。 */
+function facingCell(grid, prop) {
+  const w = prop.w || 1;
+  const h = prop.h || 1;
+  const fx = prop.x + Math.floor(w / 2);
+  const fy = prop.y + Math.floor(h / 2);
+  const cand = {
+    N: [fx, prop.y - 1],
+    S: [fx, prop.y + h],
+    W: [prop.x - 1, fy],
+    E: [prop.x + w, fy],
+  }[prop.facing];
+  if (!cand) return null;
+  const [x, y] = cand;
+  if (x < 0 || y < 0 || x >= grid.w || y >= grid.h) return null;
+  return isWalkable(grid, x, y) ? cand : null;
 }
 
 /** 出生点：场景 start 房间内、离房间中心最近的可行走格。 */

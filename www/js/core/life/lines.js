@@ -29,6 +29,25 @@ export const LINES = {
   },
 };
 
+/** 动作相关短句：让气泡与所在位置/动作一致。 */
+export const ACT_LINES = {
+  read: ["翻了两页，停在同一行。", "把书签往前挪了一点。", "书页压着光。"],
+  cook: ["锅里的水开始响。", "把火调小了一点。", "尝了一口，又加了点盐。"],
+  eat: ["慢慢把碗里的吃完。", "把筷子搁在碗沿上。"],
+  watch: ["屏幕亮着，她没换台。", "把声音调低了一格。"],
+  rest: ["靠着坐了一会儿。", "把抱枕挪到腰后。"],
+  sleep: ["把被子拉到肩上。", "翻了个身，安静下来。"],
+  dress: ["把外套从衣架上取下来。", "对着镜子理了理领口。"],
+  water: ["给叶子背面也喷了点水。", "把歪掉的枝条扶正。"],
+  bath: ["水汽把镜子糊住了。", "试了试水温。"],
+  wash: ["水龙头开得很小。", "把台面擦干。"],
+  laundry: ["把衣服一件件抖开。", "按下启动键，滚筒转起来。"],
+  play: ["逗了两下，猫没理她。", "把毛线球滚到墙角。"],
+  sit: ["坐下，又站起来。", "把椅子往桌前挪了挪。"],
+  work: ["敲了几行，又删掉。", "把屏幕往下压了一点。"],
+  light: ["开了盏小灯。", "把灯罩转了个方向。"],
+};
+
 /** 同一天同一天气（L3）。 */
 export function weatherForDay(day) {
   const h = (day * 2654435761) >>> 0;
@@ -49,8 +68,10 @@ export function tickInterval(activity, baseMs = 1000) {
  * 挑一句：phase 桶 + 45% 天气插句；24h 内不重复。
  * recent: [{text, day, minute}]
  */
-export function pickLine({ phase = "afternoon", weather = "clear", day = 1, minute = 0, recent = [], random = Math.random } = {}) {
-  const pool = [...(LINES[phase] || LINES.afternoon)];
+export function pickLine({ phase = "afternoon", weather = "clear", day = 1, minute = 0, act = null, recent = [], random = Math.random } = {}) {
+  const pool = act && ACT_LINES[act] && random() < 0.6
+    ? [...ACT_LINES[act]]
+    : [...(LINES[phase] || LINES.afternoon)];
   const w = LINES.weather[weather];
   if (w && random() < 0.45) pool.push(...w);
   const nowMin = day * 1440 + minute;

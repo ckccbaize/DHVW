@@ -79,6 +79,7 @@ test("buildHotspots：热点是道具相邻可走格，且带动作", () => {
   assert.equal(spots.length, 1);
   assert.equal(spots[0].act, "sleep");
   assert.equal(spots[0].prop, "bed");
+  assert.deepEqual([spots[0].x, spots[0].y], [1, 2]);
   assert.equal(isWalkable(GRID, spots[0].x, spots[0].y), true);
   // 同一格不重复
   const dup = buildHotspots({ grid: GRID, props: [{ id: "bed", x: 1, y: 1, w: 1, h: 1, room: "r" }, { id: "chair", x: 2, y: 1, w: 1, h: 1, room: "r" }] });

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { LINES, pickLine, tickInterval, weatherForDay } from "../www/js/core/life/lines.js";
+import { ACT_LINES, LINES, pickLine, tickInterval, weatherForDay } from "../www/js/core/life/lines.js";
 
 test("weatherForDay：确定性", () => {
   assert.equal(weatherForDay(1), weatherForDay(1));
@@ -35,6 +35,11 @@ test("pickLine：超过 24h 可重复", () => {
     random: () => 0,
   });
   assert.ok(r);
+});
+
+test("pickLine：动作优先", () => {
+  const r = pickLine({ phase: "morning", weather: "clear", act: "read", day: 1, minute: 600, recent: [], random: () => 0 });
+  assert.ok(ACT_LINES.read.includes(r));
 });
 
 test("pickLine：天气插句", () => {

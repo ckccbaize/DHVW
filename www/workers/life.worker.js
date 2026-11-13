@@ -58,9 +58,9 @@ const PHASE_ROOM = {
   sleep: "bedroom",
   wake: "bedroom",
   morning: "living",
-  noon: "living",
-  afternoon: "living",
-  evening: "living",
+  noon: "hall",
+  afternoon: "balcony",
+  evening: "hall",
   night: "bedroom",
 };
 
@@ -126,10 +126,12 @@ function hotspotsIn(room) {
 function pickTarget() {
   const room = PHASE_ROOM[phase] || "living";
   const inRoom = hotspotsIn(room);
-  const pool = inRoom.length ? inRoom : scene.hotspots || [];
+  // 35% 概率去别的房间，避免一直在同一角落
+  const roam = inRoom.length > 0 && Math.random() < 0.35;
+  const pool = roam ? scene.hotspots || [] : inRoom.length ? inRoom : scene.hotspots || [];
   if (!pool.length) return null;
   // 优先当前时段动作，其次同房间任意热点
-  const preferred = pool.filter((h) => h.act === PHASE_ACT[phase]);
+  const preferred = roam ? [] : pool.filter((h) => h.act === PHASE_ACT[phase]);
   const list = preferred.length ? preferred : pool;
   const h = list[Math.floor(Math.random() * list.length)];
   return { x: h.x, y: h.y, act: h.act, room: h.room || room };
@@ -222,12 +224,14 @@ self.onmessage = (e) => {
         stats.sinceResume.rooms += 1;
         event("enter", { room });
       }
-      event("act", { act: msg.act || pending?.act || null, room });
+      const act = msg.act || pending?.act || null;
+      event("act", { act, room });
       pending = null;
       if (activity !== "asleep") {
         const text = pickLineCore({
           phase,
           weather,
+          act,
           day: clock.day,
           minute: Math.round(clock.minute),
           recent: recentLines,

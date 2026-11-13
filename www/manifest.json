@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T11:55:34.054Z",
+ "built_at": "2026-11-13T12:12:14.803Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -689,8 +689,8 @@
   },
   {
    "path": "js/core/grid.js",
-   "size": 5221,
-   "sha256": "ff4fe22dac287a949ec51d9b643a18691c910eeaf107a032b92b0c79c9206ac5"
+   "size": 5791,
+   "sha256": "9e30d19391cfca630afed5c06e86a505c23e6c24ef1718f8adf65650c720cee2"
   },
   {
    "path": "js/core/host.js",
@@ -704,8 +704,8 @@
   },
   {
    "path": "js/core/life/lines.js",
-   "size": 2659,
-   "sha256": "da9153d18472dd07d71608450e53cbda750bd2c58b0484301358ed4ab4fc627c"
+   "size": 3988,
+   "sha256": "5ad8a74bedcb3e65d7c9913b40960ac0977670ff9e5edf5b45502562437c3811"
   },
   {
    "path": "js/core/life/outing.js",
@@ -949,8 +949,8 @@
   },
   {
    "path": "workers/life.worker.js",
-   "size": 8842,
-   "sha256": "d10655f65366cac78956ae4bb44a65877aeea5d835ad44fdf46fa5de0f58fbd6"
+   "size": 9033,
+   "sha256": "f4dc57655ac61c41ea98bdd19b5cb9c563e013756b3fd7465188c4d6e8e09971"
   }
  ]
 }
