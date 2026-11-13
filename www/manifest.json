@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T14:24:13.737Z",
+ "built_at": "2026-11-13T15:07:12.646Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -793,6 +793,11 @@
    "sha256": "f6bdc4e6c6b30920b09093f3e03c2b6d62fa0f2921f90803a28c32cadfd783f5"
   },
   {
+   "path": "js/core/mood/describe.js",
+   "size": 1744,
+   "sha256": "137d95a9c40c9c8681f5a323b9a1b2d994a35b0dcb7ac652ac41101f9e13a686"
+  },
+  {
    "path": "js/core/mood/policy.js",
    "size": 3118,
    "sha256": "e8985884fe20a2726fd2a4aeca78dbc56236eb06df2e45f3329845ffdbb59065"
@@ -909,8 +914,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 23586,
-   "sha256": "92e64a1a18e3ec9ec302275550e0d3415b1bbd4286c2275f8171def718332fe4"
+   "size": 23757,
+   "sha256": "87c98caa88637e7e7a8af437c6693dca2abad9daba0edfadaff6402c55bce533"
   },
   {
    "path": "js/runtime/remote.js",
@@ -964,8 +969,8 @@
   },
   {
    "path": "workers/life.worker.js",
-   "size": 16096,
-   "sha256": "71a1c28b48ea1ab40369f0196869e0b9f2a3320c749e5f638e7db481df228210"
+   "size": 16157,
+   "sha256": "8fc94e6b7601175efc244e8bccf3edcc1f3519eb1315c5fe98262677efb306bb"
   }
  ]
 }

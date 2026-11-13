@@ -8,6 +8,7 @@ import { createAgentRegistry } from "../core/agent/registry.js";
 import { createLocalMemory } from "../core/memory/local.js";
 import { createMemoryPipeline } from "../core/memory/pipeline.js";
 import { extractJson } from "../core/agent/json.js";
+import { describeMood, moodTone } from "../core/mood/describe.js";
 
 const EVENT_CAP = 2000;
 const DEFAULT_QUOTA = 500 * 1024 * 1024;
@@ -356,7 +357,7 @@ export function createLocalRuntime({
       period: tick.phase,
       place: tick.room || scene.start,
       input: "为明天埋一个变化",
-      mood: JSON.stringify(mood),
+      mood: describeMood(mood),
       recent: JSON.stringify(recentPlots.slice(-5)),
     });
     const t0 = now();
@@ -422,8 +423,8 @@ export function createLocalRuntime({
     const todayPlot = dailyPlots[ctx.day]?.text || dailyPlots[ctx.day + 1]?.text || "";
     const prompt =
       kind === "diary"
-        ? `写一篇角色日记，第一人称，120-200 字。时间：第${ctx.day}天 ${Math.floor(ctx.minute / 60)}:${String(Math.floor(ctx.minute % 60)).padStart(2, "0")}，地点：${ctx.room}。今天发生的剧情：${todayPlot || "无特别事件"}。日记里要自然提到这件事。只输出正文。`
-        : `写一段角色正在创作的小说片段，第三人称，150-250 字。时间：第${ctx.day}天，地点：${ctx.room}。今天发生的剧情：${todayPlot || "无特别事件"}。只输出正文。`;
+        ? `写一篇角色日记，第一人称，120-200 字。时间：第${ctx.day}天 ${Math.floor(ctx.minute / 60)}:${String(Math.floor(ctx.minute % 60)).padStart(2, "0")}，地点：${ctx.room}。她现在${describeMood(mood)}；${moodTone(mood)}。今天发生的剧情：${todayPlot || "无特别事件"}。日记里要自然提到这件事。只输出正文。`
+        : `写一段角色正在创作的小说片段，第三人称，150-250 字。时间：第${ctx.day}天，地点：${ctx.room}。她现在${describeMood(mood)}；${moodTone(mood)}。今天发生的剧情：${todayPlot || "无特别事件"}。只输出正文。`;
     const t0 = now();
     try {
       const res = await llm.complete({

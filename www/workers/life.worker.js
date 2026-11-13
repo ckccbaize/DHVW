@@ -5,6 +5,7 @@
 import { createClock, phaseOf } from "../js/core/clock.js";
 import { pickLine as pickLineCore, tickInterval } from "../js/core/life/lines.js";
 import { weatherAt } from "../js/core/weather.js";
+import { describeMood, moodTone } from "../js/core/mood/describe.js";
 import { pickDuration } from "../js/core/life/acts.js";
 
 const cfg = {
@@ -179,6 +180,7 @@ async function maybeLlmThought() {
   lastLlmMinute = clock.minute;
   llmBusy = true;
   const t0 = Date.now();
+  const promptText = `她在${currentRoom || "家里"}，${phase}，天气${weather}。她现在${describeMood(mood)}。${moodTone(mood)}。${plan && plan.day === clock.day ? `今天的方向：${plan.text}。` : ""}写一句 20 字内的独白，不要台词，不要解释。`;
   try {
     const res = await fetch("/__llm/chat/completions", {
       method: "POST",
@@ -189,10 +191,7 @@ async function maybeLlmThought() {
         body: {
           model: llmCfg.model,
           messages: [
-            {
-              role: "user",
-              content: `她在${currentRoom || "家里"}，${phase}，天气${weather}。${plan && plan.day === clock.day ? `今天的方向：${plan.text}。` : ""}写一句 20 字内的独白，不要台词，不要解释。`,
-            },
+            { role: "user", content: promptText },
           ],
           max_tokens: 60,
           temperature: 0.8,
@@ -210,7 +209,7 @@ async function maybeLlmThought() {
       agent: "thought",
       ok: true,
       ms: Date.now() - t0,
-      prompt: `她在${currentRoom || "家里"}，${phase}，天气${weather}`,
+      prompt: promptText,
       response: text || "",
     });
   } catch (err) {
