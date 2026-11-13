@@ -78,6 +78,7 @@ type packStatus struct {
 type server struct {
 	root       string
 	dataDir    string
+	apikeyDir  string
 	noCache    bool
 	version    string
 	started    time.Time
@@ -87,7 +88,7 @@ type server struct {
 	httpClient *http.Client
 }
 
-func newServer(root, ver string, verifyHash bool) (*server, error) {
+func newServer(root, ver string, verifyHash bool, apikeyDir string) (*server, error) {
 	abs, err := filepath.Abs(root)
 	if err != nil {
 		return nil, err
@@ -99,6 +100,7 @@ func newServer(root, ver string, verifyHash bool) (*server, error) {
 	s := &server{
 		root:       abs,
 		dataDir:    filepath.Join(filepath.Dir(abs), "data"),
+		apikeyDir:  apikeyDir,
 		version:    ver,
 		started:    time.Now(),
 		verifyHash: verifyHash,
@@ -185,6 +187,10 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// LLM 代理是 POST，必须在通用 GET/HEAD 限制之前路由
 	if r.URL.Path == "/__llm/chat/completions" {
 		s.serveLLMProxy(w, r)
+		return
+	}
+	if r.URL.Path == "/__llm/config" {
+		s.serveLlmConfig(w, r)
 		return
 	}
 	if r.URL.Path == "/__digest" {
@@ -319,6 +325,82 @@ type llmProxyReq struct {
 
 // serveLLMProxy 解决浏览器跨域：页面请求本地壳，由壳转发到服务商。
 // 只监听回环（main 已限制），不记录 body/key。
+// serveLlmConfig 读取本机 apikey 目录里的第一个 txt，解析 baseUrl/apiKey/model。
+// 仅本机回环壳使用，不写盘、不缓存。
+func (s *server) serveLlmConfig(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	writeErr := func(code int, msg string) {
+		w.WriteHeader(code)
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": msg})
+	}
+	if s.apikeyDir == "" {
+		writeErr(http.StatusNotFound, "未配置 apikey 目录")
+		return
+	}
+	entries, err := os.ReadDir(s.apikeyDir)
+	if err != nil {
+		writeErr(http.StatusNotFound, "读取 apikey 目录失败: "+err.Error())
+		return
+	}
+	var pick string
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(strings.ToLower(e.Name()), ".txt") {
+			continue
+		}
+		name := strings.ToLower(e.Name())
+		if pick == "" || strings.Contains(name, "codex") || strings.Contains(name, "llm") {
+			pick = e.Name()
+			if strings.Contains(name, "codex") || strings.Contains(name, "llm") {
+				break
+			}
+		}
+	}
+	if pick == "" {
+		writeErr(http.StatusNotFound, "apikey 目录里没有 txt")
+		return
+	}
+	raw, err := os.ReadFile(filepath.Join(s.apikeyDir, pick))
+	if err != nil {
+		writeErr(http.StatusInternalServerError, "读取失败: "+err.Error())
+		return
+	}
+	out := map[string]any{"ok": true, "source": pick}
+	for _, line := range strings.Split(string(raw), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		lower := strings.ToLower(line)
+		switch {
+		case strings.HasPrefix(lower, "baseurl="):
+			out["baseUrl"] = strings.TrimSpace(line[len("baseurl="):])
+		case strings.HasPrefix(lower, "apikey="):
+			out["apiKey"] = strings.TrimSpace(line[len("apikey="):])
+		case strings.HasPrefix(lower, "model="):
+			out["model"] = strings.TrimSpace(line[len("model="):])
+		case strings.HasPrefix(line, "http://") || strings.HasPrefix(line, "https://"):
+			if _, ok := out["baseUrl"]; !ok {
+				out["baseUrl"] = line
+			}
+		case strings.HasPrefix(line, "sk-"):
+			if _, ok := out["apiKey"]; !ok {
+				out["apiKey"] = line
+			}
+		default:
+			if _, ok := out["model"]; !ok {
+				out["model"] = line
+			}
+		}
+	}
+	_ = json.NewEncoder(w).Encode(out)
+}
+
 func (s *server) serveLLMProxy(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", "POST")
@@ -354,6 +436,7 @@ func (s *server) serveLLMProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hr.Header.Set("Content-Type", "application/json")
+	hr.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36")
 	if req.APIKey != "" {
 		hr.Header.Set("Authorization", "Bearer "+req.APIKey)
 	}
@@ -390,8 +473,17 @@ func (s *server) serveHealth(w http.ResponseWriter, r *http.Request) {
 	_ = enc.Encode(body)
 }
 
+func defaultApikeyDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, "Documents", "apikey")
+}
+
 func main() {
 	addr := flag.String("addr", "127.0.0.1:8080", "监听地址（只允许回环）")
+	apikeyDir := flag.String("apikey", defaultApikeyDir(), "本机 LLM 配置目录（读取第一个 *.txt）")
 	root := flag.String("root", "./www", "资源包根目录")
 	verifyHash := flag.Bool("verify-hash", false, "启动时校验 manifest 的 sha256（较慢，仅排障用）")
 	dev := flag.Bool("dev", false, "开发模式：静态文件禁用长缓存")
@@ -405,7 +497,7 @@ func main() {
 		log.Fatalf("拒绝监听非回环地址 %q（设备端只服务本机 kiosk）", host)
 	}
 
-	srv, err := newServer(*root, version, *verifyHash)
+	srv, err := newServer(*root, version, *verifyHash, *apikeyDir)
 	if srv != nil {
 		srv.noCache = *dev
 	}

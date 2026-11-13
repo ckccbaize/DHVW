@@ -47,6 +47,7 @@
     <div class="actions">
       <button type="submit">保存并重载</button>
       <button type="button" id="btnTest">测试连接</button>
+      <button type="button" id="btnLoadKey">读取本机 apikey</button>
       <button type="button" id="btnClear">清除覆盖</button>
       <span class="hint" id="llmMsg">保存到本机 localStorage，主页面会自动重载</span>
     </div>
@@ -165,18 +166,34 @@ function readOverride() {
   }
 }
 
-async function loadLlmForm() {
+async function loadLlmForm(forceAuto = false) {
   try {
     baseConfig = await fetch("config.json", { cache: "no-store" }).then((r) => r.json());
   } catch {
     baseConfig = {};
   }
   const saved = readOverride();
-  const cfg = { ...(baseConfig.llm || {}), ...(saved || {}) };
+  let auto = null;
+  if (!saved || forceAuto) {
+    try {
+      const res = await fetch("/__llm/config", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.ok) auto = data;
+      }
+    } catch {
+      auto = null;
+    }
+  }
+  const cfg = { ...(baseConfig.llm || {}), ...(auto || {}), ...(saved || {}) };
   $("#baseUrl").value = cfg.baseUrl || "";
   $("#apiKey").value = cfg.apiKey || "";
   $("#model").value = cfg.model || "";
-  $("#llmSource").textContent = saved ? "本机覆盖" : "config.json";
+  $("#llmSource").textContent = saved
+    ? "本机覆盖"
+    : auto
+      ? `本机 apikey：${auto.source || ""}`
+      : "config.json";
 }
 
 llmForm.addEventListener("submit", (e) => {
@@ -201,6 +218,10 @@ $("#btnClear").addEventListener("click", () => {
     new BroadcastChannel("dhvw-debug").postMessage("llm-updated");
   } catch {}
   void loadLlmForm();
+});
+
+$("#btnLoadKey").addEventListener("click", () => {
+  void loadLlmForm(true);
 });
 
 $("#btnTest").addEventListener("click", async () => {
@@ -237,7 +258,15 @@ $("#btnTest").addEventListener("click", async () => {
 async function refresh() {
   try {
     const cfg = await fetch("config.json", { cache: "no-store" }).then((r) => r.json()).catch(() => ({}));
-    const llmCfg = { ...(cfg.llm || {}), ...(readOverride() || {}) };
+    let auto = null;
+    try {
+      const res = await fetch("/__llm/config", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.ok) auto = data;
+      }
+    } catch {}
+    const llmCfg = { ...(cfg.llm || {}), ...(auto || {}), ...(readOverride() || {}) };
     $("#status").innerHTML = `LLM：<span class="${llmCfg.baseUrl && llmCfg.model ? "ok" : "bad"}">${llmCfg.baseUrl && llmCfg.model ? `${esc(llmCfg.model)} @ ${esc(llmCfg.baseUrl)}` : "未配置"}</span> · 每 2 秒刷新`;
     const db = await openDb();
     const [llmLog, mem, writings, events] = await Promise.all([

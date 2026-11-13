@@ -29,7 +29,7 @@ func newTestServer(t *testing.T) (*server, string) {
 	writeFile(t, filepath.Join(root, "assets", "a.png"), "PNGDATA")
 	writeFile(t, filepath.Join(root, "manifest.json"),
 		`{"version":"t","files":[{"path":"index.html","size":28},{"path":"js/app.js","size":20}]}`)
-	s, err := newServer(root, "test", false)
+	s, err := newServer(root, "test", false, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,5 +251,27 @@ func TestLLMProxyUpstreamDown(t *testing.T) {
 	s.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadGateway {
 		t.Fatalf("unreachable upstream → %d", rec.Code)
+	}
+}
+
+func TestLlmConfigReadsApikeyFile(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "index.html"), "x")
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "codex.txt"), "https://example.test\nsk-abc\nmodel-x\n")
+	s, err := newServer(root, "test", false, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := get(t, s, "/__llm/config")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var out map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out["baseUrl"] != "https://example.test" || out["apiKey"] != "sk-abc" || out["model"] != "model-x" {
+		t.Fatalf("bad config: %v", out)
 	}
 }

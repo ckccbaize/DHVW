@@ -177,6 +177,7 @@ async function maybeLlmThought() {
           ],
           max_tokens: 60,
           temperature: 0.8,
+          ...(llmCfg.reasoningEffort ? { reasoning_effort: llmCfg.reasoningEffort } : {}),
         },
       }),
     });

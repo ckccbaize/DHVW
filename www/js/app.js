@@ -44,6 +44,21 @@ async function loadConfig() {
     const speed = Number(localStorage.getItem("dhvw_speed") || "0");
     const life = { ...DEFAULTS.life, ...(raw.life || {}) };
     if (speed > 0) life.timeScale = Math.max(0.5, Math.min(30, speed));
+    let auto = null;
+    if (!saved && !(raw.llm?.baseUrl && raw.llm?.model)) {
+      try {
+        const res = await fetch("/__llm/config", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.ok) {
+            auto = { baseUrl: data.baseUrl || "", apiKey: data.apiKey || "", model: data.model || "" };
+            if (String(auto.baseUrl).includes("codex.mintcat.work")) auto.reasoningEffort = "none";
+          }
+        }
+      } catch {
+        auto = null;
+      }
+    }
     return {
       ...DEFAULTS,
       ...raw,
@@ -51,7 +66,7 @@ async function loadConfig() {
       life,
       display: { ...DEFAULTS.display, ...(raw.display || {}) },
       present: { ...DEFAULTS.present, ...(raw.present || {}) },
-      llm: { ...DEFAULTS.llm, ...(raw.llm || {}), ...(saved || {}) },
+      llm: { ...DEFAULTS.llm, ...(raw.llm || {}), ...(auto || {}), ...(saved || {}) },
       scene: raw.scene || DEFAULTS.scene,
     };
   } catch {
