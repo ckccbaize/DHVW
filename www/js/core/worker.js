@@ -19,7 +19,7 @@ import { createAgentRegistry } from "./agent/registry.js";
 import { createManagerAgent } from "./agent/manager.js";
 import { createPlotAgent, EVENT_POOL } from "./agent/subs/plot.js";
 import { createEventPoolAgent } from "./agent/subs/events.js";
-import { planOuting, pickDestination, dateKey, SPECIAL_DATES } from "./life/outing.js";
+import { planOuting, pickDestination, dateKey, SPECIAL_DATES, DESTINATIONS } from "./life/outing.js";
 import { buildDigest, createDigestStore } from "./digest.js";
 import { generateMap } from "./agent/subs/map.js";
 import { allowedAt, checkWatchdog, createGovernor } from "./governor.js";
@@ -32,6 +32,7 @@ import { pickBehavior } from "./actions/plan.js";
 import { createWakeRuntime } from "./wake/runtime.js";
 import { createRecordAgent } from "./agent/subs/record.js";
 import { createBrowsePlanner, searchBing, validatePublicUrl } from "./actions/browse.js";
+import { createPlaceGraph, HOME_ID, planTravel } from "./places/graph.js";
 import { createBgAgent } from "./agent/subs/bg.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
 
@@ -115,6 +116,8 @@ let browseUrl = "https://www.weather.com.cn/weather/101010100.shtml";
 let wakeRuntime = null;
 let recordAgent = null;
 let browsePlanner = null;
+let places = null;
+let currentPlace = HOME_ID;
 let lastHealthAt = Date.now();
 
 const PC_ACTIONS = new Set(["map.generate", "app.open", "media.play", "notify", "web.open"]);
@@ -343,6 +346,13 @@ const ready = (async () => {
   await wakeRuntime.init();
   recordAgent = createRecordAgent({ llm, registry: agentRegistry });
   browsePlanner = createBrowsePlanner({ llm, registry: agentRegistry });
+  places = createPlaceGraph({
+    places: [
+      ...DESTINATIONS.map((d) => ({ id: d.id, name: d.name, kind: d.kind, distance: d.distance })),
+      ...((await kvBackend.get("places")) || []),
+    ],
+  });
+  currentPlace = (await kvBackend.get("current_place")) || HOME_ID;
   behaviors = createBehaviorRegistry({ custom: (await kvBackend.get("behavior_pool")) || [] });
   behaviorLog = (await kvBackend.get("behavior_log")) || [];
   netLog = (await kvBackend.get("net_log")) || [];
@@ -431,6 +441,8 @@ async function writeDigest() {
     mood: moodSeries ? { ...moodSeries.stats(), band: life.snapshot().band, dims: life.snapshot().mood } : null,
     wake: wake ? wake.state : null,
     behaviors: behaviors ? { count: behaviors.list().length, custom: behaviors.custom().length, recent: behaviorLog.slice(0, 5) } : null,
+    places: { current: currentPlace, count: places ? places.list().length : 0 },
+    places: { current: currentPlace, count: places ? places.list().length : 0 },
     wakeRuntime: wakeRuntime
       ? {
           events: wakeRuntime.state.events.length,
@@ -447,8 +459,10 @@ async function writeDigest() {
     lastPlot: await kvBackend.get("last_plot"),
     mood: moodView(60),
     wake: wake ? wake.state : null,
+    places: { current: currentPlace, count: places ? places.list().length : 0 },
     behaviors: behaviorLog.slice(0, 10),
     net: netLog.slice(0, 5),
+    places: { current: currentPlace, count: places ? places.list().length : 0 },
     wakeRuntime: wakeRuntime
       ? {
           events: wakeRuntime.state.events.length,
@@ -895,6 +909,8 @@ function health() {
     mood: moodSeries ? { ...moodSeries.stats(), band: life.snapshot().band, dims: life.snapshot().mood } : null,
     wake: wake ? wake.state : null,
     behaviors: behaviors ? { count: behaviors.list().length, custom: behaviors.custom().length, recent: behaviorLog.slice(0, 5) } : null,
+    places: { current: currentPlace, count: places ? places.list().length : 0 },
+    places: { current: currentPlace, count: places ? places.list().length : 0 },
     wakeRuntime: wakeRuntime
       ? {
           events: wakeRuntime.state.events.length,
@@ -1290,6 +1306,77 @@ const handlers = {
     }
     if (p.name === "net_log") {
       return { ok: true, log: netLog };
+    }
+    if (p.name === "place_list") {
+      return { ok: true, current: currentPlace, places: places.list() };
+    }
+    if (p.name === "place_add") {
+      const r = places.add(p.args?.place || {});
+      if (r.ok) {
+        await kvBackend.put("places", places.custom());
+        await appendEvent("scene:added", { id: r.place.id, name: r.place.name, kind: r.place.kind });
+        patch({ places: { current: currentPlace, count: places.list().length } });
+        scheduleDigest();
+      }
+      return r;
+    }
+    if (p.name === "place_remove") {
+      const id = p.args?.id;
+      const existed = places.get(id);
+      const removed = places.remove(id);
+      if (removed) {
+        if (currentPlace === id) {
+          currentPlace = HOME_ID;
+          await kvBackend.put("current_place", currentPlace);
+          await appendEvent("travel:return_home", { from: id, reason: "scene_removed" });
+        }
+        await kvBackend.put("places", places.custom());
+        await appendEvent("scene:removed", { id, name: existed?.name || id });
+        patch({ places: { current: currentPlace, count: places.list().length } });
+        scheduleDigest();
+      }
+      return { ok: removed, current: currentPlace };
+    }
+    if (p.name === "travel_plan") {
+      return planTravel({ graph: places, from: p.args?.from || currentPlace, to: p.args?.to, minute: life.snapshot().minute });
+    }
+    if (p.name === "travel_go") {
+      const to = p.args?.to;
+      const plan = planTravel({ graph: places, from: currentPlace, to, minute: life.snapshot().minute });
+      if (!plan.ok) return plan;
+      if (plan.minutes === 0) return { ok: true, plan, currentPlace };
+      const dest = places.get(to);
+      life.advance(plan.minutes);
+      patch({ life: life.snapshot() });
+      void sampleMood("plot", `去${dest?.name || to}`);
+      currentPlace = to;
+      await kvBackend.put("current_place", currentPlace);
+      await appendEvent("travel:depart", { from: plan.from, to, minutes: plan.minutes });
+      await appendEvent("travel:arrive", {
+        to,
+        minute: life.snapshot().minute,
+        crossesNight: plan.crossesNight,
+      });
+      if (plan.crossesNight) {
+        await appendEvent("travel:cross_night", { from: plan.from, to, minutes: plan.minutes });
+      }
+      if (dest && to !== HOME_ID) {
+        sceneRequests.unshift({
+          id: `scene-travel-${Date.now().toString(36)}`,
+          reason: "travel",
+          mapSpec: { kind: dest.kind, name: dest.name, distance: dest.distance, seed: `${to}-${Date.now().toString(36)}` },
+          status: "pending",
+          createdAt: Date.now(),
+        });
+        sceneRequests = sceneRequests.slice(0, 20);
+        await kvBackend.put("scene_requests", sceneRequests);
+      }
+      patch({ places: { current: currentPlace, count: places.list().length } });
+      scheduleDigest();
+      return { ok: true, plan, currentPlace, life: life.snapshot() };
+    }
+    if (p.name === "place_current") {
+      return { ok: true, current: currentPlace, place: places.get(currentPlace) };
     }
     if (p.name === "wake_run") {
       const r = await wakeRuntime.run({ context: p.args?.context || {}, toolEvidence: p.args?.toolEvidence || null });

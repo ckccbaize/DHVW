@@ -94,7 +94,7 @@
 | W27 | **自主活动注册表与计划协议** | `core/actions/registry.js` + `plan.js`：能力白名单、前置校验、时长/预算、留证 | 非法活动被拒；一次计划产出可执行步骤与证据 | W13, W20 | **已有**（8 内置 + 自定义注册 + 心情权重/冷却；唤醒触发；行为后 LLM 留档） |
 | W28 | **联网代理 + 全量审计** | `shell` 新增 `GET /__fetch`：AI 决定目标；禁内网/元数据/凭据/POST；≤512KB、8s、≤60 次/时；`net_log` 全量 | 内网地址拒绝；每条抓取有日志；抓回内容按不可信输入处理 | B4, W27 | **已有**（公网 IP 固定解析、文本白名单、审计落 kv） |
 | W28b | **AI 决定浏览目标** | `core/actions/browse.js`：LLM 生成 query 或 URL → `/__search` + `/__fetch` → 摘录留证；白名单/禁内网 | 目标由模型给出且可解释；非法目标被拒；每条抓取有证据 | W28, W13 | **已有**（9 项测试 + 自由搜索实测） |
-| W29 | **地点图与旅行（含跨夜、动态注册表）** | `core/places/`：place graph + 步行时间 + 抽象地点 + 地图产出契约 + `SCENE_ADDED/REMOVED` 原子更新 | 跨夜旅行产生事件与证据；新地图可被消费；删除当前场景时回 home | W27 | 出门意愿已有（`core/life/outing.js`） |
+| W29 | **地点图与旅行（含跨夜、动态注册表）** | `core/places/graph.js`：place graph + 步行时间 + 跨夜 + `SCENE_ADDED/REMOVED` 原子更新 | 跨夜旅行产生事件与证据；新地图可被消费；删除当前场景时回 home | W27 | **已有**（4 项测试 + 端到端旅行/删除回 home） |
 | W32 | **Doctor 自检与自愈**（未来功能） | `core/doctor.js`：周期检测、日志包、LLM 诊断、白名单动作、安全模式 | 注入 5 类故障可检测；动作 100% 在白名单；日志脱敏 | W17, W11 |
 | W33 | **心情/行为外部引导与深层管理**（未来） | `core/mood/policy.js`：来源优先级、TTL、限频、episode/baseline、剧情 setpoint | 唤醒/剧情可引导行为且可解释；越权被拒 | W4, W21, W14 |
 | W31 | **地图绘制移植**（设备侧自己画） | `forge/painter.js` + `forge/layout.js`：`paint_home.py`/`pick_layout.py` 的 JS 版 + 同源闸门 | 同 spec 与 Python 逐像素一致；设备烘焙 ≤50ms | B4, W27 | `layout.js` 已移植；`painter.js` 待做 |

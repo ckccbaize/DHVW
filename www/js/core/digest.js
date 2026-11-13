@@ -16,6 +16,7 @@ export function buildDigest({
   outing = null,
   lastPlot = null,
   mood = null,
+  places = null,
 } = {}) {
   return {
     v: 1,
@@ -33,6 +34,7 @@ export function buildDigest({
     outing,
     lastPlot,
     mood,
+    places,
   };
 }
 

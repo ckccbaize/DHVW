@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T02:05:28.539Z",
+ "built_at": "2026-11-13T02:28:02.226Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -39,8 +39,8 @@
   },
   {
    "path": "debug-core.html",
-   "size": 30786,
-   "sha256": "8bbc1f092f1d06f77c882481a5a2f5791c2dde7b5c664053d413e9d733d29686"
+   "size": 31772,
+   "sha256": "4d0c31ded8c58b903e250eb10c758d76127124c9a14a128d97fbdc672a45e807"
   },
   {
    "path": "index.html",
@@ -129,8 +129,8 @@
   },
   {
    "path": "js/core/digest.js",
-   "size": 1463,
-   "sha256": "ccbaf57c8e4ea0dd3a1f42130113dd07a1dfdc18cc03d3b2657459ac004b3875"
+   "size": 1492,
+   "sha256": "3c1d276fd838f7c909e037c71672c5affc2ee29d1534972422a7579da2cefacd"
   },
   {
    "path": "js/core/governor.js",
@@ -233,6 +233,11 @@
    "sha256": "4249212bf055ee42f9d0e64ddb5af6e2c0ebc1ffffec6745e88148cf2c1b9692"
   },
   {
+   "path": "js/core/places/graph.js",
+   "size": 2563,
+   "sha256": "179e9127b0d2ba2b57bf29a5e2cadba6d98c287c213e187794930da00fc4b47e"
+  },
+  {
    "path": "js/core/ringbuffer.js",
    "size": 796,
    "sha256": "dfa4c98e57c85102d903532341cc18b848bee2965c46035a781e58ed94ebbdac"
@@ -269,8 +274,8 @@
   },
   {
    "path": "js/core/worker.js",
-   "size": 57529,
-   "sha256": "77dae733ce85a2a71eac295a2d6678df1a3187f6acb1398a1aa3d5e5511c7b20"
+   "size": 61491,
+   "sha256": "ab94328f40476ed657996c6ccd2e165879d8d9d840d29a0e97db07aa4137325f"
   },
   {
    "path": "js/forge/grammar.js",

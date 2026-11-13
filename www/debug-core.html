@@ -45,6 +45,7 @@
 <div class="machine" id="wake">wake —</div>
 <div class="machine" id="behavior">behavior —</div>
 <div class="machine" id="wakeruntime">wakeRuntime —</div>
+<div class="machine" id="place">place —</div>
 <canvas id="moodCanvas" width="480" height="120" style="width:480px;height:120px;border:1px solid #444"></canvas>
 
 <h2>世界事件（点击即派发）</h2>
@@ -93,6 +94,8 @@
   <button id="btnBehaviorBrowse">上网看看</button>
   <button id="btnWakeRun">严格唤醒</button>
   <button id="btnWakeEvent">加世界事件</button>
+  <button id="btnTravelCafe">去咖啡馆</button>
+  <button id="btnTravelHome">回家</button>
 </div>
 <canvas id="mapCanvas" width="480" height="320" style="width:480px;height:320px;image-rendering:pixelated;border:1px solid #444"></canvas>
 
@@ -188,6 +191,11 @@ function drawMood(v) {
     });
     ctx.stroke();
   }
+}
+
+function renderPlace(p) {
+  if (!p) return;
+  document.querySelector("#place").innerHTML = `place current=<b>${p.current}</b> count=<b>${p.count}</b>`;
 }
 
 function renderWakeRuntime(w) {
@@ -367,6 +375,7 @@ const client = createCoreClient({
       if (p.wake) renderWake(p.wake);
       if (p.behaviors) renderBehavior(p.behaviors);
       if (p.wakeRuntime) renderWakeRuntime(p.wakeRuntime);
+      if (p.places) renderPlace(p.places);
       if (p.display || p.conn || p.tier) {
         renderMachine({ ...(p.machine || {}), display: p.display ?? p.machine?.display, conn: p.conn ?? p.machine?.conn, tier: p.tier ?? p.machine?.tier, transitions: p.transitions });
       }
@@ -468,6 +477,18 @@ $("#btnAgentPlot").onclick = async () => {
     pushLine(r.ok
       ? `plot ok(${r.attempts}) → [${r.event}/${r.place}] ${r.text}`
       : `plot rejected → ${r.reason}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnTravelCafe").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "travel_go", args: { to: "cafe" } });
+    pushLine(r.ok ? `travel → ${r.currentPlace} (+${r.plan.minutes}min${r.plan.crossesNight ? ", 跨夜" : ""})` : `travel failed → ${r.reason}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnTravelHome").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "travel_go", args: { to: "home" } });
+    pushLine(r.ok ? `travel → ${r.currentPlace} (+${r.plan.minutes}min)` : `travel failed → ${r.reason}`);
   } catch (e) { pushLine(e.message); }
 };
 $("#btnWakeRun").onclick = async () => {
