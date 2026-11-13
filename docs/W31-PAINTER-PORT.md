@@ -13,6 +13,7 @@
 | 家具层（26 家具/6 墙面/6 小物） | ✅ 视觉一致（98.6% 像素） | `www/js/forge/furniture.js` |
 | 场景合成 / built.json / 2x | ✅ | `www/js/forge/scene.js` |
 | 浏览器端到端（新布局 + 三层 + 合成） | ✅ | 调试页「ARM 生成新场景」 |
+| Worker 烘焙（≤50ms） | ✅ 13.5ms | `www/js/forge/worker.js` + `client.js` |
 | PNG 编码（离线导出） | ✅ | `tools/png.mjs` |
 | 黄金图对比 | ✅ | `tools/paint-terrain.mjs` + `tools/compare-terrain.py` |
 

@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T07:38:24.839Z",
+ "built_at": "2026-11-13T08:17:16.386Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -169,8 +169,8 @@
   },
   {
    "path": "debug-core.html",
-   "size": 34987,
-   "sha256": "ea7aa25f4c8e7d9adb13fbed83403e2d9d9f14979159fe7f03416ffc0874255b"
+   "size": 35784,
+   "sha256": "32d955d1a3165d84389c24416a822e103d14f306ee843ff13091602e2f6aa564"
   },
   {
    "path": "index.html",
@@ -413,6 +413,11 @@
    "sha256": "8295078ef03105b3f886c92b15691cb79a041da5347c00d83a678a9bca75eb8f"
   },
   {
+   "path": "js/forge/client.js",
+   "size": 1974,
+   "sha256": "8c36aa15585664a7fd58bff705e304ab6fe5f2e26b054ebaf870d2f55ff531bf"
+  },
+  {
    "path": "js/forge/furniture.js",
    "size": 18089,
    "sha256": "d8880fff288fa780503576b53738414bba9a6f32a0a11c57058855f86775a71e"
@@ -446,6 +451,11 @@
    "path": "js/forge/shapes.js",
    "size": 2869,
    "sha256": "8cb6ca8be34d0c6ceac9dcccf4b54730bb8b6c388c6324c76d2607b304657a33"
+  },
+  {
+   "path": "js/forge/worker.js",
+   "size": 1003,
+   "sha256": "fd06256ec46a9f65fb66d4b5afc31f919a79b6de6ca1ca8328d58a36b3c9603a"
   },
   {
    "path": "js/runtime/local.js",

@@ -87,6 +87,7 @@
   <button id="btnPaintTerrain">画地形层</button>
   <button id="btnArmScene">ARM 生成新场景</button>
   <button id="btnAiFurnish">AI 摆家具</button>
+  <button id="btnForgeWorker">Worker 烘焙</button>
   <button id="btnGovernorCheck">检查治理</button>
   <button id="btnObserve">看观测</button>
   <button id="btnMood">取心情曲线</button>
@@ -165,6 +166,7 @@ import { paintTerrain } from "./js/forge/painter.js";
 import { buildLayout } from "./js/forge/layout.js";
 import { buildScene } from "./js/forge/scene.js";
 import { applyPlacement } from "./js/forge/placement.js";
+import { createForgeClient } from "./js/forge/client.js";
 import { makeMsg } from "./js/core/bus.js";
 
 const $ = (s) => document.querySelector(s);
@@ -558,6 +560,21 @@ $("#btnGovernorCheck").onclick = async () => {
   try {
     const r = await client.request("core:command", { name: "governor_check" });
     pushLine(`governor → ${r.tier} (${r.reasons.join(",") || "ok"})`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnForgeWorker").onclick = async () => {
+  try {
+    const res = await fetch("assets/scenes/home/home.built.json", { cache: "no-store" });
+    const spec = await res.json();
+    const forge = createForgeClient();
+    const t0 = performance.now();
+    const out = await forge.bake(spec);
+    forge.stop();
+    const canvas = document.querySelector("#mapCanvas");
+    canvas.width = out.image.width;
+    canvas.height = out.image.height;
+    canvas.getContext("2d").putImageData(out.image, 0, 0);
+    pushLine(`forge worker → ${out.image.width}x${out.image.height} ${out.ms.toFixed(1)}ms (total ${(performance.now() - t0).toFixed(1)}ms)`);
   } catch (e) { pushLine(e.message); }
 };
 $("#btnAiFurnish").onclick = async () => {
