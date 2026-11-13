@@ -208,8 +208,10 @@ export function createLocalRuntime({
   let lastMemoryAt = 0;
   let eventsSinceMemory = 0;
   let lastMemoryDay = -1;
-  let lastPlotMinute = -1e9;
+  let lastPlotDay = -1;
   let recentPlots = [];
+  let dailyPlots = {};
+  let mood = { energy: 0, valence: 0, social: 0, focus: 0 };
 
   const sceneSummary = () => ({
     grid: scene.grid,
@@ -343,18 +345,18 @@ export function createLocalRuntime({
 
   async function maybePlot(tick, force = false) {
     if (!llm || !registry || suspended) return;
-    if (tick.phase === "sleep") return;
-    const interval = config.life?.plotMin ?? 60;
-    if (!force && tick.minute - lastPlotMinute < interval) return;
-    lastPlotMinute = tick.minute;
+    // 每天晚上固定生成一次，决定第二天走向；手动触发不受限
+    if (!force && tick.phase !== "sleep") return;
+    if (!force && lastPlotDay === tick.day) return;
+    lastPlotDay = tick.day;
     const hh = String(Math.floor(tick.minute / 60)).padStart(2, "0");
     const mm = String(Math.floor(tick.minute % 60)).padStart(2, "0");
     const prompt = registry.render("plot", {
       now: `第${tick.day}天 ${hh}:${mm}`,
       period: tick.phase,
       place: tick.room || scene.start,
-      input: "日常里突然发生一点变化",
-      mood: "平静",
+      input: "为明天埋一个变化",
+      mood: JSON.stringify(mood),
       recent: JSON.stringify(recentPlots.slice(-5)),
     });
     const t0 = now();
@@ -370,18 +372,31 @@ export function createLocalRuntime({
       const obj = extractJson(res.text);
       const text = String(obj?.text || "").trim();
       if (!text) throw new Error("空剧情");
+      const rooms = new Set((scene.rooms || []).map((r) => r.id));
+      const place = rooms.has(obj?.place) ? obj.place : tick.room || scene.start;
       const item = {
         id: `p-${now()}`,
         text,
         event: obj?.event || "",
-        place: obj?.place || tick.room || scene.start,
+        place,
+        mood: obj?.mood || {},
+        act: obj?.act || null,
+        forDay: tick.day + 1,
         day: tick.day,
         minute: tick.minute,
         created_at: now(),
       };
       recentPlots.push(text);
       if (recentPlots.length > 20) recentPlots.shift();
+      dailyPlots[item.forDay] = item;
       await appendKv("plots", item, 50);
+      await backend.setKV("daily_plots", dailyPlots).catch(() => {});
+      await backend.setKV("last_plot_day", lastPlotDay).catch(() => {});
+      await applyMood(item.mood);
+      if (localMemory) {
+        await localMemory.add({ id: `plot-${tick.day}`, text, tier: "L1", t: now(), meta: { source: "plot" } }).catch(() => {});
+      }
+      postLife({ type: "setPlan", plan: { day: item.forDay, place, act: item.act, text } });
       await logLlm({ agent: "plot", ok: true, ms: now() - t0, prompt, response: text });
       store.emit("plot_event", item);
       onSay(text, 4200);
@@ -390,13 +405,25 @@ export function createLocalRuntime({
     }
   }
 
+  async function applyMood(deltas = {}) {
+    const dims = ["energy", "valence", "social", "focus"];
+    for (const k of dims) {
+      if (deltas[k] === undefined) continue;
+      mood[k] = Math.max(-1, Math.min(1, (mood[k] || 0) + Number(deltas[k] || 0)));
+    }
+    await backend.setKV("mood", mood).catch(() => {});
+    store.patch({ mood: { ...mood } });
+    postLife({ type: "setMood", mood: { ...mood } });
+  }
+
   async function generateWriting(ctx) {
     if (!llm) return;
     const kind = Math.random() < 0.5 ? "diary" : "novel";
+    const todayPlot = dailyPlots[ctx.day]?.text || dailyPlots[ctx.day + 1]?.text || "";
     const prompt =
       kind === "diary"
-        ? `写一篇角色日记，第一人称，120-200 字。时间：第${ctx.day}天 ${Math.floor(ctx.minute / 60)}:${String(Math.floor(ctx.minute % 60)).padStart(2, "0")}，地点：${ctx.room}。只输出正文。`
-        : `写一段角色正在创作的小说片段，第三人称，150-250 字。时间：第${ctx.day}天，地点：${ctx.room}。只输出正文。`;
+        ? `写一篇角色日记，第一人称，120-200 字。时间：第${ctx.day}天 ${Math.floor(ctx.minute / 60)}:${String(Math.floor(ctx.minute % 60)).padStart(2, "0")}，地点：${ctx.room}。今天发生的剧情：${todayPlot || "无特别事件"}。日记里要自然提到这件事。只输出正文。`
+        : `写一段角色正在创作的小说片段，第三人称，150-250 字。时间：第${ctx.day}天，地点：${ctx.room}。今天发生的剧情：${todayPlot || "无特别事件"}。只输出正文。`;
     const t0 = now();
     try {
       const res = await llm.complete({
@@ -575,7 +602,10 @@ export function createLocalRuntime({
 
       const day = await backend.getKV("day").catch(() => undefined);
       const minute = await backend.getKV("minute").catch(() => undefined);
-      lastPlotMinute = minute ?? config.life?.startMinute ?? 8 * 60;
+      lastPlotDay = (await backend.getKV("last_plot_day")) ?? -1;
+      dailyPlots = (await backend.getKV("daily_plots")) || {};
+      mood = (await backend.getKV("mood")) || mood;
+      store.patch({ mood: { ...mood } });
 
       postLife({
         type: "init",
@@ -588,6 +618,9 @@ export function createLocalRuntime({
         thoughtMin: config.life?.thoughtMin ?? 240,
         llm: config.llm || null,
       });
+      postLife({ type: "setMood", mood: { ...mood } });
+      const plan = dailyPlots[day ?? 1];
+      if (plan) postLife({ type: "setPlan", plan: { day: plan.forDay, place: plan.place, act: plan.act, text: plan.text } });
       postForge({
         type: "init",
         scene: { w: scene.grid.w, h: scene.grid.h, cell: scene.grid.cell || 16 },
@@ -692,6 +725,12 @@ export function createLocalRuntime({
     },
     async getPlots() {
       return (await backend.getKV("plots")) || [];
+    },
+    async getDailyPlots() {
+      return dailyPlots;
+    },
+    async getMood() {
+      return { ...mood };
     },
     setQuota(bytes) {
       quota = bytes;

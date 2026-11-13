@@ -29,6 +29,8 @@ let recentSpots = [];
 let llmCfg = null;
 let lastLlmMinute = -1e9;
 let llmBusy = false;
+let plan = null;
+let mood = { energy: 0, valence: 0, social: 0, focus: 0 };
 let saidToday = new Map(); // text -> day
 let recentLines = [];
 let stats = { ticks: 0, intents: 0, says: 0, sinceResume: { rooms: 0, says: 0, sleeps: 0 } };
@@ -135,7 +137,8 @@ function hotspotsIn(room) {
 }
 
 function pickTarget() {
-  const room = PHASE_ROOM[phase] || "living";
+  const planPlace = plan && plan.day === clock.day ? plan.place : null;
+  const room = planPlace || PHASE_ROOM[phase] || "living";
   const inRoom = hotspotsIn(room);
   // 35% 概率去别的房间，避免一直在同一角落
   const roam = inRoom.length > 0 && Math.random() < 0.35;
@@ -149,10 +152,23 @@ function pickTarget() {
   if (fresh.length) list = fresh;
   const h = list[Math.floor(Math.random() * list.length)];
   let act = h.act;
+  // 剧情安排的动作优先（必须找到对应热点）
+  if (plan && plan.day === clock.day && plan.act) {
+    const props = DEBUG_ACT_PROP[plan.act] || [];
+    const exact = (scene.hotspots || []).filter((x) => x.act === plan.act || props.includes(x.prop));
+    if (exact.length) {
+      const p = exact[Math.floor(Math.random() * exact.length)];
+      return { x: p.x, y: p.y, act: plan.act, room: p.room || room, durationMin: pickDuration(plan.act) };
+    }
+  }
   // 晚上有概率改成写作（桌边/沙发/床边都行）
   if ((phase === "evening" || phase === "night") && Math.random() < 0.18) {
     act = "write";
   }
+  // 心情偏置：低能量想歇，低情绪想静，高社交想出门
+  if (mood.energy < -0.25 && Math.random() < 0.4) act = "rest";
+  if (mood.valence < -0.3 && Math.random() < 0.3) act = "read";
+  if (mood.social > 0.3 && Math.random() < 0.25) act = "sit";
   return { x: h.x, y: h.y, act, room: h.room || room, durationMin: pickDuration(act) };
 }
 
@@ -175,7 +191,7 @@ async function maybeLlmThought() {
           messages: [
             {
               role: "user",
-              content: `她在${currentRoom || "家里"}，${phase}，天气${weather}。写一句 20 字内的独白，不要台词，不要解释。`,
+              content: `她在${currentRoom || "家里"}，${phase}，天气${weather}。${plan && plan.day === clock.day ? `今天的方向：${plan.text}。` : ""}写一句 20 字内的独白，不要台词，不要解释。`,
             },
           ],
           max_tokens: 60,
@@ -424,6 +440,14 @@ self.onmessage = (e) => {
           : `你不在的这段时间，她换了 ${s.rooms} 次地方，说了 ${s.says} 句，睡了 ${s.sleeps} 觉。`;
       stats.sinceResume = { rooms: 0, says: 0, sleeps: 0 };
       emit({ type: "summary", text });
+      break;
+    }
+    case "setPlan": {
+      plan = msg.plan || null;
+      break;
+    }
+    case "setMood": {
+      mood = { ...mood, ...(msg.mood || {}) };
       break;
     }
     case "setSpeed": {

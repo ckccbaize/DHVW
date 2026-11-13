@@ -81,6 +81,11 @@
   </div>
   <div class="hint" style="margin-top:8px">1× ≈ 现实时间（1 现实秒 2 游戏秒）；30× = 1 现实秒 1 游戏分钟；行为间隔固定 30 游戏分钟</div>
 </section>
+<section style="margin-bottom:12px">
+  <h2>今日剧情 / 心情 <span class="count" id="todayCount"></span></h2>
+  <div id="todayPlot" class="pre">还没有夜间剧情</div>
+  <div id="moodView" class="hint" style="margin-top:6px"></div>
+</section>
 <div class="grid">
   <section class="wide">
     <h2>LLM 调用 <span class="count" id="llmCount"></span></h2>
@@ -281,17 +286,27 @@ async function refresh() {
     const llmCfg = { ...(cfg.llm || {}), ...(auto || {}), ...(readOverride() || {}) };
     $("#status").innerHTML = `LLM：<span class="${llmCfg.baseUrl && llmCfg.model ? "ok" : "bad"}">${llmCfg.baseUrl && llmCfg.model ? `${esc(llmCfg.model)} @ ${esc(llmCfg.baseUrl)}` : "未配置"}</span> · 每 2 秒刷新`;
     const db = await openDb();
-    const [llmLog, mem, writings, plots, events] = await Promise.all([
+    const [llmLog, mem, writings, plots, daily, mood, events] = await Promise.all([
       getKV(db, "llm_log"),
       getKV(db, "memory_docs"),
       getKV(db, "writings"),
       getKV(db, "plots"),
+      getKV(db, "daily_plots"),
+      getKV(db, "mood"),
       getAll(db, "events"),
     ]);
     renderLlm(llmLog || []);
     renderMem(mem || []);
     renderWritings(writings || []);
     renderPlots(plots || []);
+    const today = Object.values(daily || {}).sort((a, b) => b.forDay - a.forDay)[0];
+    $("#todayCount").textContent = today ? `第 ${today.forDay} 天` : "";
+    $("#todayPlot").textContent = today
+      ? `${today.text}\n事件：${today.event || "—"} · 地点：${today.place || "—"} · 动作：${today.act || "—"}`
+      : "还没有夜间剧情";
+    $("#moodView").textContent = mood
+      ? `energy ${mood.energy?.toFixed(2)} · valence ${mood.valence?.toFixed(2)} · social ${mood.social?.toFixed(2)} · focus ${mood.focus?.toFixed(2)}`
+      : "心情：0";
     renderEvents((events || []).sort((a, b) => a.t_corrected - b.t_corrected).slice(-80));
   } catch (err) {
     $("#status").innerHTML = `<span class="bad">读取失败：${esc(err.message)}</span>`;
