@@ -222,6 +222,23 @@ const stats = await (await fetch(`${BASE}/dhvw/stats`)).json()
 check('stats 反映设备在线', stats.device?.connected === true && typeof stats.device.last_seen_s === 'number')
 check('stats 带档位迁移计数', stats.tier_transitions?.host >= 1, JSON.stringify(stats.tier_transitions))
 
+// 10) 显示态下行：设备在线时必须真的投递到这条连接
+const disp = await (await fetch(`${BASE}/dhvw/display`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ state: 'present' }),
+})).json()
+check('display:set 投递到在线设备', disp.ok === true && disp.delivered >= 1, JSON.stringify(disp))
+const dispMsg = await waitFor((m) => m.type === 'display:set' && m.payload.state === 'present')
+check('display:set 载荷带 state 与校时', dispMsg.payload.state === 'present' && typeof dispMsg.payload.t_server === 'number')
+
+const badDisp = await fetch(`${BASE}/dhvw/display`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ state: 'overview2' }),
+})
+check('非法显示态被拒', badDisp.status === 400)
+
 const scenes = await (await fetch(`${BASE}/dhvw/scenes`)).json()
 check('场景任务表可读', scenes.ok === true && Array.isArray(scenes.jobs))
 

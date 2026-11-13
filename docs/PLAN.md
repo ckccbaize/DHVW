@@ -87,7 +87,7 @@ PC 端“完成”= 下列全部成立，缺一不算：
 | PCM7 | 桥接与接管 | BRIDGE / DESK | PCM4 | Stub 契约稳定；接管零冲突 |
 | PCM8 | 硬化 | SUP / OBS 收口 | 全部 | 72 h 长稳、冷启动、断网恢复达标 |
 
-> 进展（2026-11-13，舞台改自建 Live2D）：首页舞台不再嵌 OLVT 页面，改为自建页面 + 本地静态服务（pixi6 + pixi-live2d-display + cubism4 core + `mao_pro` 模型，随包 9.7 MB），角色常驻显示、idle 循环、鼠标跟随；页面骨架实测加载成功（1020/640 截图确认）。总观/显现改为设备侧二切：新增 `POST /dhvw/display` → `display:set`，以 `digest.world.display` 为唯一确认，6 s 未变化提示「设备未确认」，无设备时报「设备未连接」（假设备回环实测确认路径）。六档布局审计全绿。
+> 进展（2026-11-13，舞台改自建 Live2D）：首页舞台不再嵌 OLVT 页面，改为自建页面 + 本地静态服务（pixi6 + pixi-live2d-display + cubism4 core + `mao_pro` 模型，随包 9.7 MB），角色常驻显示、idle 循环、鼠标跟随；页面骨架实测加载成功（1020/640 截图确认）。总观/显现改为设备侧二切：新增 `POST /dhvw/display` → `display:set`，以 `digest.world.display` 为唯一确认，6 s 未变化提示「设备未确认」，无设备时报「设备未连接」（假设备回环实测确认路径）。六档布局审计全绿； 扩到 29 项（新增 display:set 投递/载荷/非法态三条），直连与  均通过。
 >
 > 进展（2026-11-13，三页 + 场景作业）：GUI 重组为「首页 / Agent / 配置」——首页舞台支持 `总观 / 显现` 二切（显现为 OLVT iframe 的 Live2D，未就绪给明确文案）、世界模式增强开关（界面态 + 落 `config.db`，尚无生产行为）、ARM 状态机统计表（`GET /dhvw/stats`：device/digest 计数、档位迁移、近 24 h 事件、记忆、uptime）；配置页保留原全部面板。地图生成接入 **pi CLI + `MAP-SCENE-DESIGN` skill**：`POST /dhvw/scene` / `GET /dhvw/scenes`、`map.generate` 同源，输出 `data/scenes/<id>/` 场景包并以复跑 `validate_scene.py` 为唯一闸门，通过后发 `scene:ready`。实测三张场景包（8×7 书房、20×6 街道、4×4 单间）全部过闸，单任务 3–4 分钟。六档布局审计通过；`test:dhvw` 扩到 26 项（直连与 `--wss` 均通过）。未完成：embedding（`semantic=false`）、`sceneRequests` 队列消费（设备侧触发链路）、场景工具链的发行期分发策略。
 >

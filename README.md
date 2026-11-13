@@ -241,7 +241,7 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 
 ```bash
 cd apps/shell
-npm run test:dhvw          # 直连 8877 的假设备，21 项断言
+npm run test:dhvw          # 直连 8877 的假设备，29 项断言
 npm run test:dhvw -- --wss # 同一套断言走网关 wss://127.0.0.1:8443/ws/orchestrator?token=…
 ```
 
