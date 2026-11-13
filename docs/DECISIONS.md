@@ -37,6 +37,15 @@
 | 新增（未来） | **心情是外部可引导接口**：唤醒机/剧情/用户/Doctor 可 bias 或 setpoint，必须带 source/reason/TTL；W33 做优先级/限频/episode-baseline | SPEC §3.4 / DEV-PLAN W33 |
 | 新增（未来） | **Doctor 自检与自愈**：周期检测异常 → 日志交 LLM → 只能从白名单动作修复 → 继续运行；连续失败进安全模式 | SPEC §14 / DEV-PLAN W32 |
 
+## 0.2 2026-11-13 决定：地图生成走 spec-first，双 painter
+
+| # | 结论 | 说明 |
+|---|---|---|
+| D16 | **场景 spec（JSON）是唯一输入；Python 与 JS 各一套 painter** | PC 继续用 `paint_home.py` 作参考实现；ARM 用 `forge/painter.js` 离线烘焙；同一 spec 必须逐像素一致（黄金图对比） |
+| D16.1 | **LLM 不产出可执行 Python** | skill 让模型产出/选择 scene spec 或参数，不生成任意绘制代码；新增绘制原语由开发者同时加进两套 painter 并过对比 |
+| D16.2 | **现有地图不重做** | `home.map.json` 与已烘焙 PNG 是数据；移植只新增 ARM 侧实现，不改资产 |
+| D16.3 | **不在 ARM 生产环境跑 Python** | 2GB/24-7/依赖与安全成本高；Python 只留在 PC/开发机做参考与黄金图 |
+
 ## 0. 总表
 
 | # | 问题 | 选项 | 默认 | 阻塞 |
