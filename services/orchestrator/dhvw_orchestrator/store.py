@@ -212,7 +212,9 @@ class Store:
                     continue
                 if not fact_id:
                     fact_id = "pc-" + hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
-                updated = int(fact.get("t") or now)
+                # updated_at 用服务端接收时间：设备（或脚本）给的 t 可能是事件时刻、甚至是未来的值，
+                # 拿它当游标会把之后写入的事实挡在增量之外
+                updated = now
                 existing = self._memory.execute("select id, conf, updated_at from mem_meta where norm=?", (text,)).fetchone()
                 if existing:
                     # LWW：同文本取 conf 高者，时间戳相同时 pc 覆盖 device
@@ -261,6 +263,19 @@ class Store:
                     for r in rows
                 ]
         return []
+
+    def facts_since(self, since: int = 0, limit: int = 200) -> tuple[list[dict], int]:
+        """按 updated_at 增量取事实，供 memory:facts 回流设备。返回 (facts, 本批最大 updated_at)。"""
+        with self._lock:
+            rows = self._memory.execute(
+                "select id, text, tier, conf, t, updated_at from mem_meta where updated_at > ?"
+                " order by updated_at asc limit ?",
+                (int(since), int(limit)),
+            ).fetchall()
+        facts = [
+            {"id": r["id"], "text": r["text"], "t": r["t"], "tier": r["tier"], "conf": r["conf"]} for r in rows
+        ]
+        return facts, (int(rows[-1]["updated_at"]) if rows else int(since))
 
     def memory_count(self) -> int:
         with self._lock:

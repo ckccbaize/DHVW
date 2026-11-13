@@ -284,7 +284,9 @@
   7. 外壳 → 编排器的配置只走回环 `POST /dhvw/config`（`{tts,live2d,llm}`），编排器再以 `llm:config` 下发设备。API Key 只在外壳内存中出现，Python 服务不碰 `safeStorage`/DPAPI。
   8. 网关转发 WS 时把上游 open 之前的客户端帧排队，连上后补发。
   9. 在线判定以存活连接集合为准（`connected = bool(clients)`），不由单条连接的关闭回调直接置假——旧连接的 `finally` 晚于新连接握手时会把在线误判为离线。
-  10. GUI 只读展示世界状态（`dhvw:world` → `/health` + `/dhvw/digest` + `/dhvw/mood`），不缓存、不推断；编排器/设备不在线时如实显示，摘要保留上一次。
+  10. `memory:facts` 回流按 `updated_at` 增量下发，游标存 `life.db` 的 `kv.facts_since`，只有设备 `facts:ack`（`replyTo` 命中本次推送的 id）才推进；已发未 ack 的同一条不重发，但新事实照发。
+  11. `mem_meta.updated_at` 一律写**服务端接收时间**，设备传的 `t` 只作事件时间。`t` 来自设备时钟，可能落后甚至超前（实测有脚本写入未来时间戳），拿它当增量游标会把之后写入的事实永久挡在窗口外。
+  12. GUI 只读展示世界状态（`dhvw:world` → `/health` + `/dhvw/digest` + `/dhvw/mood`），不缓存、不推断；编排器/设备不在线时如实显示，摘要保留上一次。
 - **理由**：运行时已有 fastapi/uvicorn/websockets/SQLite；记忆与 embedding 天然在 Python 生态；独立进程崩溃不影响外壳，符合既有「外壳只托管、不承载业务」的模型。设备端契约已冻结，PC 侧多改一个字段就是双端联调成本。
 - **后果**：
   - 设备连上就发 `hello`，网关若直接丢弃未 open 期间的帧，握手会静默丢失——排队逻辑是必需项，不是优化。

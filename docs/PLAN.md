@@ -87,7 +87,7 @@ PC 端“完成”= 下列全部成立，缺一不算：
 | PCM7 | 桥接与接管 | BRIDGE / DESK | PCM4 | Stub 契约稳定；接管零冲突 |
 | PCM8 | 硬化 | SUP / OBS 收口 | 全部 | 72 h 长稳、冷启动、断网恢复达标 |
 
-> 进展（2026-11-13）：编排器以 Python 服务落地（`services/orchestrator/dhvw_orchestrator`），设备 `/dhvw` 通道、事件幂等、摘要/心情落盘、事实与记忆检索、显现闸门、动作白名单、`state:overview` 全部实测（`npm run test:dhvw`，直连与网关 `--wss` 各 18 项通过）；外壳托管 + 端口 8877 + 网关 `/ws/orchestrator` 已通。GUI 新增只读「世界」卡片（档位 / 世界时刻 / 时段 / 显示 / 日程 / 待生成场景 / 心情条 / 记忆条数，2 s 刷新，六档布局审计通过）。未完成：embedding（`semantic=false`）、`sceneRequests`/`scene:ready`、`map.generate` 管线、`memory:facts` 回流。
+> 进展（2026-11-13）：编排器以 Python 服务落地（`services/orchestrator/dhvw_orchestrator`），设备 `/dhvw` 通道、事件幂等、摘要/心情落盘、事实与记忆检索、显现闸门、动作白名单、`state:overview` 全部实测（`npm run test:dhvw`，直连与网关 `--wss` 各 18 项通过）；外壳托管 + 端口 8877 + 网关 `/ws/orchestrator` 已通。`memory:facts` 回流已实现（PC 写事实 → 增量下发 → ack 推进游标，未 ack 不重复下发）。GUI 新增只读「世界」卡片（档位 / 世界时刻 / 时段 / 显示 / 日程 / 待生成场景 / 心情条 / 记忆条数，2 s 刷新，六档布局审计通过）。未完成：embedding（`semantic=false`）、`sceneRequests`/`scene:ready`、`map.generate` 管线。
 >
 > 进展（2026-11-12）：PCM1 已实测通过；PCM2 完成内置 CPython 3.12 运行时与镜像拉取；`config.sidecars` 可用真实进程替换占位 sidecar——`waketrace`（HTTP 探针 1.3 s）与 `tts`（GPT-SoVITS，TCP 探针 9.2 s）均已实测就绪；全局设置（端点/模型/密钥/端口/角色/ASR）在 GUI 落地，密钥 DPAPI 加密；OLVT 改为组件下载（不随包），启动前由主进程按设置生成 `conf.yaml` 并以真实进程拉起——内置 CPython 3.12.10 + 精简依赖（349 MB，无 torch）实测起到 `Uvicorn startup complete`（TCP 14.9 s）；安装包 137.3 MB（内嵌 aria2c 后 139.4 MB），`runtime/site-packages` 不随包。剩余：语音链路端到端（麦克风→ASR→LLM→TTS 首字延迟）、PCM3 网关。；语音链路已端到端跑通：`POST /asr` 识别 TTS 产出的 4.8 s 音频 0.13 s，`text-input` 一回合拿到分句音频（首段 3.2–19.3 s，差值在 LLM 首字），TTS 后端目录进 GUI 设置。；PCM3 网关已落地：自签 CA + SAN 主机证书、6 位一次性配对码换 token、HTTPS/WSS 反代（`/ws/olvt` 走完一回合），证书链与局域网 IP 均实测通过。；组件下载换成随包 `tools/aria2c.exe`（多连接/多镜像/重试，ADR-PC-024），缺 exe 自动回退 `fetch`；实测 OLVT 21.4 MB 经 `ghfast.top` 78 s、38 次进度回调，chunked 镜像（`gh-proxy.com`）无总量时 UI 走不确定进度条；两个镜像均不支持 `Range`，续传仅在支持分段的源上生效。
 
@@ -117,6 +117,7 @@ PC 端“完成”= 下列全部成立，缺一不算：
 | GET | `/dhvw/mood` | 127.0.0.1 | 最近一次 `mood:state` |
 | GET | `/dhvw/events?limit=` | 127.0.0.1 | 最近事件（按插入倒序），验收与 GUI 用 |
 | GET | `/dhvw/actions` | 127.0.0.1 | 动作执行记录（`pc:action` 的 ok/reason/耗时） |
+| POST | `/dhvw/facts` | 127.0.0.1 | PC 侧写入事实（`src=pc`），随即按增量回流设备；返回 `{ok,accepted,merged,rejected,pushed}` |
 | POST | `/dhvw/config` | 127.0.0.1 | 外壳回环下发 `{tts,live2d,llm:{baseUrl,model,apiKey}}`；`llm` 变更即时以 `llm:config` 推给设备 |
 
 设备侧上行（服务端处理）：
@@ -132,7 +133,7 @@ PC 端“完成”= 下列全部成立，缺一不算：
 - `present:request` → `present:grant` / `present:deny{reason}`（`tts_ready=false` 时拒绝）。
 - `present:begin` / `present:end` → 切 `tier` 为 `host` / `idle`。
 
-设备侧下行（服务端主动）：`hello`、`digest:get`、`mood:get`、`llm:config`、`tier`、`state:overview`（每 5 s，含 `clock{day,minute,phase}` 与 `work_tier`）。
+设备侧下行（服务端主动）：`hello`、`digest:get`、`mood:get`、`llm:config`、`tier`、`memory:facts`（增量，游标存 `kv.facts_since`，设备 `facts:ack` 后才推进）、`state:overview`（每 5 s，含 `clock{day,minute,phase}` 与 `work_tier`）。
 
 ### 5.2 OLVT 内部端点（本仓库补丁）
 

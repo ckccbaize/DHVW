@@ -148,6 +148,33 @@ const qres = await waitFor((m) => m.type === 'memory:result' && m.replyTo === qi
 check('memory:result 原样带回 req_id', qres.payload.req_id === 'req-1')
 check('二字中文能命中二元组索引', qres.payload.hits.length > 0, `hits=${qres.payload.hits.length}`)
 
+// 6.5) memory:facts 回流：PC 侧写入 → 增量下发 → 设备 ack 才推进游标
+const postFact = async (id, text) => {
+  const res = await fetch(`${BASE}/dhvw/facts`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ facts: [{ id, text, t: Date.now(), tier: 'L2' }] }),
+  })
+  return res
+}
+const pcFact1 = `pc-${Date.now()}`
+await postFact(pcFact1, `屋檐下的风铃响了 ${pcFact1}`)
+const push1 = await waitFor((m) => m.type === 'memory:facts' && (m.payload.facts ?? []).some((f) => f.id === pcFact1))
+check('memory:facts 下发 PC 新事实', typeof push1.payload.since === 'number', `since=${push1.payload.since}`)
+check('memory:facts 带 summary', typeof push1.payload.summary === 'string' && push1.payload.summary.length > 0)
+ws.send(
+  JSON.stringify({ v: 1, id: 'ack-push-1', type: 'facts:ack', ts: Date.now(), replyTo: push1.id, payload: { accepted: [pcFact1], merged: [], rejected: [] } }),
+)
+await new Promise((r) => setTimeout(r, 300))
+const health1 = await (await fetch(`${BASE}/health`)).json()
+check('facts:ack 推进游标', health1.facts_since > 0, `since=${health1.facts_since}`)
+
+const pcFact2 = `pc-${Date.now() + 1}`
+await postFact(pcFact2, `窗台上落了一只麻雀 ${pcFact2}`)
+const push2 = await waitFor((m) => m.type === 'memory:facts' && (m.payload.facts ?? []).some((f) => f.id === pcFact2))
+check('增量只带新事实', push2.payload.facts.length === 1, `n=${push2.payload.facts.length}`)
+check('增量 since 已是游标', push2.payload.since >= health1.facts_since, `since=${push2.payload.since}`)
+
 // 7) 错误处理
 const badTypeId = send('nope:whatever', {})
 const badType = await waitFor((m) => m.type === 'error' && m.replyTo === badTypeId)

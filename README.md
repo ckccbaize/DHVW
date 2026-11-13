@@ -233,6 +233,7 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 - **动作白名单**：`web.open` / `media.play` / `app.open` 可执行；`notify`、`map.generate` **未接线**，返回 `ok:false` + 中文原因，不假装成功。
 - **配置来源**：外壳持有解密后的 API Key（DPAPI），启动、设置保存、密钥保存、worker 健康变化以及每分钟一次，向 `POST http://127.0.0.1:8877/dhvw/config` 回环下发 `{tts,live2d,llm:{baseUrl,model,apiKey}}`；`llm` 变化即时以 `llm:config` 转给设备。Python 服务不碰 safeStorage。
 - **界面**：服务面板旁的「世界」卡片是只读视图——档位、世界时刻、时段、显示态、日程完成数、待生成场景数、心情条、记忆条数。数据由主进程 `dhvw:world` 汇总 `GET /health` + `/dhvw/digest` + `/dhvw/mood`，2 s 刷新；编排器没起来显示「编排器未运行」，设备断开显示「编排器在线 · 无设备」（此时摘要仍是上一次的）。
+- **记忆回流**：PC 侧写事实走 `POST /dhvw/facts`（`src=pc`），编排器按 `updated_at` 增量以 `memory:facts{since,facts,summary}` 下发给在线设备；设备回 `facts:ack` 才把游标推进到本批最大 `updated_at`，上一批没 ack 不重复下发。
 - **`semantic=false`**：随包没有 embedding 模型（ADR-PC-017 禁止运行时下载），`memory:result.semantic` 恒为 `false`，设备侧按契约降级为本地字面检索。
 
 调测：

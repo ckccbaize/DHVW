@@ -30,6 +30,7 @@ HEARTBEAT_TIMEOUT = 60.0
 OVERVIEW_INTERVAL = 5.0
 KNOWN_INBOUND = {
     "hello",
+    "facts:ack",
     "heartbeat",
     "present:request",
     "present:begin",
@@ -77,17 +78,29 @@ class Orchestrator:
         self.live2d_ready = bool(store.get_kv("live2d_ready", False))
         self.world_running = True
         self.started = time.time()
+        # memory:facts 回流：msg_id -> 本次下发的最大 updated_at，设备 ack 后才推进游标
+        self.facts_pending: dict[str, int] = {}
+        self.facts_sent_ids: set[str] = set()
 
     # ---------- 发送 ----------
-    async def send(self, ws: WebSocket, type_: str, payload: dict | None = None, reply_to: str | None = None) -> None:
+    async def send(
+        self, ws: WebSocket, type_: str, payload: dict | None = None, reply_to: str | None = None
+    ) -> str | None:
+        msg = envelope(type_, payload, reply_to)
         try:
-            await ws.send_text(json.dumps(envelope(type_, payload, reply_to), ensure_ascii=False))
+            await ws.send_text(json.dumps(msg, ensure_ascii=False))
+            return str(msg["id"])
         except Exception as err:  # 连接已断：交给心跳超时处理
             log("warn", "发送失败", type=type_, error=str(err))
+            return None
 
-    async def broadcast(self, type_: str, payload: dict | None = None) -> None:
+    async def broadcast(self, type_: str, payload: dict | None = None) -> list[str]:
+        sent: list[str] = []
         for ws in list(self.clients):
-            await self.send(ws, type_, payload)
+            msg_id = await self.send(ws, type_, payload)
+            if msg_id:
+                sent.append(msg_id)
+        return sent
 
     # ---------- 状态 ----------
     def overview(self) -> dict:
@@ -100,6 +113,26 @@ class Orchestrator:
             "clock": {"day": clock.get("day", ""), "minute": clock.get("minute", 0), "phase": clock.get("phase", "")},
             "agent": {},
         }
+
+    async def push_facts(self) -> int:
+        """把 PC 侧新增/更新的事实增量推给设备；设备 ack 后才推进游标。"""
+        since = int(self.store.get_kv("facts_since", 0) or 0)
+        facts, upto = self.store.facts_since(since)
+        if not facts or not self.clients:
+            return 0
+        # 已发过且设备还没 ack 的同一条不再重发；新事实照发，避免未回执批次把后续全堵住
+        if all(f["id"] in self.facts_sent_ids for f in facts):
+            return 0
+        summary = "；".join(f["text"] for f in facts[:5])
+        payload = {"since": since, "facts": facts, "summary": summary}
+        sent = await self.broadcast("memory:facts", payload)
+        if not sent:
+            return 0
+        for msg_id in sent:
+            self.facts_pending[msg_id] = upto
+        self.facts_sent_ids.update(f["id"] for f in facts)
+        log("info", "记忆回流下发", count=len(facts), since=since)
+        return len(facts)
 
     async def set_tier(self, value: str) -> None:
         if value == self.tier:
@@ -121,6 +154,14 @@ class Orchestrator:
             return
         if type_ not in KNOWN_INBOUND:
             await self.send(ws, "error", {"code": "bad_type", "msg": f"未知 type: {type_}"}, msg_id)
+            return
+
+        if type_ == "facts:ack":
+            reply_to = msg.get("replyTo")
+            if isinstance(reply_to, str) and reply_to in self.facts_pending:
+                upto = self.facts_pending.pop(reply_to)
+                self.store.put_kv("facts_since", upto)
+                log("info", "设备确认记忆回流", since=upto)
             return
 
         if type_ == "hello":
@@ -145,6 +186,9 @@ class Orchestrator:
                 await self.send(ws, "llm:config", self.llm_payload(), msg_id)
             await self.send(ws, "digest:get", {})
             await self.send(ws, "mood:get", {})
+            # 新连接要能拿到未确认的积压，即使本进程此前已经发过
+            self.facts_sent_ids.clear()
+            await self.push_facts()
             return
 
         # 心跳与其余消息都算「设备活着」
@@ -309,6 +353,9 @@ class Orchestrator:
                 await asyncio.sleep(OVERVIEW_INTERVAL - 0.5)
                 if self.clients:
                     await self.broadcast("state:overview", self.overview())
+                    # 30 s 一次兜底：PC 侧新写的事实即使没走端点也能尽快回流
+                    if int(time.time() - self.started) % 30 < OVERVIEW_INTERVAL:
+                        await self.push_facts()
             except Exception as err:  # 循环不能死
                 log("error", "状态循环异常", error=str(err))
 
@@ -335,6 +382,7 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
             "uptime": round(time.time() - orch.started, 1),
             "device": {"connected": orch.connected, "id": orch.device_id, "tier": orch.tier},
             "digest_ts": (orch.digest or {}).get("ts", 0),
+            "facts_since": store.get_kv("facts_since", 0),
             "memory": store.memory_count(),
         }
 
@@ -353,6 +401,17 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
     @app.get("/dhvw/actions")
     async def action_help() -> JSONResponse:
         return JSONResponse(actions.describe())
+
+    @app.post("/dhvw/facts")
+    async def add_facts(req: Request) -> JSONResponse:
+        """PC 侧（OLVT / WakeTrace / GUI）写事实，随即回流给在线设备。"""
+        body = await req.json()
+        facts = body.get("facts") if isinstance(body, dict) else None
+        if not isinstance(facts, list):
+            return JSONResponse({"ok": False, "error": "facts 必须是数组"}, status_code=400)
+        result = store.upsert_facts(facts, src="pc")
+        pushed = await orch.push_facts()
+        return JSONResponse({"ok": True, **result, "pushed": pushed})
 
     @app.post("/dhvw/config")
     async def config(request: Request) -> JSONResponse:
