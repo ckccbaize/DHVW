@@ -85,6 +85,7 @@
   <button id="btnPcAction">PC 生成地图</button>
   <button id="btnMapGenerate">本地生成地图</button>
   <button id="btnPaintTerrain">画地形层</button>
+  <button id="btnArmScene">ARM 生成新场景</button>
   <button id="btnGovernorCheck">检查治理</button>
   <button id="btnObserve">看观测</button>
   <button id="btnMood">取心情曲线</button>
@@ -160,6 +161,8 @@
 <script type="module">
 import { createCoreClient } from "./js/core/client.js";
 import { paintTerrain } from "./js/forge/painter.js";
+import { buildLayout } from "./js/forge/layout.js";
+import { buildScene } from "./js/forge/scene.js";
 import { makeMsg } from "./js/core/bus.js";
 
 const $ = (s) => document.querySelector(s);
@@ -553,6 +556,37 @@ $("#btnGovernorCheck").onclick = async () => {
   try {
     const r = await client.request("core:command", { name: "governor_check" });
     pushLine(`governor → ${r.tier} (${r.reasons.join(",") || "ok"})`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnArmScene").onclick = async () => {
+  try {
+    const layout = buildLayout(24, 16, "arm-" + Date.now());
+    const spec = {
+      name: "arm-scene",
+      title: "ARM 新场景",
+      grid: { w: 24, h: 16, cell: 16 },
+      rooms: layout.rooms,
+      zones: layout.zones,
+      doors: layout.doors,
+      windows: [{ x: 3, y: 0 }, { x: 9, y: 0 }],
+      props: [{ id: "desk_lamp", x: 3, y: 3, w: 1, h: 1 }],
+      furnitureDefs: {
+        desk_lamp: {
+          size: [1, 1],
+          shapes: [
+            { op: "shadow", x: 1, y: 1, w: 12, h: 12, color: [40, 28, 30, 70] },
+            { op: "rect", x: 2, y: 2, w: 12, h: 12, color: [92, 62, 44] },
+            { op: "outline", x: 2, y: 2, w: 12, h: 12, color: [46, 34, 36] },
+          ],
+        },
+      },
+    };
+    const scene = buildScene(spec);
+    const canvas = document.querySelector("#mapCanvas");
+    canvas.width = scene.image.w;
+    canvas.height = scene.image.h;
+    canvas.getContext("2d").putImageData(new ImageData(new Uint8ClampedArray(scene.image.data), scene.image.w, scene.image.h), 0, 0);
+    pushLine(`ARM scene → ${scene.image.w}x${scene.image.h} rooms=${spec.rooms.length} doors=${spec.doors.length}`);
   } catch (e) { pushLine(e.message); }
 };
 $("#btnPaintTerrain").onclick = async () => {

@@ -11,6 +11,8 @@
 | 地形层（地板/墙/门/窗/栏杆/墙脚阴影/暗角） | ✅ 逐像素一致 | `www/js/forge/painter.js` |
 | 光照层（窗户投射） | ✅ 逐像素一致 | `www/js/forge/painter.js` |
 | 家具层（26 家具/6 墙面/6 小物） | ✅ 视觉一致（98.6% 像素） | `www/js/forge/furniture.js` |
+| 场景合成 / built.json / 2x | ✅ | `www/js/forge/scene.js` |
+| 浏览器端到端（新布局 + 三层 + 合成） | ✅ | 调试页「ARM 生成新场景」 |
 | PNG 编码（离线导出） | ✅ | `tools/png.mjs` |
 | 黄金图对比 | ✅ | `tools/paint-terrain.mjs` + `tools/compare-terrain.py` |
 
@@ -31,6 +33,8 @@ npm run golden:terrain
 - `npm run golden:terrain` → ✓ 逐像素一致
 - `npm run golden:light` → ✓ 逐像素一致
 - `npm run golden:furniture` → 差异 1049/76800（98.6%），在 1200 像素容忍内
+- `npm run golden:scene` → 合成图 1007 像素 >1 级差，在 1200 像素容忍内
+- 浏览器：ARM 独立生成 24×16 新布局 → 384×256 合成图，0 报错
 
 ## 模型后加家具（数据驱动）
 
