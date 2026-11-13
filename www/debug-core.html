@@ -42,6 +42,7 @@
 <div class="machine" id="governor">governor —</div>
 <div class="machine" id="observe">observe —</div>
 <div class="machine" id="moodpanel">mood —</div>
+<div class="machine" id="wake">wake —</div>
 <canvas id="moodCanvas" width="480" height="120" style="width:480px;height:120px;border:1px solid #444"></canvas>
 
 <h2>世界事件（点击即派发）</h2>
@@ -83,6 +84,8 @@
   <button id="btnGovernorCheck">检查治理</button>
   <button id="btnObserve">看观测</button>
   <button id="btnMood">取心情曲线</button>
+  <button id="btnWake">醒一次</button>
+  <button id="btnWakeInteract">交互</button>
 </div>
 <canvas id="mapCanvas" width="480" height="320" style="width:480px;height:320px;image-rendering:pixelated;border:1px solid #444"></canvas>
 
@@ -178,6 +181,12 @@ function drawMood(v) {
     });
     ctx.stroke();
   }
+}
+
+function renderWake(w) {
+  if (!w) return;
+  document.querySelector("#wake").innerHTML =
+    `wake last=${w.lastWakeAt || "—"} next=${w.nextWakeAt || "—"} today=<b>${w.wakesToday}</b> hour=<b>${w.wakesThisHour}</b> streak=${w.noResponseStreak}`;
 }
 
 function renderMoodPanel(v) {
@@ -335,6 +344,7 @@ const client = createCoreClient({
       if (p.governor) renderGovernor(p.governor);
       if (p.observe) renderObserve(p.observe);
       if (p.moodView) renderMoodPanel({ ...p.moodView, series: [] });
+      if (p.wake) renderWake(p.wake);
       if (p.display || p.conn || p.tier) {
         renderMachine({ ...(p.machine || {}), display: p.display ?? p.machine?.display, conn: p.conn ?? p.machine?.conn, tier: p.tier ?? p.machine?.tier, transitions: p.transitions });
       }
@@ -436,6 +446,18 @@ $("#btnAgentPlot").onclick = async () => {
     pushLine(r.ok
       ? `plot ok(${r.attempts}) → [${r.event}/${r.place}] ${r.text}`
       : `plot rejected → ${r.reason}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnWake").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "wake_tick", args: { text: "她醒了一下" } });
+    pushLine(`wake → ${r.kind} (${r.reason})`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnWakeInteract").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "wake_interaction" });
+    pushLine(`wake interaction → streak=${r.state.noResponseStreak}`);
   } catch (e) { pushLine(e.message); }
 };
 $("#btnMood").onclick = async () => {

@@ -26,6 +26,7 @@ import { allowedAt, checkWatchdog, createGovernor } from "./governor.js";
 import { createStateLog, createTaskLedger } from "./observe.js";
 import { createSyncManager, mergeFacts } from "./sync.js";
 import { buildMoodView, createMoodSeries } from "./mood.js";
+import { createWakeEngine } from "./wake/engine.js";
 import { createBgAgent } from "./agent/subs/bg.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
 
@@ -101,6 +102,7 @@ let sync = null;
 let mergedFactIds = new Set();
 let moodSeries = null;
 let lastMoodPushAt = 0;
+let wake = null;
 let lastHealthAt = Date.now();
 
 const PC_ACTIONS = new Set(["map.generate", "app.open", "media.play", "notify", "web.open"]);
@@ -318,6 +320,8 @@ const ready = (async () => {
   mergedFactIds = new Set((await kvBackend.get("pc_fact_ids")) || []);
   moodSeries = createMoodSeries({ backend: kvBackend });
   await moodSeries.init();
+  wake = createWakeEngine();
+  wake.restore((await kvBackend.get("wake_state")) || {});
   await localMemory.init();
   await scheduler.init();
   if (Date.now() - eventPool.updatedAt > 6 * 3600 * 1000) {
@@ -399,6 +403,7 @@ async function writeDigest() {
       ? { tier: governorLast.tier, reasons: governorLast.reasons, metrics: governorLast.metrics }
       : { tier: governor ? governor.tier : "P4", reasons: [], metrics: null },
     mood: moodSeries ? { ...moodSeries.stats(), band: life.snapshot().band, dims: life.snapshot().mood } : null,
+    wake: wake ? wake.state : null,
     observe: {
       stateLog: stateLog ? stateLog.stats() : null,
       ledger: ledger ? ledger.stats() : null,
@@ -406,6 +411,7 @@ async function writeDigest() {
     },
     lastPlot: await kvBackend.get("last_plot"),
     mood: moodView(60),
+    wake: wake ? wake.state : null,
   });
   await digestStore.save(d);
   if (host.conn === "up") host.sendRaw({ type: "world:digest", payload: { digest: d } });
@@ -690,6 +696,7 @@ function health() {
       ? { tier: governorLast.tier, reasons: governorLast.reasons, metrics: governorLast.metrics }
       : { tier: governor ? governor.tier : "P4", reasons: [], metrics: null },
     mood: moodSeries ? { ...moodSeries.stats(), band: life.snapshot().band, dims: life.snapshot().mood } : null,
+    wake: wake ? wake.state : null,
     observe: {
       stateLog: stateLog ? stateLog.stats() : null,
       ledger: ledger ? ledger.stats() : null,
@@ -1033,6 +1040,34 @@ const handlers = {
       await stateLog.clear();
       await ledger.clear();
       return { ok: true, stateLog: stateLog.stats(), ledger: ledger.stats() };
+    }
+    if (p.name === "wake_tick") {
+      const snap = life.snapshot();
+      const r = await wake.tick({
+        mood: snap.mood,
+        present: p.args?.present ?? world.state.display === "present",
+        text: p.args?.text || "",
+      });
+      if (r.kind === "bubble" && r.text) post("core:bubble", { text: r.text, ttl: 4000 });
+      await kvBackend.put("wake_state", wake.snapshot());
+      await appendEvent(`wake:${r.kind}`, { source: r.source, reason: r.reason, text: r.text });
+      patch({ wake: wake.state });
+      return { ok: true, ...r, state: wake.state };
+    }
+    if (p.name === "wake_interaction") {
+      wake.recordInteraction();
+      await kvBackend.put("wake_state", wake.snapshot());
+      patch({ wake: wake.state });
+      return { ok: true, state: wake.state };
+    }
+    if (p.name === "wake_response") {
+      wake.recordResponse(!!p.args?.responded);
+      await kvBackend.put("wake_state", wake.snapshot());
+      patch({ wake: wake.state });
+      return { ok: true, state: wake.state };
+    }
+    if (p.name === "wake_state") {
+      return { ok: true, state: wake.state, latest: wake.latest(10) };
     }
     if (p.name === "mood_state") {
       return { ok: true, mood: moodView(p.args?.limit || 120) };

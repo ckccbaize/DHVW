@@ -84,7 +84,7 @@
 | W19 | 与 PC 同步 | 事件批、资产清单、记忆结果合并；`world:digest` 统一摘要 | 假 PC 收批、uuid 去重、重复不重复入 | W9, W5 | 摘要已有（`core/digest.js`） |
 
 | W20 | **心情模型**（D3） | `core/mood/`：四维连续值 + 五档 + 更新/衰减规则 | 单测：事件→维度变化；档位切换正确；曲线可导出 | W4 |
-| W21 | **唤醒机双档**（D2） | `core/wake/`：PC 档（拉 `/world/timeline`）与设备档（定时+事件+心情阈值） | 假 PC 单测；离线时按闸门产出 thought/bubble/task/silent | W3, W20 |
+| W21 | **唤醒机双档**（D2） | `core/wake/`：PC 档（拉 `/world/timeline`）与设备档（定时+事件+心情阈值） | 假 PC 单测；离线时按闸门产出 thought/bubble/silent | W3, W20 | **已有**（7 项测试 + 面板实测；严格 JSON 待 W26） |
 | W22 | **统计与可视化**（D3） | `core/stats/` + `www/debug.html`：状态图 SVG、时间线、心情曲线、队列、预算 | 断网可用；状态迁移 1s 内上图 | W3, W20 |
 | W23 | **记忆管线**（D4） | `core/memory/pipeline.js`：预筛→LLM 归纳→事实→向量→索引 | 20 条事件归纳出 5–10 条事实；检索 top1 命中 | W7, W11 |
 | W24 | **并发合并协议**（D5） | `core/sync/merge.js`：所有权表 + LWW + tombstone + 幂等 | 双端同改一条：结果确定且可复现 | W5, W9 |
