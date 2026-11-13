@@ -1,0 +1,1340 @@
+{
+ "schema_version": 1,
+ "id": "office",
+ "tier": "host",
+ "origin": "forge-procedural",
+ "seed": "office/v3",
+ "title": "公司办公室",
+ "grid": {
+  "w": 26,
+  "h": 18,
+  "cell": 16
+ },
+ "layers": {
+  "terrain": "terrain.png",
+  "furniture": "furniture.png",
+  "light": {
+   "day": "light_day.png"
+  },
+  "lightMode": "additive"
+ },
+ "intGrid": "intgrid.bin",
+ "interactions": "interactions.json",
+ "character": "character/sheet.json",
+ "start": "office",
+ "rooms": [
+  {
+   "id": "office",
+   "name": "开放办公区",
+   "rect": [
+    1,
+    1,
+    17,
+    16
+   ],
+   "floor": "carpet"
+  },
+  {
+   "id": "meeting",
+   "name": "会议室",
+   "rect": [
+    19,
+    1,
+    6,
+    6
+   ],
+   "floor": "wood"
+  },
+  {
+   "id": "pantry",
+   "name": "茶水间",
+   "rect": [
+    18,
+    8,
+    7,
+    9
+   ],
+   "floor": "tile"
+  }
+ ],
+ "zones": [
+  {
+   "name": "区域-工位区",
+   "rect": [
+    1,
+    1,
+    9,
+    9
+   ],
+   "floor": "carpet"
+  },
+  {
+   "name": "区域-休息区",
+   "rect": [
+    1,
+    10,
+    8,
+    7
+   ],
+   "floor": "carpet"
+  },
+  {
+   "name": "区域-协作区",
+   "rect": [
+    10,
+    1,
+    6,
+    7
+   ],
+   "floor": "carpet"
+  },
+  {
+   "name": "区域-走廊",
+   "rect": [
+    10,
+    8,
+    7,
+    3
+   ],
+   "floor": "carpet"
+  },
+  {
+   "name": "区域-前台",
+   "rect": [
+    10,
+    12,
+    7,
+    3
+   ],
+   "floor": "tile"
+  }
+ ],
+ "props": [
+  {
+   "id": "desk_modern",
+   "name": "工位-办公桌-1",
+   "x": 1,
+   "y": 2,
+   "w": 2,
+   "h": 1,
+   "room": "office",
+   "facing": "S",
+   "blocking": true
+  },
+  {
+   "id": "office_chair",
+   "name": "工位-椅子-1",
+   "x": 1,
+   "y": 3,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "facing": "N",
+   "blocking": true
+  },
+  {
+   "id": "desk_modern",
+   "name": "工位-办公桌-2",
+   "x": 4,
+   "y": 2,
+   "w": 2,
+   "h": 1,
+   "room": "office",
+   "facing": "S",
+   "blocking": true
+  },
+  {
+   "id": "office_chair",
+   "name": "工位-椅子-2",
+   "x": 4,
+   "y": 3,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "facing": "N",
+   "blocking": true
+  },
+  {
+   "id": "desk_modern",
+   "name": "工位-办公桌-3",
+   "x": 7,
+   "y": 2,
+   "w": 2,
+   "h": 1,
+   "room": "office",
+   "facing": "S",
+   "blocking": true
+  },
+  {
+   "id": "office_chair",
+   "name": "工位-椅子-3",
+   "x": 7,
+   "y": 3,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "facing": "N",
+   "blocking": true
+  },
+  {
+   "id": "desk_modern",
+   "name": "工位-办公桌-4",
+   "x": 1,
+   "y": 6,
+   "w": 2,
+   "h": 1,
+   "room": "office",
+   "facing": "S",
+   "blocking": true
+  },
+  {
+   "id": "office_chair",
+   "name": "工位-椅子-4",
+   "x": 1,
+   "y": 7,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "facing": "N",
+   "blocking": true
+  },
+  {
+   "id": "desk_modern",
+   "name": "工位-办公桌-5",
+   "x": 4,
+   "y": 6,
+   "w": 2,
+   "h": 1,
+   "room": "office",
+   "facing": "S",
+   "blocking": true
+  },
+  {
+   "id": "office_chair",
+   "name": "工位-椅子-5",
+   "x": 4,
+   "y": 7,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "facing": "N",
+   "blocking": true
+  },
+  {
+   "id": "desk_modern",
+   "name": "工位-办公桌-6",
+   "x": 7,
+   "y": 6,
+   "w": 2,
+   "h": 1,
+   "room": "office",
+   "facing": "S",
+   "blocking": true
+  },
+  {
+   "id": "office_chair",
+   "name": "工位-椅子-6",
+   "x": 7,
+   "y": 7,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "facing": "N",
+   "blocking": true
+  },
+  {
+   "id": "filing",
+   "name": "工位-文件柜-1",
+   "x": 9,
+   "y": 1,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "blocking": true
+  },
+  {
+   "id": "printer",
+   "name": "工位-打印机-1",
+   "x": 9,
+   "y": 4,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "blocking": true
+  },
+  {
+   "id": "plant",
+   "name": "工位-绿植-1",
+   "x": 9,
+   "y": 8,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "blocking": true
+  },
+  {
+   "id": "sofa",
+   "name": "协作-沙发-1",
+   "x": 11,
+   "y": 1,
+   "w": 3,
+   "h": 1,
+   "room": "office",
+   "facing": "S",
+   "blocking": true
+  },
+  {
+   "id": "coffee_table",
+   "name": "协作-茶几-1",
+   "x": 11,
+   "y": 3,
+   "w": 2,
+   "h": 1,
+   "room": "office",
+   "blocking": true
+  },
+  {
+   "id": "tv",
+   "name": "协作-电视-1",
+   "x": 15,
+   "y": 1,
+   "w": 2,
+   "h": 1,
+   "room": "office",
+   "facing": "W",
+   "blocking": true
+  },
+  {
+   "id": "armchair",
+   "name": "协作-单人椅-1",
+   "x": 11,
+   "y": 5,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "facing": "E",
+   "blocking": true
+  },
+  {
+   "id": "rug",
+   "name": "协作-地毯-1",
+   "x": 10,
+   "y": 2,
+   "w": 5,
+   "h": 4,
+   "room": "office",
+   "blocking": false
+  },
+  {
+   "id": "plant",
+   "name": "协作-绿植-1",
+   "x": 16,
+   "y": 5,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "blocking": true
+  },
+  {
+   "id": "rug",
+   "name": "走廊-地毯-1",
+   "x": 10,
+   "y": 8,
+   "w": 4,
+   "h": 3,
+   "room": "office",
+   "blocking": false
+  },
+  {
+   "id": "bench",
+   "name": "走廊-长凳-1",
+   "x": 15,
+   "y": 8,
+   "w": 2,
+   "h": 1,
+   "room": "office",
+   "blocking": true
+  },
+  {
+   "id": "plant",
+   "name": "走廊-绿植-1",
+   "x": 15,
+   "y": 9,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "blocking": true
+  },
+  {
+   "id": "plant",
+   "name": "走廊-绿植-2",
+   "x": 16,
+   "y": 11,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "blocking": true
+  },
+  {
+   "id": "armchair",
+   "name": "休息-单人椅-1",
+   "x": 2,
+   "y": 11,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "facing": "E",
+   "blocking": true
+  },
+  {
+   "id": "armchair",
+   "name": "休息-单人椅-2",
+   "x": 6,
+   "y": 11,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "facing": "W",
+   "blocking": true
+  },
+  {
+   "id": "coffee_table",
+   "name": "休息-茶几-1",
+   "x": 4,
+   "y": 12,
+   "w": 2,
+   "h": 1,
+   "room": "office",
+   "blocking": true
+  },
+  {
+   "id": "rug",
+   "name": "休息-地毯-1",
+   "x": 2,
+   "y": 10,
+   "w": 5,
+   "h": 4,
+   "room": "office",
+   "blocking": false
+  },
+  {
+   "id": "bookshelf",
+   "name": "休息-书架-1",
+   "x": 1,
+   "y": 16,
+   "w": 2,
+   "h": 1,
+   "room": "office",
+   "facing": "N",
+   "blocking": true
+  },
+  {
+   "id": "cooler",
+   "name": "休息-饮水机-1",
+   "x": 8,
+   "y": 10,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "blocking": true
+  },
+  {
+   "id": "plant",
+   "name": "休息-绿植-1",
+   "x": 4,
+   "y": 15,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "blocking": true
+  },
+  {
+   "id": "plant",
+   "name": "休息-绿植-2",
+   "x": 7,
+   "y": 15,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "blocking": true
+  },
+  {
+   "id": "workdesk",
+   "name": "前台-接待台-1",
+   "x": 10,
+   "y": 12,
+   "w": 2,
+   "h": 1,
+   "room": "office",
+   "facing": "S",
+   "blocking": true
+  },
+  {
+   "id": "office_chair",
+   "name": "前台-椅子-1",
+   "x": 10,
+   "y": 13,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "facing": "N",
+   "blocking": true
+  },
+  {
+   "id": "filing",
+   "name": "前台-文件柜-1",
+   "x": 16,
+   "y": 12,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "blocking": true
+  },
+  {
+   "id": "plant",
+   "name": "前台-绿植-1",
+   "x": 16,
+   "y": 13,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "blocking": true
+  },
+  {
+   "id": "plant",
+   "name": "前台-绿植-2",
+   "x": 14,
+   "y": 15,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "blocking": true
+  },
+  {
+   "id": "rug",
+   "name": "前台-地毯-1",
+   "x": 12,
+   "y": 12,
+   "w": 4,
+   "h": 3,
+   "room": "office",
+   "blocking": false
+  },
+  {
+   "id": "tv",
+   "name": "会议-屏幕-1",
+   "x": 19,
+   "y": 1,
+   "w": 2,
+   "h": 1,
+   "room": "meeting",
+   "facing": "E",
+   "blocking": true
+  },
+  {
+   "id": "table",
+   "name": "会议-会议桌-1",
+   "x": 21,
+   "y": 3,
+   "w": 2,
+   "h": 2,
+   "room": "meeting",
+   "blocking": true
+  },
+  {
+   "id": "office_chair",
+   "name": "会议-椅子-1",
+   "x": 21,
+   "y": 2,
+   "w": 1,
+   "h": 1,
+   "room": "meeting",
+   "facing": "S",
+   "blocking": true
+  },
+  {
+   "id": "office_chair",
+   "name": "会议-椅子-2",
+   "x": 21,
+   "y": 5,
+   "w": 1,
+   "h": 1,
+   "room": "meeting",
+   "facing": "N",
+   "blocking": true
+  },
+  {
+   "id": "office_chair",
+   "name": "会议-椅子-3",
+   "x": 22,
+   "y": 2,
+   "w": 1,
+   "h": 1,
+   "room": "meeting",
+   "facing": "S",
+   "blocking": true
+  },
+  {
+   "id": "office_chair",
+   "name": "会议-椅子-4",
+   "x": 23,
+   "y": 3,
+   "w": 1,
+   "h": 1,
+   "room": "meeting",
+   "facing": "W",
+   "blocking": true
+  },
+  {
+   "id": "plant",
+   "name": "会议-绿植-1",
+   "x": 24,
+   "y": 1,
+   "w": 1,
+   "h": 1,
+   "room": "meeting",
+   "blocking": true
+  },
+  {
+   "id": "counter",
+   "name": "茶水-台面-1",
+   "x": 18,
+   "y": 8,
+   "w": 3,
+   "h": 1,
+   "room": "pantry",
+   "facing": "S",
+   "blocking": true
+  },
+  {
+   "id": "filing",
+   "name": "茶水-文件柜-1",
+   "x": 22,
+   "y": 8,
+   "w": 1,
+   "h": 1,
+   "room": "pantry",
+   "blocking": true
+  },
+  {
+   "id": "cooler",
+   "name": "茶水-饮水机-1",
+   "x": 23,
+   "y": 8,
+   "w": 1,
+   "h": 1,
+   "room": "pantry",
+   "blocking": true
+  },
+  {
+   "id": "fridge",
+   "name": "茶水-冰箱-1",
+   "x": 24,
+   "y": 8,
+   "w": 1,
+   "h": 1,
+   "room": "pantry",
+   "facing": "S",
+   "blocking": true
+  },
+  {
+   "id": "table",
+   "name": "茶水-餐桌-1",
+   "x": 20,
+   "y": 11,
+   "w": 2,
+   "h": 2,
+   "room": "pantry",
+   "blocking": true
+  },
+  {
+   "id": "chair",
+   "name": "茶水-椅子-1",
+   "x": 20,
+   "y": 10,
+   "w": 1,
+   "h": 1,
+   "room": "pantry",
+   "facing": "S",
+   "blocking": true
+  },
+  {
+   "id": "chair",
+   "name": "茶水-椅子-2",
+   "x": 20,
+   "y": 13,
+   "w": 1,
+   "h": 1,
+   "room": "pantry",
+   "facing": "N",
+   "blocking": true
+  },
+  {
+   "id": "rug",
+   "name": "茶水-地毯-1",
+   "x": 18,
+   "y": 14,
+   "w": 4,
+   "h": 2,
+   "room": "pantry",
+   "blocking": false
+  },
+  {
+   "id": "bench",
+   "name": "茶水-长凳-1",
+   "x": 22,
+   "y": 15,
+   "w": 2,
+   "h": 1,
+   "room": "pantry",
+   "blocking": true
+  },
+  {
+   "id": "plant",
+   "name": "茶水-绿植-1",
+   "x": 24,
+   "y": 13,
+   "w": 1,
+   "h": 1,
+   "room": "pantry",
+   "blocking": true
+  },
+  {
+   "id": "plant",
+   "name": "茶水-绿植-2",
+   "x": 22,
+   "y": 13,
+   "w": 1,
+   "h": 1,
+   "room": "pantry",
+   "blocking": true
+  },
+  {
+   "id": "plant",
+   "name": "协作-绿植-2",
+   "x": 15,
+   "y": 3,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "blocking": true
+  },
+  {
+   "id": "plant",
+   "name": "走廊-绿植-3",
+   "x": 8,
+   "y": 12,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "blocking": true
+  },
+  {
+   "id": "plant",
+   "name": "走廊-绿植-4",
+   "x": 9,
+   "y": 15,
+   "w": 1,
+   "h": 1,
+   "room": "office",
+   "blocking": true
+  },
+  {
+   "id": "plant",
+   "name": "茶水-绿植-3",
+   "x": 23,
+   "y": 10,
+   "w": 1,
+   "h": 1,
+   "room": "pantry",
+   "blocking": true
+  }
+ ],
+ "entities": [
+  {
+   "type": "spawn",
+   "x": 9,
+   "y": 9,
+   "room": "office"
+  },
+  {
+   "type": "interior_door",
+   "x": 18,
+   "y": 3,
+   "to_room": "office"
+  },
+  {
+   "type": "door",
+   "x": 12,
+   "y": 17,
+   "to": "outside",
+   "anchor": "north"
+  },
+  {
+   "type": "hotspot",
+   "x": 2,
+   "y": 3,
+   "prop": "desk_modern",
+   "propName": "工位-办公桌-1",
+   "act": "work",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 1,
+   "y": 4,
+   "prop": "office_chair",
+   "propName": "工位-椅子-1",
+   "act": "sit_chair",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 5,
+   "y": 3,
+   "prop": "desk_modern",
+   "propName": "工位-办公桌-2",
+   "act": "work",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 4,
+   "y": 4,
+   "prop": "office_chair",
+   "propName": "工位-椅子-2",
+   "act": "sit_chair",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 8,
+   "y": 3,
+   "prop": "desk_modern",
+   "propName": "工位-办公桌-3",
+   "act": "work",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 7,
+   "y": 4,
+   "prop": "office_chair",
+   "propName": "工位-椅子-3",
+   "act": "sit_chair",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 2,
+   "y": 7,
+   "prop": "desk_modern",
+   "propName": "工位-办公桌-4",
+   "act": "work",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 1,
+   "y": 8,
+   "prop": "office_chair",
+   "propName": "工位-椅子-4",
+   "act": "sit_chair",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 5,
+   "y": 7,
+   "prop": "desk_modern",
+   "propName": "工位-办公桌-5",
+   "act": "work",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 4,
+   "y": 8,
+   "prop": "office_chair",
+   "propName": "工位-椅子-5",
+   "act": "sit_chair",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 8,
+   "y": 7,
+   "prop": "desk_modern",
+   "propName": "工位-办公桌-6",
+   "act": "work",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 7,
+   "y": 8,
+   "prop": "office_chair",
+   "propName": "工位-椅子-6",
+   "act": "sit_chair",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 9,
+   "y": 2,
+   "prop": "filing",
+   "propName": "工位-文件柜-1",
+   "act": "file_docs",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 9,
+   "y": 3,
+   "prop": "printer",
+   "propName": "工位-打印机-1",
+   "act": "print",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 9,
+   "y": 7,
+   "prop": "plant",
+   "propName": "工位-绿植-1",
+   "act": "water_plants",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 11,
+   "y": 2,
+   "prop": "sofa",
+   "propName": "协作-沙发-1",
+   "act": "sit_sofa",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 14,
+   "y": 1,
+   "prop": "tv",
+   "propName": "协作-电视-1",
+   "act": "watch_tv",
+   "face": "E"
+  },
+  {
+   "type": "hotspot",
+   "x": 12,
+   "y": 5,
+   "prop": "armchair",
+   "propName": "协作-单人椅-1",
+   "act": "rest_armchair",
+   "face": "W"
+  },
+  {
+   "type": "hotspot",
+   "x": 16,
+   "y": 4,
+   "prop": "plant",
+   "propName": "协作-绿植-1",
+   "act": "water_plants",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 15,
+   "y": 7,
+   "prop": "bench",
+   "propName": "走廊-长凳-1",
+   "act": "sit_chair",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 15,
+   "y": 10,
+   "prop": "plant",
+   "propName": "走廊-绿植-1",
+   "act": "water_plants",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 16,
+   "y": 10,
+   "prop": "plant",
+   "propName": "走廊-绿植-2",
+   "act": "water_plants",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 3,
+   "y": 11,
+   "prop": "armchair",
+   "propName": "休息-单人椅-1",
+   "act": "rest_armchair",
+   "face": "W"
+  },
+  {
+   "type": "hotspot",
+   "x": 5,
+   "y": 11,
+   "prop": "armchair",
+   "propName": "休息-单人椅-2",
+   "act": "rest_armchair",
+   "face": "E"
+  },
+  {
+   "type": "hotspot",
+   "x": 1,
+   "y": 15,
+   "prop": "bookshelf",
+   "propName": "休息-书架-1",
+   "act": "read",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 8,
+   "y": 9,
+   "prop": "cooler",
+   "propName": "休息-饮水机-1",
+   "act": "drink_water",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 4,
+   "y": 14,
+   "prop": "plant",
+   "propName": "休息-绿植-1",
+   "act": "water_plants",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 7,
+   "y": 14,
+   "prop": "plant",
+   "propName": "休息-绿植-2",
+   "act": "water_plants",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 11,
+   "y": 13,
+   "prop": "workdesk",
+   "propName": "前台-接待台-1",
+   "act": "work",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 10,
+   "y": 14,
+   "prop": "office_chair",
+   "propName": "前台-椅子-1",
+   "act": "sit_chair",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 15,
+   "y": 12,
+   "prop": "filing",
+   "propName": "前台-文件柜-1",
+   "act": "file_docs",
+   "face": "E"
+  },
+  {
+   "type": "hotspot",
+   "x": 16,
+   "y": 14,
+   "prop": "plant",
+   "propName": "前台-绿植-1",
+   "act": "water_plants",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 14,
+   "y": 14,
+   "prop": "plant",
+   "propName": "前台-绿植-2",
+   "act": "water_plants",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 21,
+   "y": 1,
+   "prop": "tv",
+   "propName": "会议-屏幕-1",
+   "act": "watch_tv",
+   "face": "W"
+  },
+  {
+   "type": "hotspot",
+   "x": 22,
+   "y": 5,
+   "prop": "table",
+   "propName": "会议-会议桌-1",
+   "act": "eat",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 20,
+   "y": 3,
+   "prop": "table",
+   "propName": "会议-会议桌-1",
+   "act": "meet",
+   "face": "E"
+  },
+  {
+   "type": "hotspot",
+   "x": 20,
+   "y": 2,
+   "prop": "office_chair",
+   "propName": "会议-椅子-1",
+   "act": "sit_chair",
+   "face": "E"
+  },
+  {
+   "type": "hotspot",
+   "x": 21,
+   "y": 6,
+   "prop": "office_chair",
+   "propName": "会议-椅子-2",
+   "act": "sit_chair",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 22,
+   "y": 1,
+   "prop": "office_chair",
+   "propName": "会议-椅子-3",
+   "act": "sit_chair",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 23,
+   "y": 2,
+   "prop": "office_chair",
+   "propName": "会议-椅子-4",
+   "act": "sit_chair",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 24,
+   "y": 2,
+   "prop": "plant",
+   "propName": "会议-绿植-1",
+   "act": "water_plants",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 18,
+   "y": 9,
+   "prop": "counter",
+   "propName": "茶水-台面-1",
+   "act": "cook",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 22,
+   "y": 9,
+   "prop": "filing",
+   "propName": "茶水-文件柜-1",
+   "act": "file_docs",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 23,
+   "y": 9,
+   "prop": "cooler",
+   "propName": "茶水-饮水机-1",
+   "act": "drink_water",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 24,
+   "y": 9,
+   "prop": "fridge",
+   "propName": "茶水-冰箱-1",
+   "act": "snack",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 21,
+   "y": 10,
+   "prop": "table",
+   "propName": "茶水-餐桌-1",
+   "act": "eat",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 21,
+   "y": 13,
+   "prop": "table",
+   "propName": "茶水-餐桌-1",
+   "act": "meet",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 20,
+   "y": 9,
+   "prop": "chair",
+   "propName": "茶水-椅子-1",
+   "act": "sit_chair",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 20,
+   "y": 14,
+   "prop": "chair",
+   "propName": "茶水-椅子-2",
+   "act": "sit_chair",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 22,
+   "y": 14,
+   "prop": "bench",
+   "propName": "茶水-长凳-1",
+   "act": "sit_chair",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 24,
+   "y": 12,
+   "prop": "plant",
+   "propName": "茶水-绿植-1",
+   "act": "water_plants",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 22,
+   "y": 12,
+   "prop": "plant",
+   "propName": "茶水-绿植-2",
+   "act": "water_plants",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 15,
+   "y": 2,
+   "prop": "plant",
+   "propName": "协作-绿植-2",
+   "act": "water_plants",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 8,
+   "y": 11,
+   "prop": "plant",
+   "propName": "走廊-绿植-3",
+   "act": "water_plants",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 9,
+   "y": 14,
+   "prop": "plant",
+   "propName": "走廊-绿植-4",
+   "act": "water_plants",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 23,
+   "y": 11,
+   "prop": "plant",
+   "propName": "茶水-绿植-3",
+   "act": "water_plants",
+   "face": "N"
+  },
+  {
+   "type": "light",
+   "x": 3,
+   "y": 0,
+   "key": "day"
+  },
+  {
+   "type": "light",
+   "x": 7,
+   "y": 0,
+   "key": "day"
+  },
+  {
+   "type": "light",
+   "x": 12,
+   "y": 0,
+   "key": "day"
+  },
+  {
+   "type": "light",
+   "x": 16,
+   "y": 0,
+   "key": "day"
+  },
+  {
+   "type": "light",
+   "x": 20,
+   "y": 0,
+   "key": "day"
+  },
+  {
+   "type": "light",
+   "x": 23,
+   "y": 0,
+   "key": "day"
+  },
+  {
+   "type": "light",
+   "x": 5,
+   "y": 17,
+   "key": "day"
+  },
+  {
+   "type": "light",
+   "x": 14,
+   "y": 17,
+   "key": "day"
+  },
+  {
+   "type": "light",
+   "x": 22,
+   "y": 17,
+   "key": "day"
+  }
+ ],
+ "meta": {
+  "arch": "office",
+  "palette": "warm_wood",
+  "light": "day",
+  "created_at": 0,
+  "consumed_at": null,
+  "size": 91663
+ }
+}

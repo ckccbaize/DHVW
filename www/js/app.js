@@ -21,6 +21,7 @@ const DEFAULTS = {
   assetQuotaBytes: 500 * 1024 * 1024,
   display: { backToOverviewMs: 90000, hostLostGraceMs: 10000, hysteresisMs: 20000 },
   present: { url: "" },
+  scene: "home",
   forgeIntervalMs: 45000,
 };
 
@@ -38,22 +39,24 @@ async function loadConfig() {
       life: { ...DEFAULTS.life, ...(raw.life || {}) },
       display: { ...DEFAULTS.display, ...(raw.display || {}) },
       present: { ...DEFAULTS.present, ...(raw.present || {}) },
+      scene: raw.scene || DEFAULTS.scene,
     };
   } catch {
     return DEFAULTS;
   }
 }
 
-async function loadScene() {
-  const res = await fetch("assets/scenes/home/home.built.json", { cache: "no-store" });
+async function loadScene(name = "home") {
+  const base = `assets/scenes/${name}`;
+  const res = await fetch(`${base}/${name}.built.json`, { cache: "no-store" });
   if (!res.ok) throw new Error(`场景加载失败 ${res.status}`);
   const raw = await res.json();
   const parsed = parseIntGrid(raw.intGrid);
   const scene = {
     ...raw,
     grid: { w: parsed.w, h: parsed.h, cell: raw.grid?.cell || 16, data: parsed.data },
-    imageUrl: "assets/scenes/home/home.png",
-    image2xUrl: "assets/scenes/home/home@2x.png",
+    imageUrl: `${base}/${raw.image || `${name}.png`}`,
+    image2xUrl: `${base}/${raw.image2x || `${name}@2x.png`}`,
   };
   scene.hotspots = buildHotspots(scene);
   return scene;
@@ -61,7 +64,8 @@ async function loadScene() {
 
 async function boot() {
   const cfg = await loadConfig();
-  const scene = await loadScene();
+  const sceneName = new URLSearchParams(location.search).get("scene") || cfg.scene || "home";
+  const scene = await loadScene(sceneName);
 
   const [sx, sy] = spawnPoint(scene);
   const agent = createAgent(sx, sy);

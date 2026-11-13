@@ -1,0 +1,781 @@
+{
+ "schema_version": 1,
+ "id": "home",
+ "tier": "host",
+ "origin": "forge-procedural",
+ "seed": "home/v10",
+ "title": "温馨的小家",
+ "grid": {
+  "w": 20,
+  "h": 15,
+  "cell": 16
+ },
+ "layers": {
+  "terrain": "terrain.png",
+  "furniture": "furniture.png",
+  "light": {
+   "day": "light_day.png"
+  },
+  "lightMode": "additive"
+ },
+ "intGrid": "intgrid.bin",
+ "interactions": "interactions.json",
+ "character": "character/sheet.json",
+ "start": "living",
+ "rooms": [
+  {
+   "id": "living",
+   "name": "客厅",
+   "rect": [
+    1,
+    1,
+    5,
+    6
+   ],
+   "floor": "wood"
+  },
+  {
+   "id": "hall",
+   "name": "餐厅与厨房",
+   "rect": [
+    6,
+    1,
+    7,
+    13
+   ],
+   "floor": "wood"
+  },
+  {
+   "id": "bedroom",
+   "name": "卧室",
+   "rect": [
+    1,
+    9,
+    4,
+    5
+   ],
+   "floor": "wood"
+  },
+  {
+   "id": "bath",
+   "name": "卫生间",
+   "rect": [
+    14,
+    1,
+    5,
+    5
+   ],
+   "floor": "tile"
+  },
+  {
+   "id": "balcony",
+   "name": "阳台",
+   "rect": [
+    13,
+    7,
+    5,
+    7
+   ],
+   "floor": "stone"
+  }
+ ],
+ "zones": [
+  {
+   "name": "区域-厨房",
+   "rect": [
+    7,
+    1,
+    6,
+    3
+   ],
+   "floor": "tile"
+  },
+  {
+   "name": "区域-玄关",
+   "rect": [
+    10,
+    11,
+    3,
+    2
+   ],
+   "floor": "tile"
+  }
+ ],
+ "props": [
+  {
+   "id": "tv",
+   "name": "客厅-电视-1",
+   "x": 2,
+   "y": 1,
+   "w": 2,
+   "h": 1,
+   "room": "living",
+   "facing": "S",
+   "blocking": true
+  },
+  {
+   "id": "sofa",
+   "name": "客厅-沙发-1",
+   "x": 2,
+   "y": 6,
+   "w": 3,
+   "h": 1,
+   "room": "living",
+   "facing": "N",
+   "blocking": true
+  },
+  {
+   "id": "rug",
+   "name": "客厅-地毯-1",
+   "x": 1,
+   "y": 2,
+   "w": 4,
+   "h": 4,
+   "room": "living",
+   "blocking": false
+  },
+  {
+   "id": "coffee_table",
+   "name": "客厅-茶几-1",
+   "x": 2,
+   "y": 4,
+   "w": 2,
+   "h": 1,
+   "room": "living",
+   "blocking": true
+  },
+  {
+   "id": "lamp",
+   "name": "客厅-落地灯-1",
+   "x": 5,
+   "y": 6,
+   "w": 1,
+   "h": 1,
+   "room": "living",
+   "blocking": true
+  },
+  {
+   "id": "plant",
+   "name": "客厅-绿植-1",
+   "x": 5,
+   "y": 4,
+   "w": 1,
+   "h": 1,
+   "room": "living",
+   "blocking": true
+  },
+  {
+   "id": "counter",
+   "name": "厨房-台面-1",
+   "x": 7,
+   "y": 1,
+   "w": 3,
+   "h": 1,
+   "room": "hall",
+   "facing": "S",
+   "blocking": true
+  },
+  {
+   "id": "stove",
+   "name": "厨房-灶台-1",
+   "x": 10,
+   "y": 1,
+   "w": 2,
+   "h": 1,
+   "room": "hall",
+   "facing": "S",
+   "blocking": true
+  },
+  {
+   "id": "fridge",
+   "name": "厨房-冰箱-1",
+   "x": 12,
+   "y": 1,
+   "w": 1,
+   "h": 1,
+   "room": "hall",
+   "facing": "S",
+   "blocking": true
+  },
+  {
+   "id": "table",
+   "name": "餐厅-餐桌-1",
+   "x": 8,
+   "y": 6,
+   "w": 2,
+   "h": 2,
+   "room": "hall",
+   "blocking": true
+  },
+  {
+   "id": "chair",
+   "name": "餐厅-椅子-1",
+   "x": 7,
+   "y": 6,
+   "w": 1,
+   "h": 1,
+   "room": "hall",
+   "facing": "E",
+   "blocking": true
+  },
+  {
+   "id": "chair",
+   "name": "餐厅-椅子-2",
+   "x": 10,
+   "y": 6,
+   "w": 1,
+   "h": 1,
+   "room": "hall",
+   "facing": "W",
+   "blocking": true
+  },
+  {
+   "id": "rug",
+   "name": "餐厅-地毯-1",
+   "x": 7,
+   "y": 4,
+   "w": 4,
+   "h": 3,
+   "room": "hall",
+   "blocking": false
+  },
+  {
+   "id": "rug",
+   "name": "走廊-地毯-1",
+   "x": 7,
+   "y": 8,
+   "w": 4,
+   "h": 4,
+   "room": "hall",
+   "blocking": false
+  },
+  {
+   "id": "shelf",
+   "name": "走廊-置物架-1",
+   "x": 6,
+   "y": 8,
+   "w": 1,
+   "h": 2,
+   "room": "hall",
+   "blocking": true
+  },
+  {
+   "id": "plant",
+   "name": "走廊-绿植-1",
+   "x": 11,
+   "y": 10,
+   "w": 1,
+   "h": 1,
+   "room": "hall",
+   "blocking": true
+  },
+  {
+   "id": "door_mat",
+   "name": "玄关-门垫-1",
+   "x": 10,
+   "y": 13,
+   "w": 2,
+   "h": 1,
+   "room": "hall",
+   "blocking": false
+  },
+  {
+   "id": "coat_rack",
+   "name": "玄关-衣帽架-1",
+   "x": 12,
+   "y": 12,
+   "w": 1,
+   "h": 1,
+   "room": "hall",
+   "blocking": true
+  },
+  {
+   "id": "bed",
+   "name": "卧室-床-1",
+   "x": 1,
+   "y": 9,
+   "w": 2,
+   "h": 3,
+   "room": "bedroom",
+   "facing": "E",
+   "blocking": true
+  },
+  {
+   "id": "nightstand",
+   "name": "卧室-床头柜-1",
+   "x": 3,
+   "y": 9,
+   "w": 1,
+   "h": 1,
+   "room": "bedroom",
+   "blocking": true
+  },
+  {
+   "id": "wardrobe",
+   "name": "卧室-衣柜-1",
+   "x": 3,
+   "y": 13,
+   "w": 2,
+   "h": 1,
+   "room": "bedroom",
+   "facing": "N",
+   "blocking": true
+  },
+  {
+   "id": "dresser",
+   "name": "卧室-五斗柜-1",
+   "x": 1,
+   "y": 13,
+   "w": 2,
+   "h": 1,
+   "room": "bedroom",
+   "facing": "N",
+   "blocking": true
+  },
+  {
+   "id": "rug",
+   "name": "卧室-地毯-1",
+   "x": 2,
+   "y": 11,
+   "w": 3,
+   "h": 2,
+   "room": "bedroom",
+   "blocking": false
+  },
+  {
+   "id": "plant",
+   "name": "客厅-绿植-2",
+   "x": 5,
+   "y": 2,
+   "w": 1,
+   "h": 1,
+   "room": "living",
+   "blocking": true
+  },
+  {
+   "id": "bathtub",
+   "name": "卫生间-浴缸-1",
+   "x": 14,
+   "y": 1,
+   "w": 2,
+   "h": 2,
+   "room": "bath",
+   "facing": "S",
+   "blocking": true
+  },
+  {
+   "id": "sink",
+   "name": "卫生间-洗手盆-1",
+   "x": 16,
+   "y": 1,
+   "w": 1,
+   "h": 1,
+   "room": "bath",
+   "facing": "S",
+   "blocking": true
+  },
+  {
+   "id": "toilet",
+   "name": "卫生间-马桶-1",
+   "x": 18,
+   "y": 1,
+   "w": 1,
+   "h": 1,
+   "room": "bath",
+   "facing": "W",
+   "blocking": true
+  },
+  {
+   "id": "washer",
+   "name": "卫生间-洗衣机-1",
+   "x": 18,
+   "y": 3,
+   "w": 1,
+   "h": 1,
+   "room": "bath",
+   "facing": "W",
+   "blocking": true
+  },
+  {
+   "id": "bath_mat",
+   "name": "卫生间-浴垫-1",
+   "x": 16,
+   "y": 4,
+   "w": 2,
+   "h": 1,
+   "room": "bath",
+   "blocking": false
+  },
+  {
+   "id": "bench",
+   "name": "阳台-长凳-1",
+   "x": 14,
+   "y": 8,
+   "w": 2,
+   "h": 1,
+   "room": "balcony",
+   "facing": "S",
+   "blocking": true
+  },
+  {
+   "id": "plant_big",
+   "name": "阳台-大绿植-1",
+   "x": 17,
+   "y": 7,
+   "w": 1,
+   "h": 1,
+   "room": "balcony",
+   "blocking": true
+  },
+  {
+   "id": "rug",
+   "name": "阳台-地毯-1",
+   "x": 14,
+   "y": 10,
+   "w": 3,
+   "h": 2,
+   "room": "balcony",
+   "blocking": false
+  },
+  {
+   "id": "cat_tree",
+   "name": "阳台-猫爬架-1",
+   "x": 17,
+   "y": 11,
+   "w": 1,
+   "h": 2,
+   "room": "balcony",
+   "blocking": true
+  },
+  {
+   "id": "plant",
+   "name": "阳台-绿植-1",
+   "x": 13,
+   "y": 13,
+   "w": 1,
+   "h": 1,
+   "room": "balcony",
+   "blocking": true
+  }
+ ],
+ "entities": [
+  {
+   "type": "spawn",
+   "x": 4,
+   "y": 4,
+   "room": "living"
+  },
+  {
+   "type": "interior_door",
+   "x": 5,
+   "y": 11,
+   "to_room": "hall"
+  },
+  {
+   "type": "interior_door",
+   "x": 13,
+   "y": 5,
+   "to_room": "hall"
+  },
+  {
+   "type": "door",
+   "x": 8,
+   "y": 14,
+   "to": "outside",
+   "anchor": "north"
+  },
+  {
+   "type": "hotspot",
+   "x": 2,
+   "y": 2,
+   "prop": "tv",
+   "propName": "客厅-电视-1",
+   "act": "watch_tv",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 2,
+   "y": 5,
+   "prop": "sofa",
+   "propName": "客厅-沙发-1",
+   "act": "sit_sofa",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 5,
+   "y": 5,
+   "prop": "lamp",
+   "propName": "客厅-落地灯-1",
+   "act": "toggle_lamp",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 5,
+   "y": 3,
+   "prop": "plant",
+   "propName": "客厅-绿植-1",
+   "act": "water_plants",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 7,
+   "y": 2,
+   "prop": "counter",
+   "propName": "厨房-台面-1",
+   "act": "cook",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 10,
+   "y": 2,
+   "prop": "stove",
+   "propName": "厨房-灶台-1",
+   "act": "cook",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 12,
+   "y": 2,
+   "prop": "fridge",
+   "propName": "厨房-冰箱-1",
+   "act": "snack",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 8,
+   "y": 5,
+   "prop": "table",
+   "propName": "餐厅-餐桌-1",
+   "act": "eat",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 9,
+   "y": 5,
+   "prop": "table",
+   "propName": "餐厅-餐桌-1",
+   "act": "meet",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 7,
+   "y": 5,
+   "prop": "chair",
+   "propName": "餐厅-椅子-1",
+   "act": "sit_chair",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 10,
+   "y": 5,
+   "prop": "chair",
+   "propName": "餐厅-椅子-2",
+   "act": "sit_chair",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 6,
+   "y": 7,
+   "prop": "shelf",
+   "propName": "走廊-置物架-1",
+   "act": "read",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 11,
+   "y": 9,
+   "prop": "plant",
+   "propName": "走廊-绿植-1",
+   "act": "water_plants",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 12,
+   "y": 11,
+   "prop": "coat_rack",
+   "propName": "玄关-衣帽架-1",
+   "act": "hang_coat",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 3,
+   "y": 10,
+   "prop": "bed",
+   "propName": "卧室-床-1",
+   "act": "sleep",
+   "face": "W"
+  },
+  {
+   "type": "hotspot",
+   "x": 3,
+   "y": 11,
+   "prop": "bed",
+   "propName": "卧室-床-1",
+   "act": "lie_down",
+   "face": "W"
+  },
+  {
+   "type": "hotspot",
+   "x": 3,
+   "y": 12,
+   "prop": "wardrobe",
+   "propName": "卧室-衣柜-1",
+   "act": "change_clothes",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 1,
+   "y": 12,
+   "prop": "dresser",
+   "propName": "卧室-五斗柜-1",
+   "act": "change_clothes",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 5,
+   "y": 1,
+   "prop": "plant",
+   "propName": "客厅-绿植-2",
+   "act": "water_plants",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 14,
+   "y": 3,
+   "prop": "bathtub",
+   "propName": "卫生间-浴缸-1",
+   "act": "bathe",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 16,
+   "y": 2,
+   "prop": "sink",
+   "propName": "卫生间-洗手盆-1",
+   "act": "wash_up",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 17,
+   "y": 1,
+   "prop": "toilet",
+   "propName": "卫生间-马桶-1",
+   "act": "use_toilet",
+   "face": "E"
+  },
+  {
+   "type": "hotspot",
+   "x": 17,
+   "y": 3,
+   "prop": "washer",
+   "propName": "卫生间-洗衣机-1",
+   "act": "laundry",
+   "face": "E"
+  },
+  {
+   "type": "hotspot",
+   "x": 14,
+   "y": 9,
+   "prop": "bench",
+   "propName": "阳台-长凳-1",
+   "act": "sit_chair",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 17,
+   "y": 8,
+   "prop": "plant_big",
+   "propName": "阳台-大绿植-1",
+   "act": "water_plants",
+   "face": "N"
+  },
+  {
+   "type": "hotspot",
+   "x": 17,
+   "y": 10,
+   "prop": "cat_tree",
+   "propName": "阳台-猫爬架-1",
+   "act": "play_with_cat",
+   "face": "S"
+  },
+  {
+   "type": "hotspot",
+   "x": 13,
+   "y": 12,
+   "prop": "plant",
+   "propName": "阳台-绿植-1",
+   "act": "water_plants",
+   "face": "S"
+  },
+  {
+   "type": "light",
+   "x": 2,
+   "y": 0,
+   "key": "day"
+  },
+  {
+   "type": "light",
+   "x": 4,
+   "y": 0,
+   "key": "day"
+  },
+  {
+   "type": "light",
+   "x": 9,
+   "y": 0,
+   "key": "day"
+  },
+  {
+   "type": "light",
+   "x": 11,
+   "y": 0,
+   "key": "day"
+  },
+  {
+   "type": "light",
+   "x": 16,
+   "y": 0,
+   "key": "day"
+  },
+  {
+   "type": "light",
+   "x": 3,
+   "y": 14,
+   "key": "day"
+  },
+  {
+   "type": "light",
+   "x": 9,
+   "y": 14,
+   "key": "day"
+  }
+ ],
+ "meta": {
+  "arch": "home",
+  "palette": "warm_wood",
+  "light": "day",
+  "created_at": 0,
+  "consumed_at": null,
+  "size": 74929
+ }
+}

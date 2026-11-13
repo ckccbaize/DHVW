@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T06:40:29.251Z",
+ "built_at": "2026-11-13T07:38:24.839Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -8,24 +8,154 @@
    "sha256": "382fcf852cb7e41712d53333083e1d16612a0fc51a912cf43279e823983be0d3"
   },
   {
+   "path": "assets/scenes/home/character/sheet.json",
+   "size": 6342,
+   "sha256": "3e73f8892267238d3702317d77bb6862b505156a9d4dff9f3b22315f1746bd2e"
+  },
+  {
+   "path": "assets/scenes/home/character/sheet.png",
+   "size": 6016,
+   "sha256": "e83c487326e164314cff988599e4e64e748be5c4112b21c0736563a7d22fe1dd"
+  },
+  {
+   "path": "assets/scenes/home/furniture.png",
+   "size": 13242,
+   "sha256": "87604d208efdd9ae9b3e14c7144800aefafb57426f644d28da1e499c6fa448cb"
+  },
+  {
    "path": "assets/scenes/home/home.built.json",
-   "size": 8349,
-   "sha256": "e9f86db939043611039ebd9ce4ded904b3e9fab3360c1b9c5ba1251728cf5042"
+   "size": 8479,
+   "sha256": "c5f827d56b7da2da7aa39448ff824a4147fea29339e61d39119da1b0ba707282"
+  },
+  {
+   "path": "assets/scenes/home/home.bundle.js",
+   "size": 6222,
+   "sha256": "7e0a511bb13135beb3cecdf2df4c586ad1c782a360143530bcfedb9fca9b13e0"
+  },
+  {
+   "path": "assets/scenes/home/home.ldtk",
+   "size": 66351,
+   "sha256": "c220c4133cf771eaccf8c81ddaa78b622b9588a4cc094a7a70c0c79e01a9bf9c"
   },
   {
    "path": "assets/scenes/home/home.png",
-   "size": 33582,
-   "sha256": "e41d2a28895e6654feaeddc25ef07954bb19d9286f8dc38d39a3da133555c4ef"
+   "size": 32357,
+   "sha256": "9c5ba3f021e117fdfde4660fe42fbc58c40483c95527827228d2eacc6c1b2824"
   },
   {
    "path": "assets/scenes/home/home@2x.png",
-   "size": 41997,
-   "sha256": "988f3e4a79ccd2ab9df5c8d1702f5ba61ec3b914f49c68ce012266dbc60c5d83"
+   "size": 40067,
+   "sha256": "0e2568d57d9cc3f6b73fadc14cbbde281e0efcb8eaaa667dc2334244e42f7314"
+  },
+  {
+   "path": "assets/scenes/home/interactions.json",
+   "size": 10159,
+   "sha256": "2b529d2d80b888ce352d1b3ed7838f168c3802cbac15f01301bfb03c614aabed"
+  },
+  {
+   "path": "assets/scenes/home/intgrid.bin",
+   "size": 300,
+   "sha256": "992d5784e496fb936ba9fdcaf4ca68cd0d9065572ffe765ebc4de8f2eccdd718"
+  },
+  {
+   "path": "assets/scenes/home/light_day.png",
+   "size": 2842,
+   "sha256": "02c4272c8a62244c187049d1c6ff4522aca8950feff5f85e095ed660d2e1abf8"
+  },
+  {
+   "path": "assets/scenes/home/manifest.json",
+   "size": 1230,
+   "sha256": "09c82fc0aee64010f54fbb371ae0d971235a9e6c5aeaf6eaad5c9e1d67635e31"
+  },
+  {
+   "path": "assets/scenes/home/scene.json",
+   "size": 12156,
+   "sha256": "6c799fbcfa2a4d9249cb551c3d2e15927d38fb7a83b158a59b40ac55ca5e6451"
   },
   {
    "path": "assets/scenes/home/sprites.png",
    "size": 390,
    "sha256": "df131de780de8fb2f8aa3a37a9ec3fabf751488fcabc2c453e4de798dbd49f9f"
+  },
+  {
+   "path": "assets/scenes/home/terrain.png",
+   "size": 23876,
+   "sha256": "53c35fb0390b0413b8dc0f3aaafcb99dfe64a7b065946242a7958a2d0c81a3fd"
+  },
+  {
+   "path": "assets/scenes/office/character/sheet.json",
+   "size": 4940,
+   "sha256": "4f208e3f3400d5b36b86272fe7270c2ef0633aa8d2cacdaf55863aa3442bf941"
+  },
+  {
+   "path": "assets/scenes/office/character/sheet.png",
+   "size": 4763,
+   "sha256": "985bbbad21c759c79318181e9a4e7c4d85fab6fdb971f0ab9969993d9cf297fc"
+  },
+  {
+   "path": "assets/scenes/office/furniture.png",
+   "size": 16684,
+   "sha256": "cb018ff76d715d95555992a685eed356ab329256889cc918d708100352758157"
+  },
+  {
+   "path": "assets/scenes/office/interactions.json",
+   "size": 7793,
+   "sha256": "c474235e5faa6e309e8f4efaecb8e637ff506198fab8bbe05e966a0dcc75fd47"
+  },
+  {
+   "path": "assets/scenes/office/intgrid.bin",
+   "size": 468,
+   "sha256": "6a72d328dcb333afbd937f243dd8d26c56d382a320e3222df83bb9234b1e782a"
+  },
+  {
+   "path": "assets/scenes/office/light_day.png",
+   "size": 3596,
+   "sha256": "2eb89c30f267d917ea75d3601d68ca8d256e9dc933dfe978255560afaae2bd78"
+  },
+  {
+   "path": "assets/scenes/office/manifest.json",
+   "size": 1231,
+   "sha256": "0f9a720a5b676d36e1857f85844badeb85d88a7fbfb1edede4e1188f2ad4afec"
+  },
+  {
+   "path": "assets/scenes/office/office.built.json",
+   "size": 12148,
+   "sha256": "66fdb2ad70e8500e03fafe21dbf45a7e1f55c1fb7c100ec39ee16e3e99ffd588"
+  },
+  {
+   "path": "assets/scenes/office/office.bundle.js",
+   "size": 9008,
+   "sha256": "3f6ffd0bae83a3235596f72f34f0c20d33d5753f5691eddd38a5a489bd1237d6"
+  },
+  {
+   "path": "assets/scenes/office/office.ldtk",
+   "size": 97180,
+   "sha256": "b5689773f144546d272c8255ce95a2fdfa42fb606cb4a3e358911e2aaed346e0"
+  },
+  {
+   "path": "assets/scenes/office/office.png",
+   "size": 46482,
+   "sha256": "2d04b0b23a50477ae75633f41be86adcc146f090f4e2042231dca2ab30491f43"
+  },
+  {
+   "path": "assets/scenes/office/office@2x.png",
+   "size": 58145,
+   "sha256": "fafa0b17d953036ab41eea54ca1acfe12344b0b0fdf2a4b1e2df6d9bac0b04e1"
+  },
+  {
+   "path": "assets/scenes/office/scene.json",
+   "size": 21541,
+   "sha256": "9b3a4f186c4ad1c5b76a3bb0be5168d4d0fbd62b7b99a7377ca75b8c6c3db214"
+  },
+  {
+   "path": "assets/scenes/office/sprites.png",
+   "size": 390,
+   "sha256": "df131de780de8fb2f8aa3a37a9ec3fabf751488fcabc2c453e4de798dbd49f9f"
+  },
+  {
+   "path": "assets/scenes/office/terrain.png",
+   "size": 31882,
+   "sha256": "8ecb16d8b9adeb04f303fd7d70082f61888ba5824402c6a779070ab5237a6053"
   },
   {
    "path": "config.json",
@@ -49,8 +179,8 @@
   },
   {
    "path": "js/app.js",
-   "size": 15200,
-   "sha256": "bf9975e5ae2f932ac6b33fa4b8dee8b0497959a64630f25e4d11bdfee2ecc00e"
+   "size": 15429,
+   "sha256": "ff4bfa093e20ab5f97d4566c934a52ec4cfb2f73759dc16197470f702136befe"
   },
   {
    "path": "js/core/actions/browse.js",
