@@ -199,12 +199,35 @@ async function maybeLlmThought() {
   }
 }
 
+const DEBUG_ACT_PROP = {
+  read: ["shelf", "bookshelf"],
+  cook: ["counter", "stove", "fridge"],
+  write: ["table", "desk", "coffee_table"],
+  eat: ["table"],
+  watch: ["tv"],
+  rest: ["sofa", "armchair", "coffee_table"],
+  dress: ["wardrobe", "dresser", "coat_rack"],
+  bath: ["bathtub"],
+  wash: ["sink"],
+  laundry: ["washer"],
+  play: ["cat_tree"],
+  water: ["plant", "plant_big"],
+  light: ["lamp"],
+  toilet: ["toilet"],
+  sit: ["chair", "stool", "bench"],
+  sleep: ["bed"],
+};
+
 function debugIntent(act) {
   pending = null;
   busyUntil = clock.minute;
-  const target = pickTarget();
+  const props = DEBUG_ACT_PROP[act] || [];
+  const exact = (scene.hotspots || []).filter((h) => h.act === act || props.includes(h.prop));
+  const target = exact.length
+    ? exact[Math.floor(Math.random() * exact.length)]
+    : pickTarget();
   if (!target) return;
-  const t = { ...target, act, durationMin: pickDuration(act) };
+  const t = { x: target.x, y: target.y, act, room: target.room || currentRoom, durationMin: pickDuration(act) };
   pending = t;
   lastIntentMinute = clock.minute;
   stats.intents += 1;
