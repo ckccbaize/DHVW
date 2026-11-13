@@ -85,7 +85,13 @@ server.on("upgrade", (req, socket) => {
         });
       }
       if (msg.type === "events:batch") {
-        console.log(`[fake-pc]   batch=${msg.payload?.events?.length ?? 0}`);
+        const events = msg.payload?.events || [];
+        const seq = events.reduce((m, e) => Math.max(m, e.seq || 0), 0);
+        console.log(`[fake-pc]   batch=${events.length} ack=${seq}`);
+        if (seq) sendMsg("events:ack", { seq });
+      }
+      if (msg.type === "facts:ack") {
+        console.log(`[fake-pc]   facts ack accepted=${msg.payload?.accepted} merged=${msg.payload?.merged}`);
       }
       if (msg.type === "memory:query") {
         sendMsg("memory:result", {
@@ -110,6 +116,13 @@ server.on("upgrade", (req, socket) => {
   setTimeout(() => {
     sendMsg("hello", { host_id: "fake-pc", t_server: Date.now(), tts: true, live2d: false, world_tier: "idle" });
     sendMsg("say", { text: "主机上线了", ttl: 3000 });
+    sendMsg("memory:facts", {
+      since: 0,
+      facts: [
+        { id: "pc-1", text: "PC 侧记忆：京都的枫叶", tier: "L2" },
+        { id: "pc-2", text: "PC 侧记忆：雨天的车站", tier: "L2" },
+      ],
+    });
   }, 300);
 });
 

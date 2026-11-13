@@ -142,6 +142,10 @@
 
 **预算**：设备侧只做统计与软告警（日 **50k** output 提示），**不做自动熔断**；需要停用时由用户在 GUI 手动暂停。
 
+## 事件同步
+
+设备发 `events:batch {events, from_seq, batch_id}`，PC 处理完必须回 `events:ack {seq}`；设备只在收到 ack 后推进游标，未确认的批次在超时/重连后重发。PC 回传 `memory:facts` 时，设备按 `id` 去重合并并回 `facts:ack {accepted, merged, rejected}`。
+
 ## 世界摘要（联动入口）
 
 设备生成统一摘要 `world:digest`，并写入 `data/digest.json`（`GET /__digest` 可读）：

@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T00:24:45.464Z",
+ "built_at": "2026-11-13T00:32:27.759Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -124,8 +124,8 @@
   },
   {
    "path": "js/core/host.js",
-   "size": 5049,
-   "sha256": "c6d4956e736910635ffbdecaf1788b996e33d043ae033af0cc10a027eb1c1b23"
+   "size": 5258,
+   "sha256": "c150be90ad5c5ed06208497af55f627e8e404d2fd24dfd2c5a6352256182c42a"
   },
   {
    "path": "js/core/kv.js",
@@ -223,9 +223,14 @@
    "sha256": "2f160f70d0ea4c1157e5aaf78dc864ff223ecfc0290c71b1c657ecd830fe22c8"
   },
   {
+   "path": "js/core/sync.js",
+   "size": 3116,
+   "sha256": "64c423d13e014a0b5cb17a0e5ea932ffab867ed4e13ee1a774388c819e3d080e"
+  },
+  {
    "path": "js/core/worker.js",
-   "size": 41354,
-   "sha256": "fd043bb13ea857bb97a46cf973796670f43d93dbdb7b32a18b2531c3342f96e0"
+   "size": 42913,
+   "sha256": "5157deb003daf03d0b41840c1aacc9b47a66e6c2cf735825c88bbf51681b9a7a"
   },
   {
    "path": "js/forge/grammar.js",

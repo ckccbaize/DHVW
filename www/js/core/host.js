@@ -8,6 +8,7 @@ export function createHostBridge({ dispatchWorld, send, post, now = () => Date.n
   let sessionId = null;
   let memoryHandler = null;
   let llmConfigHandler = null;
+  let factsHandler = null;
   const handlers = new Map();
 
   function patchHost(extra = {}) {
@@ -89,6 +90,10 @@ export function createHostBridge({ dispatchWorld, send, post, now = () => Date.n
           });
           break;
         case "memory:facts":
+          if (factsHandler) {
+            factsHandler(p);
+            break;
+          }
           post("core:event", { ev: { kind: "memory_facts", since: p.since, count: (p.facts || []).length } });
           break;
         case "llm:config":
@@ -120,6 +125,9 @@ export function createHostBridge({ dispatchWorld, send, post, now = () => Date.n
     },
     setLlmConfigHandler(fn) {
       llmConfigHandler = typeof fn === "function" ? fn : null;
+    },
+    setFactsHandler(fn) {
+      factsHandler = typeof fn === "function" ? fn : null;
     },
     setMemoryHandler(fn) {
       memoryHandler = typeof fn === "function" ? fn : null;

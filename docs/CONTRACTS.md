@@ -107,6 +107,7 @@
 | `memory:facts` | `{since, facts, summary}` | 显现后记忆回流 |
 | `memory:result` | `{req_id, hits, semantic}` | 检索结果（`req_id` 原样带回） |
 | `facts:ack` | `{accepted, merged, rejected}` | 候选事实回执 |
+| `events:ack` | `{seq}` | **确认已收到该 seq 及之前的事件**；设备据此推进同步游标 |
 | `llm:config` | `{baseUrl?, apiKey?, model?, timeoutMs?, maxAttempts?, retryBaseMs?}` | **PC 直接修改设备 LLM 服务商配置**（落库生效） |
 | `digest:get` | `{}` | 请求设备重发 `world:digest` |
 | `scene:ready` | `{id}` | PC 已完成某条 `sceneRequests` 的地图生成 |

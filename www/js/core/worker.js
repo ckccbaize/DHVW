@@ -24,6 +24,7 @@ import { buildDigest, createDigestStore } from "./digest.js";
 import { generateMap } from "./agent/subs/map.js";
 import { allowedAt, checkWatchdog, createGovernor } from "./governor.js";
 import { createStateLog, createTaskLedger } from "./observe.js";
+import { createSyncManager, mergeFacts } from "./sync.js";
 import { createBgAgent } from "./agent/subs/bg.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
 
@@ -95,6 +96,8 @@ let governorLast = null;
 let stateLog = null;
 let ledger = null;
 let heapInfo = null;
+let sync = null;
+let mergedFactIds = new Set();
 let lastHealthAt = Date.now();
 
 const PC_ACTIONS = new Set(["map.generate", "app.open", "media.play", "notify", "web.open"]);
@@ -112,6 +115,36 @@ const remoteMemory = createRemoteMemory({
   timeoutMs: 200,
 });
 host.setMemoryHandler((payload) => remoteMemory.handle(payload));
+host.on("events:ack", (p) => {
+  if (!sync) return;
+  if (sync.onAck(p)) {
+    lastSyncedSeq = sync.ackedSeq;
+    scheduleSnapshot();
+  }
+});
+host.setFactsHandler(async (p) => {
+  const r = mergeFacts(p.facts || [], { seen: mergedFactIds });
+  for (const f of r.accepted) {
+    try {
+      await localMemory.add(f);
+    } catch {
+      /* 单条失败不影响其余 */
+    }
+  }
+  const ids = [...mergedFactIds].slice(-500);
+  mergedFactIds = new Set(ids);
+  await kvBackend.put("pc_fact_ids", ids);
+  host.sendRaw({
+    type: "facts:ack",
+    payload: { accepted: r.accepted.length, merged: r.merged.length, rejected: r.rejected.length },
+  });
+  patch({ memory: { count: localMemory.count, terms: localMemory.terms } });
+  await appendEvent("memory:facts_merged", {
+    accepted: r.accepted.length,
+    merged: r.merged.length,
+    rejected: r.rejected.length,
+  });
+});
 host.on("digest:get", () => {
   void writeDigest();
 });
@@ -270,6 +303,13 @@ const ready = (async () => {
   });
 
   await eventLog.init();
+  sync = createSyncManager({
+    eventLog,
+    send: (m) => host.sendRaw(m),
+    backend: kvBackend,
+  });
+  lastSyncedSeq = await sync.init();
+  mergedFactIds = new Set((await kvBackend.get("pc_fact_ids")) || []);
   await localMemory.init();
   await scheduler.init();
   if (Date.now() - eventPool.updatedAt > 6 * 3600 * 1000) {
@@ -540,14 +580,8 @@ async function queryMemory(text, k = 5) {
 
 async function flushEvents() {
   await ready;
-  if (!remote || remote.conn !== "up") return 0;
-  const events = await eventLog.since(lastSyncedSeq, 200);
-  if (!events.length) return 0;
-  if (host.eventsBatch(events)) {
-    lastSyncedSeq = events[events.length - 1].seq;
-    scheduleSnapshot();
-  }
-  return events.length;
+  if (!remote || remote.conn !== "up" || !sync) return 0;
+  return sync.flush();
 }
 
 async function appendEvent(kind, payload = {}, src = "device") {
@@ -596,6 +630,7 @@ function health() {
       session: host.sessionId,
     },
     lastSyncedSeq,
+    sync: sync ? sync.stats : null,
     memory: {
       count: localMemory ? localMemory.count : 0,
       terms: localMemory ? localMemory.terms : 0,
@@ -702,7 +737,10 @@ const handlers = {
       probeUrl: hostCfg.probeUrl || "",
       onConn: (next, info) => {
         host.onConn(next, info);
-        if (next === "up") void flushEvents();
+        if (next === "up") {
+          if (sync) sync.onReconnect();
+          void flushEvents();
+        }
       },
       onMessage: (m) => host.onMessage(m),
       log: (m) => log("info", "remote", { msg: m }),
@@ -1168,6 +1206,18 @@ const handlers = {
     }
     if (p.name === "memory_stats") {
       return { ok: true, count: localMemory.count, terms: localMemory.terms };
+    }
+    if (p.name === "sync_flush") {
+      const n = await flushEvents();
+      return { ok: true, sent: n, sync: sync.stats };
+    }
+    if (p.name === "sync_state") {
+      return { ok: true, sync: sync.stats };
+    }
+    if (p.name === "assets_manifest") {
+      const assets = Array.isArray(p.args?.assets) ? p.args.assets : [];
+      const ok = host.sendRaw({ type: "assets:manifest", payload: { assets } });
+      return { ok, count: assets.length };
     }
     if (p.name === "host_flush") {
       const n = await flushEvents();
