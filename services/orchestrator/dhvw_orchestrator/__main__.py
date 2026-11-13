@@ -23,6 +23,7 @@ from fastapi.responses import JSONResponse
 
 from . import APP_ID, service_version
 from . import actions
+from .scene import SceneRunner
 from .store import Store
 
 PROTO = 1
@@ -78,9 +79,16 @@ class Orchestrator:
         self.live2d_ready = bool(store.get_kv("live2d_ready", False))
         self.world_running = True
         self.started = time.time()
+        self.scenes = SceneRunner(store, store.root, self._push_scene)
+        self.scenes.set_llm(self.llm)
         # memory:facts 回流：msg_id -> 本次下发的最大 updated_at，设备 ack 后才推进游标
         self.facts_pending: dict[str, int] = {}
         self.facts_sent_ids: set[str] = set()
+        # 档位迁移计数（本次进程内），首页状态机统计表直接读它
+        self.tier_transitions: dict[str, int] = {}
+
+    async def _push_scene(self, kind: str, payload: dict) -> None:
+        await self.broadcast(kind, payload)
 
     # ---------- 发送 ----------
     async def send(
@@ -138,6 +146,7 @@ class Orchestrator:
         if value == self.tier:
             return
         self.tier = value
+        self.tier_transitions[value] = self.tier_transitions.get(value, 0) + 1
         log("info", "档位切换", tier=value)
         await self.broadcast("tier", {"value": value})
 
@@ -306,6 +315,17 @@ class Orchestrator:
         if not action_id:
             await self.send(ws, "pc:action:ack", {"id": action_id, "ok": False, "result": {"reason": "缺 id"}}, msg_id)
             return
+        if action == "map.generate":
+            job, reason = self.scenes.submit(args)
+            if job is None:
+                ok, result = False, {"reason": reason}
+            else:
+                asyncio.create_task(self.scenes.run(job))
+                ok, result = True, {"job": job["id"], "dir": str(self.scenes.root / job["id"])}
+            self.store.record_action(action_id, action, args, ok, result)
+            await self.send(ws, "pc:action:ack", {"id": action_id, "ok": ok, "result": result}, msg_id)
+            log("info" if ok else "warn", "PC 动作", action=action, ok=ok, result=result)
+            return
         try:
             ok, result = await asyncio.to_thread(actions.run, action, args)
         except Exception as err:
@@ -332,11 +352,15 @@ class Orchestrator:
         if "live2d" in cfg:
             self.live2d_ready = bool(cfg["live2d"])
             self.store.put_kv("live2d_ready", self.live2d_ready)
+        if "boost" in cfg:
+            # 界面层开关：只持久化与回显，不改变生产行为
+            self.store.put_kv("boost", bool(cfg["boost"]))
         llm = cfg.get("llm")
         if isinstance(llm, dict) and llm.get("baseUrl"):
             merged = {**self.llm, **{k: v for k, v in llm.items() if v is not None}}
             self.llm = merged
             self.store.put_kv("llm", merged)
+            self.scenes.set_llm(self.llm)
             await self.broadcast("llm:config", self.llm_payload())
             log("info", "下发 LLM 配置", baseUrl=merged.get("baseUrl"), model=merged.get("model"))
         return {"ok": True, "tts": self.tts_ready, "live2d": self.live2d_ready, "llm": bool(self.llm.get("model"))}
@@ -393,6 +417,68 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
     @app.get("/dhvw/mood")
     async def mood() -> JSONResponse:
         return JSONResponse(orch.mood)
+
+    @app.get("/dhvw/scenes")
+    async def scenes_list() -> JSONResponse:
+        return JSONResponse({"ok": True, "jobs": orch.scenes.list_jobs()})
+
+    @app.post("/dhvw/scene")
+    async def scene_create(request: Request) -> JSONResponse:
+        body = await request.json()
+        if not isinstance(body, dict):
+            return JSONResponse({"ok": False, "error": "bad_payload"}, status_code=400)
+        job, reason = orch.scenes.submit(body)
+        if job is None:
+            return JSONResponse({"ok": False, "error": reason})
+        asyncio.create_task(orch.scenes.run(job))
+        log("info", "场景任务提交", job=job["id"], kind=job["kind"])
+        from .scene import public
+
+        return JSONResponse({"ok": True, "job": public(job)})
+
+    @app.get("/dhvw/stats")
+    async def stats() -> JSONResponse:
+        """首页状态机统计表的数据源：只用真实收到的数据，拿不到的字段不给。"""
+        digest = orch.digest or {}
+        agenda = digest.get("agenda") if isinstance(digest.get("agenda"), list) else []
+        scenes = digest.get("sceneRequests") if isinstance(digest.get("sceneRequests"), list) else []
+        actions = digest.get("pcActions") if isinstance(digest.get("pcActions"), list) else []
+
+        def by_status(items: list) -> dict[str, int]:
+            out: dict[str, int] = {}
+            for item in items:
+                if isinstance(item, dict):
+                    key = str(item.get("status") or "unknown")
+                    out[key] = out.get(key, 0) + 1
+            return out
+
+        day_ago = int(time.time() * 1000) - 24 * 3600 * 1000
+        return JSONResponse(
+            {
+                "ok": True,
+                "device": {
+                    "connected": orch.connected,
+                    "id": orch.device_id,
+                    "tier": orch.tier,
+                    "last_seen_s": round(time.time() - orch.last_seen, 1) if orch.last_seen else None,
+                },
+                "digest": {
+                    "seq": digest.get("seq", 0),
+                    "age_s": round((time.time() * 1000 - digest.get("ts", 0)) / 1000, 1) if digest.get("ts") else None,
+                    "clock": digest.get("clock") or {},
+                    "agenda": by_status(agenda),
+                    "scene_requests": by_status(scenes),
+                    "pc_actions": by_status(actions),
+                    "behaviors": len(digest.get("behaviors") or []),
+                    "event_pool": len(digest.get("eventPool") or {}) if isinstance(digest.get("eventPool"), dict) else 0,
+                },
+                "tier_transitions": orch.tier_transitions,
+                "events_24h": store.events_by_kind(day_ago),
+                "mood": {"band": (orch.mood or {}).get("band"), "dims": (orch.mood or {}).get("dims") or {}},
+                "memory": store.memory_count(),
+                "uptime": round(time.time() - orch.started, 1),
+            }
+        )
 
     @app.get("/dhvw/events")
     async def events(limit: int = 20) -> JSONResponse:

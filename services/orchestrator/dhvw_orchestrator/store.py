@@ -140,6 +140,14 @@ class Store:
             for r in rows
         ]
 
+    def events_by_kind(self, since_ms: int = 0) -> dict[str, int]:
+        with self._lock:
+            rows = self._life.execute(
+                "select kind, count(*) c from events where received_at >= ? group by kind order by c desc",
+                (int(since_ms),),
+            ).fetchall()
+        return {str(r["kind"]): int(r["c"]) for r in rows}
+
     # ---------------- sessions ----------------
     def begin_session(self, session_id: str) -> None:
         with self._lock, self._life:

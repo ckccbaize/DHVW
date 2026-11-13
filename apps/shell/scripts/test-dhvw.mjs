@@ -218,6 +218,13 @@ send('present:end', { session_id: 'sess-1' })
 const tierIdle = await waitFor((m) => m.type === 'tier' && m.payload.value === 'idle')
 check('退出显现后 tier=idle', Boolean(tierIdle))
 
+const stats = await (await fetch(`${BASE}/dhvw/stats`)).json()
+check('stats 反映设备在线', stats.device?.connected === true && typeof stats.device.last_seen_s === 'number')
+check('stats 带档位迁移计数', stats.tier_transitions?.host >= 1, JSON.stringify(stats.tier_transitions))
+
+const scenes = await (await fetch(`${BASE}/dhvw/scenes`)).json()
+check('场景任务表可读', scenes.ok === true && Array.isArray(scenes.jobs))
+
 ws.close()
 console.log(`\n${failures.length ? `失败 ${failures.length} 项：${failures.join(', ')}` : '全部通过'}（${Date.now() - t0}ms）`)
 process.exitCode = failures.length ? 1 : 0
