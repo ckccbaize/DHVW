@@ -1,6 +1,6 @@
 {
  "version": 1,
- "built_at": "2026-11-13T01:39:18.466Z",
+ "built_at": "2026-11-13T01:50:00.832Z",
  "skills": {
   "behavior-record": {
    "name": "behavior-record",
@@ -12,6 +12,17 @@
    "tools": [],
    "output": "json",
    "body": "# 使用时机\n\n每次自主行为执行完（出门/上网/居家/休息）后调用，结果写入 behavior_log 与事件日志。\n\n# 约束\n\n- 20-60 字，包含做了什么与心情变化；\n- 不写台词，不解释系统；\n- 只输出 JSON：summary / mood / evidence（可选）。\n"
+  },
+  "browse-plan": {
+   "name": "browse-plan",
+   "description": "决定这次上网看什么：给出主题与一个可抓取的 URL",
+   "class": "work",
+   "prompt": "browse-plan",
+   "maxTokens": 300,
+   "temperature": 0.8,
+   "tools": [],
+   "output": "json",
+   "body": "# 使用时机\n\n`browse` 行为执行前调用；由角色兴趣、开放线头、最近浏览与心情决定目标。\n\n# 约束\n\n- 只输出一个目标，优先给 `url`；没有具体页面就给 `topic`，由核心机拼搜索页；\n- 只能访问公网 http(s)，禁止内网/元数据/凭据；\n- 域名必须在设备白名单内（天气、Bing、维基、新闻等）；\n- 给出 `reason`，说明为什么想看这个。\n"
   },
   "event-pool": {
    "name": "event-pool",
@@ -60,6 +71,7 @@
  },
  "prompts": {
   "behavior-record": "她刚做了：{{name}}（{{kind}}）\n地点：{{place}}\n事件细节：{{detail}}\n心情变化：{{before}} → {{after}}\n\n写一条 20-60 字的留档，包含\"做了什么\"和\"心情变化\"，只输出 JSON：\n{\"summary\":\"...\",\"mood\":\"...\",\"evidence\":\"可选证据\"}\n\n要求：具体、克制；不写台词；不解释系统；evidence 只在有真实抓取/产物时填写。\n",
+  "browse-plan": "她的兴趣/线头：{{threads}}\n最近看过：{{recent}}\n当前心情：{{mood}}\n可访问域名：{{hosts}}\n\n决定这次上网看什么，只输出 JSON：\n{\"topic\":\"主题\",\"url\":\"https://...\",\"reason\":\"为什么想看\"}\n\n规则：只给一个目标；优先给具体 url，没有就给 topic；禁止内网/凭据；域名必须在可访问列表内。\n",
   "character-wake": "现在：{{now}}\n你刚经历：{{input}}\n你此刻的心情：{{mood}}\n\n开口要求：1-2 句口语，接着这个片段说；不要解释你在做什么，不要说\"我注意到\"，不要提问式追问，不要提及记录或系统。\n",
   "event-pool": "已有事件（不要重复）：{{existing}}\n\n生成 {{count}} 条新的日常生活事件，只输出 JSON：\n{\"events\":[{\"text\":\"4-24字事件\",\"hours\":[8,9],\"place\":\"kitchen\",\"mood\":{\"valence\":0.05},\"imageQuery\":\"英文检索词\"}]}\n\n要求：\n- 具体、能拍成一个画面，写她正在做的一件小事；\n- hours 用 0-23 的整数数组，覆盖不同时段；\n- place 只能是 living/hall/bedroom/bath/balcony/kitchen；\n- mood 只允许 energy/valence/social/focus，单项 ±0.3；\n- 不要与已有事件重复，也不要写台词或抽象情绪。\n",
   "manager-plan": "你是设备端任务编排器。可用技能：\n{{skills}}\n\n目标：{{intent}}\n当前时间：{{now}}\n\n只输出严格 JSON，不要解释：\n{\"tasks\":[{\"skill\":\"<技能名>\",\"input\":\"<给该技能的一句话输入>\",\"reason\":\"<为什么>\"}]}\n规则：最多 3 个任务；没有合适技能就输出 {\"tasks\":[]}。\n",

@@ -145,7 +145,13 @@ const llm = http.createServer((req, res) => {
   req.on("data", (c) => (body += c));
   req.on("end", () => {
     console.log(`[fake-llm] ← ${req.headers.authorization || "no-auth"} ${body.slice(0, 120)}`);
-    const content = body.includes("写一条") && body.includes("心情变化")
+    const content = body.includes("决定这次上网看什么")
+      ? JSON.stringify({
+          topic: "北京天气",
+          url: "https://www.weather.com.cn/weather/101010100.shtml",
+          reason: "想知道明天要不要带伞",
+        })
+      : body.includes("写一条") && body.includes("心情变化")
       ? JSON.stringify({
           summary: "她把面煮好，吃完觉得暖了一点。",
           mood: "energy +0.08, valence +0.05",

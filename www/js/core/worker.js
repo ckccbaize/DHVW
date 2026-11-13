@@ -31,6 +31,7 @@ import { createBehaviorRegistry } from "./actions/registry.js";
 import { pickBehavior } from "./actions/plan.js";
 import { createWakeRuntime } from "./wake/runtime.js";
 import { createRecordAgent } from "./agent/subs/record.js";
+import { createBrowsePlanner } from "./actions/browse.js";
 import { createBgAgent } from "./agent/subs/bg.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
 
@@ -113,6 +114,7 @@ let netLog = [];
 let browseUrl = "https://www.weather.com.cn/weather/101010100.shtml";
 let wakeRuntime = null;
 let recordAgent = null;
+let browsePlanner = null;
 let lastHealthAt = Date.now();
 
 const PC_ACTIONS = new Set(["map.generate", "app.open", "media.play", "notify", "web.open"]);
@@ -340,6 +342,7 @@ const ready = (async () => {
   });
   await wakeRuntime.init();
   recordAgent = createRecordAgent({ llm, registry: agentRegistry });
+  browsePlanner = createBrowsePlanner({ llm, registry: agentRegistry });
   behaviors = createBehaviorRegistry({ custom: (await kvBackend.get("behavior_pool")) || [] });
   behaviorLog = (await kvBackend.get("behavior_log")) || [];
   netLog = (await kvBackend.get("net_log")) || [];
@@ -470,19 +473,42 @@ async function writeDigest() {
 }
 
 async function browseBehavior() {
-  const url = browseUrl;
   const t0 = Date.now();
+  let plan = { ok: false };
+  if (browsePlanner) {
+    plan = await browsePlanner.plan({
+      threads: wakeRuntime ? wakeRuntime.threads().filter((t) => !t.closedAt).map((t) => t.text) : [],
+      recent: netLog,
+      mood: life.snapshot().mood,
+    });
+  }
+  const url = plan.ok ? plan.url : browseUrl;
   try {
     const res = await fetch(`/__fetch?url=${encodeURIComponent(url)}`, { cache: "no-store" });
     if (!res.ok) throw new Error(`fetch_http_${res.status}`);
     const data = await res.json();
     const excerpt = String(data.text || "").slice(0, 600);
-    netLog.unshift({ url, ts: Date.now(), bytes: data.bytes || 0, excerpt });
+    netLog.unshift({
+      url,
+      ts: Date.now(),
+      bytes: data.bytes || 0,
+      excerpt,
+      topic: plan.ok ? plan.topic : "",
+      reason: plan.ok ? plan.reason : "",
+      planned: plan.ok,
+    });
     netLog = netLog.slice(0, 50);
     await kvBackend.put("net_log", netLog);
-    await appendEvent("behavior:browse", { url, bytes: data.bytes || 0, excerpt: excerpt.slice(0, 200) });
-    if (ledger) void ledger.record({ kind: "browse", ok: true, ms: Date.now() - t0, meta: { url } });
-    return { ok: true, kind: "network", url, excerpt };
+    await appendEvent("behavior:browse", {
+      url,
+      bytes: data.bytes || 0,
+      excerpt: excerpt.slice(0, 200),
+      topic: plan.ok ? plan.topic : "",
+      reason: plan.ok ? plan.reason : "",
+      planned: plan.ok,
+    });
+    if (ledger) void ledger.record({ kind: "browse", ok: true, ms: Date.now() - t0, meta: { url, planned: plan.ok } });
+    return { ok: true, kind: "network", url, excerpt, plan: plan.ok ? { topic: plan.topic, reason: plan.reason } : null };
   } catch (err) {
     if (ledger) void ledger.record({ kind: "browse", ok: false, ms: Date.now() - t0, error: err.message });
     return { ok: false, reason: err.message };
@@ -1206,6 +1232,14 @@ const handlers = {
       if (p.args?.browseUrl) browseUrl = String(p.args.browseUrl);
       await kvBackend.put("behavior_config", { browseUrl });
       return { ok: true, browseUrl };
+    }
+    if (p.name === "browse_plan") {
+      const r = await browsePlanner.plan({
+        threads: wakeRuntime ? wakeRuntime.threads().filter((t) => !t.closedAt).map((t) => t.text) : [],
+        recent: netLog,
+        mood: life.snapshot().mood,
+      });
+      return r;
     }
     if (p.name === "net_log") {
       return { ok: true, log: netLog };

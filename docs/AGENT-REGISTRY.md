@@ -145,7 +145,16 @@ createManagerAgent({ llm, registry, subAgents: { "plot-writer": (args) => plotAg
 - 写入 `behavior_log`（含 before/after 心情快照）与 `behavior:recorded` 事件；
 - LLM 失败时记 `record.error`，行为本身不回滚。
 
-## 10. 新增技能
+## 10. AI 浏览目标（W28b）
+
+`core/actions/browse.js`：
+
+- LLM 输出 `{topic, url, reason}`，只能给一个目标；
+- URL 必须 http(s)、无凭据、非内网、域名在白名单（天气/Bing/维基/新闻）；
+- 只给 topic 时拼 `https://cn.bing.com/search?q=...`；
+- 抓取结果写 `net_log`（含 topic/reason/planned），并进入行为留档。
+
+## 11. 新增技能
 
 工艺约束提炼自：
 
