@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T08:17:16.386Z",
+ "built_at": "2026-11-13T08:22:57.695Z",
  "files": [
   {
    "path": "agent/registry.json",
-   "size": 9721,
-   "sha256": "382fcf852cb7e41712d53333083e1d16612a0fc51a912cf43279e823983be0d3"
+   "size": 10799,
+   "sha256": "4e37d75f8613cd06733676f713842fce13b1b098f70621a52efac3898b2681bd"
   },
   {
    "path": "assets/scenes/home/character/sheet.json",
@@ -169,8 +169,8 @@
   },
   {
    "path": "debug-core.html",
-   "size": 35784,
-   "sha256": "32d955d1a3165d84389c24416a822e103d14f306ee843ff13091602e2f6aa564"
+   "size": 36418,
+   "sha256": "e888485c1346706602971997d676e8772deeffa0517413620dcada7b841676f1"
   },
   {
    "path": "index.html",
@@ -266,6 +266,11 @@
    "path": "js/core/digest.js",
    "size": 1492,
    "sha256": "3c1d276fd838f7c909e037c71672c5affc2ee29d1534972422a7579da2cefacd"
+  },
+  {
+   "path": "js/core/doctor.js",
+   "size": 4663,
+   "sha256": "e0168e196f60a350d045509c13b5f017cd3c4b9a50e03be7022608d7696f08b8"
   },
   {
    "path": "js/core/governor.js",
@@ -409,8 +414,8 @@
   },
   {
    "path": "js/core/worker.js",
-   "size": 61880,
-   "sha256": "8295078ef03105b3f886c92b15691cb79a041da5347c00d83a678a9bca75eb8f"
+   "size": 64803,
+   "sha256": "51d6635bdb6ff809f0f501867ceeddf8f3424615a493fbcb53b5c64e365e5f0a"
   },
   {
    "path": "js/forge/client.js",

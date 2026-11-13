@@ -159,7 +159,9 @@ const llm = http.createServer((req, res) => {
   req.on("data", (c) => (body += c));
   req.on("end", () => {
     console.log(`[fake-llm] ← ${req.headers.authorization || "no-auth"} ${body.slice(0, 120)}`);
-    const content = body.includes("可用家具") && body.includes("只输出 JSON")
+    const content = body.includes("diagnosis") && body.includes("safeMode")
+      ? JSON.stringify({ diagnosis: "本地记忆为空，先保存快照", actions: [{ type: "snapshot_save" }], safeMode: false })
+      : body.includes("可用家具") && body.includes("只输出 JSON")
       ? JSON.stringify({
           props: [
             { id: "chair", x: 10, y: 6 },

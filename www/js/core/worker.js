@@ -33,6 +33,7 @@ import { createWakeRuntime } from "./wake/runtime.js";
 import { createRecordAgent } from "./agent/subs/record.js";
 import { createBrowsePlanner, searchBing, validatePublicUrl } from "./actions/browse.js";
 import { createPlaceAgent } from "./agent/subs/place.js";
+import { createDoctor } from "./doctor.js";
 import { createPlaceGraph, HOME_ID, planTravel } from "./places/graph.js";
 import { createBgAgent } from "./agent/subs/bg.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
@@ -118,6 +119,8 @@ let wakeRuntime = null;
 let recordAgent = null;
 let browsePlanner = null;
 let placeAgent = null;
+let doctor = null;
+let doctorTimer = null;
 let places = null;
 let currentPlace = HOME_ID;
 let lastHealthAt = Date.now();
@@ -349,6 +352,23 @@ const ready = (async () => {
   recordAgent = createRecordAgent({ llm, registry: agentRegistry });
   browsePlanner = createBrowsePlanner({ llm, registry: agentRegistry });
   placeAgent = createPlaceAgent({ llm, registry: agentRegistry });
+  doctor = createDoctor({
+    llm,
+    registry: agentRegistry,
+    getSnapshot: () => ({
+      governor: governorLast ? { tier: governorLast.tier } : { tier: governor?.tier },
+      sched: scheduler.stats,
+      log: { ...eventLog.stats },
+      sync: sync ? sync.stats : null,
+      budget: budget ? budget.stats() : null,
+      memory: { count: localMemory.count },
+      wake: wake ? wake.state : null,
+      llm: llmView(),
+      wakeRuntime: { events: wakeRuntime ? wakeRuntime.state.events.length : 0 },
+      logs,
+    }),
+    applyAction: (type, args) => doctorApply(type, args),
+  });
   places = createPlaceGraph({
     places: [
       ...DESTINATIONS.map((d) => ({ id: d.id, name: d.name, kind: d.kind, distance: d.distance })),
@@ -366,6 +386,18 @@ const ready = (async () => {
   if (Date.now() - eventPool.updatedAt > 6 * 3600 * 1000) {
     scheduler.enqueue({ kind: "event_pool", priority: 6 });
   }
+  setTimeout(() => {
+    void doctor.check().then((r) => {
+      if (r.issues?.length) log("warn", "doctor", { issues: r.issues, diagnosis: r.diagnosis });
+      patch({ doctor: { status: r.issues?.length ? "issues" : "ok", lastCheck: Date.now(), issues: r.issues, diagnosis: r.diagnosis } });
+    });
+  }, 30_000);
+  doctorTimer = setInterval(() => {
+    void doctor.check().then((r) => {
+      if (r.issues?.length) log("warn", "doctor", { issues: r.issues, diagnosis: r.diagnosis });
+      patch({ doctor: { status: r.issues?.length ? "issues" : "ok", lastCheck: Date.now(), issues: r.issues, diagnosis: r.diagnosis } });
+    });
+  }, 5 * 60_000);
   setInterval(() => {
     if (Date.now() - eventPool.updatedAt < 6 * 3600 * 1000) return;
     if (scheduler.queue.some((j) => j.kind === "event_pool")) return;
@@ -383,6 +415,42 @@ function degraded(kind) {
   if (!governor) return null;
   if (allowedAt(governor.tier, kind)) return null;
   return { ok: false, reason: `degraded:${governor.tier}` };
+}
+
+async function doctorApply(type, args = {}) {
+  switch (type) {
+    case "clear_event_log":
+      await eventLog.clear();
+      logStats = eventLog.stats;
+      break;
+    case "trim_memory":
+      await localMemory.clear();
+      patch({ memory: { count: localMemory.count, terms: localMemory.terms } });
+      break;
+    case "pause_agent":
+      scheduler.pause();
+      break;
+    case "resume_agent":
+      scheduler.resume();
+      break;
+    case "reset_budget":
+      await budget.reset();
+      break;
+    case "enter_safe_mode":
+      scheduler.setSafeMode(true);
+      patch({ doctor: { status: "safe_mode", lastCheck: Date.now() } });
+      break;
+    case "exit_safe_mode":
+      scheduler.setSafeMode(false);
+      patch({ doctor: { status: "ok", lastCheck: Date.now() } });
+      break;
+    case "snapshot_save":
+      await persistSnapshot("doctor");
+      break;
+    default:
+      throw new Error(`未知动作 ${type}`);
+  }
+  await appendEvent("doctor:action", { action: type, args });
 }
 
 function pushAgenda(entry) {
@@ -1206,6 +1274,19 @@ const handlers = {
         if (r.pcAction?.action) enqueuePcAction(r.pcAction.action, r.pcAction.args);
       }
       return { ...r, life: life.snapshot() };
+    }
+    if (p.name === "doctor_check") {
+      const r = await doctor.check();
+      patch({ doctor: { status: r.issues.length ? "issues" : "ok", lastCheck: Date.now(), issues: r.issues, diagnosis: r.diagnosis } });
+      return { ok: true, ...r, state: doctor.state };
+    }
+    if (p.name === "doctor_state") {
+      return { ok: true, state: doctor.state };
+    }
+    if (p.name === "doctor_safe_mode") {
+      await doctorApply(p.args?.on ? "enter_safe_mode" : "exit_safe_mode", {});
+      doctor.setSafeMode(!!p.args?.on);
+      return { ok: true, safeMode: !!p.args?.on };
     }
     if (p.name === "furniture_plan") {
       return await placeAgent.run({

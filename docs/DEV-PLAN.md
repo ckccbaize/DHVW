@@ -95,7 +95,7 @@
 | W28 | **联网代理 + 全量审计** | `shell` 新增 `GET /__fetch`：AI 决定目标；禁内网/元数据/凭据/POST；≤512KB、8s、≤60 次/时；`net_log` 全量 | 内网地址拒绝；每条抓取有日志；抓回内容按不可信输入处理 | B4, W27 | **已有**（公网 IP 固定解析、文本白名单、审计落 kv） |
 | W28b | **AI 决定浏览目标** | `core/actions/browse.js`：LLM 生成 query 或 URL → `/__search` + `/__fetch` → 摘录留证；白名单/禁内网 | 目标由模型给出且可解释；非法目标被拒；每条抓取有证据 | W28, W13 | **已有**（9 项测试 + 自由搜索实测） |
 | W29 | **地点图与旅行（含跨夜、动态注册表）** | `core/places/graph.js`：place graph + 步行时间 + 跨夜 + `SCENE_ADDED/REMOVED` 原子更新 | 跨夜旅行产生事件与证据；新地图可被消费；删除当前场景时回 home | W27 | **已有**（4 项测试 + 端到端旅行/删除回 home） |
-| W32 | **Doctor 自检与自愈**（未来功能） | `core/doctor.js`：周期检测、日志包、LLM 诊断、白名单动作、安全模式 | 注入 5 类故障可检测；动作 100% 在白名单；日志脱敏 | W17, W11 |
+| W32 | **Doctor 自检与自愈**（未来功能） | `core/doctor.js`：周期检测、日志包、LLM 诊断、白名单动作、安全模式 | 注入 5 类故障可检测；动作 100% 在白名单；日志脱敏 | W17, W11 | **已有**（9 类检查 + 白名单动作 + 5min 周期；日志脱敏待补） |
 | W33 | **心情/行为外部引导与深层管理**（未来） | `core/mood/policy.js`：来源优先级、TTL、限频、episode/baseline、剧情 setpoint | 唤醒/剧情可引导行为且可解释；越权被拒 | W4, W21, W14 |
 | W31 | **地图绘制移植**（spec-first 双 painter） | `forge/painter.js` + `furniture.js` + `scene.js` + `worker.js`：同一 spec，PC Python / ARM JS | 同 spec 视觉一致；设备烘焙 ≤50ms | B4, W27 | **已有**（地形/光照逐像素、家具 98.6%、合成/AI 摆家具、Worker 13.5ms） |
 | W30 | **显现 iframe 宿主**（P1 已定） | `view/present-host.js` + `present.js`：iframe 全屏、`allow=microphone;autoplay`、探活/超时失败回总观 | 显现期间 `health` 连续；麦克风可用；关闭后内存回落 | A2, W9 | **已有**（探活 + 加载/超时回退；麦克风待真机） |
