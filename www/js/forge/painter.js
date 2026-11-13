@@ -216,6 +216,23 @@ export function paintFurnitureDefs(spec) {
   return cv;
 }
 
+export function applyTone(cv) {
+  const cw = cv.w;
+  const ch = cv.h;
+  for (let y = 0; y < ch; y++) {
+    const ny = (y - ch / 2) / (ch / 2);
+    for (let x = 0; x < cw; x++) {
+      const nx = (x - cw / 2) / (cw / 2);
+      const vig = 1 - 0.15 * Math.min(1, nx * nx + ny * ny);
+      const i = (y * cw + x) * 4;
+      cv.data[i] = Math.min(255, Math.floor(cv.data[i] * vig * 1.02));
+      cv.data[i + 1] = Math.min(255, Math.floor(cv.data[i + 1] * vig));
+      cv.data[i + 2] = Math.min(255, Math.floor(cv.data[i + 2] * vig * 0.97));
+    }
+  }
+  return cv;
+}
+
 export function paintTerrain(spec) {
   const W = spec.grid.w;
   const H = spec.grid.h;
@@ -287,20 +304,5 @@ export function paintTerrain(spec) {
 
   for (const d of spec.doors) paintDoor(cv, d.x, d.y);
 
-  // 静态色调：暗角 + 暖偏移
-  const cw = W * T;
-  const ch = H * T;
-  for (let y = 0; y < ch; y++) {
-    const ny = (y - ch / 2) / (ch / 2);
-    for (let x = 0; x < cw; x++) {
-      const nx = (x - cw / 2) / (cw / 2);
-      const vig = 1 - 0.15 * Math.min(1, nx * nx + ny * ny);
-      const i = (y * cw + x) * 4;
-      cv.data[i] = Math.min(255, Math.floor(cv.data[i] * vig * 1.02));
-      cv.data[i + 1] = Math.min(255, Math.floor(cv.data[i + 1] * vig));
-      cv.data[i + 2] = Math.min(255, Math.floor(cv.data[i + 2] * vig * 0.97));
-    }
-  }
-
-  return cv;
+  return applyTone(cv);
 }
