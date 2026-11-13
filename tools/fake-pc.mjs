@@ -145,7 +145,16 @@ const llm = http.createServer((req, res) => {
   req.on("data", (c) => (body += c));
   req.on("end", () => {
     console.log(`[fake-llm] ← ${req.headers.authorization || "no-auth"} ${body.slice(0, 120)}`);
-    const content = body.includes("日常生活事件")
+    const content = body.includes("严格输出 JSON") && body.includes("outcome")
+      ? JSON.stringify({
+          outcome: "message",
+          fact: "雨停了，她开了窗",
+          content: "她站在窗边，看雨后的街道",
+          share: "雨停了，开窗吧",
+          residue: "窗还开着",
+          next_wake: { min_minutes: 50, max_minutes: 80, reason: "刚醒" },
+        })
+      : body.includes("日常生活事件")
       ? JSON.stringify({
           events: [
             { text: "她把窗台的灰擦了一遍", hours: [8, 9, 10], place: "living", mood: { focus: 0.04 }, imageQuery: "wiping windowsill morning" },

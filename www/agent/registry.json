@@ -1,6 +1,6 @@
 {
  "version": 1,
- "built_at": "2026-11-12T15:47:30.253Z",
+ "built_at": "2026-11-13T01:34:29.336Z",
  "skills": {
   "event-pool": {
    "name": "event-pool",
@@ -24,6 +24,17 @@
    "output": "json",
    "body": "# 使用时机\n\n端侧/主机档需要新剧情，且本地文法未命中时调用。\n\n# 工艺（提炼自 howells/fiction、alt-code fiction-writing-story-development）\n\n- 一次只写一个微小变化，落在动作或物件上；\n- 具体名词与感官优先，不用抽象情绪词；\n- 不写台词、不解释系统、不总结道理；\n- 必须有与时段一致的时间锚点。\n\n# 校验\n\n- JSON 字段：text / event / place / scene / mood / imageQuery；\n- text 30-80 字、含时间词、无引号台词、与最近 20 条相似度 <0.6；\n- place/scene 必须是 living/hall/bedroom/bath/balcony/kitchen；\n- mood 只允许 energy/valence/social/focus，单项 ±0.3；\n- 不合格由子 Agent 带原因重写，最多 3 次。\n"
   },
+  "wake": {
+   "name": "wake",
+   "description": "设备档醒来：严格 JSON 三结局，产出 fact/content/share/residue",
+   "class": "character",
+   "prompt": "wake",
+   "maxTokens": 600,
+   "temperature": 0.8,
+   "tools": [],
+   "output": "json",
+   "body": "# 使用时机\n\n设备档唤醒运行时（W26）每次醒来调用；显现期间不调用（归 OLVT）。\n\n# 约束\n\n- outcome 只能是 silent / trace / message；\n- message 必须有非空 share（≤20 字）；silent 不得带 share；\n- fact 简短，供下次醒来读；residue 覆盖上一条；\n- next_wake 受宿主 45–90 分钟约束；\n- artifact 只有在真实工具调用时才允许。\n"
+  },
   "wake-character": {
    "name": "wake-character",
    "description": "角色层唤醒：根据生活种子生成 1-2 句口语",
@@ -41,6 +52,7 @@
   "event-pool": "已有事件（不要重复）：{{existing}}\n\n生成 {{count}} 条新的日常生活事件，只输出 JSON：\n{\"events\":[{\"text\":\"4-24字事件\",\"hours\":[8,9],\"place\":\"kitchen\",\"mood\":{\"valence\":0.05},\"imageQuery\":\"英文检索词\"}]}\n\n要求：\n- 具体、能拍成一个画面，写她正在做的一件小事；\n- hours 用 0-23 的整数数组，覆盖不同时段；\n- place 只能是 living/hall/bedroom/bath/balcony/kitchen；\n- mood 只允许 energy/valence/social/focus，单项 ±0.3；\n- 不要与已有事件重复，也不要写台词或抽象情绪。\n",
   "manager-plan": "你是设备端任务编排器。可用技能：\n{{skills}}\n\n目标：{{intent}}\n当前时间：{{now}}\n\n只输出严格 JSON，不要解释：\n{\"tasks\":[{\"skill\":\"<技能名>\",\"input\":\"<给该技能的一句话输入>\",\"reason\":\"<为什么>\"}]}\n规则：最多 3 个任务；没有合适技能就输出 {\"tasks\":[]}。\n",
   "plot-repair": "上一稿不合格：{{reason}}\n上一稿：{{draft}}\n最近写过（不要重复）：{{recent}}\n\n重写并只输出 JSON：\n{\"text\":\"30-80字第三人称小记\",\"event\":\"事件短语\",\"place\":\"living|hall|bedroom|bath|balcony|kitchen\",\"scene\":\"同上\",\"mood\":{\"valence\":0.05},\"imageQuery\":\"背景图检索词\"}\n\n必须包含与当前时段一致的时间词；只写动作与具体物件；不写台词；不总结道理。\n",
-  "plot": "时间：{{now}}（{{period}}）\n地点：{{place}}\n日常事件：{{input}}\n心情：{{mood}}\n最近写过（不要重复）：{{recent}}\n\n写一段 30-80 字第三人称小记，并给出驱动字段。只输出 JSON：\n{\"text\":\"小记\",\"event\":\"事件短语\",\"place\":\"living|hall|bedroom|bath|balcony|kitchen\",\"scene\":\"同上\",\"mood\":{\"valence\":0.05,\"energy\":-0.02},\"imageQuery\":\"背景图检索词\"}\n\ntext 要求：\n- 只写她做了什么、一个微小的变化，落在动作或物件上；\n- 用具体名词和感官（雨、窗、杯子、指尖），不用\"美好/温暖/孤独\"这类抽象词；\n- 不写台词，不解释系统，不总结心情，不写\"她感到……\"；\n- 必须出现与当前时段一致的时间词（如 清晨/下午/傍晚/夜里）。\n\nmood 只允许 energy / valence / social / focus，每项 -0.3~0.3。\nimageQuery 用具体场景词，便于搜索背景图。\n"
+  "plot": "时间：{{now}}（{{period}}）\n地点：{{place}}\n日常事件：{{input}}\n心情：{{mood}}\n最近写过（不要重复）：{{recent}}\n\n写一段 30-80 字第三人称小记，并给出驱动字段。只输出 JSON：\n{\"text\":\"小记\",\"event\":\"事件短语\",\"place\":\"living|hall|bedroom|bath|balcony|kitchen\",\"scene\":\"同上\",\"mood\":{\"valence\":0.05,\"energy\":-0.02},\"imageQuery\":\"背景图检索词\"}\n\ntext 要求：\n- 只写她做了什么、一个微小的变化，落在动作或物件上；\n- 用具体名词和感官（雨、窗、杯子、指尖），不用\"美好/温暖/孤独\"这类抽象词；\n- 不写台词，不解释系统，不总结心情，不写\"她感到……\"；\n- 必须出现与当前时段一致的时间词（如 清晨/下午/傍晚/夜里）。\n\nmood 只允许 energy / valence / social / focus，每项 -0.3~0.3。\nimageQuery 用具体场景词，便于搜索背景图。\n",
+  "wake": "世界事件：{{seed}}\n上下文：{{context}}\n开放线头：{{threads}}\n上一条余念：{{residue}}\n\n严格输出 JSON，不要解释：\n{\"outcome\":\"silent|trace|message\",\"fact\":\"简短事实\",\"content\":\"完整经历\",\"share\":\"给用户的一句话\",\"residue\":\"一句轻余念\",\"next_wake\":{\"min_minutes\":45,\"max_minutes\":90,\"reason\":\"...\"},\"thread\":\"可选的新线头\"}\n\n规则：\n- message 必须有非空 share（≤20 字）；silent 不得带 share；\n- fact 描述发生了什么，不复制表达性正文；\n- residue 覆盖上一条，不要追加；\n- next_wake 在 45-90 分钟内，按心情与事件调整；\n- 只有真实工具调用才可带 artifact。\n"
  }
 }

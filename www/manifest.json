@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T01:25:55.090Z",
+ "built_at": "2026-11-13T01:34:35.556Z",
  "files": [
   {
    "path": "agent/registry.json",
-   "size": 4978,
-   "sha256": "a46ab5f3f1a82cc9f58b83ad2cc92739efdc8d403116953aaddb9e8b2052f2cd"
+   "size": 6408,
+   "sha256": "44102c994bf03ae213e7a3c99b24d77b62691a7c148253444dc4114e1b27d765"
   },
   {
    "path": "assets/scenes/home/home.built.json",
@@ -39,8 +39,8 @@
   },
   {
    "path": "debug-core.html",
-   "size": 29673,
-   "sha256": "6925ab1f1e8b5c309ca9435ace961e9888facf20c8c74cb1e7aa7b75ba487a6b"
+   "size": 30726,
+   "sha256": "a40f7c694eb1074a6152f2f2447f15fb21c5fcf27e5015f4d47d66b8ee7e7ba2"
   },
   {
    "path": "index.html",
@@ -253,9 +253,14 @@
    "sha256": "b154e6a1aed08a6ee20d37fdb91fe469aa183f2df43b300b6a6c6e81a5714d7a"
   },
   {
+   "path": "js/core/wake/runtime.js",
+   "size": 8888,
+   "sha256": "62267d87ad99f50db776302820c3dd0e488e4967fef0abbe148022c17ed6545c"
+  },
+  {
    "path": "js/core/worker.js",
-   "size": 51308,
-   "sha256": "21c20fa2fcc292039c0ee6860c2e615127c2b5f83eb4b9473b23b6c4aa2e5d33"
+   "size": 53892,
+   "sha256": "87046932c7e109588ff15160ac1d64d83c6d331ca10af7506798cd86aaf70209"
   },
   {
    "path": "js/forge/grammar.js",

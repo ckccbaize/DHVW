@@ -29,6 +29,7 @@ import { buildMoodView, createMoodSeries } from "./mood.js";
 import { createWakeEngine } from "./wake/engine.js";
 import { createBehaviorRegistry } from "./actions/registry.js";
 import { pickBehavior } from "./actions/plan.js";
+import { createWakeRuntime } from "./wake/runtime.js";
 import { createBgAgent } from "./agent/subs/bg.js";
 import { createIdbKvBackend, createMemoryKvBackend } from "./kv.js";
 
@@ -109,6 +110,7 @@ let behaviors = null;
 let behaviorLog = [];
 let netLog = [];
 let browseUrl = "https://www.weather.com.cn/weather/101010100.shtml";
+let wakeRuntime = null;
 let lastHealthAt = Date.now();
 
 const PC_ACTIONS = new Set(["map.generate", "app.open", "media.play", "notify", "web.open"]);
@@ -328,6 +330,13 @@ const ready = (async () => {
   await moodSeries.init();
   wake = createWakeEngine();
   wake.restore((await kvBackend.get("wake_state")) || {});
+  wakeRuntime = createWakeRuntime({
+    llm,
+    registry: agentRegistry,
+    store: kvBackend,
+    lock: globalThis.navigator?.locks || null,
+  });
+  await wakeRuntime.init();
   behaviors = createBehaviorRegistry({ custom: (await kvBackend.get("behavior_pool")) || [] });
   behaviorLog = (await kvBackend.get("behavior_log")) || [];
   netLog = (await kvBackend.get("net_log")) || [];
@@ -416,6 +425,14 @@ async function writeDigest() {
     mood: moodSeries ? { ...moodSeries.stats(), band: life.snapshot().band, dims: life.snapshot().mood } : null,
     wake: wake ? wake.state : null,
     behaviors: behaviors ? { count: behaviors.list().length, custom: behaviors.custom().length, recent: behaviorLog.slice(0, 5) } : null,
+    wakeRuntime: wakeRuntime
+      ? {
+          events: wakeRuntime.state.events.length,
+          threads: wakeRuntime.state.threads.filter((t) => !t.closedAt).length,
+          residue: wakeRuntime.residue()?.text || null,
+          nextWakeAt: wakeRuntime.state.nextWakeAt,
+        }
+      : null,
     observe: {
       stateLog: stateLog ? stateLog.stats() : null,
       ledger: ledger ? ledger.stats() : null,
@@ -426,6 +443,14 @@ async function writeDigest() {
     wake: wake ? wake.state : null,
     behaviors: behaviorLog.slice(0, 10),
     net: netLog.slice(0, 5),
+    wakeRuntime: wakeRuntime
+      ? {
+          events: wakeRuntime.state.events.length,
+          threads: wakeRuntime.state.threads.filter((t) => !t.closedAt).length,
+          residue: wakeRuntime.residue()?.text || null,
+          nextWakeAt: wakeRuntime.state.nextWakeAt,
+        }
+      : null,
   });
   await digestStore.save(d);
   if (host.conn === "up") host.sendRaw({ type: "world:digest", payload: { digest: d } });
@@ -762,6 +787,14 @@ function health() {
     mood: moodSeries ? { ...moodSeries.stats(), band: life.snapshot().band, dims: life.snapshot().mood } : null,
     wake: wake ? wake.state : null,
     behaviors: behaviors ? { count: behaviors.list().length, custom: behaviors.custom().length, recent: behaviorLog.slice(0, 5) } : null,
+    wakeRuntime: wakeRuntime
+      ? {
+          events: wakeRuntime.state.events.length,
+          threads: wakeRuntime.state.threads.filter((t) => !t.closedAt).length,
+          residue: wakeRuntime.residue()?.text || null,
+          nextWakeAt: wakeRuntime.state.nextWakeAt,
+        }
+      : null,
     observe: {
       stateLog: stateLog ? stateLog.stats() : null,
       ledger: ledger ? ledger.stats() : null,
@@ -1141,6 +1174,43 @@ const handlers = {
     }
     if (p.name === "net_log") {
       return { ok: true, log: netLog };
+    }
+    if (p.name === "wake_run") {
+      const r = await wakeRuntime.run({ context: p.args?.context || {}, toolEvidence: p.args?.toolEvidence || null });
+      if (r.ok) {
+        const w = r.wake;
+        if (w.outcome === "message" && w.share) post("core:bubble", { text: w.share, ttl: 5000 });
+        await appendEvent(`wake:${w.outcome}`, {
+          fact: w.fact,
+          content: w.content,
+          share: w.share,
+          residue: w.residue,
+          next_wake: r.nextWake,
+          seed: r.seed,
+        });
+        patch({ wakeRuntime: { events: wakeRuntime.state.events.length, threads: r.threadCount, residue: wakeRuntime.residue()?.text || null, nextWakeAt: wakeRuntime.state.nextWakeAt } });
+        scheduleDigest();
+      }
+      return r;
+    }
+    if (p.name === "wake_event_add") {
+      return wakeRuntime.addEvent(p.args || {});
+    }
+    if (p.name === "wake_events") {
+      return { ok: true, events: wakeRuntime.listEvents() };
+    }
+    if (p.name === "wake_threads") {
+      return { ok: true, threads: wakeRuntime.threads() };
+    }
+    if (p.name === "wake_thread_close") {
+      return { ok: await wakeRuntime.closeThread(p.args?.id) };
+    }
+    if (p.name === "wake_runtime_state") {
+      return { ok: true, state: wakeRuntime.state, residue: wakeRuntime.residue() };
+    }
+    if (p.name === "wake_runtime_clear") {
+      await wakeRuntime.clear();
+      return { ok: true };
     }
     if (p.name === "wake_tick") {
       const snap = life.snapshot();

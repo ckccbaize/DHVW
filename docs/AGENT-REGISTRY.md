@@ -120,7 +120,20 @@ createManagerAgent({ llm, registry, subAgents: { "plot-writer": (args) => plotAg
 
 像素绘制（`paint_home.py` 移植）仍属 W31；当前调试页用 intGrid 直接上色预览。
 
-## 8. 新增技能
+## 8. 唤醒运行时（W26）
+
+`core/wake/runtime.js`：
+
+- 严格 JSON：`outcome ∈ {silent,trace,message}`；message 必须有 share，silent 不得带 share；格式错误判失败，不冒充 silent；
+- `world_event` 原子领取 + 15 分钟租约，失败释放；无事件走 `free_window`；
+- 线头同时最多 5 根；`residue` 覆盖并 6 小时过期；
+- `next_wake` 被宿主 45–90 分钟夹紧；
+- `artifact` 只有带真实工具证据才接受；
+- 唤醒锁：`navigator.locks` 可用时跨上下文互斥，否则进程内互斥。
+
+命令：`wake_run` / `wake_event_add` / `wake_events` / `wake_threads` / `wake_thread_close` / `wake_runtime_state` / `wake_runtime_clear`。
+
+## 9. 新增技能
 
 工艺约束提炼自：
 
