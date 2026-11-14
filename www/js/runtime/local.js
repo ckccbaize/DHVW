@@ -965,6 +965,12 @@ export function createLocalRuntime({
     async getAssetBlob(id) {
       return backend.getBlob(id);
     },
+    async getAgentPos() {
+      return backend.getKV("agent_pos").catch(() => null);
+    },
+    async persistAgentPos(pos) {
+      await backend.setKV("agent_pos", pos).catch(() => {});
+    },
     async persistClock(day, minute) {
       await backend.setKV("day", day).catch(() => {});
       await backend.setKV("minute", minute).catch(() => {});

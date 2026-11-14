@@ -2,7 +2,7 @@
 // 显示态：总观 ⇄ 显现；连接态：up/down；世界档位：idle/host/edge。
 
 import { spawnPoint, bfsPath, isWalkable } from "./core/grid.js";
-import { createAgent, moveTo, step, applyChecksum } from "./core/pathagent.js";
+import { createAgent, moveTo, step, applyChecksum, placeAt } from "./core/pathagent.js";
 import { createStore } from "./core/lifestore.js";
 import { createClock } from "./core/clock.js";
 import { lightFor } from "./core/light.js";
@@ -555,6 +555,7 @@ async function boot() {
   // ---------- 主循环 ----------
 
   let last = performance.now();
+  let lastPosSave = 0;
   function frame(now) {
     const dt = Math.min((now - last) / 1000, 0.25);
     last = now;
@@ -575,6 +576,19 @@ async function boot() {
       }
     } else {
       walkStuck = { px: null, py: null, since: 0 };
+    }
+
+    if (now - lastPosSave > 1000) {
+      lastPosSave = now;
+      void local.persistAgentPos({
+        scene: scene.name || scene.id,
+        gx: agent.gx,
+        gy: agent.gy,
+        px: agent.px,
+        py: agent.py,
+        dir: agent.dir,
+        room: roomAt(agent.gx, agent.gy),
+      });
     }
 
     const view = activeView === "outer" ? outerOverview : overview;
@@ -605,6 +619,10 @@ async function boot() {
   hud.render(store.state);
 
   await local.start();
+  const savedPos = await local.getAgentPos();
+  if (savedPos && savedPos.scene === (scene.name || scene.id) && Number.isInteger(savedPos.gx) && Number.isInteger(savedPos.gy) && isWalkable(scene.grid, savedPos.gx, savedPos.gy)) {
+    placeAt(agent, savedPos.gx, savedPos.gy, savedPos.dir || agent.dir);
+  }
   local.resume();
   local.setTier("edge");
   setTier("edge");

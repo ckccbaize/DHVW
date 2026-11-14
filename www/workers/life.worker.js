@@ -545,6 +545,11 @@ self.onmessage = (e) => {
       if (Number.isFinite(snap?.sleepAt)) sleepAt = snap.sleepAt;
       if (Number.isFinite(snap?.wakeAt)) wakeAt = snap.wakeAt;
       appliedBehaviors = new Set(snap?.appliedBehaviors || []);
+      if (!Array.isArray(snap?.appliedBehaviors) && plan?.day === clock.day) {
+        for (let i = 0; i < (plan.behaviors || []).length; i++) {
+          if (Number.isFinite(plan.behaviors[i].minute) && plan.behaviors[i].minute < clock.minute) appliedBehaviors.add(i);
+        }
+      }
       appliedSudden = !!snap?.appliedSudden;
       pending = null;
       lastLlmMinute = clock.minute;
