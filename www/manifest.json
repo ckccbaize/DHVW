@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T13:28:36.489Z",
+ "built_at": "2026-11-14T13:33:39.088Z",
  "files": [
   {
    "path": "agent/registry.json",
-   "size": 12445,
-   "sha256": "2cd30d5c6a0a3e537131b366ef3151e5b51c3ae29853995cec5b56615371418e"
+   "size": 14114,
+   "sha256": "8c5d603e31435f50bae58eec1bee94bae05ca3ea41968ef693e7fd5e64cce152"
   },
   {
    "path": "assets/char/ojj_sheet.json",
@@ -884,8 +884,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 34956,
-   "sha256": "bbefb08ca6ad7d24ff250c060d667e99cb6f331d750c0a7586bcffac11f56210"
+   "size": 35467,
+   "sha256": "77cc4e28932360c391f613092cc17e028c9dff77a672fcc4d4e89faa2f573daa"
   },
   {
    "path": "js/runtime/remote.js",

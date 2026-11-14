@@ -627,24 +627,47 @@ export function createLocalRuntime({
   }
 
   async function generateWriting(ctx) {
-    if (!llm) return;
+    if (!llm || !registry) return;
     const kind = Math.random() < 0.5 ? "diary" : "novel";
     const todayPlot = dailyPlots[ctx.day]?.text || dailyPlots[ctx.day + 1]?.text || "";
-    const prompt =
-      kind === "diary"
-        ? `写一篇角色日记，第一人称，120-200 字。时间：第${ctx.day}天 ${Math.floor(ctx.minute / 60)}:${String(Math.floor(ctx.minute % 60)).padStart(2, "0")}，地点：${ctx.room}。她现在${describeMood(mood)}；${moodTone(mood)}。她记得：${memoryText(6) || "暂无"}。今天发生的剧情：${todayPlot || "无特别事件"}。日记里要自然提到这件事。只输出正文。`
-        : `写一段角色正在创作的小说片段，第三人称，150-250 字。时间：第${ctx.day}天，地点：${ctx.room}。她现在${describeMood(mood)}；${moodTone(mood)}。她记得：${memoryText(6) || "暂无"}。今天发生的剧情：${todayPlot || "无特别事件"}。只输出正文。`;
+    const clock = `${String(Math.floor(ctx.minute / 60)).padStart(2, "0")}:${String(Math.floor(ctx.minute % 60)).padStart(2, "0")}`;
+    const vars = {
+      day: ctx.day,
+      clock,
+      room: ctx.room,
+      mood: describeMood(mood),
+      tone: moodTone(mood),
+      memory: memoryText(6) || "暂无",
+      plot: todayPlot || "无特别事件",
+    };
+    const promptName = kind === "diary" ? "writing-diary" : "writing-novel";
     const t0 = now();
+    let prompt = "";
+    let text = "";
+    let reason = "";
     try {
-      const res = await llm.complete({
-        messages: [{ role: "user", content: prompt }],
-        maxTokens: 400,
-        temperature: 0.9,
-        cls: "work",
-        kind: "writing",
-      });
-      const text = res.text.trim();
-      if (!text) throw new Error("空文本");
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        prompt = registry.render(promptName, vars);
+        if (attempt > 1) prompt += `\n\n上一稿不合格：${reason}。请重写，严格满足要求。`;
+        const res = await llm.complete({
+          messages: [{ role: "user", content: prompt }],
+          maxTokens: 500,
+          temperature: kind === "novel" ? 0.7 : 0.8,
+          cls: "work",
+          kind: "writing",
+        });
+        text = String(res.text || "").trim();
+        if (!text) { reason = "空文本"; continue; }
+        if (kind === "diary" && !/我/.test(text)) { reason = "日记必须使用第一人称「我」"; continue; }
+        if (kind === "novel" && /她写道|笔尖|笔记本|划掉|继续写|写小说|小说片段/.test(text)) {
+          reason = "小说正文不能写写作过程";
+          continue;
+        }
+        if (text.length < 60) { reason = "内容过短，需要完整的一件事"; continue; }
+        reason = "";
+        break;
+      }
+      if (reason) throw new Error(reason);
       const item = {
         id: `w-${now()}`,
         kind,
@@ -655,7 +678,7 @@ export function createLocalRuntime({
         created_at: now(),
       };
       await appendKv("writings", item, 50);
-      await logLlm({ agent: "writing", ok: true, ms: now() - t0, prompt, response: res.text });
+      await logLlm({ agent: "writing", ok: true, ms: now() - t0, prompt, response: text });
       store.emit("writing", item);
     } catch (err) {
       await logLlm({ agent: "writing", ok: false, ms: now() - t0, prompt, response: err.message });
