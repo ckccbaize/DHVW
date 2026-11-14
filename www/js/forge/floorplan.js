@@ -200,7 +200,25 @@ export function pickOpenLayout(w = 32, h = 24, seed = "layout") {
   }
   const interior = [];
   for (let y = 1; y <= h - 2; y++) for (let x = 1; x <= w - 2; x++) if (!blocked.has(`${x},${y}`)) interior.push(`${x},${y}`);
-  const openRects = decompose(interior, w, h);
+  const rawOpen = decompose(interior, w, h);
+  const openRects = [];
+  const queue = rawOpen.slice();
+  while (queue.length && openRects.length < 10) {
+    const r = queue.shift();
+    const [x, y, ww, hh] = r;
+    if (openRects.length + queue.length < 10 && (ww > 8 || hh > 7) && ww >= 6 && hh >= 6) {
+      if (ww >= hh) {
+        const half = Math.floor(ww / 2);
+        queue.unshift([x, y, half, hh], [x + half, y, ww - half, hh]);
+      } else {
+        const half = Math.floor(hh / 2);
+        queue.unshift([x, y, ww, half], [x, y + half, ww, hh - half]);
+      }
+    } else {
+      openRects.push(r);
+    }
+  }
+  openRects.push(...queue);
   const floors = OPEN_FLOORS.slice().sort(() => rnd() - 0.5);
   const rooms = closed.map((c, i) => ({
     id: `room${i + 1}`, name: `封闭房间${i + 1}`, kind: "room", corner: c.corner,

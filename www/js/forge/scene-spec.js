@@ -2,9 +2,11 @@
 // 纯函数，不依赖 DOM；供地图 Agent 与 forge 烘焙共用。
 
 import { FURNITURE_SIZES } from "./furniture.js";
+import { buildInteractions } from "./scenekit.js";
 import { fnv1a, mulberry32 } from "./grammar.js";
 
 const NON_BLOCK = new Set(["rug", "door_mat", "bath_mat"]);
+const BIG_ITEMS = new Set(["bed", "wardrobe", "dresser", "desk", "bookshelf", "sofa", "tv", "counter", "stove", "fridge", "table", "bench", "cat_tree", "coffee_table"]);
 
 const ROOM_SETS = {
   home: [
@@ -193,6 +195,156 @@ function placeWallProps(rooms) {
   return out;
 }
 
+
+function fillBlank3x3(areas, props, doors, seed) {
+  const decor = [];
+  const occupied = new Set();
+  for (const p of props) {
+    const pw = p.w || 1;
+    const ph = p.h || 1;
+    for (let yy = p.y; yy < p.y + ph; yy++) for (let xx = p.x; xx < p.x + pw; xx++) occupied.add(`${xx},${yy}`);
+  }
+  const doorZone = doorZones(doors);
+  const rnd = mulberry32(fnv1a(`${seed}|fill`));
+  let added = 0;
+  for (const area of areas) {
+    const [rx, ry, rw, rh] = area.rect;
+    for (let y = ry; y <= ry + rh - 3; y++) {
+      for (let x = rx; x <= rx + rw - 3; x++) {
+        let hasDoor = false;
+        let has = false;
+        for (let yy = y; yy < y + 3; yy++) for (let xx = x; xx < x + 3; xx++) {
+          if (doorZone.has(`${xx},${yy}`)) hasDoor = true;
+          if (occupied.has(`${xx},${yy}`)) has = true;
+        }
+        if (hasDoor || has) continue;
+        const ids = ["book", "mug", "keys", "slippers", "watering_can"];
+        const cx = x + 1;
+        const cy = y + 1;
+        decor.push({ name: `${area.name || area.id}-小物-${added + 1}`, id: ids[added % ids.length], x: cx, y: cy, room: area.id });
+        occupied.add(`${cx},${cy}`);
+        added += 1;
+      }
+    }
+  }
+  return decor;
+}
+
+const SET_ALIAS = {
+  cafe: "social", restaurant: "social", bar: "social", market: "lively",
+  bookstore: "quiet", library: "quiet", shop: "errand", store: "errand",
+  park: "nature", garden: "nature", venue: "social",
+};
+
+
+function freeSpot(areas, props, doors, w = 1, h = 1) {
+  const occupied = new Set();
+  for (const p of props) {
+    const pw = p.w || 1;
+    const ph = p.h || 1;
+    for (let yy = p.y; yy < p.y + ph; yy++) for (let xx = p.x; xx < p.x + pw; xx++) occupied.add(`${xx},${yy}`);
+  }
+  const doorZone = doorZones(doors);
+  for (const area of areas) {
+    const [rx, ry, rw, rh] = area.rect;
+    for (let y = ry; y <= ry + rh - h; y++) {
+      for (let x = rx; x <= rx + rw - w; x++) {
+        let ok = true;
+        for (let yy = y; yy < y + h && ok; yy++) for (let xx = x; xx < x + w; xx++) {
+          if (occupied.has(`${xx},${yy}`) || doorZone.has(`${xx},${yy}`)) { ok = false; break; }
+        }
+        if (ok) return { x, y, room: area.id };
+      }
+    }
+  }
+  return null;
+}
+
+function ensureDensity(areas, props, doors, kind, seed) {
+  for (const area of areas) {
+    const need = Math.max(4, Math.ceil(((area.rect[2] || 0) * (area.rect[3] || 0)) / 12));
+    let count = props.filter((p) => p.room === area.id).length;
+    let guard = 0;
+    while (count < need && guard++ < 40) {
+      const spot = freeSpot([area], props, doors, 1, 1);
+      if (!spot) break;
+      const fillIds = ["chair", "plant", "lamp", "shelf"];
+      const fillId = fillIds[count % fillIds.length];
+      props.push({ name: `${area.name || area.id}-${fillId}-${count + 1}`, id: fillId, x: spot.x, y: spot.y, w: 1, h: 1, room: area.id });
+      count += 1;
+    }
+  }
+  if (kind === "cafe") {
+    let tables = props.filter((p) => p.id === "table").length;
+    let guard = 0;
+    while (tables < 2 && guard++ < 20) {
+      const spot = freeSpot(areas, props, doors, 2, 2);
+      if (!spot) break;
+      props.push({ name: `咖啡区-桌子-${tables + 1}`, id: "table", x: spot.x, y: spot.y, w: 2, h: 2, room: spot.room });
+      tables += 1;
+    }
+  }
+}
+export function buildOpenSceneSpec(layout, { kind = "cafe", name = "未命名场景", seed = "map" } = {}) {
+  const set = ROOM_SETS[kind] || ROOM_SETS[SET_ALIAS[kind]] || ROOM_SETS.venue;
+  const closed = (layout.rooms || []).map((r, i) => ({
+    ...r,
+    kind: set[Math.min(i, set.length - 1)]?.kind || "venue",
+    name: r.name || set[Math.min(i, set.length - 1)]?.name || `房间${i + 1}`,
+  }));
+  const zoneKinds = ["cafe", "lounge", "counter", "reading", "hall", "balcony", "cafe", "reading", "lounge", "hall"];
+  const open = (layout.zones || []).map((z, i) => ({
+    ...z,
+    kind: zoneKinds[i % zoneKinds.length],
+    name: z.name || `开放区${i + 1}`,
+  }));
+  const areas = [...closed, ...open];
+  let props = placeProps(areas, layout.doors || [], kind, seed);
+  const seenBig = new Set();
+  props = props.filter((p) => {
+    if (!BIG_ITEMS.has(p.id)) return true;
+    if (p.id === "table" && ["cafe", "restaurant", "bar"].includes(kind)) return true;
+    if (seenBig.has(p.id)) return false;
+    seenBig.add(p.id);
+    return true;
+  });
+  const decor = fillBlank3x3(closed, props, layout.doors || [], seed);
+  ensureDensity(areas, props, layout.doors || [], kind, seed);
+  if (kind === "cafe") {
+    let rugs = props.filter((p) => p.id === "rug").length;
+    let guard = 0;
+    while (rugs < 3 && guard++ < 10) {
+      const spot = freeSpot(areas, props, layout.doors || [], 4, 3);
+      if (!spot) break;
+      props.push({ name: `咖啡区-地毯-${rugs + 1}`, id: "rug", x: spot.x, y: spot.y, w: 4, h: 3, room: spot.room });
+      rugs += 1;
+    }
+  }
+  const wallProps = placeWallProps(closed);
+  const startArea = [...areas].sort((a, b) => area(b) - area(a))[0];
+  const interactions = buildInteractions(props);
+  return {
+    name,
+    title: name,
+    version: 1,
+    seed,
+    kind,
+    grid: { w: layout.grid.w, h: layout.grid.h, cell: 16 },
+    start: startArea?.id || areas[0]?.id,
+    spawn: freeSpot(areas, props, layout.doors || [], 1, 1) || layout.spawn || { x: 2, y: 2 },
+    rooms: closed,
+    zones: open,
+    doors: layout.doors || [],
+    windows: layout.windows || [],
+    props,
+    wallProps,
+    decor,
+    clutter: [],
+    interactions,
+    routes: [],
+    cleanup: { per_day: 3, min_interval_min: 45, tidy_ratio: 0.3 },
+  };
+}
 export function buildSceneSpec(layout, { kind = "home", name = "未命名场景", seed = "map" } = {}) {
   const rooms = roomKinds(layout, kind);
   const props = placeProps(rooms, layout.doors || [], kind, seed);

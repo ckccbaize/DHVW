@@ -116,7 +116,8 @@ createManagerAgent({ llm, registry, subAgents: { "plot-writer": (args) => plotAg
 - `forge/scene-llm.js`：校验 LLM 场景（家具白名单、动画/效果枚举、路线可走、房间密度、功能区数量），通过后生成可烘焙 spec；LLM 输出 32×24 时按目标 24×18 缩放，避免大空房间；
 - `props[].shape`：LLM 可用 rect/ellipse/line/polygon 直接定义新物体（非 home 家具），`forge/furniture.js` 的 `paintShape` 负责绘制；home 家具表只是可选素材，不是场景生成上限；
 - `forge/dsl.js` + `forge/scenekit.js`：保留为离线/兜底生成器（DSL → 32×24 单房间），不再是默认路径；
-- `forge/floorplan.js`：按 `mapSpec.kind/name/description` 推断场景类型（咖啡厅、书店、餐厅、集市、公园、办公室、家等），按 seed 生成 1–3 个功能区；也接受 `mapSpec.program` 自定义房间，房间之间留 1 格墙并开门；
+- `forge/floorplan.js`：`pickOpenLayout` 按 §3.5 生成 1–2 间对角封闭房 + 开放 zones（开放面积 ≥50%）；旧的 `buildFloorplan` 保留给 DSL/兜底；
+- `forge/scene-spec.js`：`buildOpenSceneSpec` 在开放骨架上落家具/小物/交互，作为 LLM 失败时的本地回退，保证过 3×3/大件/门净空闸门；
 - `forge/layout.js`：保留通用随机布局，作为未知 kind 的回退；
 - `forge/scene-spec.js`：按房间类型放家具、墙面小物，输出 forge 可烘焙的 spec；
 - `buildGrid` / `buildIntGrid`：输出 intGrid（0 走 / 1 墙 / 2 门 / 3 窗），家具阻挡计入；

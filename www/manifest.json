@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T10:00:43.735Z",
+ "built_at": "2026-11-14T10:15:42.494Z",
  "files": [
   {
    "path": "agent/registry.json",
    "size": 19531,
-   "sha256": "689f22aaa08bd9d44051833e86915308e44feb642a4393e0e96b838b0ce09fcc"
+   "sha256": "51487b38b921631ab7f0b9f2ddd236551bcf6c0a23fdfef89d786108350f57d0"
   },
   {
    "path": "assets/char/ojj_sheet.json",
@@ -844,8 +844,8 @@
   },
   {
    "path": "js/core/scene-package.js",
-   "size": 5125,
-   "sha256": "20f7d1d6fc8748146261a61e2a8e244f12f26cd1c9967988c05c444bdb54a5d0"
+   "size": 5185,
+   "sha256": "07f4d0e0e5fb607333b2b9fa5657459c3a0690713d85e13f6e6720c7c7ba5639"
   },
   {
    "path": "js/core/sched/scheduler.js",
@@ -904,8 +904,8 @@
   },
   {
    "path": "js/forge/floorplan.js",
-   "size": 11647,
-   "sha256": "cfab99c0b7a658f9eb6d5b39fdb73662a8e88fee7ce313abc22f409c7623ff46"
+   "size": 12248,
+   "sha256": "259080166eb95721c37b506939926f11164db2df52449f9e93ecbd594642e0db"
   },
   {
    "path": "js/forge/furniture.js",
@@ -934,13 +934,13 @@
   },
   {
    "path": "js/forge/scene-llm.js",
-   "size": 17681,
-   "sha256": "3077833c8f930cddf8c29ff9785c43d0e69190e70cf790801162b81d98b33fca"
+   "size": 17810,
+   "sha256": "51a0a7e01414767f738c05da5ca60c57fb2acfadf2369619cf9164389588934d"
   },
   {
    "path": "js/forge/scene-spec.js",
-   "size": 7539,
-   "sha256": "48cf48044839bf6120bc51611787a745c44f7a23861402f93c22a7ee18582ebd"
+   "size": 13299,
+   "sha256": "bfe3befe8bf359f20c45ad3722a3f5f7a943a166b53b02a3d93c537546d971bc"
   },
   {
    "path": "js/forge/scene.js",
@@ -964,8 +964,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 39799,
-   "sha256": "b763744b7b88017272a61eaf58375115477c559ca05149374cf7e3d40a33a186"
+   "size": 40023,
+   "sha256": "024bf65164b606a5c81f187dde851c616d2ef86c3aa650fa6aabf05880bffaad"
   },
   {
    "path": "js/runtime/remote.js",

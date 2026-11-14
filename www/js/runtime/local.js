@@ -14,6 +14,7 @@ import { pickOpenLayout } from "../forge/floorplan.js";
 import { createBrowsePlanner } from "../core/actions/browse.js";
 import { normalizeBehaviors, roomForAct, createActRoomMap } from "../core/life/plan.js";
 import { buildScene } from "../forge/scene.js";
+import { buildOpenSceneSpec } from "../forge/scene-spec.js";
 import { buildScenePackage, saveScenePackage } from "../core/scene-package.js";
 import { buildSceneFromLlm, ANIMATIONS } from "../forge/scene-llm.js";
 import { FURNITURE_SIZES } from "../forge/furniture.js";
@@ -636,8 +637,8 @@ export function createLocalRuntime({
     const t0 = now();
     let scene = null;
     let prompt = "";
+    const layout = pickOpenLayout(32, 24, `${kind}-${Date.now()}`);
     if (llm && registry) {
-      const layout = pickOpenLayout(32, 24, `${kind}-${Date.now()}`);
       const basePrompt = registry.render("scene", {
         description,
         kind,
@@ -692,18 +693,21 @@ export function createLocalRuntime({
       }
     }
     if (!scene) {
-      const r = generateMap({
-        mapSpec: { kind, name, description },
-        seed: `${lastTick?.day || 1}-${Math.floor(lastTick?.minute || 0)}-${now()}`,
-        w: 32,
-        h: 24,
+      const spec = buildOpenSceneSpec(layout, {
+        kind,
+        name,
+        seed: `${kind}-${lastTick?.day || 1}-${Math.floor(lastTick?.minute || 0)}-${now()}`,
       });
-      if (!r.ok) {
-        await logLlm({ agent: "map", ok: false, ms: now() - t0, response: r.reason });
-        return;
-      }
-      scene = r.scene;
-      await logLlm({ agent: "map", ok: true, ms: now() - t0, prompt: prompt || "fallback", response: `fallback ${scene.rooms.length} 房间 / ${scene.props.length} 家具` });
+      const baked = buildScene(spec);
+      const intGrid = baked.built.intGrid.join("").split("").map(Number);
+      scene = {
+        ...spec,
+        spec,
+        intGrid,
+        interactions: spec.interactions,
+        entities: [{ type: "spawn", x: layout.spawn.x, y: layout.spawn.y }],
+      };
+      await logLlm({ agent: "map", ok: true, ms: now() - t0, prompt: prompt || "fallback", response: `fallback ${scene.rooms.length} 封闭房 / ${scene.zones.length} 开放区 / ${scene.props.length} 家具` });
     }
     const baked = buildScene(scene.spec);
     const item = {

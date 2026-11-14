@@ -215,6 +215,7 @@ export function validateLlmScene(obj, { quality = true } = {}) {
       if (countOf("lamp") < 2) errors.push("cafe_lamps_too_few");
     }
     for (const item of BIG_ITEMS) {
+      if (item === "table" && ["cafe", "restaurant", "bar"].includes(obj.kind)) continue;
       if (countOf(item) > 1) errors.push(`big_item_duplicate:${item}`);
     }
     const allNames = [...(obj.rooms || []), ...(obj.zones || [])].map((r) => r.name).filter(Boolean);
@@ -225,6 +226,7 @@ export function validateLlmScene(obj, { quality = true } = {}) {
       const ph = p.h || 1;
       for (let yy = p.y; yy < p.y + ph; yy++) for (let xx = p.x; xx < p.x + pw; xx++) filled.add(`${xx},${yy}`);
     }
+    for (const d of obj.decor || []) filled.add(`${d.x},${d.y}`);
     const doorClear = new Set();
     for (const d of obj.doors || []) {
       for (let yy = d.y - 1; yy <= d.y + 1; yy++) for (let xx = d.x - 1; xx <= d.x + 1; xx++) doorClear.add(`${xx},${yy}`);
@@ -240,7 +242,7 @@ export function validateLlmScene(obj, { quality = true } = {}) {
       }
     }
     let blanks = 0;
-    for (const area of [...(obj.rooms || []), ...(obj.zones || [])]) {
+    for (const area of (obj.rooms || [])) {
       const [rx, ry, rw, rh] = area.rect || [];
       for (let y = ry; y <= ry + rh - 3; y++) {
         for (let x = rx; x <= rx + rw - 3; x++) {
