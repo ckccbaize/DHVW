@@ -200,7 +200,16 @@ function pickSpotForAct(act, room) {
 
 function pickTarget() {
   const planPlace = plan && plan.day === clock.day ? plan.place : null;
-  const room = planPlace || PHASE_ROOM[phase] || "living";
+  const roomsWithSpots = [...new Set((scene.hotspots || []).map((h) => h.room).filter(Boolean))];
+  let room = planPlace || PHASE_ROOM[phase] || "living";
+  if (!hotspotsIn(room).length && roomsWithSpots.length) {
+    room = roomsWithSpots[Math.floor(Math.random() * roomsWithSpots.length)];
+  }
+  // 不要整天黏在同一房间：计划地点也不该把角色钉死
+  if (room === currentRoom && roomsWithSpots.length > 1 && Math.random() < 0.45) {
+    const others = roomsWithSpots.filter((r) => r !== room);
+    room = others[Math.floor(Math.random() * others.length)];
+  }
   const inRoom = hotspotsIn(room);
   // 35% 概率去别的房间，避免一直在同一角落
   const roam = inRoom.length > 0 && Math.random() < 0.35;
@@ -432,9 +441,6 @@ function tick() {
     const prev = phase;
     phase = nextPhase;
     if (phase === "sleep") {
-      const bed = (scene.props || []).find((p) => p.id === "bed");
-      event("sleep", { from: prev, bed: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1, facing: bed.facing || "S" } : null, sleepAt, wakeAt });
-      stats.sinceResume.sleeps += 1;
       pending = null;
       busyUntil = clock.minute;
       requestIntent("phase:sleep");
@@ -569,8 +575,9 @@ self.onmessage = (e) => {
       pending = null;
       lastLlmMinute = clock.minute;
       if (phase === "sleep") {
-        const bed = (scene.props || []).find((p) => p.id === "bed");
-        event("sleep", { from: "boot", bed: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1, facing: bed.facing || "S" } : null, sleepAt, wakeAt });
+        pending = null;
+        busyUntil = clock.minute;
+        requestIntent("phase:sleep");
       }
       resetAnchor();
       schedule();
@@ -610,6 +617,16 @@ self.onmessage = (e) => {
         if (recentActs.length > 8) recentActs.shift();
       }
       event("act", { act, room, durationMin });
+      if (act === "sleep" && phase === "sleep") {
+        const bed = pending?.bed || (scene.props || []).find((p) => p.id === "bed");
+        event("sleep", {
+          from: "path",
+          bed: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1, facing: bed.facing || "S" } : null,
+          sleepAt,
+          wakeAt,
+        });
+        stats.sinceResume.sleeps += 1;
+      }
       busyUntil = clock.minute + durationMin;
       if (act === "write") emit({ type: "write", room, act, day: clock.day, minute: clock.minute });
       recentSpots.push(`${msg.x ?? pending?.x ?? -1},${msg.y ?? pending?.y ?? -1}`);
@@ -718,7 +735,7 @@ self.onmessage = (e) => {
         phase = "sleep";
         pending = null;
         busyUntil = clock.minute;
-        requestIntent("debug:night");
+        requestIntent("debug:sleep");
       } else if (kind === "act" && msg.act) {
         debugIntent(msg.act);
       }

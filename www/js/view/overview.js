@@ -273,7 +273,8 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
     }
     if (showAgent) {
       const bed = store.state.sleepView;
-      if (bed) drawSleeping(bed, now);
+      const nearBed = bed && agent.gx >= bed.x - 1 && agent.gx <= bed.x + (bed.w || 1) && agent.gy >= bed.y - 1 && agent.gy <= bed.y + (bed.h || 1);
+      if (bed && nearBed) drawSleeping(bed, now);
       else drawAgent(agent, {}, now, agent.act);
     }
     for (const sp of sprites) {

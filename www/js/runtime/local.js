@@ -249,12 +249,7 @@ export function createLocalRuntime({
           weather: msg.weather,
           phase: msg.phase,
         });
-        if (msg.phase === "sleep") {
-          if (!store.state.sleepView) {
-            const bed = (scene.props || []).find((p) => p.id === "bed");
-            store.patch({ sleepView: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1, facing: bed.facing || "S" } : null });
-          }
-        } else if (store.state.sleepView) {
+        if (msg.phase !== "sleep" && store.state.sleepView) {
           store.patch({ sleepView: null });
         }
         store.emit("tick", msg);
@@ -863,9 +858,9 @@ export function createLocalRuntime({
       await setupBrain();
 
       if (WorkerImpl) {
-        lifeWorker = new WorkerImpl(new URL("../../workers/life.worker.js", import.meta.url), { type: "module" });
+        lifeWorker = new WorkerImpl(new URL(`../../workers/life.worker.js?v=${Date.now()}`, import.meta.url), { type: "module" });
         lifeWorker.onmessage = (e) => handleLife(e.data);
-        forgeWorker = new WorkerImpl(new URL("../../workers/forge.worker.js", import.meta.url), { type: "module" });
+        forgeWorker = new WorkerImpl(new URL(`../../workers/forge.worker.js?v=${Date.now()}`, import.meta.url), { type: "module" });
         forgeWorker.onmessage = (e) => handleForge(e.data);
       }
 
