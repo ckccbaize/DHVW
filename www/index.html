@@ -13,7 +13,8 @@
 <body>
 <div id="app">
   <div id="stage">
-    <canvas id="scene" aria-label="总观场景"></canvas>
+    <canvas id="scene" class="scene-canvas" aria-label="里：角色当前场景"></canvas>
+    <canvas id="sceneOuter" class="scene-canvas" aria-label="外：办公室" hidden></canvas>
 
     <header id="hud">
       <div class="hud-left">
@@ -39,15 +40,17 @@
       <span class="switch-label">显现</span>
     </div>
 
-    <div id="menu" hidden>
-      <div class="menu-card">
-        <button id="btnPauseForge" type="button">暂停端侧生成</button>
-        <button id="btnReconnect" type="button">强制重连主机</button>
-        <button id="btnCloseMenu" type="button">关闭</button>
+    <div id="dock" class="dock" aria-hidden="true">
+      <div class="dock-row">
+        <button id="btnViewInner" class="dock-btn active" type="button">里</button>
+        <button id="btnViewOuter" class="dock-btn" type="button">外</button>
+      </div>
+      <div class="dock-row">
+        <button id="btnPauseForge" class="dock-btn" type="button">暂停生成</button>
+        <button id="btnReconnect" class="dock-btn" type="button">重连</button>
+        <button id="btnCloseDock" class="dock-btn" type="button">收起</button>
       </div>
     </div>
-
-    <div id="dim"></div>
   </div>
 
   <section id="present" hidden>

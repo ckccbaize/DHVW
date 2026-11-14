@@ -19,7 +19,7 @@ const SWEATER = "#c9626f";
 const PANTS = "#3a3f4b";
 const SHOE = "#2a2d36";
 
-export function createOverview({ canvas, scene, store, onCharacterClick, onMoveRequest, onBubble }) {
+export function createOverview({ canvas, scene, store, sprites = [], showAgent = true }) {
   const cell = scene.grid.cell || 16;
   const scale = 1;
   const W = scene.grid.w * cell;
@@ -38,16 +38,10 @@ export function createOverview({ canvas, scene, store, onCharacterClick, onMoveR
   let fitted = { w: W, h: H };
 
   function fit() {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    // 整数倍最近邻：不做非整数缩放，避免像素糊边。
-    const k = Math.max(1, Math.floor(Math.min(vw / W, vh / H)));
-    fitted = { w: W * k, h: H * k, k };
-    canvas.style.width = fitted.w + "px";
-    canvas.style.height = fitted.h + "px";
+    // CSS 负责 contain 全窗口显示；这里只记录逻辑尺寸。
+    fitted = { w: W, h: H, k: 1 };
   }
   fit();
-  window.addEventListener("resize", fit);
   let frameTimes = [];
   let fps = 0;
 
@@ -81,11 +75,16 @@ export function createOverview({ canvas, scene, store, onCharacterClick, onMoveR
     lightKey = key;
   }
 
-  function drawAgent(agent) {
+  function drawAgent(agent, palette = {}) {
     const x = Math.round(agent.px * cell * scale);
     const y = Math.round(agent.py * cell * scale);
     const f = walkFrame(agent);
     const swing = agent.state === "walk" ? [0, 2, 0][f] : 0;
+    const skin = palette.skin || SKIN;
+    const hair = palette.hair || HAIR;
+    const sweater = palette.sweater || SWEATER;
+    const pants = palette.pants || PANTS;
+    const shoe = palette.shoe || SHOE;
     const px = (n) => Math.round(n * scale);
 
     // 影子
@@ -95,29 +94,29 @@ export function createOverview({ canvas, scene, store, onCharacterClick, onMoveR
     ctx.fill();
 
     // 腿 + 鞋
-    ctx.fillStyle = PANTS;
+    ctx.fillStyle = pants;
     ctx.fillRect(x - px(5), y - px(1) + swing, px(4), px(7));
     ctx.fillRect(x + px(1), y - px(1) - swing, px(4), px(7));
-    ctx.fillStyle = SHOE;
+    ctx.fillStyle = shoe;
     ctx.fillRect(x - px(5), y + px(5) + swing, px(4), px(2));
     ctx.fillRect(x + px(1), y + px(5) - swing, px(4), px(2));
 
     // 身体
-    ctx.fillStyle = SWEATER;
+    ctx.fillStyle = sweater;
     ctx.fillRect(x - px(6), y - px(9), px(12), px(9));
     ctx.fillStyle = "rgba(255,255,255,0.12)";
     ctx.fillRect(x - px(6), y - px(9), px(12), px(2));
 
     // 手臂
-    ctx.fillStyle = SWEATER;
+    ctx.fillStyle = sweater;
     ctx.fillRect(x - px(8), y - px(8), px(2), px(6));
     ctx.fillRect(x + px(6), y - px(8), px(2), px(6));
 
     // 头
-    ctx.fillStyle = SKIN;
+    ctx.fillStyle = skin;
     ctx.fillRect(x - px(5), y - px(17), px(10), px(9));
     // 头发
-    ctx.fillStyle = HAIR;
+    ctx.fillStyle = hair;
     ctx.fillRect(x - px(6), y - px(19), px(12), px(4));
     if (agent.dir.y <= 0) {
       // 朝上/背面：后脑勺
@@ -133,7 +132,7 @@ export function createOverview({ canvas, scene, store, onCharacterClick, onMoveR
   }
 
   function drawBubble() {
-    if (!bubble || bubble.until < performance.now()) return;
+    if (!showAgent || !bubble || bubble.until < performance.now()) return;
     const agent = store.state.agent;
     const maxW = Math.min(W - 24, 400);
     ctx.font = `${12 * scale}px "Fusion Pixel 12px Proportional Simplified Chinese", "Microsoft YaHei", monospace`;
@@ -212,33 +211,18 @@ export function createOverview({ canvas, scene, store, onCharacterClick, onMoveR
       ctx.fillStyle = "#2a2f3a";
       ctx.fillRect(0, 0, W, H);
     }
-    drawAgent(agent);
+    if (showAgent) drawAgent(agent);
+    for (const sp of sprites) {
+      drawAgent(
+        { px: sp.x + 0.5, py: sp.y + 0.5, state: "idle", frame: 0, dir: sp.dir || { x: 0, y: 1 } },
+        sp.palette,
+      );
+    }
     if (lightLayer) ctx.drawImage(lightLayer, 0, 0);
     drawBubble();
 
     return dt;
   }
-
-  canvas.addEventListener("pointerdown", (e) => {
-    const rect = canvas.getBoundingClientRect();
-    // 画布 CSS 尺寸已按比例设置（fit()），元素矩形即绘制区域
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-    if (mx < 0 || my < 0 || mx > rect.width || my > rect.height) return;
-    const gx = Math.floor((mx / rect.width) * scene.grid.w);
-    const gy = Math.floor((my / rect.height) * scene.grid.h);
-    if (gx < 0 || gy < 0 || gx >= scene.grid.w || gy >= scene.grid.h) return;
-    const agent = store.state.agent;
-    if (Math.abs(gx - agent.gx) <= 1 && Math.abs(gy - agent.gy) <= 1) {
-      onCharacterClick && onCharacterClick();
-      return;
-    }
-    if (!isWalkable(scene.grid, gx, gy)) {
-      onBubble && onBubble("那边过不去。");
-      return;
-    }
-    onMoveRequest && onMoveRequest(gx, gy);
-  });
 
   return {
     get fps() {

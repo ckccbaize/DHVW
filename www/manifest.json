@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-13T15:07:12.646Z",
+ "built_at": "2026-11-14T04:16:01.976Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -564,13 +564,13 @@
   },
   {
    "path": "css/app.css",
-   "size": 6820,
-   "sha256": "9d54fd11bba7b7de058bdc3251c221560731ff612a9041c9e0cd11493bab371f"
+   "size": 6856,
+   "sha256": "2e653cbf0fcc9e9f1c1da5d6efe3bbe3166f99f59ac07d248d597af8054b8c9b"
   },
   {
    "path": "css/cel.css",
-   "size": 5040,
-   "sha256": "3a5ac5cb2c85f00f64e670c8e760539c981f6914a2f7371fecef5299163c5abf"
+   "size": 6518,
+   "sha256": "a5234b2004aad91b81c3b5af11e397ff953f8b52da4067f488a34e27dd65ec27"
   },
   {
    "path": "css/tokens.css",
@@ -589,13 +589,13 @@
   },
   {
    "path": "index.html",
-   "size": 2510,
-   "sha256": "ff8fa10d79a6d72b4ff0e830416c2f72501233683df578a1190ca02e3508e35e"
+   "size": 2874,
+   "sha256": "5e97b5c9dbddf25acc6f55ec4e6713c228819646070468f8021abe87eebc7779"
   },
   {
    "path": "js/app.js",
-   "size": 16685,
-   "sha256": "bc8ec83829bbfd6e6050da4a307df0d9d854f59f5fe7b335d1300db8ee78cb07"
+   "size": 18237,
+   "sha256": "60a2b1088880e99b4f12447f75684c1c66ced6a373e21f4e234aaf2c0e57029d"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -924,13 +924,13 @@
   },
   {
    "path": "js/view/hud.js",
-   "size": 2730,
-   "sha256": "8e04550360a713eea08df40573ecc9f9665f59fa28d72775d3900d25d37b6c7e"
+   "size": 2216,
+   "sha256": "96c6db09e1b8e4e6ad84cd8735a242ce56a9c62432fd7603503601a9c2edd8dc"
   },
   {
    "path": "js/view/overview.js",
-   "size": 8633,
-   "sha256": "80a8a040aa813505329dd11c253a136f2e2c2cfd059505a55f929d37710e4f5b"
+   "size": 7920,
+   "sha256": "305ca143739230f5075af4fbfe264ca749065917d545fae2a068abe2665b1c6c"
   },
   {
    "path": "js/view/perf-overlay.js",

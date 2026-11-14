@@ -200,3 +200,68 @@ html, body {
   .switch, .menu-card button, .knob { transition: none; }
   .switch:hover, .menu-card button:hover { transform: none; }
 }
+
+/* ---------- 全窗口地图 / 触摸 UI ---------- */
+
+.scene-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  cursor: default;
+  pointer-events: none;
+  background: var(--color-cel-white);
+}
+
+.scene-canvas[hidden] { display: none; }
+
+#dock {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  z-index: 35;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--color-cel-white);
+  border: var(--line);
+  box-shadow: var(--shadow-hard);
+  opacity: 0;
+  transform: translate(-50%, 120%);
+  transition: transform 160ms linear, opacity 120ms linear;
+  pointer-events: auto;
+}
+
+#dock.open {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+#dock[aria-hidden="true"] { pointer-events: none; }
+
+.dock-row { display: flex; gap: 8px; justify-content: center; }
+
+.dock-btn {
+  min-width: 64px;
+  min-height: 40px;
+  padding: 6px 14px;
+  background: var(--color-cel-white);
+  color: var(--color-ink);
+  border: var(--line);
+  box-shadow: 2px 2px 0 var(--color-ink);
+  font: inherit;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  transition: transform 75ms linear, box-shadow 75ms linear, background 75ms linear;
+}
+
+.dock-btn.active { background: var(--color-sunset); }
+.dock-btn:active { transform: translate(2px, 2px); box-shadow: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  #dock, .dock-btn { transition: none; }
+}

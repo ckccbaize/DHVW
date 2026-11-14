@@ -1,7 +1,7 @@
 // HUD：角标 / 连接点 / 时钟 / Agent 卡 / 端侧产出计数（§10.4）。
 // 角标是"世界档位"唯一可见痕迹；主机不可达时 Agent 卡整卡变灰。
 
-export function createHud({ root, store, onLongPress }) {
+export function createHud({ root, store }) {
   const tierEl = root.querySelector("#tierBadge");
   const dotEl = root.querySelector("#connDot");
   const connEl = root.querySelector("#connText");
@@ -10,7 +10,7 @@ export function createHud({ root, store, onLongPress }) {
   const cardBody = root.querySelector("#agentCardBody");
   const assetEl = root.querySelector("#assetCounts");
   const fpsEl = root.querySelector("#fps");
-  const menu = root.querySelector("#menu");
+  const dock = root.querySelector("#dock");
 
   let menuOpen = false;
 
@@ -48,27 +48,10 @@ export function createHud({ root, store, onLongPress }) {
 
   function toggleMenu(force) {
     menuOpen = force === undefined ? !menuOpen : !!force;
-    menu.hidden = !menuOpen;
+    if (!dock) return;
+    dock.classList.toggle("open", menuOpen);
+    dock.setAttribute("aria-hidden", menuOpen ? "false" : "true");
   }
-
-  // 长按空白出菜单（§10.4 交互）
-  let pressTimer = null;
-  const target = root.querySelector("#stage");
-  target.addEventListener("pointerdown", () => {
-    clearTimeout(pressTimer);
-    pressTimer = setTimeout(() => {
-      toggleMenu(true);
-      onLongPress && onLongPress();
-    }, 600);
-  });
-  const cancel = () => clearTimeout(pressTimer);
-  target.addEventListener("pointerup", cancel);
-  target.addEventListener("pointermove", cancel);
-  target.addEventListener("pointercancel", cancel);
-
-  menu.addEventListener("click", (e) => {
-    if (e.target === menu) toggleMenu(false);
-  });
 
   return { render, setFps, toggleMenu, get menuOpen() { return menuOpen; } };
 }

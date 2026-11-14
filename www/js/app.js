@@ -75,10 +75,38 @@ async function loadConfig() {
 }
 
 
+const SPRITE_PALETTES = [
+  { sweater: "#5b7fa6", hair: "#2e2a33" },
+  { sweater: "#b06a4f", hair: "#3b2b33" },
+  { sweater: "#6f8f63", hair: "#2a2730" },
+  { sweater: "#8a6a9e", hair: "#332a3a" },
+  { sweater: "#c29a4a", hair: "#3a3028" },
+  { sweater: "#4f8f8a", hair: "#263033" },
+];
+
+/** 外层办公室：每个工位（办公桌）配一个精灵，站在对应椅子上。 */
+function buildOfficeSprites(scene) {
+  const desks = (scene.props || []).filter((p) => p.id === "desk_modern");
+  const chairs = (scene.props || []).filter((p) => p.id === "office_chair");
+  return desks.map((desk, i) => {
+    const chair =
+      chairs.find((c) => c.x === desk.x && c.y === desk.y + 1) ||
+      chairs.find((c) => Math.abs(c.x - desk.x) <= 1 && Math.abs(c.y - desk.y) <= 2) ||
+      desk;
+    return {
+      x: chair.x,
+      y: chair.y,
+      dir: { x: 0, y: 1 },
+      palette: SPRITE_PALETTES[i % SPRITE_PALETTES.length],
+    };
+  });
+}
+
 async function boot() {
   const cfg = await loadConfig();
   const sceneName = new URLSearchParams(location.search).get("scene") || cfg.scene || "home";
   const scene = await loadScene(sceneName);
+  const outerScene = await loadScene("office");
 
   const [sx, sy] = spawnPoint(scene);
   const agent = createAgent(sx, sy);
@@ -99,15 +127,15 @@ async function boot() {
   });
 
   const root = $("#app");
-  const overview = createOverview({
-    canvas: $("#scene"),
-    scene,
+  const overview = createOverview({ canvas: $("#scene"), scene, store });
+  const outerOverview = createOverview({
+    canvas: $("#sceneOuter"),
+    scene: outerScene,
     store,
-    onCharacterClick: () => onSwitchRequest(store.state.display !== "present"),
-    onMoveRequest: (x, y) => userMoveTo(x, y),
-    onBubble: (text) => overview.say(text, 2600),
+    sprites: buildOfficeSprites(outerScene),
+    showAgent: false,
   });
-  await overview.load();
+  await Promise.all([overview.load(), outerOverview.load()]);
 
   const present = createPresent({
     root: $("#present"),
@@ -120,6 +148,7 @@ async function boot() {
     createPerfOverlay({ getFps: () => overview.fps });
   }
 
+  let activeView = "inner";
   let displayChangedAt = 0;
   let presentOpenedAt = 0;
   let hostLostAt = 0;
@@ -354,17 +383,6 @@ async function boot() {
     pendingArrival = { room, act };
   }
 
-  function userMoveTo(x, y) {
-    const path = bfsPath(scene.grid, agent.gx, agent.gy, x, y);
-    if (path === null || path.length === 0) {
-      overview.say("那边过不去。", 1800);
-      return false;
-    }
-    moveTo(agent, path, { act: null });
-    pendingArrival = { room: roomAt(x, y), act: null };
-    return true;
-  }
-
   function roomAt(x, y) {
     for (const r of scene.rooms) {
       const [rx, ry, rw, rh] = r.rect;
@@ -427,10 +445,23 @@ async function boot() {
 
   // ---------- 菜单 ----------
 
-  const menu = $("#menu");
+  const dock = $("#dock");
+  function setDock(open) {
+    dock.classList.toggle("open", open);
+    dock.setAttribute("aria-hidden", open ? "false" : "true");
+  }
+  function setView(next) {
+    activeView = next === "outer" ? "outer" : "inner";
+    $("#scene").hidden = activeView !== "inner";
+    $("#sceneOuter").hidden = activeView !== "outer";
+    $("#btnViewInner").classList.toggle("active", activeView === "inner");
+    $("#btnViewOuter").classList.toggle("active", activeView === "outer");
+  }
+  $("#btnViewInner").addEventListener("click", () => setView("inner"));
+  $("#btnViewOuter").addEventListener("click", () => setView("outer"));
   $("#btnPauseForge").addEventListener("click", () => {
     forgePaused = !forgePaused;
-    $("#btnPauseForge").textContent = forgePaused ? "恢复端侧生成" : "暂停端侧生成";
+    $("#btnPauseForge").textContent = forgePaused ? "恢复生成" : "暂停生成";
     if (forgePaused) local.suspend();
     else local.resume();
   });
@@ -439,9 +470,14 @@ async function boot() {
     remote.start();
     overview.say("正在重连主机…", 1800);
   });
-  $("#btnCloseMenu").addEventListener("click", () => hud.toggleMenu(false));
-  menu.addEventListener("click", (e) => {
-    if (e.target === menu) hud.toggleMenu(false);
+  $("#btnCloseDock").addEventListener("click", () => setDock(false));
+
+  // 触摸招出 UI；鼠标点击不触发任何角色行为
+  const stage = $("#stage");
+  stage.addEventListener("pointerdown", (e) => {
+    if (e.pointerType !== "touch") return;
+    if (e.target.closest("#dock")) return;
+    setDock(!dock.classList.contains("open"));
   });
 
   // ---------- 主循环 ----------
@@ -457,8 +493,9 @@ async function boot() {
       pendingArrival = null;
     }
 
-    overview.draw(now);
-    hud.setFps(overview.fps);
+    const view = activeView === "outer" ? outerOverview : overview;
+    view.draw(now);
+    hud.setFps(view.fps);
     activityTick(now);
 
     if (present.isOpen) {
@@ -522,7 +559,7 @@ async function boot() {
     refused: () => refusedCount,
     requestPresent: () => onSwitchRequest(true),
     exitPresent,
-    moveToCell: userMoveTo,
+    moveToCell: () => false,
     lastEvent: () => lastEvent,
     isWalkable,
     forceConn: (v) => handleConn(v, { reason: "debug" }),
