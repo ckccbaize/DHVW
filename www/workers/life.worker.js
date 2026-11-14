@@ -616,7 +616,7 @@ self.onmessage = (e) => {
       if (recentSpots.length > 6) recentSpots.shift();
       pending = null;
       if (phase !== "sleep" && activity !== "asleep") {
-        const text = pickLineCore({
+        const text = (interactionDef?.bubble && String(interactionDef.bubble).trim()) || pickLineCore({
           phase,
           weather,
           act,

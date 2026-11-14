@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T13:47:35.944Z",
+ "built_at": "2026-11-14T14:01:39.223Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -939,8 +939,8 @@
   },
   {
    "path": "workers/life.worker.js",
-   "size": 25698,
-   "sha256": "444860338c6f622cc786c416a2b5522361f196b02386dd0bf7447bd8c9082403"
+   "size": 25766,
+   "sha256": "36c3a87d6833bd742ea353c4b0be13331c9d2915df3c7f402930e014395432fe"
   }
  ]
 }
