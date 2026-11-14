@@ -300,6 +300,12 @@ export function createLocalRuntime({
         onSummary(msg.text);
         break;
       }
+      case "mood": {
+        mood = { ...mood, ...(msg.mood || {}) };
+        backend.setKV("mood", mood).catch(() => {});
+        store.patch({ mood: { ...mood } });
+        break;
+      }
       case "llm_call": {
         void logLlm(msg);
         break;
@@ -1112,6 +1118,9 @@ export function createLocalRuntime({
     },
     async getMood() {
       return { ...mood };
+    },
+    getSnapshot() {
+      return lastSnapshot;
     },
     setQuota(bytes) {
       quota = bytes;

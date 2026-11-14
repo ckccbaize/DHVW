@@ -118,6 +118,15 @@ InteractionExecutor   approach → perform → settle → idle（可打断）
 EffectApplier         按枚举应用效果 → 改心情/标记/时间 → 写事件
 ```
 
+### 4.1 当前落地（W16+）
+
+- `life.worker` 初始化时用 `createInteractionRegistry(scene.interactions)` 建表；
+- 自主漫游前先 `pickInteraction()`：按热点、`requires`、`priority` 打分，命中则走 `planIntent`，否则回退普通漫游；
+- 到达热点后记录 `activeInteraction`，`endsAt = 当前分钟 + duration_min`；
+- 完成时 `applyEffects` 应用心情/标记/事件/气泡，写 `interaction_start` / `interaction_end` 事件；
+- 心情变化通过 `{type:"mood"}` 回传主线程，写入 IDB `mood` 并刷新 UI；
+- 调试页「去阅读 / 去做饭 / 去写作 / 去洗澡」与自主行为共用同一套交互定义。
+
 ### 4.1 执行状态机
 
 ```

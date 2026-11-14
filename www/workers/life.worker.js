@@ -8,6 +8,7 @@ import { weatherAt } from "../js/core/weather.js";
 import { describeMood, moodTone } from "../js/core/mood/describe.js";
 import { pickDuration } from "../js/core/life/acts.js";
 import { ACT_PROPS } from "../js/core/life/plan.js";
+import { applyEffects, createInteractionRegistry, resolveInteraction } from "../js/core/interactions.js";
 
 const cfg = {
   timeScale: 1, // 1× = 现实时间；30× = 1 现实秒 = 1 游戏分钟
@@ -39,6 +40,10 @@ let sleepAt = 22 * 60;
 let wakeAt = 8 * 60;
 let appliedBehaviors = new Set();
 let appliedSudden = false;
+let interactionRegistry = null;
+let activeInteraction = null;
+let interactionFlags = {};
+let interactionCooldowns = {};
 
 function hashDay(n) {
   let x = (n * 2654435761) >>> 0;
@@ -240,6 +245,52 @@ function pickTarget() {
   return { x: h.x, y: h.y, act, room: h.room || room, durationMin: actDuration(act), bed: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1, facing: bed.facing || "S" } : null };
 }
 
+function interactionState() {
+  return {
+    minute: clock.minute,
+    place: currentRoom,
+    weather,
+    mood,
+    flags: interactionFlags,
+    cooldowns: interactionCooldowns,
+  };
+}
+
+function pickInteraction() {
+  if (!interactionRegistry?.ok) return null;
+  const candidates = [];
+  for (const [act, def] of Object.entries(interactionRegistry.acts)) {
+    const hot = (scene.hotspots || []).find((h) => h.act === act);
+    if (!hot) continue;
+    const chosen = resolveInteraction({
+      registry: interactionRegistry,
+      prop: hot.prop,
+      act,
+      state: interactionState(),
+    });
+    if (chosen) candidates.push({ act, hot, score: chosen.score });
+  }
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates[0] || null;
+}
+
+function finishInteraction() {
+  if (!activeInteraction) return;
+  const { act, def } = activeInteraction;
+  const out = applyEffects(def.effects || [], interactionState());
+  mood = out.state.mood;
+  interactionFlags = out.state.flags;
+  interactionCooldowns = out.state.cooldowns;
+  if (def.cooldown_min) interactionCooldowns[act] = clock.minute + Number(def.cooldown_min);
+  emit({ type: "mood", mood: { ...mood } });
+  for (const e of out.events) {
+    if (e.kind === "say") emit({ type: "say", text: e.text, ttl: e.ttl });
+    if (e.kind === "event") event(e.name, e.payload || {});
+  }
+  event("interaction_end", { act });
+  activeInteraction = null;
+}
+
 async function maybeLlmThought() {
   if (!llmCfg?.baseUrl || !llmCfg?.model || llmBusy) return;
   if (phase === "sleep") return;
@@ -388,6 +439,15 @@ function tick() {
     event("weather", { weather, temp: w.temp, wind: w.wind, block: w.block });
   }
 
+  if (activeInteraction && clock.minute >= activeInteraction.endsAt) {
+    try {
+      finishInteraction();
+    } catch (err) {
+      event("interaction_error", { msg: err.message, stack: String(err.stack || "").slice(0, 300) });
+      activeInteraction = null;
+    }
+  }
+
   // 剧情机固定日程：到点强制切换行为；睡眠期间不执行
   if (phase !== "sleep" && plan && plan.day === clock.day) {
     for (let i = 0; i < (plan.behaviors || []).length; i++) {
@@ -406,8 +466,10 @@ function tick() {
   }
 
   // 漫游：活跃档每 10 游戏分钟换一次目标；息屏档不漫游
-  if (phase !== "sleep" && activity !== "asleep" && clock.minute - lastIntentMinute >= cfg.roamMin) {
-    requestIntent("roam");
+  if (!activeInteraction && phase !== "sleep" && activity !== "asleep" && clock.minute - lastIntentMinute >= cfg.roamMin) {
+    const chosen = pickInteraction();
+    if (chosen) planIntent(chosen.act, chosen.hot.room, `interaction:${chosen.act}`);
+    else requestIntent("roam");
   }
   void maybeLlmThought();
 
@@ -422,6 +484,7 @@ function tick() {
     busyUntil,
     sleepAt,
     wakeAt,
+    interaction: activeInteraction ? { act: activeInteraction.act, endsAt: activeInteraction.endsAt } : null,
   });
   if (stats.ticks % 2 === 0) emitSnapshot();
 }
@@ -443,6 +506,7 @@ function snapshotState() {
     wakeAt,
     appliedBehaviors: [...appliedBehaviors],
     appliedSudden,
+    interaction: activeInteraction ? { act: activeInteraction.act, endsAt: activeInteraction.endsAt } : null,
   };
 }
 
@@ -466,6 +530,10 @@ self.onmessage = (e) => {
       if (msg.roamMin) cfg.roamMin = msg.roamMin;
       if (msg.thoughtMin) cfg.thoughtMin = msg.thoughtMin;
       llmCfg = msg.llm || null;
+      interactionRegistry = scene?.interactions ? createInteractionRegistry(scene.interactions) : null;
+      activeInteraction = null;
+      interactionFlags = {};
+      interactionCooldowns = {};
       weather = weatherAt(clock.day, clock.minute).state;
       scheduleFor(clock.day);
       phase = snap?.phase || phaseAt(clock.minute);
@@ -505,6 +573,11 @@ self.onmessage = (e) => {
         break;
       }
       const durationMin = pending?.durationMin || 10;
+      const interactionDef = interactionRegistry?.acts?.[act];
+      if (interactionDef) {
+        activeInteraction = { act, def: interactionDef, endsAt: clock.minute + durationMin };
+        event("interaction_start", { act });
+      }
       if (act) {
         recentActs.push(act);
         if (recentActs.length > 8) recentActs.shift();
