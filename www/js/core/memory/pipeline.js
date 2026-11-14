@@ -30,7 +30,7 @@ export function validateFacts(facts = []) {
   const rejected = [];
   for (const f of facts) {
     const text = String(f?.text || "").trim();
-    if (text.length < 10 || text.length > 60) {
+    if (text.length < 10 || text.length > 120) {
       rejected.push({ text: text.slice(0, 20), reason: "bad_length" });
       continue;
     }

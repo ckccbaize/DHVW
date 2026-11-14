@@ -266,6 +266,8 @@ export function createLocalRuntime({
       case "event": {
         const ev = msg.ev;
         ev.t_corrected = ev.t_local + getOffset();
+        if (ev.kind === "sleep") store.patch({ sleepView: ev.payload?.bed || null });
+        if (ev.kind === "wake") store.patch({ sleepView: null });
         persistEvent(ev);
         onEvent(ev);
         break;
@@ -327,11 +329,27 @@ export function createLocalRuntime({
   async function maybeMemory(force = false) {
     if (!memoryPipeline || suspended) return;
     if (!force && now() - lastMemoryAt < 60000) return;
-    const events = await backend.oldestEvents(40);
-    if (events.length < 3) return;
+    const [events, writings, browses, plots] = await Promise.all([
+      backend.oldestEvents(40),
+      backend.getKV("writings"),
+      backend.getKV("browse_log"),
+      backend.getKV("plots"),
+    ]);
+    const extra = [];
+    for (const w of (writings || []).slice(-10)) extra.push({ kind: "writing", payload: { kind: w.kind, text: w.text }, t_local: w.created_at });
+    for (const b of (browses || []).slice(-10)) {
+      extra.push({
+        kind: "browse",
+        payload: { query: b.plan?.query || b.plan?.url, title: b.result?.page?.title || "", text: b.result?.page?.text || "" },
+        t_local: b.created_at,
+      });
+    }
+    for (const p of (plots || []).slice(-5)) extra.push({ kind: "plot", payload: { text: p.text, event: p.event }, t_local: p.created_at });
+    const allEvents = [...events, ...extra];
+    if (allEvents.length < 3) return;
     lastMemoryAt = now();
     eventsSinceMemory = 0;
-    const res = await memoryPipeline.run(events);
+    const res = await memoryPipeline.run(allEvents);
     if (res.ok) {
       store.patch({ memory: { count: localMemory.count, terms: localMemory.terms } });
       await logLlm({
@@ -358,7 +376,7 @@ export function createLocalRuntime({
       now: `第${tick.day}天 ${hh}:${mm}`,
       period: tick.phase,
       place: tick.room || scene.start,
-      input: "为明天埋一个变化",
+      input: `为明天埋一个变化；明天 ${String(Math.floor((tick.sleepAt || 1380) / 60)).padStart(2, "0")}:${String((tick.sleepAt || 1380) % 60).padStart(2, "0")} 睡、${String(Math.floor((tick.wakeAt || 420) / 60)).padStart(2, "0")}:${String((tick.wakeAt || 420) % 60).padStart(2, "0")} 醒`,
       mood: describeMood(mood),
       recent: JSON.stringify(recentPlots.slice(-5)),
     });

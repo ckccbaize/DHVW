@@ -159,6 +159,26 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
     }
   }
 
+  function drawSleeping(bed, now) {
+    if (!bed) return;
+    const cx = bed.x + (bed.w || 1) / 2;
+    const cy = bed.y + (bed.h || 1) - 0.15;
+    const pseudo = { px: cx, py: cy, state: "idle", frame: 0, dir: { x: 0, y: 1 }, act: "sleep" };
+    drawAgent(pseudo, {}, 0, "sleep");
+    // 被子：盖住床的下半部，留出头
+    const bx = bed.x * cell + 1;
+    const by = bed.y * cell + cell * 0.55;
+    const bw = (bed.w || 1) * cell - 2;
+    const bh = (bed.h || 1) * cell * 0.45;
+    ctx.fillStyle = "#c9626f";
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = "#1a1a2e";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(bx + 1, by + 1, bw - 2, bh - 2);
+    ctx.fillStyle = "rgba(255,255,255,0.18)";
+    ctx.fillRect(bx + 2, by + 2, bw - 4, 3);
+  }
+
   function drawBubble() {
     if (!showAgent || !bubble || bubble.until < performance.now()) return;
     const agent = store.state.agent;
@@ -239,7 +259,11 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
       ctx.fillStyle = "#2a2f3a";
       ctx.fillRect(0, 0, W, H);
     }
-    if (showAgent) drawAgent(agent, {}, now, agent.act);
+    if (showAgent) {
+      const bed = store.state.sleepView;
+      if (bed) drawSleeping(bed, now);
+      else drawAgent(agent, {}, now, agent.act);
+    }
     for (const sp of sprites) {
       drawAgent(
         { px: sp.x + 0.5, py: sp.y + 0.5, state: "idle", frame: 0, dir: sp.dir || { x: 0, y: 1 } },

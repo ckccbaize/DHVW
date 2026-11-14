@@ -32,6 +32,29 @@ let lastLlmMinute = -1e9;
 let llmBusy = false;
 let plan = null;
 let mood = { energy: 0, valence: 0, social: 0, focus: 0 };
+let sleepAt = 23 * 60;
+let wakeAt = 7 * 60;
+
+function hashDay(n) {
+  let x = (n * 2654435761) >>> 0;
+  x ^= x >>> 16;
+  x = Math.imul(x, 0x7feb352d);
+  x ^= x >>> 15;
+  return x >>> 0;
+}
+
+function scheduleFor(day) {
+  const h = hashDay(day);
+  sleepAt = 22 * 60 + (h % 150); // 22:00–00:29
+  wakeAt = 6 * 60 + ((h >>> 8) % 150); // 06:00–08:29
+}
+
+function phaseAt(minute) {
+  if (minute >= sleepAt || minute < wakeAt) return "sleep";
+  if (minute < wakeAt + 60) return "wake";
+  const p = phaseOf(minute);
+  return p === "sleep" ? "wake" : p;
+}
 let saidToday = new Map(); // text -> day
 let recentLines = [];
 let stats = { ticks: 0, intents: 0, says: 0, sinceResume: { rooms: 0, says: 0, sleeps: 0 } };
@@ -170,7 +193,8 @@ function pickTarget() {
   if (mood.energy < -0.25 && Math.random() < 0.4) act = "rest";
   if (mood.valence < -0.3 && Math.random() < 0.3) act = "read";
   if (mood.social > 0.3 && Math.random() < 0.25) act = "sit";
-  return { x: h.x, y: h.y, act, room: h.room || room, durationMin: pickDuration(act) };
+  const bed = act === "sleep" ? (scene.props || []).find((p) => p.id === "bed") : null;
+  return { x: h.x, y: h.y, act, room: h.room || room, durationMin: pickDuration(act), bed: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1 } : null };
 }
 
 async function maybeLlmThought() {
@@ -257,6 +281,7 @@ function debugIntent(act) {
 
 function requestIntent(reason) {
   if (pending) return;
+  if (phase === "sleep" && reason !== "phase:sleep" && reason !== "debug:sleep") return;
   if (clock.minute < busyUntil) return;
   const target = pickTarget();
   if (!target) return;
@@ -270,6 +295,7 @@ function requestIntent(reason) {
     act: target.act,
     room: target.room,
     durationMin: target.durationMin,
+    bed: target.bed,
     reason,
   });
 }
@@ -294,18 +320,20 @@ function tick() {
   anchorMinute = clock.minute;
   anchorReal = Date.now();
 
-  const nextPhase = phaseOf(clock.minute);
+  scheduleFor(clock.day);
+  const nextPhase = phaseAt(clock.minute);
   if (nextPhase !== phase) {
     const prev = phase;
     phase = nextPhase;
     if (phase === "sleep") {
-      event("sleep", { from: prev });
+      const bed = (scene.props || []).find((p) => p.id === "bed");
+      event("sleep", { from: prev, bed: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1 } : null, sleepAt, wakeAt });
       stats.sinceResume.sleeps += 1;
       pending = null;
       busyUntil = clock.minute;
       requestIntent("phase:sleep");
     } else if (prev === "sleep") {
-      event("wake", { to: phase });
+      event("wake", { to: phase, sleepAt, wakeAt });
     }
   }
 
@@ -317,7 +345,7 @@ function tick() {
   }
 
   // 漫游：活跃档每 10 游戏分钟换一次目标；息屏档不漫游
-  if (activity !== "asleep" && clock.minute - lastIntentMinute >= cfg.roamMin) {
+  if (phase !== "sleep" && activity !== "asleep" && clock.minute - lastIntentMinute >= cfg.roamMin) {
     requestIntent("roam");
   }
   void maybeLlmThought();
@@ -331,6 +359,8 @@ function tick() {
     room: currentRoom,
     activity,
     busyUntil,
+    sleepAt,
+    wakeAt,
   });
 }
 
@@ -354,9 +384,14 @@ self.onmessage = (e) => {
       if (msg.thoughtMin) cfg.thoughtMin = msg.thoughtMin;
       llmCfg = msg.llm || null;
       weather = weatherAt(clock.day, clock.minute).state;
-      phase = phaseOf(clock.minute);
+      scheduleFor(clock.day);
+      phase = phaseAt(clock.minute);
       currentRoom = PHASE_ROOM[phase] || "living";
       lastLlmMinute = clock.minute;
+      if (phase === "sleep") {
+        const bed = (scene.props || []).find((p) => p.id === "bed");
+        event("sleep", { from: "boot", bed: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1 } : null, sleepAt, wakeAt });
+      }
       resetAnchor();
       schedule();
       emit({ type: "ready", day: clock.day, minute: clock.minute, phase, weather });
@@ -473,8 +508,8 @@ self.onmessage = (e) => {
         busyUntil = clock.minute;
         requestIntent("debug:wake");
       } else if (kind === "night") {
-        clock.set(clock.day, 22 * 60);
-        phase = "night";
+        clock.set(clock.day, 23 * 60);
+        phase = "sleep";
         pending = null;
         busyUntil = clock.minute;
         requestIntent("debug:night");
