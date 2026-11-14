@@ -203,10 +203,10 @@ export function pickOpenLayout(w = 32, h = 24, seed = "layout") {
   const rawOpen = decompose(interior, w, h);
   const openRects = [];
   const queue = rawOpen.slice();
-  while (queue.length && openRects.length < 10) {
+  while (queue.length && openRects.length < 6) {
     const r = queue.shift();
     const [x, y, ww, hh] = r;
-    if (openRects.length + queue.length < 10 && (ww > 8 || hh > 7) && ww >= 6 && hh >= 6) {
+    if (openRects.length + queue.length < 6 && (ww > 8 || hh > 7) && ww >= 6 && hh >= 6) {
       if (ww >= hh) {
         const half = Math.floor(ww / 2);
         queue.unshift([x, y, half, hh], [x + half, y, ww - half, hh]);

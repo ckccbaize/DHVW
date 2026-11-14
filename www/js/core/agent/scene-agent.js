@@ -1,13 +1,17 @@
 // 场景 Agent：多轮工具调用。LLM 自己画家具（shape 图元），本地只执行工具与校验。
 import { extractJson } from "./json.js";
-import { buildSceneFromLlm, validateLlmScene } from "../../forge/scene-llm.js";
+import { buildSceneFromLlm, validateLlmScene, BIG_ITEMS } from "../../forge/scene-llm.js";
 import { buildInteractions, ACT_DEFS } from "../../forge/scenekit.js";
 import { FURNITURE_SIZES } from "../../forge/furniture.js";
 import { ANIMATIONS } from "../../forge/scene-llm.js";
 
 const TOOLS = {
   get_layout: "返回已定的 rooms/zones/doors/windows/spawn；不要改户型",
+  get_areas: "一次返回全部区域的 rect/floor/现有家具数量/空 3x3 数量",
+  get_area: "返回一个区域的 rect/floor/现有家具/空 3x3 位置。args.id",
+  validate_area: "只校验一个区域。args.id",
   add_props: "追加家具/物体。args.props 是数组；非家居物体用 shape 图元自己画；重叠会被拒绝",
+  move_prop: "移动家具。args.target 是 name/id，args.x/args.y 新坐标",
   remove_props: "删除家具。args.names 或 args.ids 数组",
   clear_props: "清空全部家具，重新摆",
   set_interactions: "设置 interactions；args.interactions.acts 必须是 act id → 定义",
@@ -73,6 +77,52 @@ export async function runSceneAgent({
     const tool = String(call?.tool || "");
     const args = call?.args && typeof call.args === "object" ? call.args : {};
     if (tool === "get_layout") return { tool, result: layout };
+    if (tool === "get_areas") {
+      const areas = [...(layout.rooms || []), ...(layout.zones || [])].map((a) => ({
+        ...a,
+        prop_count: state.props.filter((p) => p.room === a.id).length,
+      }));
+      return { tool, result: { areas } };
+    }
+    if (tool === "get_area") {
+      const id = String(args.id || "");
+      const area = [...(layout.rooms || []), ...(layout.zones || [])].find((a) => a.id === id);
+      if (!area) return { tool, result: { ok: false, error: `area_not_found:${id}` } };
+      const own = state.props.filter((p) => p.room === id);
+      const occupied = new Set();
+      for (const p of own) {
+        const pw = p.w || 1;
+        const ph = p.h || 1;
+        for (let yy = p.y; yy < p.y + ph; yy++) for (let xx = p.x; xx < p.x + pw; xx++) occupied.add(`${xx},${yy}`);
+      }
+      const empty3 = [];
+      const [rx, ry, rw, rh] = area.rect;
+      for (let y = ry; y <= ry + rh - 3 && empty3.length < 20; y++) {
+        for (let x = rx; x <= rx + rw - 3 && empty3.length < 20; x++) {
+          let has = false;
+          for (let yy = y; yy < y + 3 && !has; yy++) for (let xx = x; xx < x + 3; xx++) if (occupied.has(`${xx},${yy}`)) { has = true; break; }
+          if (!has) empty3.push([x, y]);
+        }
+      }
+      return { tool, result: { ...area, props: own.map((p) => ({ name: p.name, id: p.id, x: p.x, y: p.y, w: p.w, h: p.h })), empty_3x3: empty3 } };
+    }
+    if (tool === "validate_area") {
+      const id = String(args.id || "");
+      const errors = validateLlmScene(candidate()).filter((e) => e.includes(`:${id}`) || e.includes(`@${id}`));
+      return { tool, result: { ok: errors.length === 0, errors: errors.slice(0, 30) } };
+    }
+    if (tool === "move_prop") {
+      const target = String(args.target || "");
+      const p = state.props.find((x) => x.name === target || x.id === target);
+      if (!p) return { tool, result: { ok: false, error: `prop_not_found:${target}` } };
+      const nx = Number(args.x);
+      const ny = Number(args.y);
+      if (!Number.isInteger(nx) || !Number.isInteger(ny)) return { tool, result: { ok: false, error: "x/y 必须是整数" } };
+      const old = { x: p.x, y: p.y };
+      p.x = nx;
+      p.y = ny;
+      return { tool, result: { ok: true, target, from: old, to: { x: nx, y: ny } } };
+    }
     if (tool === "add_props") {
       const list = Array.isArray(args.props) ? args.props : [];
       const occupied = new Set();
@@ -88,6 +138,11 @@ export async function runSceneAgent({
       for (const p of list) {
         if (!p || typeof p !== "object" || !p.id) { rejected.push("prop_without_id"); continue; }
         if (p.name && names.has(p.name)) { rejected.push(`duplicate_name:${p.name}`); continue; }
+        const base = String(p.id).replace(/_\d+$/, "");
+        if (BIG_ITEMS.has(base) && base !== "table" && state.props.some((q) => q.id === base || String(q.id).startsWith(`${base}_`))) {
+          rejected.push(`big_item_duplicate:${base}`);
+          continue;
+        }
         const pw = p.w || 1;
         const ph = p.h || 1;
         let clash = false;
@@ -179,8 +234,17 @@ export async function runSceneAgent({
       return { tool, result: { count: state.routes.length, dropped: list.length - state.routes.length } };
     }
     if (tool === "set_spawn") {
-      state.spawn = args.spawn || state.spawn;
-      return { tool, result: state.spawn };
+      const raw = args.spawn && typeof args.spawn === "object" ? args.spawn : args;
+      const x = Number(raw.x);
+      const y = Number(raw.y);
+      if (!Number.isInteger(x) || !Number.isInteger(y)) return { tool, result: { ok: false, error: "x/y 必须是整数" } };
+      const prev = state.spawn;
+      state.spawn = { x, y };
+      if (validateLlmScene(candidate()).includes("spawn")) {
+        state.spawn = prev;
+        return { tool, result: { ok: false, error: "spawn_invalid", suggested: layout.spawn } };
+      }
+      return { tool, result: { ok: true, spawn: state.spawn } };
     }
     if (tool === "validate") {
       const errors = validateLlmScene(candidate());

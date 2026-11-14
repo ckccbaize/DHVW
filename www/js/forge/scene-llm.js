@@ -25,7 +25,7 @@ const ANIMATION_ALIAS = {
 };
 
 const NON_BLOCK = new Set(["rug", "door_mat", "bath_mat"]);
-const BIG_ITEMS = new Set(["bed", "wardrobe", "dresser", "desk", "bookshelf", "sofa", "tv", "counter", "stove", "fridge", "table", "bench", "cat_tree", "coffee_table"]);
+export const BIG_ITEMS = new Set(["bed", "wardrobe", "dresser", "desk", "bookshelf", "sofa", "tv", "counter", "stove", "fridge", "table", "bench", "cat_tree", "coffee_table"]);
 
 function inside(room, x, y, w, h) {
   const [rx, ry, rw, rh] = room.rect;
