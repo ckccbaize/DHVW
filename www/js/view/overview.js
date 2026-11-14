@@ -161,16 +161,49 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
 
   function drawSleeping(bed, now) {
     if (!bed) return;
-    const cx = bed.x + (bed.w || 1) / 2;
-    const cy = bed.y + (bed.h || 1) - 0.15;
+    const vertical = (bed.h || 1) >= (bed.w || 1);
     const dirs = { N: { x: 0, y: -1 }, S: { x: 0, y: 1 }, E: { x: 1, y: 0 }, W: { x: -1, y: 0 } };
-    const pseudo = { px: cx, py: cy, state: "idle", frame: 0, dir: dirs[bed.facing] || dirs.S, act: "sleep" };
-    drawAgent(pseudo, {}, now, "sleep");
-    // 被子：盖住床的下半部，留出头
-    const bx = bed.x * cell + 1;
-    const by = bed.y * cell + cell * 0.55;
-    const bw = (bed.w || 1) * cell - 2;
-    const bh = (bed.h || 1) * cell * 0.45;
+    const facing = dirs[bed.facing] || dirs.S;
+    const dir = vertical ? { x: 1, y: 0 } : facing;
+    const cx = (bed.x + (bed.w || 1) / 2) * cell;
+    const cy = (bed.y + (bed.h || 1) / 2) * cell;
+
+    // 角色：沿床的长轴躺下；竖床把头转到枕头一侧
+    if (charSheet && charImg) {
+      const anim = charSheet.animations.sleep || charSheet.animations.idle;
+      const frames = anim.frames[dirName(dir)] || anim.frames.S || [0];
+      const idx = frames[Math.floor((now / 1000) * anim.fps) % frames.length];
+      const fw = charSheet.frame.w;
+      const fh = charSheet.frame.h;
+      const sx = (idx % 4) * fw;
+      const sy = Math.floor(idx / 4) * fh;
+      const k = cell / 24;
+      const dw = fw * k;
+      const dh = fh * k;
+      ctx.save();
+      ctx.translate(cx, cy);
+      if (vertical) ctx.rotate(-Math.PI / 2);
+      ctx.drawImage(charImg, sx, sy, fw, fh, -dw / 2, -dh / 2, dw, dh);
+      ctx.restore();
+    } else {
+      const pseudo = { px: bed.x + (bed.w || 1) / 2, py: bed.y + (bed.h || 1) / 2, state: "idle", frame: 0, dir, act: "sleep" };
+      drawAgent(pseudo, {}, now, "sleep");
+    }
+
+    // 被子：盖住身体，露出头；竖床从胸口往下，横床从身体中部往脚
+    let bx, by, bw, bh;
+    if (vertical) {
+      bx = bed.x * cell + 1;
+      by = bed.y * cell + (bed.h || 1) * cell * 0.42;
+      bw = (bed.w || 1) * cell - 2;
+      bh = (bed.h || 1) * cell * 0.58;
+    } else {
+      const headEast = (bed.facing || "E") === "E";
+      bx = bed.x * cell + (headEast ? 1 : (bed.w || 1) * cell * 0.42);
+      by = bed.y * cell + 1;
+      bw = (bed.w || 1) * cell * 0.58;
+      bh = (bed.h || 1) * cell - 2;
+    }
     ctx.fillStyle = "#c9626f";
     ctx.fillRect(bx, by, bw, bh);
     ctx.strokeStyle = "#1a1a2e";
