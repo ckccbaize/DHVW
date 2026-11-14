@@ -287,3 +287,54 @@ body:not(.ui-open) #agentCard { transform: translateY(-8px); }
 
 body:not(.ui-open) .asset-counts,
 body:not(.ui-open) #switch { transform: translateY(8px); }
+
+/* ---------- 生活控制台 ---------- */
+
+.console-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  width: min(460px, 94vw);
+  height: 100%;
+  background: var(--color-cel-white);
+  border-left: var(--line);
+  box-shadow: -4px 0 0 var(--color-ink);
+  animation: console-in 160ms linear;
+}
+
+.console-panel[hidden] { display: none; }
+
+@keyframes console-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.console-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: var(--line);
+  font-size: 14px;
+}
+
+.console-body {
+  flex: 1;
+  overflow: auto;
+  padding: 10px 12px 24px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.console-body section { margin-bottom: 14px; }
+.console-body h3 { margin: 0 0 6px; font-size: 12px; color: var(--color-ink); }
+.console-body .row { border-bottom: 1px solid rgba(26, 26, 46, 0.18); padding: 4px 0; }
+.console-body .pre { white-space: pre-wrap; word-break: break-word; color: #33334a; }
+.console-body .muted { color: #6b6b7b; }
+.console-body .ok { color: #1f7a3d; }
+.console-body .bad { color: #b3261e; }
+#consoleStatus { margin: 0; white-space: pre-wrap; font: inherit; }

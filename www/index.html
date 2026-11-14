@@ -40,12 +40,28 @@
       <span class="switch-label">显现</span>
     </div>
 
+    <div id="consolePanel" class="console-panel" hidden>
+      <header class="console-head">
+        <strong>生活控制台</strong>
+        <button id="btnCloseConsole" class="dock-btn" type="button">关闭</button>
+      </header>
+      <div class="console-body">
+        <section><h3>状态</h3><pre id="consoleStatus"></pre></section>
+        <section><h3>LLM 调用</h3><div id="consoleLlm"></div></section>
+        <section><h3>本地记忆</h3><div id="consoleMemory"></div></section>
+        <section><h3>剧情 / 心情</h3><div id="consolePlots"></div></section>
+        <section><h3>写作</h3><div id="consoleWritings"></div></section>
+        <section><h3>最近事件</h3><div id="consoleEvents"></div></section>
+      </div>
+    </div>
+
     <div id="dock" class="dock" aria-hidden="true">
       <div class="dock-row">
         <button id="btnViewInner" class="dock-btn active" type="button">里</button>
         <button id="btnViewOuter" class="dock-btn" type="button">外</button>
       </div>
       <div class="dock-row">
+        <button id="btnConsole" class="dock-btn" type="button">控制台</button>
         <button id="btnReconnect" class="dock-btn" type="button">重连</button>
         <button id="btnCloseDock" class="dock-btn" type="button">收起</button>
       </div>

@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T04:46:13.169Z",
+ "built_at": "2026-11-14T04:52:16.214Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -569,8 +569,8 @@
   },
   {
    "path": "css/cel.css",
-   "size": 7023,
-   "sha256": "15894d7d56c04d9646c7fc57f473efa6f8995e5aaa9bd3ac3c74ed41b886a8f6"
+   "size": 8303,
+   "sha256": "51b25ac5f85d6f6e84018d9934cf7419ade79594b57eb5f9fde39ca968c21529"
   },
   {
    "path": "css/tokens.css",
@@ -589,13 +589,13 @@
   },
   {
    "path": "index.html",
-   "size": 2786,
-   "sha256": "fa57d821bf4ed2cec89670131c98e0298aef17219f02d37554f381568a8071bb"
+   "size": 3621,
+   "sha256": "d88b1e74f73b24d4fa34da2dcf35b31f76702053b9d8c1ad578ae0546a4e5e92"
   },
   {
    "path": "js/app.js",
-   "size": 18050,
-   "sha256": "4e71b59ca9dbbe0bb00fbf4bca9c8c572b04c5ef08cc767bfe7f25d381c20b91"
+   "size": 21106,
+   "sha256": "66f76f1b70f5e1c008141faa37e946b5e08608fe509902a639c8bf09de4518cc"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -914,8 +914,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 23757,
-   "sha256": "87c98caa88637e7e7a8af437c6693dca2abad9daba0edfadaff6402c55bce533"
+   "size": 23875,
+   "sha256": "b8b11bb48f5783a4d766c27a62e2239c3e3a66806f66b74c11c97033bd06ef5c"
   },
   {
    "path": "js/runtime/remote.js",

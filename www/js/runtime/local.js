@@ -727,6 +727,10 @@ export function createLocalRuntime({
     async getPlots() {
       return (await backend.getKV("plots")) || [];
     },
+    async getEvents(n = 80) {
+      const rows = await backend.oldestEvents(400);
+      return rows.slice(-n);
+    },
     async getDailyPlots() {
       return dailyPlots;
     },
