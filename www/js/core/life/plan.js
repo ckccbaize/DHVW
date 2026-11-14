@@ -1,12 +1,34 @@
 // 剧情日程的地点/动作校验：动作必须在有对应热点的房间执行。
 // 纯函数，Node 与浏览器共用。
 
+export const ACT_PROPS = Object.freeze({
+  read: ["shelf", "bookshelf"],
+  cook: ["counter", "stove", "fridge"],
+  write: ["desk", "table", "coffee_table"],
+  eat: ["table"],
+  watch: ["tv"],
+  rest: ["sofa", "armchair", "coffee_table", "nightstand"],
+  dress: ["wardrobe", "dresser", "coat_rack"],
+  bath: ["bathtub"],
+  wash: ["sink"],
+  laundry: ["washer"],
+  play: ["cat_tree"],
+  water: ["plant", "plant_big"],
+  light: ["lamp"],
+  toilet: ["toilet"],
+  sit: ["chair", "stool", "bench"],
+  sleep: ["bed"],
+});
+
 export function createActRoomMap(hotspots = []) {
   const map = new Map();
   for (const h of hotspots) {
-    if (!h.act || !h.room) continue;
-    if (!map.has(h.act)) map.set(h.act, new Set());
-    map.get(h.act).add(h.room);
+    if (!h.room) continue;
+    for (const [act, props] of Object.entries(ACT_PROPS)) {
+      if (h.act !== act && !props.includes(h.prop)) continue;
+      if (!map.has(act)) map.set(act, new Set());
+      map.get(act).add(h.room);
+    }
   }
   return map;
 }

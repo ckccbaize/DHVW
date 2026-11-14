@@ -7,6 +7,7 @@ import { pickLine as pickLineCore, tickInterval } from "../js/core/life/lines.js
 import { weatherAt } from "../js/core/weather.js";
 import { describeMood, moodTone } from "../js/core/mood/describe.js";
 import { pickDuration } from "../js/core/life/acts.js";
+import { ACT_PROPS } from "../js/core/life/plan.js";
 
 const cfg = {
   timeScale: 1, // 1× = 现实时间；30× = 1 现实秒 = 1 游戏分钟
@@ -27,6 +28,7 @@ let lastIntentMinute = -1e9;
 let pending = null; // {x,y,act,room,durationMin}
 let busyUntil = -1e9;
 let recentSpots = [];
+let recentActs = [];
 let llmCfg = null;
 let lastLlmMinute = -1e9;
 let llmBusy = false;
@@ -168,6 +170,18 @@ function hotspotsIn(room) {
   return (scene.hotspots || []).filter((h) => !room || h.room === room);
 }
 
+function spotsForAct(act, room) {
+  const props = DEBUG_ACT_PROP[act] || [];
+  return (scene.hotspots || []).filter(
+    (h) => (!room || h.room === room) && (h.act === act || props.includes(h.prop)),
+  );
+}
+
+function pickSpotForAct(act, room) {
+  const pool = spotsForAct(act, room);
+  return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+}
+
 function pickTarget() {
   const planPlace = plan && plan.day === clock.day ? plan.place : null;
   const room = planPlace || PHASE_ROOM[phase] || "living";
@@ -182,7 +196,7 @@ function pickTarget() {
   // 避开最近去过的热点，减少原地重复
   const fresh = list.filter((h) => !recentSpots.includes(`${h.x},${h.y}`));
   if (fresh.length) list = fresh;
-  const h = list[Math.floor(Math.random() * list.length)];
+  let h = list[Math.floor(Math.random() * list.length)];
   let act = h.act;
   // 剧情安排的动作优先（必须找到对应热点）
   if (plan && plan.day === clock.day && plan.act) {
@@ -193,14 +207,26 @@ function pickTarget() {
       return { x: p.x, y: p.y, act: plan.act, room: p.room || room, durationMin: pickDuration(plan.act) };
     }
   }
-  // 晚上有概率改成写作（桌边/沙发/床边都行）
-  if ((phase === "evening" || phase === "night") && Math.random() < 0.18) {
-    act = "write";
+  // 晚上偶尔写作：必须找到可写热点，且当天没写过
+  if ((phase === "evening" || phase === "night") && !recentActs.includes("write") && Math.random() < 0.06) {
+    const spot = pickSpotForAct("write");
+    if (spot) {
+      h = spot;
+      act = "write";
+    }
   }
-  // 心情偏置：低能量想歇，低情绪想静，高社交想出门
-  if (mood.energy < -0.25 && Math.random() < 0.4) act = "rest";
-  if (mood.valence < -0.3 && Math.random() < 0.3) act = "read";
-  if (mood.social > 0.3 && Math.random() < 0.25) act = "sit";
+  // 心情偏置：只改到有对应热点的位置
+  const bias = (next, chance) => {
+    if (Math.random() >= chance) return;
+    const spot = pickSpotForAct(next);
+    if (spot) {
+      h = spot;
+      act = next;
+    }
+  };
+  if (mood.energy < -0.25) bias("rest", 0.4);
+  if (mood.valence < -0.3) bias("read", 0.3);
+  if (mood.social > 0.3) bias("sit", 0.25);
   const bed = act === "sleep" ? (scene.props || []).find((p) => p.id === "bed") : null;
   return { x: h.x, y: h.y, act, room: h.room || room, durationMin: pickDuration(act), bed: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1, facing: bed.facing || "S" } : null };
 }
@@ -252,24 +278,7 @@ async function maybeLlmThought() {
   }
 }
 
-const DEBUG_ACT_PROP = {
-  read: ["shelf", "bookshelf"],
-  cook: ["counter", "stove", "fridge"],
-  write: ["table", "desk", "coffee_table"],
-  eat: ["table"],
-  watch: ["tv"],
-  rest: ["sofa", "armchair", "coffee_table"],
-  dress: ["wardrobe", "dresser", "coat_rack"],
-  bath: ["bathtub"],
-  wash: ["sink"],
-  laundry: ["washer"],
-  play: ["cat_tree"],
-  water: ["plant", "plant_big"],
-  light: ["lamp"],
-  toilet: ["toilet"],
-  sit: ["chair", "stool", "bench"],
-  sleep: ["bed"],
-};
+const DEBUG_ACT_PROP = ACT_PROPS;
 
 function planIntent(act, place, reason) {
   pending = null;
@@ -487,6 +496,10 @@ self.onmessage = (e) => {
         break;
       }
       const durationMin = pending?.durationMin || 10;
+      if (act) {
+        recentActs.push(act);
+        if (recentActs.length > 8) recentActs.shift();
+      }
       event("act", { act, room, durationMin });
       busyUntil = clock.minute + durationMin;
       if (act === "write") emit({ type: "write", room, act, day: clock.day, minute: clock.minute });

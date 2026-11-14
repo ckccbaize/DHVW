@@ -499,10 +499,14 @@ export function createLocalRuntime({
       const place = actPlace || requestedPlace;
       const sleepAt = parseClock(obj?.sleepAt, 22 * 60);
       const wakeAt = parseClock(obj?.wakeAt, 8 * 60);
-      const behaviors = normalizeBehaviors(
+      const normalized = normalizeBehaviors(
         (obj?.behaviors || []).map((b) => ({ ...b, minute: parseClock(b?.time, -1) })),
         { rooms, hotspots: scene.hotspots || [], fallbackPlace: place },
-      ).slice(0, 12);
+      );
+      let writeCount = 0;
+      const behaviors = normalized
+        .filter((b) => (b.act === "write" ? writeCount++ < 1 : true))
+        .slice(0, 12);
       const sudden = obj?.sudden && obj.sudden.enabled
         ? {
             minute: parseClock(obj.sudden.time, 15 * 60),

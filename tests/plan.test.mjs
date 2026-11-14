@@ -7,6 +7,8 @@ const hotspots = [
   { act: "watch", room: "living" },
   { act: "sleep", room: "bedroom" },
   { act: "bath", room: "bath" },
+  { prop: "table", act: "eat", room: "hall" },
+  { prop: "coffee_table", act: "rest", room: "living" },
 ];
 
 test("roomForAct：动作只在有热点的房间执行", () => {
@@ -14,6 +16,7 @@ test("roomForAct：动作只在有热点的房间执行", () => {
   assert.equal(roomForAct(map, "cook", "bedroom"), "hall");
   assert.equal(roomForAct(map, "cook", "hall"), "hall");
   assert.equal(roomForAct(map, "dance", "living"), null);
+  assert.equal(roomForAct(map, "write", "bedroom"), "hall");
 });
 
 test("normalizeBehaviors：错地点改到可用房间，无热点动作丢弃", () => {
