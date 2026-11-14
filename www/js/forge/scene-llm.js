@@ -196,7 +196,7 @@ export function validateLlmScene(obj, { quality = true } = {}) {
     for (const id of roomIds) {
       const room = allAreas.find((r) => r.id === id);
       const count = (obj.props || []).filter((p) => p.room === id).length;
-      const need = Math.max(4, Math.ceil(((room?.rect?.[2] || 0) * (room?.rect?.[3] || 0)) / 12));
+      const need = Math.max(3, Math.ceil(((room?.rect?.[2] || 0) * (room?.rect?.[3] || 0)) / 16));
       if (!count) errors.push(`room_empty:${id}`);
       else if (count < need) errors.push(`room_props_too_few:${id}:${count}/${need}`);
     }

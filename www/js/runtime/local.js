@@ -16,10 +16,7 @@ import { normalizeBehaviors, roomForAct, createActRoomMap } from "../core/life/p
 import { buildScene } from "../forge/scene.js";
 import { buildOpenSceneSpec } from "../forge/scene-spec.js";
 import { buildScenePackage, saveScenePackage } from "../core/scene-package.js";
-import { buildSceneFromLlm, ANIMATIONS } from "../forge/scene-llm.js";
-import { FURNITURE_SIZES } from "../forge/furniture.js";
-import { ACT_DEFS } from "../forge/scenekit.js";
-import { EFFECT_KINDS } from "../core/interactions.js";
+import { runSceneAgent } from "../core/agent/scene-agent.js";
 
 const EVENT_CAP = 2000;
 const DEFAULT_QUOTA = 500 * 1024 * 1024;
@@ -639,57 +636,31 @@ export function createLocalRuntime({
     let prompt = "";
     const layout = pickOpenLayout(32, 24, `${kind}-${Date.now()}`);
     if (llm && registry) {
-      const basePrompt = registry.render("scene", {
-        description,
+      const agent = await runSceneAgent({
+        llm,
+        registry,
+        layout,
         kind,
         name,
-        grid: "32×24，cell=16",
-        layout: JSON.stringify(layout),
-        furniture: Object.keys(FURNITURE_SIZES).join(", "),
-        acts: Object.keys(ACT_DEFS).join(", "),
-        animations: [...ANIMATIONS].join(", "),
-        effects: [...EFFECT_KINDS].join(", "),
-      });
-      let lastErrors = [];
-      for (let attempt = 0; attempt < 2 && !scene; attempt++) {
-        prompt = attempt === 0
-          ? basePrompt
-          : `${basePrompt}\n\n上一次输出有以下错误，请修正后重新输出完整 JSON：\n${lastErrors.join("; ")}`;
-        try {
-          const res = await llm.complete({
-            messages: [{ role: "user", content: prompt }],
-            maxTokens: 8192,
-            temperature: attempt === 0 ? 0.7 : 0.4,
-            json: true,
-            cls: "work",
-            kind: "scene",
+        description,
+        maxTurns: 18,
+        onTurn: async (turn) => {
+          await logLlm({
+            agent: "scene-agent",
+            ok: turn.ok !== false,
+            turn: turn.turn,
+            tool: turn.tool,
+            result: turn.result || null,
+            error: turn.error || null,
+            raw: turn.raw || null,
           });
-          const obj = extractJson(res.text);
-          const merged = obj && typeof obj === "object"
-            ? {
-                ...layout,
-                ...obj,
-                grid: layout.grid,
-                rooms: layout.rooms,
-                zones: layout.zones,
-                doors: layout.doors,
-                windows: layout.windows,
-                wallStyle: layout.wallStyle,
-                spawn: obj.spawn || layout.spawn,
-              }
-            : obj;
-          const built = buildSceneFromLlm(merged, { grid: { w: 32, h: 24 } });
-          if (built.ok) {
-            scene = built.scene;
-            await logLlm({ agent: "scene", ok: true, ms: now() - t0, prompt, response: res.text });
-          } else {
-            lastErrors = built.errors;
-            await logLlm({ agent: "scene", ok: false, ms: now() - t0, prompt, response: `${built.errors.join("; ")}\n${res.text}` });
-          }
-        } catch (err) {
-          lastErrors = [err.message];
-          await logLlm({ agent: "scene", ok: false, ms: now() - t0, prompt, response: err.message });
-        }
+        },
+      });
+      if (agent.ok) {
+        scene = agent.scene;
+        await logLlm({ agent: "scene-agent", ok: true, ms: now() - t0, response: `turns=${agent.turns} props=${scene.props?.length || 0}` });
+      } else {
+        await logLlm({ agent: "scene-agent", ok: false, ms: now() - t0, response: `${agent.reason || "failed"}: ${(agent.errors || []).slice(0, 8).join("; ")}` });
       }
     }
     if (!scene) {
