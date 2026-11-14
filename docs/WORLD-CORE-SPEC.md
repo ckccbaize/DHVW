@@ -479,7 +479,7 @@ score(hotspot) = 1.0
 触发后把**全部已有场景池**（排除 home/office）和**深层记忆**交给 `outing` prompt，由 LLM 决定：
 
 - `mode:"existing"`：从场景池选一个，直接旅行，不提交生成请求；
-- `mode:"new"`：给出 `kind/name/description/distance`，写入 `sceneRequests` 交 PC 生成；`scene:ready` 后加入地点图并按 `travel:true` 旅行。
+- `mode:"new"`：给出 `kind/name/description/distance`，写入 `sceneRequests` 交 PC 生成；`kind` 只能是 `indoor`（室内）或 `street`（街道）。`scene:ready` 后加入地点图并按 `travel:true` 旅行。
 
 产出 `outing:intent`：`{mode, destination, description, moodDelta, mapSpec:{kind,name,distance,description,seed}}`。心情增量走 `life.applyMood(..., {source:"plot"})`。
 

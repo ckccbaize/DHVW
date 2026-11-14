@@ -148,7 +148,7 @@
   "world": {"display":"overview","conn":"up","tier":"idle"},
   "life": {"minute":480,"phase":"morning","band":"calm","mood":{}},
   "agenda": [{"id":"plot-…","kind":"plot","at":0,"status":"done","payload":{}}],
-  "sceneRequests": [{"id":"scene-…","reason":"outing","mode":"new","mapSpec":{"kind":"lively","name":"集市","distance":7,"description":"有摊位和暖灯的集市","seed":"11-13-1"},"travel":true,"status":"pending"}],
+  "sceneRequests": [{"id":"scene-…","reason":"outing","mode":"new","mapSpec":{"kind":"street","name":"集市","distance":7,"description":"有摊位和暖灯的集市","seed":"11-13-1"},"travel":true,"status":"pending"}],
   "pcActions": [{"id":"pc-…","action":"map.generate","args":{},"status":"queued|sent|acked|failed"}],
   "recentEvents": [], "budget": {}, "eventPool": {}, "outing": {}, "lastPlot": {}
 }
@@ -156,7 +156,7 @@
 
 `pc:action` 白名单：`map.generate` / `app.open` / `media.play` / `notify` / `web.open`；不在白名单直接拒绝。
 
-`sceneRequests` 由 ARM 核心机在出门意愿触发时产生：`mode:"existing"` 只旅行到已有场景，不生成；`mode:"new"` 带 `mapSpec.description` 提交 PC 生成。PC 回 `scene:ready` 后，ARM 把场景加入地点图；`travel:true` 时再执行旅行。
+`sceneRequests` 由 ARM 核心机在出门意愿触发时产生：`mode:"existing"` 只旅行到已有场景，不生成；`mode:"new"` 带 `mapSpec.description` 提交 PC 生成。`mapSpec.kind` 只有 `indoor`（室内）与 `street`（街道）两种。PC 回 `scene:ready` 后，ARM 把场景加入地点图；`travel:true` 时再执行旅行。
 
 ### 3.3 连接与幂等
 

@@ -12,7 +12,7 @@ test("buildDigest：字段齐全且可 JSON 化", () => {
     world: { display: "overview", conn: "up", tier: "idle" },
     life: { minute: 480, mood: { valence: 0.5 } },
     agenda: [{ id: "a1", kind: "plot", status: "done" }],
-    sceneRequests: [{ id: "s1", mapSpec: { kind: "lively" }, status: "pending" }],
+    sceneRequests: [{ id: "s1", mapSpec: { kind: "street" }, status: "pending" }],
     pcActions: [{ id: "p1", action: "map.generate", status: "queued" }],
     recentEvents: [{ seq: 9, kind: "plot:generated" }],
   });

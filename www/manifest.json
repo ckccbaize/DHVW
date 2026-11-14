@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T13:07:01.911Z",
+ "built_at": "2026-11-14T13:11:07.241Z",
  "files": [
   {
    "path": "agent/registry.json",
-   "size": 12465,
-   "sha256": "f5321d2ee3cf5dbd7b12873442fdee3930dfa3a62a7b618bd67a904d2b74172b"
+   "size": 12445,
+   "sha256": "2cd30d5c6a0a3e537131b366ef3151e5b51c3ae29853995cec5b56615371418e"
   },
   {
    "path": "assets/char/ojj_sheet.json",
@@ -590,7 +590,7 @@
   {
    "path": "debug-core.html",
    "size": 33842,
-   "sha256": "1626b144dce0aa71a1c19de514b8ffb9d9bb42b8d39c647d43b187289afcde08"
+   "sha256": "84d4686ff6a984571dad6d63d596e72fd9d9229834084a52c0977881d16956a8"
   },
   {
    "path": "debug-life.html",
@@ -724,8 +724,8 @@
   },
   {
    "path": "js/core/life/outing.js",
-   "size": 5121,
-   "sha256": "8664bd6eb0acd5d8b42fac1029ab9a21f94759aa53660ce0fa7e60a01b73ce79"
+   "size": 5048,
+   "sha256": "03b658e9f410ad808bf788b71b220cb3f14ec361f1c8070e74341bfbd833a61b"
   },
   {
    "path": "js/core/life/plan.js",
@@ -874,8 +874,8 @@
   },
   {
    "path": "js/core/worker.js",
-   "size": 72293,
-   "sha256": "a0f59216dc3060d9689869623c5384e66be72c5451f3c19355f63f605d94e8e3"
+   "size": 72267,
+   "sha256": "eb24ef27031b4d79c02e85e27974e2cc83bbaec7cab4378871787a866e716a60"
   },
   {
    "path": "js/forge/grammar.js",

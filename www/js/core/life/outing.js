@@ -6,26 +6,26 @@ import { MOOD_BASE } from "../machine/life.js";
 const DAY = 24 * 60 * 1000;
 
 export const DESTINATIONS = [
-  { id: "park", name: "公园", kind: "nature", distance: 10, mood: { valence: 0.08, energy: -0.02 } },
-  { id: "riverside", name: "江边", kind: "nature", distance: 15, mood: { valence: 0.09, social: 0.02 } },
-  { id: "hill", name: "小山坡", kind: "nature", distance: 25, mood: { valence: 0.1, energy: -0.08 } },
-  { id: "bookstore", name: "书店", kind: "quiet", distance: 8, mood: { valence: 0.05, focus: 0.06 } },
-  { id: "library", name: "图书馆", kind: "quiet", distance: 9, mood: { focus: 0.08, social: -0.03 } },
-  { id: "cafe", name: "咖啡馆", kind: "social", distance: 6, mood: { valence: 0.06, social: 0.06 } },
-  { id: "market", name: "集市", kind: "lively", distance: 7, mood: { valence: 0.07, social: 0.08, energy: -0.03 } },
-  { id: "night-market", name: "夜市", kind: "lively", distance: 12, mood: { valence: 0.1, social: 0.1, energy: -0.05 } },
-  { id: "cinema", name: "电影院", kind: "lively", distance: 11, mood: { valence: 0.09, social: 0.04 } },
-  { id: "convenience", name: "便利店", kind: "errand", distance: 3, mood: { valence: 0.02 } },
+  { id: "park", name: "公园", kind: "street", distance: 10, mood: { valence: 0.08, energy: -0.02 } },
+  { id: "riverside", name: "江边", kind: "street", distance: 15, mood: { valence: 0.09, social: 0.02 } },
+  { id: "hill", name: "小山坡", kind: "street", distance: 25, mood: { valence: 0.1, energy: -0.08 } },
+  { id: "bookstore", name: "书店", kind: "indoor", distance: 8, mood: { valence: 0.05, focus: 0.06 } },
+  { id: "library", name: "图书馆", kind: "indoor", distance: 9, mood: { focus: 0.08, social: -0.03 } },
+  { id: "cafe", name: "咖啡馆", kind: "indoor", distance: 6, mood: { valence: 0.06, social: 0.06 } },
+  { id: "market", name: "集市", kind: "street", distance: 7, mood: { valence: 0.07, social: 0.08, energy: -0.03 } },
+  { id: "night-market", name: "夜市", kind: "street", distance: 12, mood: { valence: 0.1, social: 0.1, energy: -0.05 } },
+  { id: "cinema", name: "电影院", kind: "indoor", distance: 11, mood: { valence: 0.09, social: 0.04 } },
+  { id: "convenience", name: "便利店", kind: "indoor", distance: 3, mood: { valence: 0.02 } },
 ];
 
 /** 公历特殊日期；可用 kv special_dates 覆盖/追加。 */
 export const SPECIAL_DATES = {
-  "01-01": { name: "元旦", kinds: ["lively", "nature"], boost: 0.35 },
-  "02-14": { name: "情人节", kinds: ["social", "lively"], boost: 0.4 },
-  "05-01": { name: "劳动节", kinds: ["nature", "lively"], boost: 0.3 },
-  "06-01": { name: "儿童节", kinds: ["nature", "lively"], boost: 0.25 },
-  "10-01": { name: "国庆", kinds: ["lively", "nature"], boost: 0.35 },
-  "12-25": { name: "圣诞", kinds: ["social", "lively"], boost: 0.3 },
+  "01-01": { name: "元旦", kinds: ["street"], boost: 0.35 },
+  "02-14": { name: "情人节", kinds: ["indoor", "street"], boost: 0.4 },
+  "05-01": { name: "劳动节", kinds: ["street"], boost: 0.3 },
+  "06-01": { name: "儿童节", kinds: ["street"], boost: 0.25 },
+  "10-01": { name: "国庆", kinds: ["street"], boost: 0.35 },
+  "12-25": { name: "圣诞", kinds: ["indoor", "street"], boost: 0.3 },
 };
 
 export function dateKey(ts) {
@@ -53,8 +53,8 @@ function weightOf(d, mood, special) {
   let w = 1;
   if (special?.kinds?.includes(d.kind)) w *= 3;
   if (mood.energy < 0.4) w *= d.distance <= 12 ? 1.5 : 0.6;
-  if (mood.social > 0.6) w *= ["social", "lively"].includes(d.kind) ? 1.6 : 0.8;
-  if (mood.social < 0.3) w *= ["nature", "quiet"].includes(d.kind) ? 1.5 : 0.7;
+  if (mood.social > 0.6) w *= d.kind === "street" ? 1.6 : 0.8;
+  if (mood.social < 0.3) w *= d.kind === "indoor" ? 1.5 : 0.7;
   return w;
 }
 

@@ -144,7 +144,7 @@ PC 三种读法：
   "world": {"display":"overview","conn":"up","tier":"idle"},
   "life": {"minute":480,"phase":"morning","band":"calm","mood":{}},
   "agenda": [{"id":"plot-…","kind":"plot","at":0,"status":"done","payload":{}}],
-  "sceneRequests": [{"id":"scene-…","reason":"outing","mode":"new","mapSpec":{"kind":"lively","name":"集市","distance":7,"description":"有摊位和暖灯的集市","seed":"11-13-1"},"travel":true,"status":"pending"}],
+  "sceneRequests": [{"id":"scene-…","reason":"outing","mode":"new","mapSpec":{"kind":"street","name":"集市","distance":7,"description":"有摊位和暖灯的集市","seed":"11-13-1"},"travel":true,"status":"pending"}],
   "pcActions": [{"id":"pc-…","action":"map.generate","args":{},"status":"queued|sent|acked|failed"}],
   "recentEvents": [], "budget": {}, "eventPool": {}, "outing": {},
   "lastPlot": {}, "mood": {}, "wake": {}, "behaviors": [], "net": [], "wakeRuntime": {}
@@ -153,7 +153,7 @@ PC 三种读法：
 
 ### 3.3 场景请求（PC 生成地图）
 
-1. 设备核心机在出门意愿触发时产生 `sceneRequests[]`，`status:"pending"`，带 `mode` 与 `mapSpec {kind,name,distance,description,seed}`；`mode:"existing"` 不生成，`mode:"new"` 才生成；
+1. 设备核心机在出门意愿触发时产生 `sceneRequests[]`，`status:"pending"`，带 `mode` 与 `mapSpec {kind,name,distance,description,seed}`；`kind` 只有 `indoor` / `street`；`mode:"existing"` 不生成，`mode:"new"` 才生成；
 2. PC 取 pending 项，按 `mapSpec` 生成场景包（像素/图集/碰撞）；
 3. PC 回 `scene:ready {id}`；
 4. 场景包交付方式见 §6.3（当前待定，建议 HTTPS 资产 URL + `assets:manifest`）。
@@ -258,7 +258,7 @@ PC 执行后回 `pc:action:ack {id, ok, result}`；设备更新 `pcActions[].sta
 
 ```json
 {
-  "name": "集市", "kind": "lively", "seed": "11-13-1",
+  "name": "集市", "kind": "street", "seed": "11-13-1",
   "grid": {"w": 24, "h": 16, "cell": 16},
   "rooms": [], "zones": [], "doors": [], "windows": [],
   "intGrid": [0, 1, 2, 3],

@@ -25,7 +25,7 @@ test("dateKey / specialDateFor", () => {
   assert.equal(dateKey(at(2026, 12, 25, 15)), "12-25");
   assert.equal(specialDateFor(at(2026, 12, 25, 15)).name, "圣诞");
   assert.equal(specialDateFor(at(2026, 11, 12, 15)), null);
-  assert.equal(specialDateFor(at(2026, 11, 12, 15), { "11-12": { name: "生日", kinds: ["social"] } }).name, "生日");
+  assert.equal(specialDateFor(at(2026, 11, 12, 15), { "11-12": { name: "生日", kinds: ["indoor"] } }).name, "生日");
 });
 
 test("planOuting：夜间不出门、每日上限", () => {
@@ -67,7 +67,7 @@ test("planOuting：特殊日期提高概率并偏好目的地", () => {
   });
   assert.equal(r.go, true);
   assert.equal(r.reason, "special_date");
-  assert.ok(["social", "lively"].includes(r.destination.kind));
+  assert.ok(["indoor", "street"].includes(r.destination.kind));
 });
 
 test("planOuting：普通日随机触发 / 不触发", () => {
@@ -81,9 +81,9 @@ test("planOuting：普通日随机触发 / 不触发", () => {
 });
 
 test("pickDestination：低社交偏好安静，高社交偏好热闹", () => {
-  const quiet = pickDestination({ mood: { social: 0.1, energy: 0.8 }, random: () => 0 });
-  assert.ok(["nature", "quiet"].includes(quiet.kind));
-  const social = pickDestination({ mood: { social: 0.9, energy: 0.8 }, random: () => 0.5 });
-  assert.ok(["social", "lively"].includes(social.kind));
-  assert.ok(DESTINATIONS.some((d) => d.id === quiet.id));
+  const quiet = pickDestination({ mood: { social: 0.1, energy: 0.8 }, random: () => 0.99 });
+  assert.equal(quiet.kind, "indoor");
+  const social = pickDestination({ mood: { social: 0.9, energy: 0.8 }, random: () => 0.3 });
+  assert.equal(social.kind, "street");
+  assert.ok(DESTINATIONS.every((d) => ["indoor", "street"].includes(d.kind)));
 });

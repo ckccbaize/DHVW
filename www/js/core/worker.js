@@ -252,7 +252,7 @@ async function handleSceneReady(p = {}) {
         added = places.add({
           id,
           name: String(p.name || item.mapSpec.name || "新场景").slice(0, 20),
-          kind: String(item.mapSpec.kind || "venue"),
+          kind: String(item.mapSpec.kind === "street" ? "street" : "indoor"),
           distance: Math.max(0, Math.min(120, Number(item.mapSpec.distance) || 5)),
         });
         if (added.ok) {
@@ -917,8 +917,8 @@ async function decideOuting({ mood, boredom, recent }) {
       return { mode: "existing", place, reason: String(obj.reason || "").slice(0, 80) };
     }
     if (obj.mode === "new") {
-      const kinds = new Set(["nature", "quiet", "social", "lively", "errand"]);
-      const kind = kinds.has(obj.kind) ? obj.kind : "social";
+      const kinds = new Set(["indoor", "street"]);
+      const kind = kinds.has(obj.kind) ? obj.kind : "indoor";
       const name = String(obj.name || "").trim().slice(0, 20);
       const description = String(obj.description || "").trim().slice(0, 240);
       if (!name || !description) return null;
@@ -929,7 +929,7 @@ async function decideOuting({ mood, boredom, recent }) {
           name,
           kind,
           distance: Math.max(3, Math.min(30, Number(obj.distance) || 6)),
-          mood: { valence: 0.06, social: kind === "social" || kind === "lively" ? 0.04 : 0 },
+          mood: { valence: 0.06, social: kind === "street" ? 0.04 : 0 },
         },
         description,
         reason: String(obj.reason || "").slice(0, 80),

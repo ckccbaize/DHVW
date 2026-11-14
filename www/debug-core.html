@@ -609,7 +609,7 @@ $("#btnPcAction").onclick = async () => {
   try {
     const r = await client.request("core:command", {
       name: "pc_action",
-      args: { action: "map.generate", args: { kind: "lively", name: "集市" } },
+      args: { action: "map.generate", args: { kind: "street", name: "集市" } },
     });
     pushLine(r.ok ? `pc action → ${r.action.status}` : `pc action 拒绝 → ${r.reason}`);
   } catch (e) { pushLine(e.message); }

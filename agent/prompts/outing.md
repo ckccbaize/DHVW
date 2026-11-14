@@ -12,7 +12,7 @@
 - 去已有场景：
   {"mode":"existing","placeId":"场景 id","reason":"为什么去这里"}
 - 新建场景：
-  {"mode":"new","kind":"nature|quiet|social|lively|errand","name":"场景名（≤20 字）","description":"场景描述，包含空间、家具、光线、气氛","distance":3,"reason":"为什么需要新场景"}
+  {"mode":"new","kind":"indoor|street","name":"场景名（≤20 字）","description":"场景描述，包含空间、家具、光线、气氛","distance":3,"reason":"为什么需要新场景"}
 
 规则：
 - 优先已有场景；只有记忆/愿望明确需要新环境时才新建。

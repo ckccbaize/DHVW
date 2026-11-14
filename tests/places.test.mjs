@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 
 import { createPlaceGraph, HOME_ID, planTravel, travelMinutes, validatePlace } from "../www/js/core/places/graph.js";
 
-const cafe = { id: "cafe", name: "咖啡馆", kind: "social", distance: 6 };
-const park = { id: "park", name: "公园", kind: "nature", distance: 10 };
+const cafe = { id: "cafe", name: "咖啡馆", kind: "indoor", distance: 6 };
+const park = { id: "park", name: "公园", kind: "street", distance: 10 };
 
 test("validatePlace：字段与边界", () => {
   assert.equal(validatePlace(cafe), null);
