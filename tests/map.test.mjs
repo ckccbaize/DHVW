@@ -66,6 +66,23 @@ test("generateMap：合法、可走通、确定性", () => {
   for (const d of doors) assert.equal(seen[d.y * 24 + d.x], 1, `门 ${d.id} 不可达`);
 });
 
+test("generateMap：home/office 生成可识别户型与家具", () => {
+  const home = generateMap({ mapSpec: { kind: "home", name: "家" }, seed: "home-1" });
+  assert.equal(home.ok, true, home.reason);
+  assert.deepEqual(home.scene.rooms.map((r) => r.kind), ["living", "bedroom", "hall", "bath", "balcony"]);
+  assert.ok(home.scene.props.length >= 10);
+  assert.ok(home.scene.props.some((p) => p.id === "bed"));
+  assert.ok(home.scene.props.some((p) => p.id === "counter"));
+  assert.deepEqual(validateMap(home.scene), []);
+
+  const office = generateMap({ mapSpec: { kind: "office", name: "办公室" }, seed: "office-1" });
+  assert.equal(office.ok, true, office.reason);
+  assert.deepEqual(office.scene.rooms.map((r) => r.kind), ["office", "meeting", "lounge"]);
+  assert.ok(office.scene.props.filter((p) => p.id === "table").length >= 1);
+  assert.ok(office.scene.props.filter((p) => p.id === "chair").length >= 2);
+  assert.deepEqual(validateMap(office.scene), []);
+});
+
 test("generateMap：网格过小直接失败", () => {
   const r = generateMap({ mapSpec: { seed: "x" }, w: 8, h: 6 });
   assert.equal(r.ok, false);

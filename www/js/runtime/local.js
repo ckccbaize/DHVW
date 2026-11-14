@@ -12,6 +12,7 @@ import { describeMood, moodTone } from "../core/mood/describe.js";
 import { generateMap } from "../core/agent/subs/map.js";
 import { createBrowsePlanner } from "../core/actions/browse.js";
 import { normalizeBehaviors, roomForAct, createActRoomMap } from "../core/life/plan.js";
+import { buildScene } from "../forge/scene.js";
 
 const EVENT_CAP = 2000;
 const DEFAULT_QUOTA = 500 * 1024 * 1024;
@@ -575,16 +576,36 @@ export function createLocalRuntime({
     postLife({ type: "setMood", mood: { ...mood } });
   }
 
-  async function maybeMap() {
+  async function maybeMap(kind = "home") {
     const t0 = now();
-    const r = generateMap({ seed: `${lastTick?.day || 1}-${Math.floor(lastTick?.minute || 0)}-${now()}`, w: 24, h: 16 });
+    const r = generateMap({
+      mapSpec: { kind, name: kind === "home" ? "家" : kind === "office" ? "办公室" : "未命名场景" },
+      seed: `${lastTick?.day || 1}-${Math.floor(lastTick?.minute || 0)}-${now()}`,
+      w: 24,
+      h: 16,
+    });
     if (!r.ok) {
       await logLlm({ agent: "map", ok: false, ms: now() - t0, response: r.reason });
       return;
     }
-    const item = { id: `map-${now()}`, ...r.scene, created_at: now() };
+    const baked = buildScene(r.scene.spec);
+    const item = {
+      id: `map-${now()}`,
+      ...r.scene,
+      image: baked.image.data,
+      imageW: baked.image.w,
+      imageH: baked.image.h,
+      built: baked.built,
+      created_at: now(),
+    };
     await appendKv("generated_maps", item, 5);
-    await logLlm({ agent: "map", ok: true, ms: now() - t0, prompt: "generateMap", response: `${item.rooms.length} 房间 / ${item.w}×${item.h}` });
+    await logLlm({
+      agent: "map",
+      ok: true,
+      ms: now() - t0,
+      prompt: `generateMap kind=${kind}`,
+      response: `${item.rooms.length} 房间 / ${item.props.length} 家具 / ${item.w}×${item.h}`,
+    });
     store.emit("map_generated", item);
   }
 
@@ -945,7 +966,7 @@ export function createLocalRuntime({
         return;
       }
       if (kind === "map") {
-        void maybeMap();
+        void maybeMap(act || "home");
         return;
       }
       if (kind === "browse") {

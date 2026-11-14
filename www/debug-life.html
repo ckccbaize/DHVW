@@ -69,7 +69,8 @@
     <button type="button" data-trigger="write">立即写作</button>
     <button type="button" data-trigger="plot">立即剧情</button>
     <button type="button" data-trigger="night">设为黑夜</button>
-    <button type="button" data-trigger="map">生成地图</button>
+    <button type="button" data-trigger="map" data-act="home">生成家</button>
+    <button type="button" data-trigger="map" data-act="office">生成办公室</button>
     <button type="button" data-trigger="browse">浏览网页</button>
     <button type="button" data-trigger="sleep">强制睡觉</button>
     <button type="button" data-trigger="wake">强制醒来</button>
@@ -237,6 +238,22 @@ function renderMapPreview(m) {
   ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = "#2a2f3a";
   ctx.fillRect(0, 0, c.width, c.height);
+  if (m.image && m.imageW && m.imageH) {
+    const off = document.createElement("canvas");
+    off.width = m.imageW;
+    off.height = m.imageH;
+    off.getContext("2d").putImageData(
+      new ImageData(new Uint8ClampedArray(m.image), m.imageW, m.imageH),
+      0,
+      0,
+    );
+    const scale = Math.min(c.width / m.imageW, c.height / m.imageH);
+    const dw = m.imageW * scale;
+    const dh = m.imageH * scale;
+    ctx.drawImage(off, (c.width - dw) / 2, (c.height - dh) / 2, dw, dh);
+    $("#mapInfo").textContent = `${m.name || "场景"} · ${w}×${h} · ${(m.rooms || []).length} 房间 · ${(m.props || []).length} 家具 · seed ${m.seed}`;
+    return;
+  }
   const grid = m.intGrid || [];
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
@@ -272,6 +289,21 @@ function drawMapTo(canvas, m) {
   ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = "#2a2f3a";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+  if (m.image && m.imageW && m.imageH) {
+    const off = document.createElement("canvas");
+    off.width = m.imageW;
+    off.height = m.imageH;
+    off.getContext("2d").putImageData(
+      new ImageData(new Uint8ClampedArray(m.image), m.imageW, m.imageH),
+      0,
+      0,
+    );
+    const scale = Math.min(canvas.width / m.imageW, canvas.height / m.imageH);
+    const dw = m.imageW * scale;
+    const dh = m.imageH * scale;
+    ctx.drawImage(off, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
+    return;
+  }
   const grid = m.intGrid || [];
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
@@ -327,6 +359,7 @@ const LLM_KEY = "dhvw_llm";
 const llmForm = $("#llmForm");
 const llmMsg = $("#llmMsg");
 let baseConfig = null;
+let mapRows = [];
 
 function readOverride() {
   try {

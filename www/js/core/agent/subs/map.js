@@ -2,6 +2,9 @@
 // 输出 rooms/zones/doors/windows + intGrid（0 走 1 墙 2 门 3 窗）；像素绘制留给 W31。
 
 import { buildLayout } from "../../../forge/layout.js";
+import { buildSceneSpec } from "../../../forge/scene-spec.js";
+import { buildFloorplan } from "../../../forge/floorplan.js";
+import { buildIntGrid } from "../../../forge/scene.js";
 
 export const TILE = Object.freeze({ WALK: 0, BLOCK: 1, DOOR: 2, WINDOW: 3 });
 
@@ -63,16 +66,18 @@ export function validateMap(scene) {
   const grid = scene.intGrid || scene.grid;
   if (!w || !h || !grid || grid.length !== w * h) errors.push("grid 尺寸不符");
   if (!rooms?.length) errors.push("没有房间");
-  const closed = rooms.filter((r) => r.corner);
-  if (closed.length < 1 || closed.length > 2) errors.push("封闭房间必须 1–2 间");
-  if (new Set(closed.map((r) => r.corner)).size !== closed.length) errors.push("封闭房间不能同角");
-  if (doors.length !== closed.length) errors.push("门数量应等于封闭房间数");
+  if (!scene.semantic) {
+    const closed = rooms.filter((r) => r.corner);
+    if (closed.length < 1 || closed.length > 2) errors.push("封闭房间必须 1–2 间");
+    if (new Set(closed.map((r) => r.corner)).size !== closed.length) errors.push("封闭房间不能同角");
+    if (doors.length !== closed.length) errors.push("门数量应等于封闭房间数");
 
-  const area = (r) => r.rect[2] * r.rect[3];
-  const closedArea = closed.reduce((s, r) => s + area(r), 0);
-  const openArea = rooms.filter((r) => !r.corner).reduce((s, r) => s + area(r), 0);
-  if (openArea / Math.max(1, closedArea + openArea) < 0.5) errors.push("开放面积不足 50%");
-  if (!scene.zones?.length) errors.push("没有分区");
+    const area = (r) => r.rect[2] * r.rect[3];
+    const closedArea = closed.reduce((s, r) => s + area(r), 0);
+    const openArea = rooms.filter((r) => !r.corner).reduce((s, r) => s + area(r), 0);
+    if (openArea / Math.max(1, closedArea + openArea) < 0.5) errors.push("开放面积不足 50%");
+    if (!scene.zones?.length) errors.push("没有分区");
+  }
 
   for (const d of doors) {
     if (grid[d.y * w + d.x] !== TILE.DOOR) errors.push(`门 ${d.id} 不在门格上`);
@@ -93,27 +98,55 @@ export function validateMap(scene) {
 }
 
 export function generateMap({ mapSpec = {}, seed, w = 24, h = 16 } = {}) {
+  if (!Number.isInteger(w) || !Number.isInteger(h) || w < 12 || h < 10) {
+    return { ok: false, reason: "布局网格至少 12×10" };
+  }
   const baseSeed = seed ?? mapSpec.seed ?? "map";
   let lastErr = null;
   for (let attempt = 0; attempt < 6; attempt++) {
     const s = attempt === 0 ? baseSeed : `${baseSeed}-${attempt}`;
     try {
-      const layout = buildLayout(w, h, s);
-      const { grid, windows } = buildGrid(layout);
-      const scene = {
-        name: mapSpec.name || "未命名场景",
-        kind: mapSpec.kind || "nature",
-        seed: s,
-        w,
-        h,
-        rooms: layout.rooms,
-        zones: layout.zones,
-        doors: layout.doors,
-        windows,
-        intGrid: Array.from(grid),
-        openShare: layout.openShare,
+      const kind = mapSpec.kind || "home";
+      const name = mapSpec.name || (kind === "home" ? "家" : "未命名场景");
+      const layout = ["home", "office", "nature", "quiet", "social", "lively", "errand"].includes(kind)
+        ? buildFloorplan(kind, w, h, s)
+        : buildLayout(w, h, s);
+      const { windows } = layout.windows ? { windows: layout.windows } : buildGrid(layout);
+      const spec = buildSceneSpec(layout, { kind, name, seed: s });
+      spec.windows = windows;
+      const makeScene = () => {
+        const rows = buildIntGrid(spec);
+        return {
+          name,
+          title: name,
+          kind,
+          seed: s,
+          w,
+          h,
+          rooms: spec.rooms,
+          zones: spec.zones,
+          doors: spec.doors,
+          windows: spec.windows,
+          props: spec.props,
+          wallProps: spec.wallProps,
+          decor: spec.decor,
+          spec,
+          semantic: !!layout.semantic,
+          intGrid: rows.join("").split("").map(Number),
+          openShare: layout.openShare,
+        };
       };
-      const errors = validateMap(scene);
+      let scene = makeScene();
+      let errors = validateMap(scene);
+      // 家具可能堵住房间中心：从后往前撤掉家具，直到全房间可达
+      while (errors.length && spec.props.length) {
+        const bad = errors.map((e) => /房间 (\S+) 不可达/.exec(e)?.[1]).find(Boolean);
+        const idx = bad ? spec.props.map((p) => p.room).lastIndexOf(bad) : -1;
+        if (idx >= 0) spec.props.splice(idx, 1);
+        else spec.props.pop();
+        scene = makeScene();
+        errors = validateMap(scene);
+      }
       if (errors.length) {
         lastErr = new Error(errors.join("; "));
         continue;

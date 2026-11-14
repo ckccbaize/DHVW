@@ -253,7 +253,7 @@ state = {
 
 **明确不做**：LLM 对话、TTS、扩散模型出图、操作主机 agent、写记忆库 L0–L3、产 `tier:host` 资产。
 
-> **场景生成（MapForge 8 原型 × 槽位文法）不在本期**：`MAP-SCENE-DESIGN.md` §5 的生成器需要 **tileset + 原语库**（M6-T3/T11 烘焙管线），当前家园是 `paint_home.py` 直接烘出的整张 PNG，没有可复用的瓦片图集，重烘无输入。因此本期端侧只做**光照变体**，不伪造"新地图"。阻塞项见 §12。
+> **场景生成已接入语义户型**：`forge/floorplan.js` 按 `home/office/nature/quiet/social/lively/errand` 生成可识别户型，`forge/scene-spec.js` 放家具，`forge/scene.js` 用现有 JS painter 烘焙三层图；未知 kind 仍回退 `forge/layout.js` 的通用随机布局。
 
 ---
 
