@@ -112,6 +112,12 @@
     <canvas id="mapCanvas" width="480" height="320" style="width:100%;max-width:480px;border:3px solid #1a1a2e;image-rendering:pixelated;margin-top:8px"></canvas>
     <div id="mapInfo" class="hint"></div>
   </section>
+  <div id="mapViewer" style="position:fixed;inset:0;z-index:99;background:rgba(26,26,46,.55);display:none;align-items:center;justify-content:center">
+    <div style="background:#fffaf0;border:3px solid #1a1a2e;box-shadow:4px 4px 0 #1a1a2e;padding:10px;max-width:96vw;max-height:94vh;overflow:auto">
+      <div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:8px"><strong>地图检查</strong><button type="button" id="mapViewerClose">关闭</button></div>
+      <canvas id="mapBig" width="720" height="480" style="width:min(90vw,720px);image-rendering:pixelated"></canvas>
+    </div>
+  </div>
   <section>
     <h2>浏览记录 <span class="count" id="browseCount"></span></h2>
     <div id="browses"></div>
@@ -218,17 +224,52 @@ function renderMaps(rows) {
   mapRows = rows;
   $("#mapCount").textContent = `${rows.length} 张`;
   $("#maps").innerHTML = rows.length
-    ? rows.slice().reverse().map((m, i) => `<div class="row"><b>${esc(m.name || "场景")}</b> ${m.w}×${m.h} · ${m.rooms?.length || 0} 房间 · seed ${esc(m.seed)} <button type="button" data-map="${rows.length - 1 - i}">查看</button></div>`).join("")
+    ? rows.slice().reverse().map((m, i) => `<div class="row"><b>${esc(m.name || "场景")}</b> ${m.w}×${m.h} · ${m.rooms?.length || 0} 房间 · seed ${esc(m.seed)} <button type="button" data-map="${rows.length - 1 - i}">查看</button> <button type="button" data-map-enter="${rows.length - 1 - i}">进入</button></div>`).join("")
     : '<div class="empty">还没有生成地图</div>';
   if (rows.length) renderMapPreview(rows[rows.length - 1]);
 }
 
+function drawMapTo(canvas, m) {
+  const ctx = canvas.getContext("2d");
+  const w = m.w || 24;
+  const h = m.h || 16;
+  const tw = Math.floor(canvas.width / w);
+  const th = Math.floor(canvas.height / h);
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = "#2a2f3a";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const grid = m.intGrid || [];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const t = grid[y * w + x] ?? 1;
+      ctx.fillStyle = t === 0 ? "#d9c7a3" : t === 2 ? "#e0b070" : t === 3 ? "#8fc7d8" : "#3a3f4b";
+      ctx.fillRect(x * tw, y * th, tw, th);
+    }
+  }
+  ctx.strokeStyle = "#e05a5a";
+  ctx.lineWidth = 2;
+  for (const r of m.rooms || []) {
+    const [x, y, rw, rh] = r.rect;
+    ctx.strokeRect(x * tw, y * th, rw * tw, rh * th);
+  }
+}
+
 document.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-map]");
-  if (!btn) return;
-  const m = mapRows[Number(btn.dataset.map)];
-  if (m) renderMapPreview(m);
+  const enter = e.target.closest("[data-map-enter]");
+  if (btn) {
+    const m = mapRows[Number(btn.dataset.map)];
+    if (m) renderMapPreview(m);
+  }
+  if (enter) {
+    const m = mapRows[Number(enter.dataset.mapEnter)];
+    if (m) {
+      drawMapTo($("#mapBig"), m);
+      $("#mapViewer").style.display = "flex";
+    }
+  }
 });
+$("#mapViewerClose").addEventListener("click", () => { $("#mapViewer").style.display = "none"; });
 
 function renderBrowses(rows) {
   $("#browseCount").textContent = `${rows.length} 条`;
