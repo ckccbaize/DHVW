@@ -164,7 +164,7 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
     const cx = bed.x + (bed.w || 1) / 2;
     const cy = bed.y + (bed.h || 1) - 0.15;
     const pseudo = { px: cx, py: cy, state: "idle", frame: 0, dir: { x: 0, y: 1 }, act: "sleep" };
-    drawAgent(pseudo, {}, 0, "sleep");
+    drawAgent(pseudo, {}, now, "sleep");
     // 被子：盖住床的下半部，留出头
     const bx = bed.x * cell + 1;
     const by = bed.y * cell + cell * 0.55;

@@ -367,8 +367,8 @@ function tick() {
     event("weather", { weather, temp: w.temp, wind: w.wind, block: w.block });
   }
 
-  // 剧情机固定日程：到点强制切换行为
-  if (plan && plan.day === clock.day) {
+  // 剧情机固定日程：到点强制切换行为；睡眠期间不执行
+  if (phase !== "sleep" && plan && plan.day === clock.day) {
     for (let i = 0; i < (plan.behaviors || []).length; i++) {
       const b = plan.behaviors[i];
       if (appliedBehaviors.has(i)) continue;
@@ -459,7 +459,7 @@ self.onmessage = (e) => {
       recentSpots.push(`${msg.x ?? pending?.x ?? -1},${msg.y ?? pending?.y ?? -1}`);
       if (recentSpots.length > 6) recentSpots.shift();
       pending = null;
-      if (activity !== "asleep") {
+      if (phase !== "sleep" && activity !== "asleep") {
         const text = pickLineCore({
           phase,
           weather,
