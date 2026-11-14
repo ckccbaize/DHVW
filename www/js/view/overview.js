@@ -83,7 +83,7 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
   }
 
   function drawSheetAgent(agent, now, actName) {
-    const name = actName && charSheet.animations[actName] ? actName : agent.state === "walk" ? "walk" : "idle";
+    const name = agent.state === "walk" ? "walk" : actName && charSheet.animations[actName] ? actName : "idle";
     const anim = charSheet.animations[name] || charSheet.animations.idle;
     const frames = anim.frames[dirName(agent.dir)] || anim.frames.S || [0];
     const idx = frames[Math.floor((now / 1000) * anim.fps) % frames.length];
@@ -275,7 +275,7 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
       const bed = store.state.sleepView;
       const nearBed = bed && agent.gx >= bed.x - 1 && agent.gx <= bed.x + (bed.w || 1) && agent.gy >= bed.y - 1 && agent.gy <= bed.y + (bed.h || 1);
       if (bed && nearBed) drawSleeping(bed, now);
-      else drawAgent(agent, {}, now, agent.act);
+      else drawAgent(agent, {}, now, agent.state === "act" ? agent.act : null);
     }
     for (const sp of sprites) {
       drawAgent(
