@@ -44,23 +44,30 @@ function cafeSpec() {
 }
 
 test("validateLlmScene：合法完整场景", () => {
-  assert.deepEqual(validateLlmScene(cafeSpec()), []);
-  const r = buildSceneFromLlm(cafeSpec());
+  assert.deepEqual(validateLlmScene(cafeSpec(), { quality: false }), []);
+  const r = buildSceneFromLlm(cafeSpec(), { quality: false });
   assert.equal(r.ok, true);
   assert.equal(r.scene.intGrid.length, 24 * 16);
   assert.ok(r.scene.entities.some((e) => e.type === "hotspot" && e.act === "cook"));
 });
 
+test("validateLlmScene：质量基线拒绝单房间/稀疏场景", () => {
+  const errors = validateLlmScene(cafeSpec());
+  assert.ok(errors.includes("rooms_too_few"));
+  assert.ok(errors.includes("props_too_few"));
+  assert.ok(errors.includes("cafe_rooms_too_few"));
+});
+
 test("validateLlmScene：未知家具/动画/路线阻挡", () => {
   const a = cafeSpec();
   a.props.push({ id: "piano", x: 15, y: 10, w: 1, h: 1, room: "main" });
-  assert.ok(validateLlmScene(a).some((e) => e.includes("unknown_prop")));
+  assert.ok(validateLlmScene(a, { quality: false }).some((e) => e.includes("unknown_prop")));
 
   const b = cafeSpec();
   b.interactions.acts.cook.perform.animation = "dance";
-  assert.ok(validateLlmScene(b).some((e) => e.includes("act_animation")));
+  assert.ok(validateLlmScene(b, { quality: false }).some((e) => e.includes("act_animation")));
 
   const c = cafeSpec();
   c.routes[0].waypoints.push([0, 0]);
-  assert.ok(validateLlmScene(c).some((e) => e.includes("route_blocked")));
+  assert.ok(validateLlmScene(c, { quality: false }).some((e) => e.includes("route_blocked")));
 });

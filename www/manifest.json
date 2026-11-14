@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T09:06:55.811Z",
+ "built_at": "2026-11-14T09:30:51.183Z",
  "files": [
   {
    "path": "agent/registry.json",
-   "size": 14807,
-   "sha256": "ae1f4d7fbd3e2c38c9919fe2f894f6dbcdba12a6731cc1935f1b10db44072449"
+   "size": 20584,
+   "sha256": "fdabc429152e5497af09825d3d1e0ad25d281381318f63d18d4f476e1dc932f9"
   },
   {
    "path": "assets/char/ojj_sheet.json",
@@ -624,8 +624,8 @@
   },
   {
    "path": "js/core/agent/json.js",
-   "size": 470,
-   "sha256": "3a8ba1df8dbff9288c1ebb2f18f9ccad98924124c9bb3ef6d2e94c32ca77513b"
+   "size": 949,
+   "sha256": "ae91ca8dcb8a57351355c2b127a0721015bd65e708b702bba239e89814ef5850"
   },
   {
    "path": "js/core/agent/manager.js",
@@ -934,8 +934,8 @@
   },
   {
    "path": "js/forge/scene-llm.js",
-   "size": 10300,
-   "sha256": "21f50f480a27544b3451e99f57ce36f9d8ab37c1b451f88c216cb830ed704ea5"
+   "size": 13572,
+   "sha256": "e75ac6d29d342a6036b559ed1a7c7692b184522d9f58eee9de6a4a6a3e68be2e"
   },
   {
    "path": "js/forge/scene-spec.js",
@@ -964,8 +964,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 39162,
-   "sha256": "aba9b858387cff56b93b211391536fd3daa51b42e621d3b0ea834f35e6719fae"
+   "size": 39190,
+   "sha256": "ce9950fdbf95ab4ccb2be26c034496f41a8836257ff9b6ba0e3cfa3d34cb9219"
   },
   {
    "path": "js/runtime/remote.js",

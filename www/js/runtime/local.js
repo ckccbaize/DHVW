@@ -640,7 +640,7 @@ export function createLocalRuntime({
         description,
         kind,
         name,
-        grid: "32×24，cell=16",
+        grid: "24×18，cell=16",
         furniture: Object.keys(FURNITURE_SIZES).join(", "),
         acts: Object.keys(ACT_DEFS).join(", "),
         animations: [...ANIMATIONS].join(", "),
@@ -654,14 +654,14 @@ export function createLocalRuntime({
         try {
           const res = await llm.complete({
             messages: [{ role: "user", content: prompt }],
-            maxTokens: 2400,
+            maxTokens: 4096,
             temperature: attempt === 0 ? 0.7 : 0.4,
             json: true,
             cls: "work",
             kind: "scene",
           });
           const obj = extractJson(res.text);
-          const built = buildSceneFromLlm(obj);
+          const built = buildSceneFromLlm(obj, { grid: { w: 24, h: 18 } });
           if (built.ok) {
             scene = built.scene;
             await logLlm({ agent: "scene", ok: true, ms: now() - t0, prompt, response: res.text });

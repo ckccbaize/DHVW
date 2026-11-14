@@ -85,6 +85,8 @@ function harness(texts, opts = {}) {
 test("extractJson：代码围栏与前后噪声", () => {
   assert.deepEqual(extractJson('```json\n{"a":1}\n```'), { a: 1 });
   assert.deepEqual(extractJson('前缀 {"a":1} 后缀'), { a: 1 });
+  assert.deepEqual(extractJson('{"a":1}\n{"b":2}'), { a: 1 });
+  assert.deepEqual(extractJson('错误 {"a":{"b":2}} 尾巴 }'), { a: { b: 2 } });
   assert.equal(extractJson("nope"), null);
 });
 

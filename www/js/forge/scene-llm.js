@@ -55,7 +55,7 @@ function reachable(intGrid, w, h, start) {
   return seen;
 }
 
-export function validateLlmScene(obj) {
+export function validateLlmScene(obj, { quality = true } = {}) {
   const errors = [];
   if (!obj || typeof obj !== "object") return ["not_object"];
   const w = obj.grid?.w;
@@ -154,14 +154,66 @@ export function validateLlmScene(obj) {
       if (!walkable(intGrid, w, h, x, y)) errors.push(`route_blocked:${route.id}@${x},${y}`);
     }
   }
-  const seen = walkable(intGrid, w, h, spawn.x, spawn.y) ? reachable(intGrid, w, h, spawn.y * w + spawn.x) : null;
-  if (seen) {
-    const scene = { ...spec, w, h, intGrid, interactions: obj.interactions };
-    for (const hot of buildHotspots(scene, obj.interactions)) {
-      if (!seen[hot.y * w + hot.x]) errors.push(`hotspot_unreachable:${hot.act}@${hot.x},${hot.y}`);
+  if (quality) {
+    if ((obj.rooms || []).length < 2) errors.push("rooms_too_few");
+    if ((obj.props || []).length < 40) errors.push("props_too_few");
+    if (!(obj.doors || []).length) errors.push("doors_missing");
+    if (!(obj.windows || []).length) errors.push("windows_missing");
+    const interior = Math.max(1, (w - 2) * (h - 2));
+    const area = (obj.rooms || []).reduce((sum, r) => sum + (r.rect?.[2] || 0) * (r.rect?.[3] || 0), 0);
+    if (area / interior < 0.55) errors.push("rooms_too_sparse");
+    const roomIds = new Set((obj.rooms || []).map((r) => r.id));
+    for (const id of roomIds) {
+      const room = (obj.rooms || []).find((r) => r.id === id);
+      const count = (obj.props || []).filter((p) => p.room === id).length;
+      const need = Math.max(4, Math.ceil(((room?.rect?.[2] || 0) * (room?.rect?.[3] || 0)) / 12));
+      if (!count) errors.push(`room_empty:${id}`);
+      else if (count < need) errors.push(`room_props_too_few:${id}:${count}/${need}`);
+    }
+    const ids = new Set((obj.props || []).map((p) => p.id));
+    const countOf = (id) => (obj.props || []).filter((p) => p.id === id).length;
+    if (obj.kind === "cafe") {
+      if ((obj.rooms || []).length < 5) errors.push("cafe_rooms_too_few");
+      for (const need of ["counter", "table", "chair", "plant", "rug", "lamp"]) {
+        if (!ids.has(need)) errors.push(`missing_prop:${need}`);
+      }
+      if (countOf("table") < 2) errors.push("cafe_tables_too_few");
+      if (countOf("chair") < 4) errors.push("cafe_chairs_too_few");
+      if (countOf("plant") < 3) errors.push("cafe_plants_too_few");
+      if (countOf("rug") < 3) errors.push("cafe_rugs_too_few");
+      if (countOf("lamp") < 2) errors.push("cafe_lamps_too_few");
     }
   }
   return errors;
+}
+
+export function fitSceneGrid(input, w, h) {
+  const obj = JSON.parse(JSON.stringify(input || {}));
+  const ow = obj.grid?.w;
+  const oh = obj.grid?.h;
+  if (!Number.isInteger(ow) || !Number.isInteger(oh) || ow === w && oh === h) return obj;
+  const sx = w / ow;
+  const sy = h / oh;
+  const px = (v) => Math.max(1, Math.min(w - 2, Math.round(v * sx)));
+  const py = (v) => Math.max(1, Math.min(h - 2, Math.round(v * sy)));
+  const pw = (v) => Math.max(1, Math.round(v * sx));
+  const ph = (v) => Math.max(1, Math.round(v * sy));
+  obj.grid = { ...(obj.grid || {}), w, h };
+  obj.rooms = (obj.rooms || []).map((r) => {
+    const [x, y, rw, rh] = r.rect || [1, 1, ow - 2, oh - 2];
+    return { ...r, rect: [px(x), py(y), Math.max(2, pw(rw)), Math.max(2, ph(rh))] };
+  });
+  obj.props = (obj.props || []).map((p) => ({ ...p, x: px(p.x), y: py(p.y), w: pw(p.w || 1), h: ph(p.h || 1) }));
+  obj.doors = (obj.doors || []).map((d) => ({ ...d, x: px(d.x), y: py(d.y) }));
+  obj.windows = (obj.windows || []).map((win) => ({ ...win, x: px(win.x), y: py(win.y) }));
+  if (obj.spawn) obj.spawn = { x: px(obj.spawn.x), y: py(obj.spawn.y) };
+  obj.routes = (obj.routes || []).map((r) => ({
+    ...r,
+    from: Array.isArray(r.from) ? [px(r.from[0]), py(r.from[1])] : r.from,
+    to: Array.isArray(r.to) ? [px(r.to[0]), py(r.to[1])] : r.to,
+    waypoints: (r.waypoints || []).map(([x, y]) => [px(x), py(y)]),
+  }));
+  return obj;
 }
 
 function nearestWalkable(intGrid, w, h, x, y) {
@@ -254,9 +306,10 @@ function normalizeLlmScene(input) {
   return obj;
 }
 
-export function buildSceneFromLlm(input) {
-  const obj = normalizeLlmScene(input);
-  const errors = validateLlmScene(obj);
+export function buildSceneFromLlm(input, options = {}) {
+  const fitted = options.grid ? fitSceneGrid(input, options.grid.w, options.grid.h) : input;
+  const obj = normalizeLlmScene(fitted);
+  const errors = validateLlmScene(obj, options);
   if (errors.length) return { ok: false, errors };
   const w = obj.grid.w;
   const h = obj.grid.h;
@@ -287,6 +340,13 @@ export function buildSceneFromLlm(input) {
     meta: { ...(obj.meta || {}), source: "llm" },
     spec,
   };
-  scene.entities.push(...buildHotspots(scene, obj.interactions));
+  const seen = reachable(intGrid, w, h, obj.spawn.y * w + obj.spawn.x);
+  const hotspots = buildHotspots(scene, obj.interactions).filter((h) => seen[h.y * w + h.x]);
+  const liveActs = new Set(hotspots.map((h) => h.act));
+  scene.interactions = {
+    ...obj.interactions,
+    acts: Object.fromEntries(Object.entries(obj.interactions.acts || {}).filter(([id]) => liveActs.has(id))),
+  };
+  scene.entities.push(...hotspots);
   return { ok: true, scene };
 }
