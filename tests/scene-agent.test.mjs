@@ -23,6 +23,8 @@ test("runSceneAgent：多轮工具调用直到 finish", async () => {
     { tool: "set_interactions", args: { interactions: spec.interactions } },
     { tool: "set_routes", args: { routes: spec.routes } },
     { tool: "validate" },
+    { tool: "add_prop_detail", args: { target: spec.props[0].name || spec.props[0].id, shapes: [{ kind: "rect", x: 0, y: 0, w: 4, h: 1, color: "#ffffff" }] } },
+    { tool: "add_floor_detail", args: { details: [{ x: 2, y: 2, shape: [{ kind: "line", x1: 0, y1: 0, x2: 15, y2: 0, color: "#000000" }] }] } },
     { tool: "finish" },
   ];
   let i = 0;
@@ -42,7 +44,8 @@ test("runSceneAgent：多轮工具调用直到 finish", async () => {
     onTurn: async (t) => turns.push(t),
   });
   assert.equal(r.ok, true);
-  assert.equal(r.turns, 6);
+  assert.equal(r.turns, 8);
   assert.equal(turns.at(-1).tool, "finish");
   assert.ok(r.scene.props.length >= 40);
+  assert.equal(r.scene.decor.length, 1);
 });

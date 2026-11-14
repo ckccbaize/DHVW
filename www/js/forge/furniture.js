@@ -555,13 +555,19 @@ export function paintFurniture(spec) {
   for (const p of props) if (p.id === "rug") FURNITURE.rug(cv, p.x, p.y, p.w, p.h);
   for (const p of props) {
     if (p.id === "rug") continue;
-    if (p.shape) { paintShape(cv, p); continue; }
-    const fn = FURNITURE[p.id];
-    if (fn) fn(cv, p.x, p.y, p.w, p.h);
+    if (p.shape) paintShape(cv, p);
+    else {
+      const fn = FURNITURE[p.id];
+      if (fn) fn(cv, p.x, p.y, p.w, p.h);
+    }
+    if (Array.isArray(p.overlay) && p.overlay.length) paintShape(cv, { ...p, shape: p.overlay });
   }
   for (const item of spec.decor || []) {
-    const fn = DECOR[item.id];
-    if (fn) fn(cv, item.x * T, item.y * T);
+    if (Array.isArray(item.shape)) paintShape(cv, item);
+    else {
+      const fn = DECOR[item.id];
+      if (fn) fn(cv, item.x * T, item.y * T);
+    }
   }
   return applyTone(cv);
 }

@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T10:47:47.935Z",
+ "built_at": "2026-11-14T11:03:42.157Z",
  "files": [
   {
    "path": "agent/registry.json",
-   "size": 21470,
-   "sha256": "207c12893a1e95005fe7501801cb74dc55325d311b336d8aef18916aacac3790"
+   "size": 21876,
+   "sha256": "879cafaa987b2f4694e79cced7a184b27f101104f0172987e82f4b66a951d749"
   },
   {
    "path": "assets/char/ojj_sheet.json",
@@ -639,8 +639,8 @@
   },
   {
    "path": "js/core/agent/scene-agent.js",
-   "size": 8430,
-   "sha256": "ae8ee9c4a110dc4f978e78b2e19aae9f14162931c7cb5ecca7b896ca9a7db5f0"
+   "size": 10560,
+   "sha256": "c9c2abcac04112ceca3d37f2a9da93655169aa1086b26d4e3df345122b904e9e"
   },
   {
    "path": "js/core/agent/subs/bg.js",
@@ -914,8 +914,8 @@
   },
   {
    "path": "js/forge/furniture.js",
-   "size": 19568,
-   "sha256": "4874b1b9bf4ca9b75eb753949f417c0822b4db7650983349b725ddb246785fe6"
+   "size": 19751,
+   "sha256": "12c430e111d4716f5b4b7d4427ebbd81cbadebf52bc7b53e023cb0a41f1dba87"
   },
   {
    "path": "js/forge/grammar.js",
@@ -939,8 +939,8 @@
   },
   {
    "path": "js/forge/scene-llm.js",
-   "size": 17810,
-   "sha256": "2cd050e74a8caedbc8d827a9b69d48dfd2a8a0127cbb44a62d495bdbc987ec92"
+   "size": 17847,
+   "sha256": "571947804145ce1f9ebd7ce9c2fcd9a04ec9ecca36dffbfe244f97bf6e33a187"
   },
   {
    "path": "js/forge/scene-spec.js",

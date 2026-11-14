@@ -12,6 +12,7 @@
 工作方式：
 1. 先 get_layout，确认 room/zone 的 id、rect、floor。
 2. 用 add_props 分批放家具，每批 8–12 件，至少 45 件；props.room 必须用 layout 里的 id。
+   - 咖啡厅必须保留 id 为 counter/table/chair/plant/rug/lamp（或 table_1 这类前缀）的家具。
    - add_props 会返回 rejected / empty_areas；重叠或重名的会被拒绝，先 remove_props 再放；
    - 不要重复提交同一批家具；按 empty_areas 补每个区域。
 3. 非家居场景不要复用 bed/sofa/counter；用 shape 自己画（家具也由你画，不要求用素材表）：
@@ -22,7 +23,11 @@
 4. 每个封闭房间 3×3 不能空；门内侧 3×3 不能有家具；大件每类最多 1 件（咖啡厅 table 可多张）。
 5. 交互：不要用 prop id 当 act id。先 auto_interactions 自动生成；自定义 act 才用 set_interactions，结构必须是
    {"acts":{"sit":{"label":"坐下","trigger":{"props":["chair"]},"perform":{"animation":"sit","duration_min":15},"effects":[]}}}。
-6. 用 validate 检查，按 errors 修复；通过后 finish。
+6. 用 validate 检查，按 errors 修复。
+7. 细化轮：validate 通过后不要立刻 finish。先给主要家具加细节：
+   - add_prop_detail：target=家具 name/id，shapes 加 2–4 个高光/阴影/纹理/边缘图元；
+   - add_floor_detail：加地板拼花、地毯边、水渍、地砖缝等；
+   - 再 validate；通过后 finish。
 7. 不要输出场景 JSON 全文，不要改 rooms/zones/doors/windows。
 
 家具 id 可选素材（也可以完全不用，自己画 shape）：

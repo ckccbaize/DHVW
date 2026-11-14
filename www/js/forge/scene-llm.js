@@ -203,10 +203,10 @@ export function validateLlmScene(obj, { quality = true } = {}) {
     const names = (obj.props || []).map((p) => p.name).filter(Boolean);
     if (new Set(names).size !== names.length) errors.push("prop_name_duplicate");
     const ids = new Set((obj.props || []).map((p) => p.id));
-    const countOf = (id) => (obj.props || []).filter((p) => p.id === id).length;
+    const countOf = (id) => (obj.props || []).filter((p) => p.id === id || String(p.id).startsWith(`${id}_`)).length;
     if (obj.kind === "cafe") {
       for (const need of ["counter", "table", "chair", "plant", "rug", "lamp"]) {
-        if (!ids.has(need)) errors.push(`missing_prop:${need}`);
+        if (!countOf(need)) errors.push(`missing_prop:${need}`);
       }
       if (countOf("table") < 2) errors.push("cafe_tables_too_few");
       if (countOf("chair") < 4) errors.push("cafe_chairs_too_few");

@@ -12,6 +12,8 @@ const TOOLS = {
   clear_props: "清空全部家具，重新摆",
   set_interactions: "设置 interactions；args.interactions.acts 必须是 act id → 定义",
   auto_interactions: "按家具表自动生成 interactions（推荐先用这个，再补自定义 act）",
+  add_prop_detail: "细化家具。args.target 是 prop name/id，args.shapes 是叠加图元数组",
+  add_floor_detail: "细化地板。args.details 是 [{x,y,shape:[...]}]，画在地板/家具层",
   set_routes: "设置 routes；args.routes",
   set_spawn: "设置出生点；args.spawn",
   validate: "跑场景闸门，返回 errors",
@@ -37,6 +39,7 @@ export async function runSceneAgent({
     props: [],
     interactions: null,
     routes: [],
+    decor: [],
     spawn: layout.spawn,
   };
   const system = registry.render("scene-agent", {
@@ -59,6 +62,7 @@ export async function runSceneAgent({
       kind,
       name,
       props: state.props,
+      decor: state.decor,
       interactions: acts && Object.keys(acts).length ? state.interactions : buildInteractions(state.props),
       routes: state.routes,
       spawn: state.spawn,
@@ -107,8 +111,25 @@ export async function runSceneAgent({
       const names = new Set(Array.isArray(args.names) ? args.names : []);
       const ids = new Set(Array.isArray(args.ids) ? args.ids : []);
       const before = state.props.length;
-      state.props = state.props.filter((p) => !(names.has(p.name) || ids.has(p.id)));
-      return { tool, result: { removed: before - state.props.length, count: state.props.length } };
+      const nextProps = state.props.filter((p) => !(names.has(p.name) || ids.has(p.id)));
+      if (kind === "cafe") {
+        for (const need of ["counter", "table", "chair", "plant", "rug", "lamp"]) {
+          const has = (list) => list.some((p) => p.id === need || String(p.id).startsWith(`${need}_`));
+          if (has(state.props) && !has(nextProps)) {
+            return { tool, result: { ok: false, error: `required_prop:${need}`, count: state.props.length } };
+          }
+        }
+      }
+      state.props = nextProps;
+      const alive = new Set(state.props.map((p) => p.id));
+      if (state.interactions?.acts) {
+        for (const [id, def] of Object.entries(state.interactions.acts)) {
+          def.trigger = def.trigger || { props: [] };
+          def.trigger.props = (def.trigger.props || []).filter((p) => alive.has(p));
+          if (!def.trigger.props.length) delete state.interactions.acts[id];
+        }
+      }
+      return { tool, result: { removed: before - state.props.length, count: state.props.length, acts: Object.keys(state.interactions?.acts || {}) } };
     }
     if (tool === "clear_props") {
       state.props = [];
@@ -128,6 +149,25 @@ export async function runSceneAgent({
       if (errors.length) return { tool, result: { ok: false, errors: errors.slice(0, 30) } };
       state.interactions = { schema_version: 1, acts };
       return { tool, result: { ok: true, acts: Object.keys(acts) } };
+    }
+    if (tool === "add_prop_detail") {
+      const target = String(args.target || "");
+      const shapes = Array.isArray(args.shapes) ? args.shapes : [];
+      const hits = state.props.filter((p) => p.name === target || p.id === target);
+      if (!hits.length) return { tool, result: { ok: false, error: `prop_not_found:${target}` } };
+      for (const p of hits) {
+        if (Array.isArray(p.shape)) p.shape.push(...shapes);
+        else p.overlay = [...(p.overlay || []), ...shapes];
+      }
+      return { tool, result: { ok: true, targets: hits.length, shapes: shapes.length } };
+    }
+    if (tool === "add_floor_detail") {
+      const details = Array.isArray(args.details) ? args.details : [];
+      for (const d of details) {
+        if (!d || !Array.isArray(d.shape)) continue;
+        state.decor.push({ name: `地板细节-${state.decor.length + 1}`, x: d.x, y: d.y, shape: d.shape });
+      }
+      return { tool, result: { ok: true, count: state.decor.length } };
     }
     if (tool === "auto_interactions") {
       state.interactions = buildInteractions(state.props);
