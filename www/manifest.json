@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T08:38:33.984Z",
+ "built_at": "2026-11-14T08:49:57.598Z",
  "files": [
   {
    "path": "agent/registry.json",
-   "size": 13091,
-   "sha256": "44c8063452c067b8f61ddd302b15bcf551df63f1811744e251ed7d9d5e5782d5"
+   "size": 14807,
+   "sha256": "b3d9c658410c0b1b2c2127812cf11c52173ef63a5e33f32e16dde31c6b66e33b"
   },
   {
    "path": "assets/char/ojj_sheet.json",
@@ -416,11 +416,6 @@
    "path": "assets/fonts/fusion-pixel/LICENSE.txt",
    "size": 1062,
    "sha256": "8751c869c91bc13ba06dffadaf0c276f662917228f18072b28498b08c1e59ee6"
-  },
-  {
-   "path": "assets/lexicon/scene.json",
-   "size": 1756,
-   "sha256": "42c112ea5dc2fca32c4b4182264bb98ef0a39ea705ab9d9f6b5f6efd35c99306"
   },
   {
    "path": "assets/scenes/home/character/sheet.json",
@@ -849,8 +844,8 @@
   },
   {
    "path": "js/core/scene-package.js",
-   "size": 5093,
-   "sha256": "b8858aa3f5fe4823ba50e03bd80549482f257b3d1c07d55872f7019d2301718a"
+   "size": 5125,
+   "sha256": "20f7d1d6fc8748146261a61e2a8e244f12f26cd1c9967988c05c444bdb54a5d0"
   },
   {
    "path": "js/core/sched/scheduler.js",
@@ -928,11 +923,6 @@
    "sha256": "d0ced24ffa4413d94ddba8bb39aba42fe0c5b32a58342b13580a190a2689a041"
   },
   {
-   "path": "js/forge/lexicon.js",
-   "size": 1515,
-   "sha256": "457f1ec48487c0aa0a92cb1dcda832c63328dd0bdcf8e8c7a66250e10ba794e4"
-  },
-  {
    "path": "js/forge/painter.js",
    "size": 11008,
    "sha256": "b6a501751d16335535cc515623a1dfea32747f008b2cf534dff2abc1116825e2"
@@ -941,6 +931,11 @@
    "path": "js/forge/placement.js",
    "size": 2458,
    "sha256": "9b604298e45cdffcdd5d009822001e97fc65bd5e216637944020a149540650f0"
+  },
+  {
+   "path": "js/forge/scene-llm.js",
+   "size": 10300,
+   "sha256": "21f50f480a27544b3451e99f57ce36f9d8ab37c1b451f88c216cb830ed704ea5"
   },
   {
    "path": "js/forge/scene-spec.js",
@@ -954,8 +949,8 @@
   },
   {
    "path": "js/forge/scenekit.js",
-   "size": 11166,
-   "sha256": "a3663be49a0e394ec790611924975c8dff8af04745d13ab4c758198aa60537f1"
+   "size": 11173,
+   "sha256": "ea13817765782f3ab5e185a26ac7081fb4577af1d23438c03f0356d67d8a4015"
   },
   {
    "path": "js/forge/shapes.js",
@@ -969,8 +964,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 37415,
-   "sha256": "3bb09e11f937433ec2171f502a05d4404028fe288d36a4ac43fda255a5611cf8"
+   "size": 38918,
+   "sha256": "97f489546b2a1d18ba137b20ce52ee9a76c71338c5f5908e1e3c48403b2d1541"
   },
   {
    "path": "js/runtime/remote.js",

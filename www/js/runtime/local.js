@@ -14,7 +14,10 @@ import { createBrowsePlanner } from "../core/actions/browse.js";
 import { normalizeBehaviors, roomForAct, createActRoomMap } from "../core/life/plan.js";
 import { buildScene } from "../forge/scene.js";
 import { buildScenePackage, saveScenePackage } from "../core/scene-package.js";
-import { deriveScene } from "../forge/lexicon.js";
+import { buildSceneFromLlm, ANIMATIONS } from "../forge/scene-llm.js";
+import { FURNITURE_SIZES } from "../forge/furniture.js";
+import { ACT_DEFS } from "../forge/scenekit.js";
+import { EFFECT_KINDS } from "../core/interactions.js";
 
 const EVENT_CAP = 2000;
 const DEFAULT_QUOTA = 500 * 1024 * 1024;
@@ -219,7 +222,6 @@ export function createLocalRuntime({
   let plotBusy = false;
   let memoryBusy = false;
   let lastSnapshot = null;
-  let sceneLexicon = null;
   let recentPlots = [];
   let dailyPlots = {};
   let mood = { energy: 0, valence: 0, social: 0, focus: 0 };
@@ -519,25 +521,17 @@ export function createLocalRuntime({
           }
         : null;
       let sceneSpec = typeof obj?.scene === "string"
-        ? { dsl: obj.scene }
+        ? { description: obj.scene }
         : obj?.scene && typeof obj.scene === "object"
-          ? (obj.scene.dsl
-              ? { dsl: String(obj.scene.dsl) }
-              : obj.scene.kind
-                ? {
-                    kind: String(obj.scene.kind),
-                    name: String(obj.scene.name || obj.scene.kind),
-                    program: Array.isArray(obj.scene.program) ? obj.scene.program : undefined,
-                  }
-                : null)
+          ? (obj.scene.kind || obj.scene.description
+              ? {
+                  kind: String(obj.scene.kind || "venue"),
+                  name: String(obj.scene.name || obj.scene.kind || "新场景"),
+                  description: String(obj.scene.description || obj.scene.name || ""),
+                  program: Array.isArray(obj.scene.program) ? obj.scene.program : undefined,
+                }
+              : null)
           : null;
-      if (!sceneSpec && sceneLexicon) {
-        const derived = deriveScene(
-          [text, obj?.event, (desires || []).join(" "), recentBehaviors].join(" "),
-          sceneLexicon,
-        );
-        if (derived.ok && derived.confidence >= 0.33) sceneSpec = { dsl: derived.dsl };
-      }
       const item = {
         id: `p-${now()}`,
         text,
@@ -627,24 +621,72 @@ export function createLocalRuntime({
 
   async function maybeMap(kindOrSpec = "home") {
     const mapSpec = typeof kindOrSpec === "string"
-      ? (kindOrSpec.includes("/") ? { dsl: kindOrSpec } : { kind: kindOrSpec, name: MAP_NAMES[kindOrSpec] || kindOrSpec })
+      ? { kind: kindOrSpec, name: MAP_NAMES[kindOrSpec] || kindOrSpec }
       : kindOrSpec || { kind: "home", name: "家" };
     const kind = mapSpec.kind || "home";
+    const name = mapSpec.name || MAP_NAMES[kind] || "未命名场景";
+    const description = mapSpec.description || mapSpec.dsl || `${name}，${kind}，适合她日常生活与互动`;
     const t0 = now();
-    const r = generateMap({
-      mapSpec,
-      seed: `${lastTick?.day || 1}-${Math.floor(lastTick?.minute || 0)}-${now()}`,
-      w: 24,
-      h: 16,
-    });
-    if (!r.ok) {
-      await logLlm({ agent: "map", ok: false, ms: now() - t0, response: r.reason });
-      return;
+    let scene = null;
+    let prompt = "";
+    if (llm && registry) {
+      const basePrompt = registry.render("scene", {
+        description,
+        kind,
+        name,
+        grid: "32×24，cell=16",
+        furniture: Object.keys(FURNITURE_SIZES).join(", "),
+        acts: Object.keys(ACT_DEFS).join(", "),
+        animations: [...ANIMATIONS].join(", "),
+        effects: [...EFFECT_KINDS].join(", "),
+      });
+      let lastErrors = [];
+      for (let attempt = 0; attempt < 2 && !scene; attempt++) {
+        prompt = attempt === 0
+          ? basePrompt
+          : `${basePrompt}\n\n上一次输出有以下错误，请修正后重新输出完整 JSON：\n${lastErrors.join("; ")}`;
+        try {
+          const res = await llm.complete({
+            messages: [{ role: "user", content: prompt }],
+            maxTokens: 2400,
+            temperature: attempt === 0 ? 0.7 : 0.4,
+            json: true,
+            cls: "work",
+            kind: "scene",
+          });
+          const obj = extractJson(res.text);
+          const built = buildSceneFromLlm(obj);
+          if (built.ok) {
+            scene = built.scene;
+            await logLlm({ agent: "scene", ok: true, ms: now() - t0, prompt, response: res.text });
+          } else {
+            lastErrors = built.errors;
+            await logLlm({ agent: "scene", ok: false, ms: now() - t0, prompt, response: `${built.errors.join("; ")}\n${res.text}` });
+          }
+        } catch (err) {
+          lastErrors = [err.message];
+          await logLlm({ agent: "scene", ok: false, ms: now() - t0, prompt, response: err.message });
+        }
+      }
     }
-    const baked = buildScene(r.scene.spec);
+    if (!scene) {
+      const r = generateMap({
+        mapSpec: { kind, name, description },
+        seed: `${lastTick?.day || 1}-${Math.floor(lastTick?.minute || 0)}-${now()}`,
+        w: 32,
+        h: 24,
+      });
+      if (!r.ok) {
+        await logLlm({ agent: "map", ok: false, ms: now() - t0, response: r.reason });
+        return;
+      }
+      scene = r.scene;
+      await logLlm({ agent: "map", ok: true, ms: now() - t0, prompt: prompt || "fallback", response: `fallback ${scene.rooms.length} 房间 / ${scene.props.length} 家具` });
+    }
+    const baked = buildScene(scene.spec);
     const item = {
       id: `map-${now()}`,
-      ...r.scene,
+      ...scene,
       image: baked.image.data,
       imageW: baked.image.w,
       imageH: baked.image.h,
@@ -652,7 +694,7 @@ export function createLocalRuntime({
       created_at: now(),
     };
     try {
-      const pkg = await buildScenePackage({ ...r.scene, id: item.id }, baked);
+      const pkg = await buildScenePackage({ ...scene, id: item.id }, baked);
       if (pkg.ok) {
         await saveScenePackage(backend, pkg);
         item.packageId = pkg.id;
@@ -662,13 +704,6 @@ export function createLocalRuntime({
       console.warn("场景包打包失败", err);
     }
     await appendKv("generated_maps", item, 5);
-    await logLlm({
-      agent: "map",
-      ok: true,
-      ms: now() - t0,
-      prompt: `generateMap ${mapSpec.dsl || `${mapSpec.kind || kind} / ${mapSpec.name || ""}`}`,
-      response: `${item.rooms.length} 房间 / ${item.props.length} 家具 / ${item.w}×${item.h}`,
-    });
     store.emit("map_generated", item);
   }
 
@@ -893,9 +928,6 @@ export function createLocalRuntime({
         forgeWorker.onmessage = (e) => handleForge(e.data);
       }
 
-      sceneLexicon = await fetch("assets/lexicon/scene.json", { cache: "no-store" })
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null);
       const day = await backend.getKV("day").catch(() => undefined);
       const minute = await backend.getKV("minute").catch(() => undefined);
       lastSnapshot = (await backend.getKV("life_snapshot").catch(() => undefined)) || null;

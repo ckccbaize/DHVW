@@ -52,6 +52,7 @@ export async function buildScenePackage(scene, baked, {
     windows: scene.windows || [],
     props: scene.props || [],
     entities: scene.entities || [],
+    routes: scene.routes || [],
     meta: scene.meta || {},
   };
   const files = [];

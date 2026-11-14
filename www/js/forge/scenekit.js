@@ -22,7 +22,7 @@ const ARCH_PROPS = {
   park: { req: ["bench", "plant_big", "plant"], opt: ["plant", "lamp", "bench"], minHot: 2 },
 };
 
-const ACT_DEFS = {
+export const ACT_DEFS = {
   sleep: { label: "睡觉", animation: "sleep", duration: 480, priority: 10, effects: [{ kind: "event", name: "sleep" }] },
   read: { label: "阅读", animation: "read", duration: 25, priority: 5, effects: [{ kind: "event", name: "read" }] },
   work: { label: "工作", animation: "work", duration: 45, priority: 6, effects: [{ kind: "event", name: "work" }] },
