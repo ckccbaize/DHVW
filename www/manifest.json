@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T14:28:25.721Z",
+ "built_at": "2026-11-14T14:36:32.371Z",
  "files": [
   {
    "path": "agent/registry.json",
-   "size": 14114,
-   "sha256": "8c5d603e31435f50bae58eec1bee94bae05ca3ea41968ef693e7fd5e64cce152"
+   "size": 14749,
+   "sha256": "a2f32750d3be73db7fce4af1c3931d4409a0d1a630533a0e376c890db3589ef3"
   },
   {
    "path": "assets/char/ojj_sheet.json",
