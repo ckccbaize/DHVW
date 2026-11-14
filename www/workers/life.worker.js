@@ -187,7 +187,7 @@ function pickTarget() {
   // 剧情安排的动作优先（必须找到对应热点）
   if (plan && plan.day === clock.day && plan.act) {
     const props = DEBUG_ACT_PROP[plan.act] || [];
-    const exact = (scene.hotspots || []).filter((x) => x.act === plan.act || props.includes(x.prop));
+    const exact = (scene.hotspots || []).filter((x) => (!plan.place || x.room === plan.place) && (x.act === plan.act || props.includes(x.prop)));
     if (exact.length) {
       const p = exact[Math.floor(Math.random() * exact.length)];
       return { x: p.x, y: p.y, act: plan.act, room: p.room || room, durationMin: pickDuration(plan.act) };
@@ -275,9 +275,12 @@ function planIntent(act, place, reason) {
   pending = null;
   busyUntil = clock.minute;
   const props = DEBUG_ACT_PROP[act] || [];
-  const inPlace = (scene.hotspots || []).filter((h) => (!place || h.room === place) && (h.act === act || props.includes(h.prop)));
-  const pool = inPlace.length ? inPlace : (scene.hotspots || []).filter((h) => h.act === act || props.includes(h.prop));
-  if (!pool.length) return;
+  const room = place || currentRoom;
+  const pool = (scene.hotspots || []).filter((h) => h.room === room && (h.act === act || props.includes(h.prop)));
+  if (!pool.length) {
+    event("plan_skipped", { act, place: room, reason: "no_hotspot" });
+    return;
+  }
   const h = pool[Math.floor(Math.random() * pool.length)];
   const t = { x: h.x, y: h.y, act, room: h.room || place || currentRoom, durationMin: pickDuration(act) };
   pending = t;
@@ -402,6 +405,27 @@ function tick() {
     sleepAt,
     wakeAt,
   });
+  if (stats.ticks % 2 === 0) emitSnapshot();
+}
+
+function emitSnapshot() {
+  emit({ type: "snapshot", snapshot: snapshotState() });
+}
+
+function snapshotState() {
+  return {
+    day: clock.day,
+    minute: Math.round(clock.minute),
+    phase,
+    room: currentRoom,
+    activity,
+    busyUntil,
+    plan,
+    sleepAt,
+    wakeAt,
+    appliedBehaviors: [...appliedBehaviors],
+    appliedSudden,
+  };
 }
 
 function schedule() {
@@ -416,7 +440,8 @@ self.onmessage = (e) => {
   switch (msg.type) {
     case "init": {
       scene = msg.scene;
-      clock = createClock({ day: msg.day ?? 1, minute: msg.minute ?? 8 * 60 });
+      const snap = msg.snapshot || null;
+      clock = createClock({ day: snap?.day ?? msg.day ?? 1, minute: snap?.minute ?? msg.minute ?? 8 * 60 });
       if (msg.timeScale) cfg.timeScale = msg.timeScale;
       else if (msg.minutesPerSecond) cfg.timeScale = msg.minutesPerSecond * 30;
       if (msg.tickMs) cfg.tickMs = msg.tickMs;
@@ -425,8 +450,16 @@ self.onmessage = (e) => {
       llmCfg = msg.llm || null;
       weather = weatherAt(clock.day, clock.minute).state;
       scheduleFor(clock.day);
-      phase = phaseAt(clock.minute);
-      currentRoom = PHASE_ROOM[phase] || "living";
+      phase = snap?.phase || phaseAt(clock.minute);
+      currentRoom = snap?.room || PHASE_ROOM[phase] || "living";
+      activity = snap?.activity || "active";
+      busyUntil = Number.isFinite(snap?.busyUntil) ? snap.busyUntil : -1e9;
+      if (snap?.plan) plan = snap.plan;
+      if (Number.isFinite(snap?.sleepAt)) sleepAt = snap.sleepAt;
+      if (Number.isFinite(snap?.wakeAt)) wakeAt = snap.wakeAt;
+      appliedBehaviors = new Set(snap?.appliedBehaviors || []);
+      appliedSudden = !!snap?.appliedSudden;
+      pending = null;
       lastLlmMinute = clock.minute;
       if (phase === "sleep") {
         const bed = (scene.props || []).find((p) => p.id === "bed");
@@ -435,7 +468,8 @@ self.onmessage = (e) => {
       resetAnchor();
       schedule();
       emit({ type: "ready", day: clock.day, minute: clock.minute, phase, weather });
-      event("wake", { reason: "boot" });
+      emitSnapshot();
+      if (phase !== "sleep") event("wake", { reason: "boot" });
       break;
     }
     case "arrived": {
@@ -503,6 +537,7 @@ self.onmessage = (e) => {
       if (Number.isFinite(msg.day) && Number.isFinite(msg.minute)) {
         clock.set(msg.day, msg.minute);
         phase = phaseOf(clock.minute);
+        emitSnapshot();
       }
       break;
     }
@@ -521,6 +556,7 @@ self.onmessage = (e) => {
       appliedBehaviors = new Set();
       appliedSudden = false;
       if (plan) scheduleFor(plan.day);
+      emitSnapshot();
       break;
     }
     case "setMemory": {
@@ -564,6 +600,7 @@ self.onmessage = (e) => {
         debugIntent(msg.act);
       }
       emit({ type: "debug_triggered", kind, act: msg.act || null, minute: clock.minute });
+      emitSnapshot();
       break;
     }
     case "stats": {

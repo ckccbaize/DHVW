@@ -603,7 +603,8 @@ async function boot() {
   });
 
   setInterval(() => {
-    void local.persistClock(clock.day, clock.minute);
+    const c = store.state.clock;
+    if (c) void local.persistClock(c.day, c.minute);
     if (store.state.conn === "up") void flushEvents();
   }, 60000);
 

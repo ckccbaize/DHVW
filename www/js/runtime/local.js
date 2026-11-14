@@ -11,6 +11,7 @@ import { extractJson } from "../core/agent/json.js";
 import { describeMood, moodTone } from "../core/mood/describe.js";
 import { generateMap } from "../core/agent/subs/map.js";
 import { createBrowsePlanner } from "../core/actions/browse.js";
+import { normalizeBehaviors, roomForAct, createActRoomMap } from "../core/life/plan.js";
 
 const EVENT_CAP = 2000;
 const DEFAULT_QUOTA = 500 * 1024 * 1024;
@@ -214,6 +215,7 @@ export function createLocalRuntime({
   let lastPlotDay = -1;
   let plotBusy = false;
   let memoryBusy = false;
+  let lastSnapshot = null;
   let recentPlots = [];
   let dailyPlots = {};
   let mood = { energy: 0, valence: 0, social: 0, focus: 0 };
@@ -261,6 +263,11 @@ export function createLocalRuntime({
           void maybeMemory(true);
         }
         maybeForge(msg);
+        break;
+      }
+      case "snapshot": {
+        lastSnapshot = msg.snapshot || null;
+        if (lastSnapshot) void backend.setKV("life_snapshot", lastSnapshot).catch(() => {});
         break;
       }
       case "intent": {
@@ -485,20 +492,17 @@ export function createLocalRuntime({
       const text = String(obj?.text || "").trim();
       if (!text) throw new Error("空剧情");
       const rooms = new Set((scene.rooms || []).map((r) => r.id));
-      const place = rooms.has(obj?.place) ? obj.place : tick.room || scene.start;
+      const actRooms = createActRoomMap(scene.hotspots || []);
+      const requestedPlace = rooms.has(obj?.place) ? obj.place : tick.room || scene.start;
+      const planAct = String(obj?.act || "").trim();
+      const actPlace = planAct ? roomForAct(actRooms, planAct, requestedPlace) : null;
+      const place = actPlace || requestedPlace;
       const sleepAt = parseClock(obj?.sleepAt, 22 * 60);
       const wakeAt = parseClock(obj?.wakeAt, 8 * 60);
-      const behaviors = Array.isArray(obj?.behaviors)
-        ? obj.behaviors
-            .map((b) => ({
-              minute: parseClock(b?.time, -1),
-              act: String(b?.act || "").trim(),
-              place: rooms.has(b?.place) ? b.place : place,
-              why: String(b?.why || "").trim(),
-            }))
-            .filter((b) => b.minute >= 0 && b.act)
-            .slice(0, 12)
-        : [];
+      const behaviors = normalizeBehaviors(
+        (obj?.behaviors || []).map((b) => ({ ...b, minute: parseClock(b?.time, -1) })),
+        { rooms, hotspots: scene.hotspots || [], fallbackPlace: place },
+      ).slice(0, 12);
       const sudden = obj?.sudden && obj.sudden.enabled
         ? {
             minute: parseClock(obj.sudden.time, 15 * 60),
@@ -511,7 +515,7 @@ export function createLocalRuntime({
         event: obj?.event || "",
         place,
         mood: obj?.mood || {},
-        act: obj?.act || null,
+        act: actPlace ? planAct : null,
         sleepAt,
         wakeAt,
         behaviors,
@@ -803,16 +807,37 @@ export function createLocalRuntime({
 
       const day = await backend.getKV("day").catch(() => undefined);
       const minute = await backend.getKV("minute").catch(() => undefined);
+      lastSnapshot = (await backend.getKV("life_snapshot").catch(() => undefined)) || null;
       lastPlotDay = (await backend.getKV("last_plot_day")) ?? -1;
       dailyPlots = (await backend.getKV("daily_plots")) || {};
+      const storedPlots = (await backend.getKV("plots")) || [];
+      const roomSet = new Set((scene.rooms || []).map((r) => r.id));
+      const actRooms = createActRoomMap(scene.hotspots || []);
+      const fixPlan = (p) => {
+        if (!p) return p;
+        const actPlace = p.act ? roomForAct(actRooms, p.act, p.place) : null;
+        if (p.act && !actPlace) p.act = null;
+        if (actPlace) p.place = actPlace;
+        p.behaviors = normalizeBehaviors(p.behaviors || [], {
+          rooms: roomSet,
+          hotspots: scene.hotspots || [],
+          fallbackPlace: p.place || scene.start,
+        });
+        return p;
+      };
+      for (const p of Object.values(dailyPlots)) fixPlan(p);
+      for (const p of storedPlots) fixPlan(p);
+      await backend.setKV("daily_plots", dailyPlots).catch(() => {});
+      await backend.setKV("plots", storedPlots).catch(() => {});
       mood = (await backend.getKV("mood")) || mood;
       store.patch({ mood: { ...mood } });
 
       postLife({
         type: "init",
         scene: sceneSummary(),
-        day: day ?? 1,
-        minute: minute ?? config.life?.startMinute ?? 8 * 60,
+        day: lastSnapshot?.day ?? day ?? 1,
+        minute: lastSnapshot?.minute ?? minute ?? config.life?.startMinute ?? 8 * 60,
+        snapshot: lastSnapshot,
         timeScale: config.life?.timeScale ?? 1,
         tickMs: config.life?.tickMs ?? 1000,
         roamMin: config.life?.roamMin ?? 30,
@@ -820,8 +845,22 @@ export function createLocalRuntime({
         llm: config.llm || null,
       });
       postLife({ type: "setMood", mood: { ...mood } });
-      const plan = dailyPlots[day ?? 1];
-      if (plan) postLife({ type: "setPlan", plan: { day: plan.forDay, place: plan.place, act: plan.act, text: plan.text } });
+      const plan = dailyPlots[lastSnapshot?.day ?? day ?? 1];
+      if (plan && !lastSnapshot?.plan) {
+        postLife({
+          type: "setPlan",
+          plan: {
+            day: plan.forDay,
+            place: plan.place,
+            act: plan.act,
+            text: plan.text,
+            sleepAt: plan.sleepAt,
+            wakeAt: plan.wakeAt,
+            behaviors: plan.behaviors || [],
+            sudden: plan.sudden || null,
+          },
+        });
+      }
       postForge({
         type: "init",
         scene: { w: scene.grid.w, h: scene.grid.h, cell: scene.grid.cell || 16 },
