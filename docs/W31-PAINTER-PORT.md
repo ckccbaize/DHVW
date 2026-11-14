@@ -1,7 +1,9 @@
-# W31 地图绘制移植进度
+# W31 地图绘制移植进度（废案）
 
-> 决策：D16（spec-first，双 painter）。`*.map.json` 是唯一输入；PC 用 `paint_home.py`，ARM 用 `forge/painter.js`。
-> 验收：同 spec 与 Python 输出逐像素一致。
+> **废案（2026-11-14）**：ARM 侧地图生成/绘制已从本仓库移除，地图统一由 PC 产出侧生成。本文仅保留历史记录，不再维护，也不再是验收项。
+>
+> 原决策：D16（spec-first，双 painter）。`*.map.json` 是唯一输入；PC 用 `paint_home.py`，ARM 用 `forge/painter.js`。
+> 原验收：同 spec 与 Python 输出逐像素一致。
 
 ## 已完成
 

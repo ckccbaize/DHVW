@@ -476,7 +476,7 @@ score(hotspot) = 1.0
 - **特殊日期**（公历表 + kv `special_dates`）提高概率并偏好对应目的地；
 - 0–6 点不出门，每日 ≤2 次。
 
-产出 `outing:intent`：`{destination, moodDelta, mapSpec:{kind,name,distance,seed}}`。地图自生成（W16/W31）消费 `mapSpec`，心情增量走 `life.applyMood(..., {source:"plot"})`。
+产出 `outing:intent`：`{destination, moodDelta, mapSpec:{kind,name,distance,seed}}`。`mapSpec` 随 `sceneRequests` 交给 PC 产出侧生成；ARM 不再自生成地图（W16/W31 已废案）。心情增量走 `life.applyMood(..., {source:"plot"})`。
 
 ### 11.1 活动注册表（能力白名单）
 

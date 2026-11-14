@@ -84,7 +84,7 @@ createManagerAgent({ llm, registry, subAgents: { "plot-writer": (args) => plotAg
 |---|---|
 | `text` | 事件日志 / 显现台词素材 |
 | `event` / `mood` | `life.applyMood(..., {source:"plot"})`，影响状态机 |
-| `place` / `scene` | 地图/场景提示（W16 消费） |
+| `place` | 地点提示（新场景由 PC 产出侧生成） |
 | `imageQuery` | 背景图搜索（W15） |
 
 事件从 `EVENT_POOL` 按时段与最近 10 条随机挑选，避免连续重复。
@@ -108,27 +108,15 @@ createManagerAgent({ llm, registry, subAgents: { "plot-writer": (args) => plotAg
 - 设备侧裁成 960×540（cover），JPEG 质量递减到 ≤200KB，单色图直接拒绝；
 - 结果字节存 kv `bg_last`，元数据进 `health.bg`。
 
-## 7. 地图子 Agent（W16）
+## 7. 地图子 Agent（W16，废案）
 
-`core/agent/subs/map.js` 消费出门/剧情的 `mapSpec`：
+**2026-11-14 废案**：ARM 侧地图生成已移除。设备不再生成户型、摆放家具、烘焙地图或打包场景；`core/agent/subs/map.js`、`scene-agent.js`、`scene-detail-agent.js`、`forge/` 地图生成模块与相关 prompt/测试已删除；`forge/grammar.js` 剧情文法保留。
 
-- `agent/prompts/scene.md`：LLM 在 `pickOpenLayout` 给定的 1-2 间封闭房 + 开放 zones 骨架上填家具/交互/路线；
-- `core/agent/scene-agent.js`：多轮工具调用 Agent（get_layout / get_areas / get_area / add_props / move_prop / remove_props / auto_interactions / set_routes / validate / finish）；家具由 LLM 自己决定坐标与 shape，本地只执行工具与闸门；按区域分批摆放，支持区域校验和移动调整；
-- `core/agent/scene-detail-agent.js`：独立细化 Agent，只做加法（add_prop_detail / add_floor_detail），不增删家具、不改 interactions；场景 Agent 通过后单独跑一轮；
-- `forge/scene-llm.js`：校验 LLM 场景（家具白名单、动画/效果枚举、路线可走、房间密度、功能区数量），通过后生成可烘焙 spec；LLM 输出 32×24 时按目标 24×18 缩放，避免大空房间；
-- `props[].shape`：LLM 可用 rect/ellipse/line/polygon 直接定义新物体（非 home 家具），`forge/furniture.js` 的 `paintShape` 负责绘制；home 家具表只是可选素材，不是场景生成上限；
-- `forge/dsl.js` + `forge/scenekit.js`：保留为离线/兜底生成器（DSL → 32×24 单房间），不再是默认路径；
-- `forge/floorplan.js`：`pickOpenLayout` 按 §3.5 生成 1–2 间对角封闭房 + 开放 zones（开放面积 ≥50%）；旧的 `buildFloorplan` 保留给 DSL/兜底；
-- `forge/scene-spec.js`：`buildOpenSceneSpec` 在开放骨架上落家具/小物/交互，作为 LLM 失败时的本地回退，保证过 3×3/大件/门净空闸门；
-- `forge/layout.js`：保留通用随机布局，作为未知 kind 的回退；
-- `forge/scene-spec.js`：按房间类型放家具、墙面小物，输出 forge 可烘焙的 spec；
-- `buildGrid` / `buildIntGrid`：输出 intGrid（0 走 / 1 墙 / 2 门 / 3 窗），家具阻挡计入；
-- `validateMap`：房间、门指向、BFS 全房间可达；家具堵路时按房间裁剪；
-- `generateMap`：同 seed 确定性，失败自动换 seed 重试 ≤6 次；
-- 端侧 `maybeMap` 用 `forge/scene.js` 烘焙三层图，`core/scene-package.js` 打包 `scene.json / intgrid.bin / 三层 PNG / interactions.json / manifest`，包存 IDB `blobs`，索引存 kv `scene_packages`（环形 8），调试页直接显示合成图。
-- `core/interactions.js` 提供 `createInteractionRegistry / resolveInteraction / applyEffects`；`grid.js` 热点优先从 `interactions.json` 推导，`PROP_ACT` 仅作旧场景兜底。
+保留的边界：
 
-`home` / `office` 不再输出空矩形骨架；调试页「生成家 / 生成办公室 / 生成咖啡厅 / 生成书店 / 生成公园 / 生成 DSL 书房」可看到带家具的完整地图。剧情 `scene` 字段给 `{kind,name,description}`，由 `scene` prompt 生成完整场景；LLM 失败时才回退本地生成器。场景质量基线按 `docs/MAP-SCENE-DESIGN.md` §3.5：封闭房间 ≤2 且对角错开、开放面积 ≥50%、zones ≥2、3×3 无空白、大件唯一、门净空 3×3、命名唯一；家具 45–65 件。
+- ARM 只通过 `sceneRequests` 向 PC 请求场景，PC 生成后回 `scene:ready`；
+- ARM 只加载 `assets/scenes/<id>/` 场景包并渲染（`view/scene-loader.js` / `view/overview.js`）；
+- `core/grid.js` 负责碰撞，`core/interactions.js` 负责交互执行。
 
 ## 8. 唤醒运行时（W26）
 

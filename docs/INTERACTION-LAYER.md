@@ -118,7 +118,7 @@ InteractionExecutor   approach → perform → settle → idle（可打断）
 EffectApplier         按枚举应用效果 → 改心情/标记/时间 → 写事件
 ```
 
-### 4.1 当前落地（W16+）
+### 4.1 当前落地
 
 - `life.worker` 初始化时用 `createInteractionRegistry(scene.interactions)` 建表；
 - 自主漫游前先 `pickInteraction()`：按热点、`requires`、`priority` 打分，命中则走 `planIntent`，否则回退普通漫游；

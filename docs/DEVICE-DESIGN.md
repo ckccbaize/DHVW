@@ -247,13 +247,12 @@ state = {
 |---|---|---|---|
 | **剧情** | 文法：`时间锚点 + 状态 + 动作序列 + 因果收尾`，30–80 字，模板 × 变量 × 规则，24h 去重 | 非空 / 含时间锚点 / 30–80 字 / 24h 不重复 | 8 篇 |
 | **背景** | Canvas 分层合成 960×540（天空渐变 + 远景剪影 + 地面 + 天气层 + 时间色调）→ WebP | 尺寸 ≥960×540 / 非单色（像素方差）/ 体积上限 | 4 张 |
-| **场景变体** | 在 `home@2x.png` 上合成光照层（dawn/day/dusk/night/rain）→ WebP，作为"同一间屋子不同时刻"的变体 | 尺寸一致 / 非空 / 与基线 ΔE 在区间 | 6 张 |
 
 **调度（不许抢生活 tick）**：`forge` 只在 ①息屏 ②无互动 60s 后的 1fps 时段 ③life tick 空闲 时跑；单任务切片 ≤5s，片间检查让位标志；收到「进显现 / 出端侧档 / 用户触摸」立即挂起，**队列保留不丢**。
 
 **明确不做**：LLM 对话、TTS、扩散模型出图、操作主机 agent、写记忆库 L0–L3、产 `tier:host` 资产。
 
-> **场景生成已接入语义户型**：`forge/floorplan.js` 按 `home/office/nature/quiet/social/lively/errand` 生成可识别户型，`forge/scene-spec.js` 放家具，`forge/scene.js` 用现有 JS painter 烘焙三层图；未知 kind 仍回退 `forge/layout.js` 的通用随机布局。
+> **地图生成已移除（2026-11-14 废案）**：ARM 不再生成户型、摆放家具或烘焙地图；地图统一由 PC 产出侧生成，设备只加载 `assets/scenes/<id>/` 场景包。`forge` 只保留剧情文法（`forge/grammar.js`）。
 
 ---
 

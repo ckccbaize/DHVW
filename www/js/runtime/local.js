@@ -9,15 +9,8 @@ import { createLocalMemory } from "../core/memory/local.js";
 import { createMemoryPipeline } from "../core/memory/pipeline.js";
 import { extractJson } from "../core/agent/json.js";
 import { describeMood, moodTone } from "../core/mood/describe.js";
-import { generateMap } from "../core/agent/subs/map.js";
-import { pickOpenLayout } from "../forge/floorplan.js";
 import { createBrowsePlanner } from "../core/actions/browse.js";
 import { normalizeBehaviors, roomForAct, createActRoomMap } from "../core/life/plan.js";
-import { buildScene } from "../forge/scene.js";
-import { buildOpenSceneSpec } from "../forge/scene-spec.js";
-import { buildScenePackage, saveScenePackage } from "../core/scene-package.js";
-import { runSceneAgent } from "../core/agent/scene-agent.js";
-import { runSceneDetailAgent } from "../core/agent/scene-detail-agent.js";
 
 const EVENT_CAP = 2000;
 const DEFAULT_QUOTA = 500 * 1024 * 1024;
@@ -526,18 +519,6 @@ export function createLocalRuntime({
             text: String(obj.sudden.text || "").trim(),
           }
         : null;
-      let sceneSpec = typeof obj?.scene === "string"
-        ? { description: obj.scene }
-        : obj?.scene && typeof obj.scene === "object"
-          ? (obj.scene.kind || obj.scene.description
-              ? {
-                  kind: String(obj.scene.kind || "venue"),
-                  name: String(obj.scene.name || obj.scene.kind || "新场景"),
-                  description: String(obj.scene.description || obj.scene.name || ""),
-                  program: Array.isArray(obj.scene.program) ? obj.scene.program : undefined,
-                }
-              : null)
-          : null;
       const item = {
         id: `p-${now()}`,
         text,
@@ -550,7 +531,6 @@ export function createLocalRuntime({
         behaviors,
         sudden,
         desires,
-        scene: sceneSpec,
         forDay: tick.day + 1,
         day: tick.day,
         minute: tick.minute,
@@ -582,7 +562,6 @@ export function createLocalRuntime({
       });
       await logLlm({ agent: "plot", ok: true, ms: now() - t0, prompt, response: res.text });
       store.emit("plot_event", item);
-      if (sceneSpec) void maybeMap(sceneSpec);
       if (tick.phase !== "sleep") onSay(text, 4200);
     } catch (err) {
       await logLlm({ agent: "plot", ok: false, ms: now() - t0, prompt, response: err.message });
@@ -600,134 +579,6 @@ export function createLocalRuntime({
     await backend.setKV("mood", mood).catch(() => {});
     store.patch({ mood: { ...mood } });
     postLife({ type: "setMood", mood: { ...mood } });
-  }
-
-  const MAP_NAMES = {
-    home: "家",
-    office: "办公室",
-    cafe: "咖啡馆",
-    bookstore: "书店",
-    library: "图书馆",
-    restaurant: "餐厅",
-    bar: "酒吧",
-    market: "集市",
-    shop: "商店",
-    cinema: "电影院",
-    gym: "健身房",
-    clinic: "诊所",
-    gallery: "画廊",
-    workshop: "工坊",
-    park: "公园",
-    nature: "公园",
-    quiet: "书店",
-    social: "咖啡馆",
-    lively: "集市",
-    errand: "商店",
-  };
-
-  async function maybeMap(kindOrSpec = "home") {
-    const mapSpec = typeof kindOrSpec === "string"
-      ? { kind: kindOrSpec, name: MAP_NAMES[kindOrSpec] || kindOrSpec }
-      : kindOrSpec || { kind: "home", name: "家" };
-    const kind = mapSpec.kind || "home";
-    const name = mapSpec.name || MAP_NAMES[kind] || "未命名场景";
-    const description = mapSpec.description || mapSpec.dsl || `${name}，${kind}，适合她日常生活与互动`;
-    const t0 = now();
-    let scene = null;
-    let prompt = "";
-    const layout = pickOpenLayout(32, 24, `${kind}-${Date.now()}`);
-    if (llm && registry) {
-      const agent = await runSceneAgent({
-        llm,
-        registry,
-        layout,
-        kind,
-        name,
-        description,
-        maxTurns: 18,
-        onTurn: async (turn) => {
-          await logLlm({
-            agent: "scene-agent",
-            ok: turn.ok !== false,
-            turn: turn.turn,
-            tool: turn.tool,
-            result: turn.result || null,
-            error: turn.error || null,
-            raw: turn.raw || null,
-          });
-        },
-      });
-      if (agent.ok) {
-        scene = agent.scene;
-        await logLlm({ agent: "scene-agent", ok: true, ms: now() - t0, response: `turns=${agent.turns} props=${scene.props?.length || 0}` });
-        const detail = await runSceneDetailAgent({
-          llm,
-          registry,
-          scene,
-          kind,
-          name,
-          maxTurns: 6,
-          onTurn: async (turn) => {
-            await logLlm({
-              agent: "scene-detail",
-              ok: turn.ok !== false,
-              turn: turn.turn,
-              tool: turn.tool,
-              result: turn.result || null,
-              error: turn.error || null,
-              raw: turn.raw || null,
-            });
-          },
-        });
-        if (detail.ok) {
-          scene = detail.scene;
-          await logLlm({ agent: "scene-detail", ok: true, ms: now() - t0, response: `turns=${detail.turns} decor=${scene.decor?.length || 0}` });
-        } else {
-          await logLlm({ agent: "scene-detail", ok: false, ms: now() - t0, response: `${detail.reason || "failed"}: ${(detail.errors || []).slice(0, 6).join("; ")}` });
-        }
-      } else {
-        await logLlm({ agent: "scene-agent", ok: false, ms: now() - t0, response: `${agent.reason || "failed"}: ${(agent.errors || []).slice(0, 8).join("; ")}` });
-      }
-    }
-    if (!scene) {
-      const spec = buildOpenSceneSpec(layout, {
-        kind,
-        name,
-        seed: `${kind}-${lastTick?.day || 1}-${Math.floor(lastTick?.minute || 0)}-${now()}`,
-      });
-      const baked = buildScene(spec);
-      const intGrid = baked.built.intGrid.join("").split("").map(Number);
-      scene = {
-        ...spec,
-        spec,
-        intGrid,
-        interactions: spec.interactions,
-        entities: [{ type: "spawn", x: layout.spawn.x, y: layout.spawn.y }],
-      };
-      await logLlm({ agent: "map", ok: true, ms: now() - t0, prompt: prompt || "fallback", response: `fallback ${scene.rooms.length} 封闭房 / ${scene.zones.length} 开放区 / ${scene.props.length} 家具` });
-    }
-    const baked = buildScene(scene.spec);
-    const item = {
-      id: `map-${now()}`,
-      ...scene,
-      image: baked.image.data,
-      imageW: baked.image.w,
-      imageH: baked.image.h,
-      built: baked.built,
-      created_at: now(),
-    };
-    try {
-      const pkg = await buildScenePackage({ ...scene, id: item.id }, baked);
-      if (pkg.ok) {
-        await saveScenePackage(backend, pkg);
-        item.packageId = pkg.id;
-        item.manifest = pkg.manifest;
-      }
-    } catch (err) {
-      console.warn("场景包打包失败", err);
-    }
-    await appendKv("generated_maps", item, 5);
-    store.emit("map_generated", item);
   }
 
   async function maybeBrowse() {
@@ -873,7 +724,7 @@ export function createLocalRuntime({
     const interval = idle ? forgeIntervalMs : Math.max(forgeIntervalMs, 120000);
     const t = now();
     if (t - lastForgeAt < interval) return;
-    const order = idle ? ["plot", "bg", "scene"] : ["plot"];
+    const order = idle ? ["plot", "bg"] : ["plot"];
     let kind = null;
     let best = Infinity;
     for (const k of order) {
@@ -1009,8 +860,6 @@ export function createLocalRuntime({
       }
       postForge({
         type: "init",
-        scene: { w: scene.grid.w, h: scene.grid.h, cell: scene.grid.cell || 16 },
-        homeUrl: scene.image2xUrl ? new URL(scene.image2xUrl, globalThis.location?.href ?? "http://127.0.0.1/").href : null,
         recentPlots: assets.filter((a) => a.kind === "plot" && a.text).map((a) => a.text),
       });
     },
@@ -1086,10 +935,6 @@ export function createLocalRuntime({
         void maybeMemory(true);
         return;
       }
-      if (kind === "map") {
-        void maybeMap(act || "home");
-        return;
-      }
       if (kind === "browse") {
         void maybeBrowse();
         return;
@@ -1119,9 +964,6 @@ export function createLocalRuntime({
     },
     async getPlots() {
       return (await backend.getKV("plots")) || [];
-    },
-    async getMaps() {
-      return (await backend.getKV("generated_maps")) || [];
     },
     async getBrowseLog() {
       return (await backend.getKV("browse_log")) || [];

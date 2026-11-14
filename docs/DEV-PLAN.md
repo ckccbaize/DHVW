@@ -29,10 +29,27 @@
 | 角色图集与动作 | 出图 + 帧表 | 播放 |
 | 门通向哪 | 定义 | 执行 |
 | 场景/资源校验工具 | 使用 | 提供 |
-| 端侧生成（剧情/背景/地图变体） | 给规格 | 实现与调度 |
+| 端侧生成（剧情/背景） | 给规格 | 实现与调度 |
 
 > 因此 W32–W35（碰撞写入、交互设计、精灵绘制、门/场景设计）**不在本仓库**，见 §9.2 产出侧 backlog。
 > 唯一需要改的设备侧代码：`core/grid.js` 的 `PROP_ACT` 硬编码 → 改为读 `interactions.json`（缺省兜底并标 deprecated）。
+
+## 0.3 废案：ARM 侧地图生成（2026-11-14）
+
+**决定：地图生成从 ARM 侧移除，全部交给 PC 产出侧。** ARM 只消费 PC 交付的 `assets/scenes/<id>/` 场景包，不再在设备上生成户型、摆放家具、烘焙地图或打包场景。
+
+| 原计划 | 处置 |
+|---|---|
+| W16 子 Agent：地图（`core/agent/subs/map.js`、`forge/layout.js`） | **废案，代码已删** |
+| W31 地图绘制移植（`forge/painter.js`、`furniture.js`、`scene.js`、`forge/worker.js`） | **废案，代码已删** |
+| `forge/floorplan.js` / `scene-spec.js` / `scene-llm.js` / `scene-agent.js` / `scene-detail-agent.js` | **废案，代码已删** |
+| 调试页「生成家 / 生成办公室 / 生成咖啡厅 / 生成书店 / 生成公园 / 生成 DSL 书房」 | **废案，入口已删** |
+| `furniture_plan` / `map_generate` / `map_scenes` 命令 | **废案，命令已删** |
+| `sceneRequests` / `scene:ready` | **保留**：ARM 只发请求，PC 生成并回包 |
+
+**保留**：场景加载与渲染（`view/scene-loader.js`、`view/overview.js`）、`core/grid.js` 碰撞、`core/interactions.js` 执行、`workers/forge.worker.js` 的剧情文法（`forge/grammar.js`）。
+
+**验收**：主页面只加载 `assets/scenes/`；调试页无地图生成入口；`node --test` 无地图生成测试；`tools/pack.mjs` 不再打包 `forge` 生成模块。
 
 ## 1. A 组 · 基线与契约
 
@@ -78,7 +95,7 @@
 | W13 | 管理层 Agent | `core/agent/manager.js`：意图 → 任务分解 → 派发 → schema 校验 → 落库 | 一次意图产出 1–3 个任务，非法输出被丢弃 | W11, W12 | **已有**（8 项测试 + 假 LLM 端到端） |
 | W14 | 子 Agent：剧情 | `core/agent/subs/plot.js` + `subs/events.js` | 30–80 字、时间锚点、24h 去重；事件池可定时扩展 | W13 | **已有**（12 项测试 + 端到端实测） |
 | W15 | 子 Agent：背景 | `core/agent/subs/bg.js` | 960×540、非单色、体积达标 | W13 | **已有**（搜索/下载/裁切/压缩，实测 60KB） |
-| W16 | 子 Agent：地图 | `core/agent/subs/map.js` + `forge/layout.js`（像素绘制待 W31） | 生成合法 intGrid + 可渲染 | W13, W31 | **已有**（布局/intGrid/可达校验；调试页渲染） |
+| W16 | 子 Agent：地图 | — | — | — | **废案（2026-11-14）**：地图生成移交 PC，ARM 只消费场景包 |
 | W17 | 资源治理与 24/7 | `core/governor.js`：内存水位、降频、息屏、看门狗 | 8h 不断档；水位超限按 P4→P3→P2 降级 | W10 | **已有**（分级/闸门/看门狗；8h soak 待设备跑） |
 | W18 | 观测 | `core/observe.js`：`state_log` / 任务账本 / `health` / 堆上报 | 一条命令看到状态机+队列+预算+索引 | W17 | **已有**（面板实测；生产页需接 heap_report） |
 | W19 | 与 PC 同步 | 事件批、资产清单、记忆结果合并；`world:digest` 统一摘要 | 假 PC 收批、uuid 去重、重复不重复入 | W9, W5 | 摘要已有（`core/digest.js`） |
@@ -97,7 +114,7 @@
 | W29 | **地点图与旅行（含跨夜、动态注册表）** | `core/places/graph.js`：place graph + 步行时间 + 跨夜 + `SCENE_ADDED/REMOVED` 原子更新 | 跨夜旅行产生事件与证据；新地图可被消费；删除当前场景时回 home | W27 | **已有**（4 项测试 + 端到端旅行/删除回 home） |
 | W32 | **Doctor 自检与自愈**（未来功能） | `core/doctor.js`：周期检测、日志包、LLM 诊断、白名单动作、安全模式 | 注入 5 类故障可检测；动作 100% 在白名单；日志脱敏 | W17, W11 | **已有**（9 类检查 + 白名单动作 + 5min 周期；日志脱敏待补） |
 | W33 | **心情/行为外部引导与深层管理**（未来） | `core/mood/policy.js`：来源优先级、TTL、限频、剧情 setpoint | 唤醒/剧情可引导行为且可解释；越权被拒 | W4, W21, W14 | **已有**（优先级/TTL/限频/setpoint；episode-baseline 待做） |
-| W31 | **地图绘制移植**（spec-first 双 painter） | `forge/painter.js` + `furniture.js` + `scene.js` + `worker.js`：同一 spec，PC Python / ARM JS | 同 spec 视觉一致；设备烘焙 ≤50ms | B4, W27 | **已有**（地形/光照逐像素、家具 98.6%、合成/AI 摆家具、Worker 13.5ms） |
+| W31 | **地图绘制移植**（spec-first 双 painter） | — | — | — | **废案（2026-11-14）**：ARM 不再生成/烘焙地图，绘制只在 PC 产出侧 |
 | W30 | **显现 iframe 宿主**（P1 已定） | `view/present-host.js` + `present.js`：iframe 全屏、`allow=microphone;autoplay`、探活/超时失败回总观 | 显现期间 `health` 连续；麦克风可用；关闭后内存回落 | A2, W9 | **已有**（探活 + 加载/超时回退；麦克风待真机） |
 
 ## 3.5 T 组 · 产出工具（"产出工具齐全"清单）
@@ -113,7 +130,7 @@
 | T6 | `www/debug.html` 场景页 | 碰撞/热点/可达性可视化 | 一眼看出哪格挡路、哪个热点不可达 | 与 W22 合并 |
 | T7 | `tools/pack.mjs` / `verify.mjs` | 资源包清单与完整性 | 已通过 | **已有** |
 
-> 工具运行位置与"ARM 侧必须补上什么"见 `docs/AGENT-TOOLKIT.md`：**校验只在产出 agent 中（生成后、打包前）；`install.sh` 只做部署；设备自产地图由生成器自检 5 条**。
+> 工具运行位置与"ARM 侧必须补上什么"见 `docs/AGENT-TOOLKIT.md`：**校验只在产出 agent 中（生成后、打包前）；`install.sh` 只做部署；ARM 不再自产地图**。
 
 ## 4. L 组 · 生活引擎（作为 W4 的可视化验收面）
 
@@ -181,7 +198,7 @@
 | C2 | `interactions.json` | 道具 → 动作 → 效果，设备侧只执行 |
 | C3 | 角色图集 `sheet.png/json` | 4 向 × N 帧 + 坐/睡/做饭动作 |
 | C4 | 多场景与门切换 | `door.to` 目标场景、`anchor` 落点 |
-| C5 | 新场景/新户型 | 由产出侧或设备侧 painter（W31）产出 |
+| C5 | 新场景/新户型 | 由 PC 产出侧生成场景包；ARM 只加载 |
 
 ## 9. 推荐批次
 
@@ -193,10 +210,10 @@
 | 3 | W3–W6 | 状态机 + 事件日志 + 快照恢复 |
 | 4 | W7–W9 | 本地记忆 + 主机通道 + 降级 |
 | 5 | W10–W13 + W25 | 调度 + LLM 路由/预算 + skill/prompt + 管理层 Agent |
-| 6 | W14–W16 | 三个子 Agent（剧情→背景→地图） |
+| 6 | W14–W15 | 两个子 Agent（剧情→背景）；地图生成已废案 |
 | 7 | W17–W19 + W24 | 24/7 治理 + 并发合并 + 同步 |
 | 8 | W20–W23 + L1–L4 | 心情 + 唤醒机 + 统计可视化 + 记忆管线 + 生活可视 |
-| 8.5 | W26–W29 + W31 | 设备档唤醒运行时 + 自主活动 + 联网代理 + 地点图 + 地图绘制移植 |
+| 8.5 | W26–W29 | 设备档唤醒运行时 + 自主活动 + 联网代理 + 地点图（地图生成已废案） |
 | 8.6 | T1–T6 | 产出工具齐全（校验/收包/加载/动画/交互执行/调试页） |
 | 8.7 | W32 | Doctor 自检与自愈（未来功能） |
 | 8.8 | W33 | 心情/行为外部引导与深层管理（未来功能） |
@@ -218,7 +235,7 @@
 | D5 | 同步 | ①append-only + uuid ②CRDT | ① |
 | D6 | Agent 层 | ①自研薄层 ②AI SDK ③LangGraph.js | ① |
 | D7 | Skill/Prompt | ①文件约定 + 构建期打包 ②运行时 DB ③硬编码 | ① |
-| D8 | 子 Agent 顺序 | ①剧情→背景→地图 ②地图优先 | ① |
+| D8 | 子 Agent 顺序 | ①剧情→背景 ②地图优先 | ①（地图已废案） |
 | D9 | 时间流速 | ①1 秒=1 分 ②真实 1:1 ③可配 | ③ 默认② |
 | D10 | spike 代码 | ①打 tag 后逐步替换 ②直接删 | ① |
 | D11 | 视觉路线 | ①全像素 UI ②像素场景+克制覆盖层 ③纯现代 UI | ② |

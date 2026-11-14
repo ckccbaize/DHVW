@@ -23,8 +23,8 @@ test("parseFrontmatter：键值、数组、数字、布尔", () => {
 test("buildRegistry：仓库内 skills/prompts 合法", async () => {
   const { registry, errors } = await buildRegistry(ROOT);
   assert.deepEqual(errors, []);
-  assert.equal(Object.keys(registry.skills).length, 9);
-  assert.equal(Object.keys(registry.prompts).length, 14);
+  assert.equal(Object.keys(registry.skills).length, 8);
+  assert.equal(Object.keys(registry.prompts).length, 10);
   const wake = registry.skills["wake-character"];
   assert.equal(wake.class, "character");
   assert.equal(wake.prompt, "character-wake");
@@ -63,7 +63,7 @@ test("render：替换变量；缺变量/未知 prompt 抛错", () => {
 test("list/stats：反映注册内容", async () => {
   const { registry } = await buildRegistry(ROOT);
   const r = createRegistryFromData(registry);
-  assert.deepEqual(r.stats(), { loaded: true, version: 1, skills: 9, prompts: 14 });
+  assert.deepEqual(r.stats(), { loaded: true, version: 1, skills: 8, prompts: 10 });
   const names = r.list().map((s) => s.name).sort();
-  assert.deepEqual(names, ["behavior-record", "browse-plan", "doctor", "event-pool", "furniture-plan", "memory-summarize", "plot-writer", "wake", "wake-character"]);
+  assert.deepEqual(names, ["behavior-record", "browse-plan", "doctor", "event-pool", "memory-summarize", "plot-writer", "wake", "wake-character"]);
 });

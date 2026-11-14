@@ -4,13 +4,10 @@
 
 import { generatePlot } from "../js/forge/grammar.js";
 
-let sceneInfo = null; // { w, h, cell }
-let homeUrl = null;
 let suspended = false;
 let busy = false;
 let queue = [];
 let recentPlots = []; // 24h 内已产出的剧情文本
-let homeBitmap = null;
 
 const LIGHT_PALETTE = {
   dawn: { top: "#2f3a55", mid: "#8f6f7a", bot: "#e8a06a", tint: "rgba(255,180,120,0.20)", sun: "#ffd9a0" },
@@ -211,44 +208,6 @@ async function composeBackground(ctx) {
 }
 
 /** 场景光照变体：在本地家园图（640×480）上合成时间色调。 */
-async function composeSceneLight(ctx) {
-  if (!homeUrl) throw new Error("no_home_image");
-  if (!homeBitmap) {
-    const res = await fetch(homeUrl);
-    if (!res.ok) throw new Error(`home_fetch_${res.status}@${homeUrl}`);
-    homeBitmap = await createImageBitmap(await res.blob());
-  }
-  const W = homeBitmap.width;
-  const H = homeBitmap.height;
-  const light = LIGHT_PALETTE[ctx.light] || LIGHT_PALETTE.day;
-
-  const canvas = new OffscreenCanvas(W, H);
-  const c = canvas.getContext("2d");
-  c.imageSmoothingEnabled = false;
-  c.drawImage(homeBitmap, 0, 0, W, H);
-  await yieldTick();
-
-  c.globalCompositeOperation = "multiply";
-  c.fillStyle = light.mid;
-  c.fillRect(0, 0, W, H);
-  c.globalCompositeOperation = "source-over";
-  c.fillStyle = light.tint;
-  c.fillRect(0, 0, W, H);
-  await yieldTick();
-
-  const vig = c.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.92);
-  vig.addColorStop(0, "rgba(0,0,0,0)");
-  vig.addColorStop(1, "rgba(0,0,0,0.34)");
-  c.fillStyle = vig;
-  c.fillRect(0, 0, W, H);
-
-  const gate = imageGate(canvas, 4);
-  if (!gate.ok) throw new Error(`scene_gate_${gate.reason}`);
-
-  const blob = await toBlob(canvas);
-  return { blob, width: W, height: H, meta: { light: ctx.light || "day" } };
-}
-
 async function runTask(task) {
   const seedStr = `${task.seed}|${task.kind}|${task.ctx?.light || ""}|${task.ctx?.room || ""}`;
   const seed = hashStr(seedStr);
@@ -270,16 +229,6 @@ async function runTask(task) {
     const out = await composeBackground(task.ctx || {});
     return {
       kind: "bg",
-      origin: "forge-procedural",
-      blob: out.blob,
-      size: out.blob.size,
-      meta: { ...out.meta, width: out.width, height: out.height },
-    };
-  }
-  if (task.kind === "scene") {
-    const out = await composeSceneLight(task.ctx || {});
-    return {
-      kind: "scene",
       origin: "forge-procedural",
       blob: out.blob,
       size: out.blob.size,
@@ -319,10 +268,8 @@ self.onmessage = (e) => {
   const msg = e.data || {};
   switch (msg.type) {
     case "init": {
-      sceneInfo = msg.scene || null;
-      homeUrl = msg.homeUrl || null;
       if (msg.recentPlots) recentPlots = msg.recentPlots.slice(-40);
-      emit({ type: "ready", scene: sceneInfo ? { w: sceneInfo.w, h: sceneInfo.h } : null });
+      emit({ type: "ready" });
       break;
     }
     case "enqueue": {

@@ -172,7 +172,7 @@ test("LocalRuntime：start 初始化两个 Worker，tick 更新时钟", async ()
   const forge = FakeWorker.instances.find((w) => w.url.includes("forge.worker"));
   assert.ok(life && forge, "应创建 life/forge 两个 Worker");
   assert.equal(life.last("init").scene.grid.w, 4);
-  assert.equal(forge.last("init").homeUrl.includes("home@2x.png"), true);
+  assert.equal(Array.isArray(forge.last("init").recentPlots), true);
 
   life.emit({ type: "tick", day: 2, minute: 600, phase: "noon", weather: "rain", room: "living" });
   assert.deepEqual(store.state.clock, { day: 2, minute: 600, offsetMs: 5000, source: "device" });

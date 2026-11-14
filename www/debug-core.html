@@ -85,11 +85,6 @@
   <button id="btnOutingGo">强制出门</button>
   <button id="btnDigestWrite">写摘要</button>
   <button id="btnPcAction">PC 生成地图</button>
-  <button id="btnMapGenerate">本地生成地图</button>
-  <button id="btnPaintTerrain">画地形层</button>
-  <button id="btnArmScene">ARM 生成新场景</button>
-  <button id="btnAiFurnish">AI 摆家具</button>
-  <button id="btnForgeWorker">Worker 烘焙</button>
   <button id="btnGovernorCheck">检查治理</button>
   <button id="btnObserve">看观测</button>
   <button id="btnMood">取心情曲线</button>
@@ -108,7 +103,6 @@
   <button id="btnMerge">合并测试</button>
   <button id="btnMemoryPipeline">记忆管线</button>
 </div>
-<canvas id="mapCanvas" width="480" height="320" style="width:480px;height:320px;image-rendering:pixelated;border:1px solid #444"></canvas>
 
 <h2>背景（W15）</h2>
 <div class="row">
@@ -169,11 +163,6 @@
 
 <script type="module">
 import { createCoreClient } from "./js/core/client.js";
-import { paintTerrain } from "./js/forge/painter.js";
-import { buildLayout } from "./js/forge/layout.js";
-import { buildScene } from "./js/forge/scene.js";
-import { applyPlacement } from "./js/forge/placement.js";
-import { createForgeClient } from "./js/forge/client.js";
 import { makeMsg } from "./js/core/bus.js";
 
 const $ = (s) => document.querySelector(s);
@@ -264,18 +253,7 @@ function renderMap(m) {
     `map scenes=<b>${m.scenes}</b> last=<b>${m.last || "—"}</b>`;
 }
 
-function drawMap(scene) {
-  const cv = document.querySelector("#mapCanvas");
-  const ctx = cv.getContext("2d");
-  const cell = cv.width / scene.w;
-  const colors = { 0: "#6b5a4a", 1: "#3a3340", 2: "#c9a227", 3: "#7fb3d5" };
-  for (let y = 0; y < scene.h; y++) {
-    for (let x = 0; x < scene.w; x++) {
-      ctx.fillStyle = colors[scene.intGrid[y * scene.w + x]] || "#000";
-      ctx.fillRect(x * cell, y * cell, cell, cell);
-    }
-  }
-}
+
 
 function renderDigest(d) {
   if (!d) return;
@@ -613,102 +591,6 @@ $("#btnGovernorCheck").onclick = async () => {
   try {
     const r = await client.request("core:command", { name: "governor_check" });
     pushLine(`governor → ${r.tier} (${r.reasons.join(",") || "ok"})`);
-  } catch (e) { pushLine(e.message); }
-};
-$("#btnForgeWorker").onclick = async () => {
-  try {
-    const res = await fetch("assets/scenes/home/home.built.json", { cache: "no-store" });
-    const spec = await res.json();
-    const forge = createForgeClient();
-    const t0 = performance.now();
-    const out = await forge.bake(spec);
-    forge.stop();
-    const canvas = document.querySelector("#mapCanvas");
-    canvas.width = out.image.width;
-    canvas.height = out.image.height;
-    canvas.getContext("2d").putImageData(out.image, 0, 0);
-    pushLine(`forge worker → ${out.image.width}x${out.image.height} ${out.ms.toFixed(1)}ms (total ${(performance.now() - t0).toFixed(1)}ms)`);
-  } catch (e) { pushLine(e.message); }
-};
-$("#btnAiFurnish").onclick = async () => {
-  try {
-    const layout = buildLayout(24, 16, "furn-demo");
-    const r = await client.request("core:command", {
-      name: "furniture_plan",
-      args: { layout, intent: "布置得舒服、能走动" },
-    });
-    if (!r.ok) { pushLine(`furnish failed → ${r.reason} ${(r.errors || []).slice(0, 2).join(",")}`); return; }
-    const spec = applyPlacement({
-      name: "furnished",
-      title: "AI 布置",
-      grid: { w: 24, h: 16, cell: 16 },
-      rooms: layout.rooms,
-      zones: layout.zones,
-      doors: layout.doors,
-      windows: [{ x: 3, y: 0 }, { x: 9, y: 0 }],
-    }, r.props);
-    const scene = buildScene(spec);
-    const canvas = document.querySelector("#mapCanvas");
-    canvas.width = scene.image.w;
-    canvas.height = scene.image.h;
-    canvas.getContext("2d").putImageData(new ImageData(new Uint8ClampedArray(scene.image.data), scene.image.w, scene.image.h), 0, 0);
-    pushLine(`furnish → ${r.props.length} props (${r.attempts})`);
-  } catch (e) { pushLine(e.message); }
-};
-$("#btnArmScene").onclick = async () => {
-  try {
-    const layout = buildLayout(24, 16, "arm-" + Date.now());
-    const spec = {
-      name: "arm-scene",
-      title: "ARM 新场景",
-      grid: { w: 24, h: 16, cell: 16 },
-      rooms: layout.rooms,
-      zones: layout.zones,
-      doors: layout.doors,
-      windows: [{ x: 3, y: 0 }, { x: 9, y: 0 }],
-      props: [{ id: "desk_lamp", x: 3, y: 3, w: 1, h: 1 }],
-      furnitureDefs: {
-        desk_lamp: {
-          size: [1, 1],
-          shapes: [
-            { op: "shadow", x: 1, y: 1, w: 12, h: 12, color: [40, 28, 30, 70] },
-            { op: "rect", x: 2, y: 2, w: 12, h: 12, color: [92, 62, 44] },
-            { op: "outline", x: 2, y: 2, w: 12, h: 12, color: [46, 34, 36] },
-          ],
-        },
-      },
-    };
-    const scene = buildScene(spec);
-    const canvas = document.querySelector("#mapCanvas");
-    canvas.width = scene.image.w;
-    canvas.height = scene.image.h;
-    canvas.getContext("2d").putImageData(new ImageData(new Uint8ClampedArray(scene.image.data), scene.image.w, scene.image.h), 0, 0);
-    pushLine(`ARM scene → ${scene.image.w}x${scene.image.h} rooms=${spec.rooms.length} doors=${spec.doors.length}`);
-  } catch (e) { pushLine(e.message); }
-};
-$("#btnPaintTerrain").onclick = async () => {
-  try {
-    const res = await fetch("assets/scenes/home/home.built.json", { cache: "no-store" });
-    const spec = await res.json();
-    const cv = paintTerrain(spec);
-    const canvas = document.querySelector("#mapCanvas");
-    canvas.width = cv.w;
-    canvas.height = cv.h;
-    const ctx = canvas.getContext("2d");
-    const img = new ImageData(new Uint8ClampedArray(cv.data), cv.w, cv.h);
-    ctx.putImageData(img, 0, 0);
-    pushLine(`terrain → ${cv.w}x${cv.h}`);
-  } catch (e) { pushLine(e.message); }
-};
-$("#btnMapGenerate").onclick = async () => {
-  try {
-    const r = await client.request("core:command", {
-      name: "map_generate",
-      args: { mapSpec: { name: "集市", kind: "lively", distance: 7, seed: "11-13-1" } },
-    });
-    if (!r.ok) { pushLine(`map failed → ${r.reason}`); return; }
-    drawMap(r.scene);
-    pushLine(`map ok → ${r.scene.rooms.length} rooms / ${r.scene.doors.length} doors (${r.attempts})`);
   } catch (e) { pushLine(e.message); }
 };
 $("#btnDigestWrite").onclick = async () => {

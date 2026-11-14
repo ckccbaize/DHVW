@@ -21,7 +21,6 @@ import { createPlotAgent, EVENT_POOL } from "./agent/subs/plot.js";
 import { createEventPoolAgent } from "./agent/subs/events.js";
 import { planOuting, pickDestination, dateKey, SPECIAL_DATES, DESTINATIONS } from "./life/outing.js";
 import { buildDigest, createDigestStore } from "./digest.js";
-import { generateMap } from "./agent/subs/map.js";
 import { allowedAt, checkWatchdog, createGovernor } from "./governor.js";
 import { createStateLog, createTaskLedger } from "./observe.js";
 import { createSyncManager, mergeFacts } from "./sync.js";
@@ -32,7 +31,6 @@ import { pickBehavior } from "./actions/plan.js";
 import { createWakeRuntime } from "./wake/runtime.js";
 import { createRecordAgent } from "./agent/subs/record.js";
 import { createBrowsePlanner, searchBing, validatePublicUrl } from "./actions/browse.js";
-import { createPlaceAgent } from "./agent/subs/place.js";
 import { createDoctor } from "./doctor.js";
 import { createMoodPolicy } from "./mood/policy.js";
 import { cleanupTombstones, mergeBatch, mergeRecord } from "./sync/merge.js";
@@ -103,7 +101,6 @@ let pcActions = [];
 let digestStore = null;
 let digestTimer = null;
 let lastDigestAt = 0;
-let generatedScenes = [];
 let governor = null;
 let governorLast = null;
 let stateLog = null;
@@ -121,7 +118,6 @@ let browseUrl = "https://www.weather.com.cn/weather/101010100.shtml";
 let wakeRuntime = null;
 let recordAgent = null;
 let browsePlanner = null;
-let placeAgent = null;
 let doctor = null;
 let doctorTimer = null;
 let moodPolicy = null;
@@ -300,7 +296,6 @@ const ready = (async () => {
   agenda = (await kvBackend.get("agenda")) || [];
   sceneRequests = (await kvBackend.get("scene_requests")) || [];
   pcActions = (await kvBackend.get("pc_actions")) || [];
-  generatedScenes = (await kvBackend.get("generated_scenes")) || [];
   digestStore = createDigestStore({ backend: kvBackend });
   stateLog = createStateLog({ backend: kvBackend });
   await stateLog.init();
@@ -359,7 +354,6 @@ const ready = (async () => {
   await wakeRuntime.init();
   recordAgent = createRecordAgent({ llm, registry: agentRegistry });
   browsePlanner = createBrowsePlanner({ llm, registry: agentRegistry });
-  placeAgent = createPlaceAgent({ llm, registry: agentRegistry });
   moodPolicy = createMoodPolicy();
   pipelineSeen = new Set((await kvBackend.get("memory_seen")) || []);
   lastPipelineSeq = (await kvBackend.get("pipeline_state"))?.lastSeq || 0;
@@ -561,7 +555,6 @@ async function writeDigest() {
     eventPool: { total: eventPool.events.length, updatedAt: eventPool.updatedAt },
     outing: outingView(),
     digest: { ts: lastDigestAt, agenda: agenda.length, scenes: sceneRequests.length, pcActions: pcActions.length },
-    map: { scenes: generatedScenes.length, last: generatedScenes[0]?.name || null },
     governor: governorLast
       ? { tier: governorLast.tier, reasons: governorLast.reasons, metrics: governorLast.metrics }
       : { tier: governor ? governor.tier : "P4", reasons: [], metrics: null },
@@ -1028,7 +1021,6 @@ function health() {
     eventPool: { total: eventPool.events.length, updatedAt: eventPool.updatedAt },
     outing: outingView(),
     digest: { ts: lastDigestAt, agenda: agenda.length, scenes: sceneRequests.length, pcActions: pcActions.length },
-    map: { scenes: generatedScenes.length, last: generatedScenes[0]?.name || null },
     governor: governorLast
       ? { tier: governorLast.tier, reasons: governorLast.reasons, metrics: governorLast.metrics }
       : { tier: governor ? governor.tier : "P4", reasons: [], metrics: null },
@@ -1299,7 +1291,6 @@ const handlers = {
           text: r.text,
           event: r.event,
           place: r.place,
-          scene: r.scene,
           imageQuery: r.imageQuery,
           ts: Date.now(),
         });
@@ -1307,7 +1298,6 @@ const handlers = {
           text: r.text,
           event: r.event,
           place: r.place,
-          scene: r.scene,
           imageQuery: r.imageQuery,
           mood: r.mood,
           attempts: r.attempts,
@@ -1321,7 +1311,6 @@ const handlers = {
             text: r.text,
             event: r.event,
             place: r.place,
-            scene: r.scene,
             imageQuery: r.imageQuery,
             mood: r.mood,
           },
@@ -1377,43 +1366,6 @@ const handlers = {
       await doctorApply(p.args?.on ? "enter_safe_mode" : "exit_safe_mode", {});
       doctor.setSafeMode(!!p.args?.on);
       return { ok: true, safeMode: !!p.args?.on };
-    }
-    if (p.name === "furniture_plan") {
-      return await placeAgent.run({
-        layout: p.args?.layout || { rooms: [], doors: [] },
-        intent: p.args?.intent || "",
-        furnitureDefs: p.args?.furnitureDefs || {},
-      });
-    }
-    if (p.name === "map_generate") {
-      const blocked = degraded("plot");
-      if (blocked) return blocked;
-      const t0 = Date.now();
-      const r = generateMap({ mapSpec: p.args?.mapSpec || {}, seed: p.args?.seed, w: p.args?.w, h: p.args?.h });
-      if (ledger) void ledger.record({ kind: "map", ok: r.ok, ms: Date.now() - t0, error: r.ok ? null : r.reason });
-      if (r.ok) {
-        generatedScenes.unshift({ ...r.scene, ts: Date.now() });
-        generatedScenes = generatedScenes.slice(0, 5);
-        await kvBackend.put("generated_scenes", generatedScenes);
-        const req = sceneRequests.find((s) => s.mapSpec?.seed === r.scene.seed && s.status === "pending");
-        if (req) {
-          req.status = "ready";
-          await kvBackend.put("scene_requests", sceneRequests);
-        }
-        await appendEvent("scene:generated", {
-          name: r.scene.name,
-          seed: r.scene.seed,
-          rooms: r.scene.rooms.length,
-          doors: r.scene.doors.length,
-          attempts: r.attempts,
-        });
-        patch({ map: { scenes: generatedScenes.length, last: r.scene.name } });
-        scheduleDigest();
-      }
-      return r;
-    }
-    if (p.name === "map_scenes") {
-      return { ok: true, scenes: generatedScenes.map(({ intGrid, ...rest }) => rest) };
     }
     if (p.name === "heap_report") {
       const used = Number(p.args?.used) || 0;

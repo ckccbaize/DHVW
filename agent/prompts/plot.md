@@ -10,11 +10,7 @@
 地图资源：{{map}}
 
 为第二天生成一个完整的生活计划，并决定是否发生突发状况。只输出 JSON：
-{"text":"小记","event":"事件短语","place":"living|hall|bedroom|bath|balcony|kitchen","act":"read|cook|write|rest|watch|bath|sleep|sit","mood":{"valence":0.05,"energy":-0.02,"social":0.0,"focus":0.0},"sleepAt":"22:30","wakeAt":"07:10","desires":["..."],"behaviors":[{"time":"08:30","act":"read","place":"living","why":"..."}],"sudden":{"enabled":false,"time":"15:00","text":""},"scene":null}
-
-如果剧情/愿望明确需要一个新场景，scene 给场景描述：
-{"kind":"cafe","name":"街角咖啡馆","description":"有吧台、几张靠窗小桌、暖灯和绿植的街角咖啡馆"}
-否则 scene 为 null。
+{"text":"小记","event":"事件短语","place":"living|hall|bedroom|bath|balcony|kitchen","act":"read|cook|write|rest|watch|bath|sleep|sit","mood":{"valence":0.05,"energy":-0.02,"social":0.0,"focus":0.0},"sleepAt":"22:30","wakeAt":"07:10","desires":["..."],"behaviors":[{"time":"08:30","act":"read","place":"living","why":"..."}],"sudden":{"enabled":false,"time":"15:00","text":""}}
 
 要求：
 - text 30-80 字第三人称小记，落在动作/物件/感官上，不写台词；

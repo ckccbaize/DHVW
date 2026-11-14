@@ -37,7 +37,7 @@
 | 新增（未来） | **心情是外部可引导接口**：唤醒机/剧情/用户/Doctor 可 bias 或 setpoint，必须带 source/reason/TTL；W33 做优先级/限频/episode-baseline | SPEC §3.4 / DEV-PLAN W33 |
 | 新增（未来） | **Doctor 自检与自愈**：周期检测异常 → 日志交 LLM → 只能从白名单动作修复 → 继续运行；连续失败进安全模式 | SPEC §14 / DEV-PLAN W32 |
 
-## 0.2 2026-11-13 决定：地图生成走 spec-first，双 painter
+## 0.2 2026-11-13 决定：地图生成走 spec-first，双 painter（已废案，见 0.3）
 
 | # | 结论 | 说明 |
 |---|---|---|
@@ -45,6 +45,14 @@
 | D16.1 | **LLM 不产出可执行 Python** | skill 让模型产出/选择 scene spec 或参数，不生成任意绘制代码；新增绘制原语由开发者同时加进两套 painter 并过对比 |
 | D16.2 | **现有地图不重做** | `home.map.json` 与已烘焙 PNG 是数据；移植只新增 ARM 侧实现，不改资产 |
 | D16.3 | **不在 ARM 生产环境跑 Python** | 2GB/24-7/依赖与安全成本高；Python 只留在 PC/开发机做参考与黄金图 |
+
+## 0.3 2026-11-14 决定：ARM 侧地图生成废案
+
+| # | 结论 | 说明 |
+|---|---|---|
+| D17 | **地图生成全部移交 PC 产出侧** | ARM 不再生成户型、摆放家具、绘制/烘焙地图、打包场景；`W16` / `W31` 及 `forge` 生成模块、场景 Agent、调试入口、`map_generate` / `furniture_plan` 命令全部移除 |
+| D17.1 | **ARM 只消费场景包** | 保留 `assets/scenes/<id>/` 加载与渲染、`intGrid` 碰撞、`interactions.json` 执行；`sceneRequests` / `scene:ready` 仍用于向 PC 请求与接收 |
+| D17.2 | **剧情不再触发新场景生成** | `plot` / `plot-repair` 去掉 `scene` 字段；需要新地点时由 PC 产出侧交付场景包 |
 
 ## 0. 总表
 
