@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T08:21:36.440Z",
+ "built_at": "2026-11-14T08:32:08.067Z",
  "files": [
   {
    "path": "agent/registry.json",
    "size": 13091,
-   "sha256": "c7e2597dc87ead20bf6a8425b00808a8d598ca835aad731c1b7a321c711883ee"
+   "sha256": "a5fa657f1d1eb45a5a8b25c53ec3043ee850fb13b67912c0e545c9030d486044"
   },
   {
    "path": "assets/char/ojj_sheet.json",
@@ -704,13 +704,18 @@
   },
   {
    "path": "js/core/grid.js",
-   "size": 5847,
-   "sha256": "a546df0c004111d882cae6e7250441a7cfd5575d817890025e50a9da5dde2bbd"
+   "size": 6636,
+   "sha256": "31a32c9aaca7edcccbda344112838f1e93787abd7b02a50a224e2bbe146b13f0"
   },
   {
    "path": "js/core/host.js",
    "size": 5258,
    "sha256": "c150be90ad5c5ed06208497af55f627e8e404d2fd24dfd2c5a6352256182c42a"
+  },
+  {
+   "path": "js/core/interactions.js",
+   "size": 4564,
+   "sha256": "a2fa32725b2e1a39c72ac2d13163182b824342029e29cb610e4d8b56ab1ff498"
   },
   {
    "path": "js/core/kv.js",
@@ -838,6 +843,11 @@
    "sha256": "dfa4c98e57c85102d903532341cc18b848bee2965c46035a781e58ed94ebbdac"
   },
   {
+   "path": "js/core/scene-package.js",
+   "size": 4932,
+   "sha256": "33af82bca3bf4c4591a7a285dfdda9208b16268eb1932e8e73d69d50b85a9b9c"
+  },
+  {
    "path": "js/core/sched/scheduler.js",
    "size": 6748,
    "sha256": "33270c83cdd6ca753e0adcce0f98a65bfedc723eef0663ef52cb55eb54b3a840"
@@ -949,8 +959,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 36451,
-   "sha256": "c8e4477844e87668e3c8c334db27060beb721b4749fdacd702ae745911eafb4e"
+   "size": 36841,
+   "sha256": "4126b8d370645c49ef71d26fe3a3494fd086b98b9a39bf81b8c31ef4ea224b1c"
   },
   {
    "path": "js/runtime/remote.js",
@@ -984,8 +994,8 @@
   },
   {
    "path": "js/view/scene-loader.js",
-   "size": 791,
-   "sha256": "7e4de321f01281be924d24210b6ad9cd1d20bd18fe27d4c994cf1d706033a96e"
+   "size": 1003,
+   "sha256": "a8e8c91241ac200832a7fb0e31477f772d49e0ef22b404549c9cd60775e43ef5"
   },
   {
    "path": "js/view/switch.js",

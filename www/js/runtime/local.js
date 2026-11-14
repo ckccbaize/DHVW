@@ -13,6 +13,7 @@ import { generateMap } from "../core/agent/subs/map.js";
 import { createBrowsePlanner } from "../core/actions/browse.js";
 import { normalizeBehaviors, roomForAct, createActRoomMap } from "../core/life/plan.js";
 import { buildScene } from "../forge/scene.js";
+import { buildScenePackage, saveScenePackage } from "../core/scene-package.js";
 
 const EVENT_CAP = 2000;
 const DEFAULT_QUOTA = 500 * 1024 * 1024;
@@ -640,6 +641,16 @@ export function createLocalRuntime({
       built: baked.built,
       created_at: now(),
     };
+    try {
+      const pkg = await buildScenePackage({ ...r.scene, id: item.id }, baked);
+      if (pkg.ok) {
+        await saveScenePackage(backend, pkg);
+        item.packageId = pkg.id;
+        item.manifest = pkg.manifest;
+      }
+    } catch (err) {
+      console.warn("场景包打包失败", err);
+    }
     await appendKv("generated_maps", item, 5);
     await logLlm({
       agent: "map",

@@ -145,10 +145,27 @@ function adjacentCells(grid, prop) {
  * 从场景推导热点：可交互道具的相邻可走格。
  * 返回 [{x, y, prop, act, room, face}]，同一格只保留第一个（确定性）。
  */
-export function buildHotspots(scene) {
+export function buildHotspots(scene, interactions = scene.interactions) {
   const grid = scene.grid;
   const seen = new Set();
   const out = [];
+  const acts = interactions?.acts;
+  if (acts && typeof acts === "object") {
+    for (const [act, def] of Object.entries(acts)) {
+      for (const propId of def?.trigger?.props || []) {
+        for (const prop of (scene.props || []).filter((p) => p.id === propId)) {
+          const cell = facingCell(grid, prop) || adjacentCells(grid, prop)[0];
+          if (!cell) continue;
+          const key = `${cell[1] * grid.w + cell[0]},${act}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          out.push({ x: cell[0], y: cell[1], prop: prop.id, act, room: prop.room, face: prop.facing || "S" });
+        }
+      }
+    }
+    return out;
+  }
+  // 兼容旧场景：没有 interactions.json 时退回硬编码表（已标记 deprecated）
   for (const prop of scene.props || []) {
     const act = PROP_ACT[prop.id];
     if (!act) continue;

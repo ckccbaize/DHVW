@@ -13,6 +13,12 @@ export async function loadScene(name = "home", { fetchImpl = globalThis.fetch } 
     imageUrl: `${base}/${raw.image || `${name}.png`}`,
     image2xUrl: `${base}/${raw.image2x || `${name}@2x.png`}`,
   };
-  scene.hotspots = buildHotspots(scene);
+  try {
+    const ir = await fetchImpl(`${base}/interactions.json`, { cache: "no-store" });
+    if (ir.ok) scene.interactions = await ir.json();
+  } catch {
+    scene.interactions = null;
+  }
+  scene.hotspots = buildHotspots(scene, scene.interactions);
   return scene;
 }

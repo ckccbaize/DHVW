@@ -119,7 +119,8 @@ createManagerAgent({ llm, registry, subAgents: { "plot-writer": (args) => plotAg
 - `buildGrid` / `buildIntGrid`：输出 intGrid（0 走 / 1 墙 / 2 门 / 3 窗），家具阻挡计入；
 - `validateMap`：房间、门指向、BFS 全房间可达；家具堵路时按房间裁剪；
 - `generateMap`：同 seed 确定性，失败自动换 seed 重试 ≤6 次；
-- 端侧 `maybeMap` 用 `forge/scene.js` 烘焙三层图，结果落 kv `generated_maps`（环形 5），调试页直接显示合成图。
+- 端侧 `maybeMap` 用 `forge/scene.js` 烘焙三层图，`core/scene-package.js` 打包 `scene.json / intgrid.bin / 三层 PNG / interactions.json / manifest`，包存 IDB `blobs`，索引存 kv `scene_packages`（环形 8），调试页直接显示合成图。
+- `core/interactions.js` 提供 `createInteractionRegistry / resolveInteraction / applyEffects`；`grid.js` 热点优先从 `interactions.json` 推导，`PROP_ACT` 仅作旧场景兜底。
 
 `home` / `office` 不再输出空矩形骨架；调试页「生成家 / 生成办公室 / 生成咖啡厅 / 生成书店 / 生成公园 / 生成 DSL 书房」可看到带家具的完整地图。剧情 `scene` 字段可以是 DSL 字符串，也可以继续用 `{kind,name,program}`。
 
