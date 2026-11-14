@@ -5,6 +5,7 @@ import type {
   GatewayStatusView,
   HostEvent,
   LlmProtocol,
+  Live2dModelView,
   SettingsView,
   StatsView,
   WorldView,
@@ -40,6 +41,8 @@ function SettingsDialog({
   const [olvtPort, setOlvtPort] = useState(String(value.ports.olvt))
   const [ttsPort, setTtsPort] = useState(String(value.ports.tts))
   const [asr, setAsr] = useState(value.asr.enabled)
+  const [live2dModel, setLive2dModel] = useState(value.live2d.model)
+  const [live2dList, setLive2dList] = useState<Live2dModelView[]>([])
   const [charName, setCharName] = useState(value.olvt.characterName)
   const [humanName, setHumanName] = useState(value.olvt.humanName)
   const [persona, setPersona] = useState(value.olvt.personaPrompt)
@@ -50,6 +53,20 @@ function SettingsDialog({
   const [hasKey, setHasKey] = useState(value.llm.hasKey)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
+
+  const refreshLive2d = async (): Promise<void> => {
+    const res = await window.dhvw.live2dModels()
+    setLive2dList(res.models)
+    if (res.models.length > 0 && !res.models.some((m) => m.id === live2dModel)) {
+      setLive2dModel(res.current ?? res.models[0]?.id ?? live2dModel)
+    }
+  }
+
+  useEffect(() => {
+    void refreshLive2d()
+    // 只在打开对话框时取一次；换模型后由「刷新模型列表」重取
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const fetchModels = async (): Promise<void> => {
     setLoadingModels(true)
@@ -93,6 +110,7 @@ function SettingsDialog({
         llm: { protocol, baseUrl, model, temperature: Number(temperature) },
         ports: { olvt: Number(olvtPort), tts: Number(ttsPort) },
         asr: { enabled: asr },
+        live2d: { model: live2dModel },
         olvt: { characterName: charName, humanName, personaPrompt: persona },
         tts: { backendDir: ttsDir, refAudioPath: refAudio, refText },
       })
@@ -217,6 +235,20 @@ function SettingsDialog({
           <div className="field">
             <label>称呼用户</label>
             <input value={humanName} onChange={(e) => setHumanName(e.target.value)} />
+          </div>
+        </div>
+        <div className="field">
+          <label>Live2D 模型（PC 舞台与 OLVT 共用）</label>
+          <div className="row2 tight">
+            <select value={live2dModel} onChange={(e) => setLive2dModel(e.target.value)}>
+              {!live2dList.some((m) => m.id === live2dModel) && <option value={live2dModel}>{live2dModel}</option>}
+              {live2dList.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.id} · {m.source === 'bundled' ? '随包' : '组件'}
+                </option>
+              ))}
+            </select>
+            <button onClick={() => void refreshLive2d()}>刷新模型列表</button>
           </div>
         </div>
         <div className="field">
@@ -362,7 +394,7 @@ export default function App(): React.ReactElement {
   const [showGateway, setShowGateway] = useState(false)
   const [settings, setSettings] = useState<SettingsView | null>(null)
   const [boostBusy, setBoostBusy] = useState(false)
-  const [live2d, setLive2d] = useState<{ url: string | null; error?: string } | null>(null)
+  const [live2d, setLive2d] = useState<{ url: string | null; model: string | null; error?: string } | null>(null)
 
   const refresh = useCallback(async () => setSnap(await window.dhvw.snapshot()), [])
   const refreshLog = useCallback(async () => setLogText(await window.dhvw.tailLog(selected, 120)), [selected])
@@ -478,6 +510,8 @@ export default function App(): React.ReactElement {
           onSaved={(next) => {
             setSettings(next)
             setSnap((prev) => (prev ? { ...prev, llm: { baseUrl: next.llm.baseUrl, model: next.llm.model } } : prev))
+            // 模型换了：舞台地址带 ?model=，重新取一次让 iframe 重新加载
+            void window.dhvw.live2d().then(setLive2d)
           }}
         />
       )}

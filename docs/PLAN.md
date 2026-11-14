@@ -87,6 +87,8 @@ PC 端“完成”= 下列全部成立，缺一不算：
 | PCM7 | 桥接与接管 | BRIDGE / DESK | PCM4 | Stub 契约稳定；接管零冲突 |
 | PCM8 | 硬化 | SUP / OBS 收口 | 全部 | 72 h 长稳、冷启动、断网恢复达标 |
 
+> 进展（2026-11-15，可换 Live2D 模型）：设置新增「Live2D 模型」，模型库 = 随包 `resources/live2d/models`（mao_pro、shizuku，+5.1 MB）∪ OLVT 组件 `live2d-models`；选中后本机舞台按 `/model/<id>/…` 重载，模型文件与 `model_dict.json` 条目同步进 OLVT，`conf.yaml` 的 `live2d_model_name` 改写并重启 OLVT。实测：mao_pro↔shizuku 往返切换，舞台与 OLVT 日志均为 `Initializing Live2D: <id>`；非法 id 保存返回明确错误；六档布局审计全绿。
+>
 > 进展（2026-11-13，设备场景请求闭环）：`world:digest` 里的 `sceneRequests`（`pending` + `mapSpec`）现在由编排器自动受理成场景作业，账本落 `kv.scene_requests` 做幂等（设备每 5 s 重发不重复生成），通过闸门后发 `scene:ready {id}`，`id` 用设备请求 id；失败不自动重试，`POST /dhvw/scene/retry {id}` 手动重提。`GET /dhvw/scenes` 增 `requests` 账本；`pc:action` 的 `map.generate` 从「未接线」改为转场景作业。实测：缺 `mapSpec` 的请求只受理一次并显式失败；`/dhvw/scene/retry` 能重提被中断的请求；编排器重启时账本与作业一起翻成 failed（不再显示「生成中」）。
 >
 > 进展（2026-11-13，舞台改自建 Live2D）：首页舞台不再嵌 OLVT 页面，改为自建页面 + 本地静态服务（pixi6 + pixi-live2d-display + cubism4 core + `mao_pro` 模型，随包 9.7 MB），角色常驻显示、idle 循环、鼠标跟随；页面骨架实测加载成功（1020/640 截图确认）。总观/显现改为设备侧二切：新增 `POST /dhvw/display` → `display:set`，以 `digest.world.display` 为唯一确认，6 s 未变化提示「设备未确认」，无设备时报「设备未连接」（假设备回环实测确认路径）。六档布局审计全绿； 扩到 29 项（新增 display:set 投递/载荷/非法态三条），直连与  均通过。

@@ -9,6 +9,7 @@ import type {
   LlmProtocol,
   SettingsPatch,
   SceneJobView,
+  Live2dModelView,
   SceneRequestView,
   SettingsView,
   StatsView,
@@ -39,7 +40,10 @@ const api = {
   gateway: (): Promise<GatewayStatusView | null> => ipcRenderer.invoke('dhvw:gateway'),
   world: (): Promise<WorldView> => ipcRenderer.invoke('dhvw:world'),
   stats: (): Promise<StatsView> => ipcRenderer.invoke('dhvw:stats'),
-  live2d: (): Promise<{ url: string | null; error?: string }> => ipcRenderer.invoke('dhvw:live2d'),
+  live2d: (): Promise<{ url: string | null; model: string | null; error?: string }> =>
+    ipcRenderer.invoke('dhvw:live2d'),
+  live2dModels: (): Promise<{ current: string | null; models: Live2dModelView[] }> =>
+    ipcRenderer.invoke('dhvw:live2dModels'),
   setDisplay: (
     state: 'overview' | 'present',
   ): Promise<{ ok: boolean; delivered?: number; state?: string; error?: string }> =>

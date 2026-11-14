@@ -19,7 +19,7 @@ export function HomeView({
 }: {
   world: WorldView | null
   stats: StatsView | null
-  live2d: { url: string | null; error?: string } | null
+  live2d: { url: string | null; model: string | null; error?: string } | null
   boost: boolean
   onBoost: (next: boolean) => void
   busy: boolean
@@ -104,7 +104,9 @@ export function HomeView({
         <section className="panel stage">
           <div className="stage-head">
             <h2>角色形象</h2>
-            <span className={`pill mono ${live2dReady ? '' : 'bad'}`}>Live2D · 本机</span>
+            <span className={`pill mono ${live2dReady ? '' : 'bad'}`}>
+              Live2D · {live2d?.model ?? '本机'}
+            </span>
           </div>
           <div className="stage-body">
             {live2dReady ? (

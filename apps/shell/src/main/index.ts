@@ -7,6 +7,12 @@ import { loadConfig, saveConfig, type ShellConfig } from './config'
 import { allocatePorts, isPortFree } from './ports'
 import { HostSupervisor } from './host'
 import { startLive2dServer, stopLive2dServer } from './live2d'
+import {
+  findModel,
+  listModels as listLive2dModels,
+  modelUrlPath,
+  type Live2dModelRef,
+} from './live2d-models'
 import type {
   ActionRequest,
   AppSnapshot,
@@ -24,7 +30,7 @@ import { applyNetworkHardening, hardenSessionSetup } from './hardening'
 import { listModels, probeLlm } from './network'
 import { COMPONENTS, componentStatus, ensureComponent, resolveSpec } from './components'
 import { clearApiKey, hasApiKey, readApiKey, saveApiKey } from './secret'
-import { asrModelPaths, prepareOlvt, resolveOlvtDir } from './olvt'
+import { asrModelPaths, prepareOlvt, resolveOlvtDir, syncOlvtModel } from './olvt'
 import { Gateway, type GatewayTarget } from './gateway'
 
 applyNetworkHardening()
@@ -312,6 +318,7 @@ function settingsView(): SettingsView {
     llm: { ...config.llm, hasKey: hasApiKey() },
     ports: { ...config.ports },
     asr: { ...config.asr, ready: Boolean(asrModelPaths(config.asr.enabled).modelPath) },
+    live2d: { model: live2dModel?.id ?? config.live2d.model },
     olvt: { ...config.olvt },
     tts: { ...config.tts },
     gateway: { ...config.gateway },
@@ -374,9 +381,19 @@ function createWindow(): void {
 }
 
 function registerIpc(): void {
-  ipcMain.handle('dhvw:live2d', () => ({
-    url: live2dUrl,
-    error: live2dUrl ? undefined : '角色资源缺失（resources/live2d）',
+  ipcMain.handle('dhvw:live2d', () => {
+    // 每次调用都按当前模型拼地址：设置里换了模型，渲染进程重新取一次就能换 iframe
+    const url =
+      live2dUrl && live2dModel ? `${live2dUrl}?model=${encodeURIComponent(modelUrlPath(live2dModel))}` : live2dUrl
+    return {
+      url,
+      model: live2dModel?.id ?? null,
+      error: live2dUrl ? (live2dModel ? undefined : '模型库里没有可用模型') : '角色资源缺失（resources/live2d）',
+    }
+  })
+  ipcMain.handle('dhvw:live2dModels', () => ({
+    current: live2dModel?.id ?? null,
+    models: listLive2dModels(live2dRoots).map((m) => ({ id: m.id, source: m.source, file: m.file })),
   }))
   ipcMain.handle('dhvw:snapshot', () => snapshot())
   ipcMain.handle('dhvw:action', (_e, req: ActionRequest) => {
@@ -461,6 +478,15 @@ function registerIpc(): void {
       }
     }
     if (patch.asr?.enabled !== undefined) next.asr.enabled = Boolean(patch.asr.enabled)
+    let live2dChanged = false
+    if (patch.live2d?.model !== undefined) {
+      const want = String(patch.live2d.model).trim()
+      const ref = findModel(live2dRoots, want)
+      if (!ref) return { ok: false, error: `模型库里没有 ${want}（可点「刷新模型列表」）` }
+      live2dChanged = ref.id !== live2dModel?.id
+      live2dModel = ref
+      next.live2d.model = ref.id
+    }
     for (const key of ['characterName', 'humanName', 'personaPrompt'] as const) {
       const v = patch.olvt?.[key]
       if (v !== undefined) next.olvt[key] = String(v)
@@ -482,7 +508,13 @@ function registerIpc(): void {
     }
     saveConfig(next)
     config = next
-    log('info', 'settings', '设置已保存', { llm: next.llm.baseUrl, model: next.llm.model, ports: next.ports })
+    log('info', 'settings', '设置已保存', {
+      llm: next.llm.baseUrl,
+      model: next.llm.model,
+      live2d: next.live2d.model,
+      ports: next.ports,
+    })
+    if (live2dChanged) applyLive2dModel()
     void pushOrchestratorConfig()
     if (gatewayChanged && gateway) {
       // 端口/开关变化需要重建监听；CA 与设备表不变
@@ -546,7 +578,40 @@ function registerIpc(): void {
   })
 }
 
+/** 换模型后：模型文件与 model_dict 同步进 OLVT，再重启 OLVT（conf 只在启动时读一次） */
+function applyLive2dModel(): void {
+  const dir = resolveOlvtDir(config.sidecars.olvt?.cwd || config.olvt.dir)
+  const snapshots = supervisor?.snapshots ?? []
+  const olvt = snapshots.find((w) => w.id === 'olvt')
+  const tts = snapshots.find((w) => w.id === 'tts')
+  log('info', 'live2d', '角色模型切换', { model: live2dModel?.id, olvtDir: dir || undefined })
+  if (!dir) {
+    log('warn', 'live2d', 'OLVT 目录未就绪，模型只在本机舞台生效')
+    return
+  }
+  if (live2dModel) syncOlvtModel(dir, live2dModel)
+  if (!olvt?.port) {
+    log('warn', 'live2d', 'OLVT 未运行，下次启动时使用新模型')
+    return
+  }
+  prepareOlvt({
+    dir,
+    port: olvt.port,
+    live2dModel: live2dModel?.id ?? config.live2d.model,
+    characterName: config.olvt.characterName,
+    humanName: config.olvt.humanName,
+    personaPrompt: config.olvt.personaPrompt,
+    llm: { ...config.llm, apiKey: readApiKey() ?? 'missing-api-key' },
+    tts: { apiUrl: `http://127.0.0.1:${tts?.port ?? 0}/tts`, ...config.tts },
+    asr: { enabled: config.asr.enabled, ...asrModelPaths(config.asr.enabled) },
+  })
+  supervisor?.send({ cmd: 'restart', service: 'olvt' })
+}
+
 let live2dUrl: string | null = null
+/** 模型库根：随包资源优先，其次 OLVT 组件的 live2d-models（两者目录结构一致） */
+let live2dRoots: Array<{ root: string; source: Live2dModelRef['source'] }> = []
+let live2dModel: Live2dModelRef | null = null
 
 async function boot(): Promise<void> {
   Menu.setApplicationMenu(null)
@@ -559,13 +624,27 @@ async function boot(): Promise<void> {
   })
 
   const live2dRoot = path.join(app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'resources'), 'live2d')
-  live2dUrl = await startLive2dServer(live2dRoot).catch((err) => {
+  const olvtRootDir = resolveOlvtDir(config.sidecars.olvt?.cwd || config.olvt.dir)
+  live2dRoots = [
+    { root: path.join(live2dRoot, 'models'), source: 'bundled' as const },
+    ...(olvtRootDir ? [{ root: path.join(olvtRootDir, 'live2d-models'), source: 'olvt' as const }] : []),
+  ]
+  live2dModel = findModel(live2dRoots, config.live2d.model) ?? findModel(live2dRoots, 'mao_pro')
+  if (!live2dModel) {
+    log('warn', 'live2d', '模型库里没有可用模型', {
+      want: config.live2d.model,
+      roots: live2dRoots.map((r) => r.root),
+    })
+  }
+  live2dUrl = await startLive2dServer(live2dRoot, (id) => findModel(live2dRoots, id)).catch((err) => {
     log('warn', 'live2d', '角色舞台服务启动失败', { error: String(err) })
     return null
   })
   log(live2dUrl ? 'info' : 'warn', 'live2d', live2dUrl ? '角色舞台就绪' : '角色资源缺失', {
     url: live2dUrl ?? undefined,
     root: live2dRoot,
+    model: live2dModel?.id,
+    models: listLive2dModels(live2dRoots).map((m) => m.id),
   })
 
   const dynamic = await allocatePorts(SERVICE_CATALOG.length)
@@ -581,10 +660,10 @@ async function boot(): Promise<void> {
     }),
   )
   const portOf = (id: string): number => ports[SERVICE_CATALOG.findIndex((s) => s.id === id)] ?? 0
-  const olvtOverride = config.sidecars.olvt
-  const olvtDir = resolveOlvtDir(olvtOverride?.cwd || config.olvt.dir)
+  const olvtDir = olvtRootDir
   const olvtPort = portOf('olvt')
   if (olvtDir) {
+    if (live2dModel) syncOlvtModel(olvtDir, live2dModel)
     const asr = asrModelPaths(config.asr.enabled)
     if (config.asr.enabled && !asr.modelPath) {
       log('warn', 'olvt', 'ASR 已启用但 SenseVoice 模型未下载，语音输入不可用', { component: 'asr-sensevoice' })
@@ -592,6 +671,7 @@ async function boot(): Promise<void> {
     prepareOlvt({
       dir: olvtDir,
       port: olvtPort,
+      live2dModel: live2dModel?.id ?? config.live2d.model,
       characterName: config.olvt.characterName,
       humanName: config.olvt.humanName,
       personaPrompt: config.olvt.personaPrompt,

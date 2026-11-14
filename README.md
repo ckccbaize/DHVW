@@ -378,7 +378,8 @@ ASR 模型与既有实验环境一致（`sherpa-onnx-sense-voice-zh-en-ja-ko-yue
 约定：
 
 - **PC 舞台不做显示态切换**：总观/显现是设备的状态（`state.display`），本机永远显示角色。按钮下发 `display:set {state}`，设备 6 s 内没把 `digest.world.display` 改成目标值就显示「设备未确认：固件可能尚未实现 display:set」，不假装成功；设备不在线时直接报「设备未连接」。
-- 角色舞台资源在 `apps/shell/resources/live2d/`（页面 + pixi + pixi-live2d-display + `live2dcubismcore.min.js` + `models/mao_pro/runtime`），由主进程起一个**只绑 127.0.0.1 的临时 http 服务**提供（`file://` 下模型 JSON 会被跨源检查挡住）。骨架体积约 9.7 MB，打包经 `extraResources` 落在 `resources/live2d`。
+- 角色舞台资源在 `apps/shell/resources/live2d/`（页面 + pixi + pixi-live2d-display + `live2dcubismcore.min.js` + `models/{mao_pro,shizuku}`），由主进程起一个**只绑 127.0.0.1 的临时 http 服务**提供（`file://` 下模型 JSON 会被跨源检查挡住），路由 `/model/<id>/runtime/<file>.model3.json` 按需解析到模型库。资源约 14.8 MB，打包经 `extraResources` 落在 `resources/live2d`。
+- **换角色模型**在「设置 → Live2D 模型」：模型库 = 随包 `resources/live2d/models` ∪ OLVT 组件的 `live2d-models`（后者可往里丢新模型），下拉里标「随包 / 组件」。保存后：① 本机舞台换成 `?model=/model/<id>/…` 立即重载；② 模型文件按需复制进 OLVT 目录并补 `model_dict.json` 条目；③ 重写 `conf.yaml` 的 `live2d_model_name` 并**重启 OLVT**（conf 只在启动时读）。模型 id 不存在时保存直接报错，不静默回退。
 - **boost 还不是生产行为**：只做界面态并写入 `config.db`（`boost.enabled`）后随配置下发，世界生产链路尚未消费它。文案里写明，不假装已生效。
 - boost 是唯一带持续动效的控件（太阳黄底 + 斜向速度线扫过 + 脉冲指示点），`prefers-reduced-motion` 下停掉动效。
 - 统计表只显示真实收到的字段：设备离线时档位/心跳显示 `—`，编排器不可达时整表标「不可达」，不做推算。

@@ -3,6 +3,7 @@ import path from 'node:path'
 import { componentDir, COMPONENTS } from './components'
 import { overridesRoot } from './paths'
 import { renderOlvtConf, writeOlvtConf, type OlvtConfInput } from './olvt-conf'
+import { olvtModelEntry, type Live2dModelRef } from './live2d-models'
 import { log } from './logger'
 
 /** 上游 OLVT 未开放请求头/额外请求体，这两个补丁随组件一起落地覆盖 */
@@ -54,6 +55,34 @@ function copyOverrides(dir: string): void {
 export interface PrepareInput extends Omit<OlvtConfInput, 'port'> {
   dir: string
   port: number
+}
+
+/**
+ * 把选中的模型同步进 OLVT 目录：模型文件（缺才拷）+ model_dict.json 条目。
+ * OLVT 只在自己的 `live2d-models/` 与 `model_dict.json` 里找模型，二者必须一起就位。
+ */
+export function syncOlvtModel(dir: string, model: Live2dModelRef): void {
+  const lib = path.join(dir, 'live2d-models')
+  const target = path.join(lib, model.id)
+  if (path.resolve(target) !== path.resolve(model.dir) && !fs.existsSync(target)) {
+    fs.mkdirSync(lib, { recursive: true })
+    fs.cpSync(model.dir, target, { recursive: true })
+    log('info', 'olvt', '模型已复制进 OLVT', { model: model.id, from: model.dir })
+  }
+
+  const dictFile = path.join(dir, 'model_dict.json')
+  let dict: Array<Record<string, unknown>> = []
+  try {
+    const parsed = JSON.parse(fs.readFileSync(dictFile, 'utf8')) as unknown
+    if (Array.isArray(parsed)) dict = parsed as Array<Record<string, unknown>>
+  } catch {
+    // 文件缺失/损坏：按空表重建，条目信息由模型文件推导
+  }
+  const index = dict.findIndex((m) => m && m.name === model.id)
+  if (index >= 0) return
+  dict.push(olvtModelEntry(model))
+  fs.writeFileSync(dictFile, JSON.stringify(dict, null, 4), 'utf8')
+  log('info', 'olvt', 'model_dict.json 已补条目', { model: model.id })
 }
 
 /** 写 conf.yaml + 落地补丁；返回 conf 路径 */

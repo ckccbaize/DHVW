@@ -46,7 +46,7 @@
       }
 
       const params = new URLSearchParams(location.search)
-      const modelPath = params.get('model') || 'models/mao_pro/runtime/mao_pro.model3.json'
+      const modelPath = params.get('model') || '/model/mao_pro/runtime/mao_pro.model3.json'
 
       // Cubism 4 核心是全局对象；缺它时 pixi-live2d-display 会静默失败，这里先查一次
       if (!window.Live2DCubismCore) {
@@ -73,7 +73,8 @@
             const fit = () => {
               const w = window.innerWidth
               const h = window.innerHeight
-              const scale = Math.min((w * 0.92) / model.internalModel.width, (h * 1.02) / model.internalModel.height)
+              // 留一点下边距：有的模型（如带书桌的 shizuku）自身画面比人物大，贴底会被裁
+              const scale = Math.min((w * 0.92) / model.internalModel.width, (h * 0.94) / model.internalModel.height)
               stageCenter.x = w / 2
               stageCenter.y = h * 0.98
               half.scale.set(scale)
@@ -81,6 +82,12 @@
               model.scale.set(1)
             }
             fit()
+            window.__dbg = {
+              model: modelPath,
+              internal: [model.internalModel.width, model.internalModel.height],
+              canvas: [app.view.width, app.view.height],
+              scale: half.scale.x,
+            }
             window.addEventListener('resize', fit)
 
             // 待机动作循环：模型自带 idle 组，缺组时保持默认姿势
@@ -98,6 +105,7 @@
             msg.classList.add('hidden')
           })
           .catch((err) => {
+            window.__dbg = { error: String(err && err.message ? err.message : err) }
             fail('角色模型加载失败：' + (err && err.message ? err.message : err))
           })
       }

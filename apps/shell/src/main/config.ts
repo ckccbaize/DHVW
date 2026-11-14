@@ -21,6 +21,8 @@ export interface ShellConfig {
   sidecars: Record<string, { command: string[]; cwd?: string; env?: Record<string, string> }>
   /** 组件下载地址覆盖（企业镜像/离线包），不填则用内置镜像列表 */
   componentUrls: Record<string, string[]>
+  /** 角色形象：PC 舞台与 OLVT 共用同一个 Live2D 模型（模型 id，见 live2d-models.ts） */
+  live2d: { model: string }
   /** 世界模式增强：目前只是界面层开关（不改变生产行为），持久化以便后续接线 */
   boost: { enabled: boolean }
   /** 组件依赖安装使用的 PyPI 镜像 */
@@ -44,6 +46,7 @@ const DEFAULTS: ShellConfig = {
   tts: { backendDir: '', refAudioPath: '', refText: '', refLang: 'ja', textLang: 'zh' },
   gateway: { enabled: true, port: 8443 },
   sidecars: {},
+  live2d: { model: 'mao_pro' },
   boost: { enabled: false },
   componentUrls: {},
   pipIndex: 'https://mirrors.aliyun.com/pypi/simple',
@@ -94,6 +97,7 @@ export function loadConfig(): ShellConfig {
       olvt: { ...DEFAULTS.olvt, ...raw.olvt },
       tts: { ...DEFAULTS.tts, ...raw.tts },
       gateway: { ...DEFAULTS.gateway, ...raw.gateway },
+      live2d: { ...DEFAULTS.live2d, ...raw.live2d },
       boost: { ...DEFAULTS.boost, ...raw.boost },
       sidecars: { ...DEFAULTS.sidecars, ...raw.sidecars },
       componentUrls: { ...DEFAULTS.componentUrls, ...raw.componentUrls },

@@ -75,6 +75,8 @@ export interface SettingsView {
   llm: { baseUrl: string; model: string; temperature: number; protocol: LlmProtocol; hasKey: boolean }
   ports: { olvt: number; tts: number }
   asr: { enabled: boolean; ready: boolean }
+  /** Live2D 模型 id：PC 舞台与 OLVT 共用（模型库见 resources/live2d/models 与组件的 live2d-models） */
+  live2d: { model: string }
   olvt: { characterName: string; humanName: string; personaPrompt: string }
   tts: { backendDir: string; refAudioPath: string; refText: string; refLang: string; textLang: string }
   gateway: { enabled: boolean; port: number }
@@ -84,9 +86,16 @@ export interface SettingsPatch {
   llm?: Partial<{ baseUrl: string; model: string; temperature: number; protocol: LlmProtocol }>
   ports?: Partial<{ olvt: number; tts: number }>
   asr?: Partial<{ enabled: boolean }>
+  live2d?: Partial<{ model: string }>
   olvt?: Partial<{ characterName: string; humanName: string; personaPrompt: string }>
   tts?: Partial<{ backendDir: string; refAudioPath: string; refText: string; refLang: string; textLang: string }>
   gateway?: Partial<{ enabled: boolean; port: number }>
+}
+
+export interface Live2dModelView {
+  id: string
+  file: string
+  source: 'bundled' | 'olvt'
 }
 
 export interface ComponentStatus {

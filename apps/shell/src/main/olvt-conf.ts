@@ -9,6 +9,8 @@ import path from 'node:path'
 
 export interface OlvtConfInput {
   port: number
+  /** Live2D 模型 id（模型库目录名），PC 舞台与 OLVT 共用 */
+  live2dModel: string
   characterName: string
   humanName: string
   personaPrompt: string
@@ -79,7 +81,7 @@ system_config:
 character_config:
   conf_name: 'dhvw'
   conf_uid: 'dhvw_001'
-  live2d_model_name: 'mao_pro'
+  live2d_model_name: ${q(input.live2dModel)}
   character_name: ${q(input.characterName)}
   human_name: ${q(input.humanName)}
   avatar: ''

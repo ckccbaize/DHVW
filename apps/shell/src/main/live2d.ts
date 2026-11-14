@@ -1,10 +1,16 @@
 import { createServer, type Server } from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
+import { isSafeModelId, type Live2dModelRef } from './live2d-models'
 
 /**
- * 角色舞台的静态服务：只需要把 resources/live2d 下的页面、库、模型从 http 源发给渲染进程。
+ * 角色舞台的静态服务：页面与库来自 resources/live2d，模型来自模型库（可能不在同一个根）。
  * file:// 下模型 JSON 会被 Chromium 的跨源检查挡住，所以必须走回环 http。
+ *
+ * 路由：
+ *   /                      → <root>/index.html
+ *   /lib/<file>            → <root>/lib/<file>
+ *   /model/<id>/<rest>     → <模型目录>/<rest>（模型 id 由调用方解析，绝不暴露绝对路径）
  */
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -21,31 +27,66 @@ const MIME: Record<string, string> = {
 let server: Server | null = null
 let baseUrl: string | null = null
 
-export async function startLive2dServer(root: string): Promise<string | null> {
+function inside(root: string, file: string): boolean {
+  const rel = path.relative(root, file)
+  return Boolean(rel) && !rel.startsWith('..') && !path.isAbsolute(rel)
+}
+
+function send(res: import('node:http').ServerResponse, file: string): void {
+  fs.readFile(file, (err, data) => {
+    if (err) {
+      res.writeHead(404).end('not found')
+      return
+    }
+    res.writeHead(200, {
+      'content-type': MIME[path.extname(file).toLowerCase()] ?? 'application/octet-stream',
+      'cache-control': 'no-cache',
+    })
+    res.end(data)
+  })
+}
+
+export async function startLive2dServer(
+  root: string,
+  resolveModel: (id: string) => Live2dModelRef | null,
+): Promise<string | null> {
   if (baseUrl) return baseUrl
   if (!fs.existsSync(path.join(root, 'index.html'))) return null
 
   const resolvedRoot = path.resolve(root)
   server = createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1')
-    const rel = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname)
-    const file = path.resolve(resolvedRoot, '.' + rel)
-    // 只允许读 root 内的文件
-    if (!file.startsWith(resolvedRoot + path.sep) && file !== path.join(resolvedRoot, 'index.html')) {
+    const pathname = decodeURIComponent(url.pathname)
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.writeHead(405).end('method not allowed')
+      return
+    }
+
+    const modelMatch = /^\/model\/([^/]+)\/(.+)$/.exec(pathname)
+    if (modelMatch) {
+      const id = modelMatch[1] ?? ''
+      const rest = modelMatch[2] ?? ''
+      const model = isSafeModelId(id) ? resolveModel(id) : null
+      if (!model) {
+        res.writeHead(404).end('model not found')
+        return
+      }
+      const file = path.resolve(model.dir, rest)
+      if (!inside(model.dir, file)) {
+        res.writeHead(403).end('forbidden')
+        return
+      }
+      send(res, file)
+      return
+    }
+
+    const rel = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '')
+    const file = path.resolve(resolvedRoot, rel)
+    if (!inside(resolvedRoot, file)) {
       res.writeHead(403).end('forbidden')
       return
     }
-    fs.readFile(file, (err, data) => {
-      if (err) {
-        res.writeHead(404).end('not found')
-        return
-      }
-      res.writeHead(200, {
-        'content-type': MIME[path.extname(file).toLowerCase()] ?? 'application/octet-stream',
-        'cache-control': 'no-cache',
-      })
-      res.end(data)
-    })
+    send(res, file)
   })
 
   return await new Promise<string>((resolve, reject) => {
