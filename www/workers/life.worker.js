@@ -46,6 +46,7 @@ let lastArrival = { key: "", minute: -1e9 };
 let badSpots = new Set();
 let interactionFlags = {};
 let interactionCooldowns = {};
+let away = null; // { place, until, overnight } 外部场景停留
 
 function hashDay(n) {
   let x = (n * 2654435761) >>> 0;
@@ -362,8 +363,19 @@ async function maybeLlmThought() {
 
 const DEBUG_ACT_PROP = ACT_PROPS;
 
-function planIntent(act, place, reason) {
+function planIntent(act, place, reason, opts = {}) {
+  if (away) return;
   if (phase === "sleep" && act !== "sleep") return;
+  const homeRooms = new Set((scene.rooms || []).map((r) => r.id));
+  if (place && !homeRooms.has(place)) {
+    const durationMin = Math.max(10, Math.min(480, Number(opts.durationMin) || 60));
+    const overnight = opts.overnight === true;
+    pending = null;
+    busyUntil = clock.minute + durationMin;
+    away = { place, until: clock.minute + durationMin, overnight };
+    event("travel", { to: place, durationMin, overnight, reason });
+    return;
+  }
   pending = null;
   busyUntil = clock.minute;
   const props = actProps(act);
@@ -399,6 +411,7 @@ function debugIntent(act) {
 }
 
 function requestIntent(reason) {
+  if (away) return;
   if (pending) return;
   if (phase === "sleep" && reason !== "phase:sleep" && reason !== "debug:sleep") return;
   if (clock.minute < busyUntil) return;
@@ -496,14 +509,29 @@ function tick() {
     }
   }
 
-  // 剧情机固定日程：到点强制切换行为；睡眠期间不执行
-  if (phase !== "sleep" && plan && plan.day === clock.day) {
+  // 外部场景停留：到点或睡觉前回家
+  if (away) {
+    const forceHome = phase === "sleep" && !away.overnight;
+    if (forceHome || clock.minute >= away.until) {
+      const from = away.place;
+      away = null;
+      busyUntil = clock.minute;
+      event("return", { from, reason: forceHome ? "sleep" : "stay_end" });
+      requestIntent(forceHome ? "phase:sleep" : "return");
+    }
+  }
+
+  // 剧情机固定日程：到点强制切换行为；睡眠期间、外部场景停留期间不执行
+  if (!away && phase !== "sleep" && plan && plan.day === clock.day) {
     for (let i = 0; i < (plan.behaviors || []).length; i++) {
       const b = plan.behaviors[i];
       if (appliedBehaviors.has(i)) continue;
       if (clock.minute >= b.minute && clock.minute - b.minute < 180 && b.act) {
         appliedBehaviors.add(i);
-        planIntent(b.act, b.place, `plan:${b.time || b.minute}`);
+        planIntent(b.act, b.place, `plan:${b.time || b.minute}`, {
+          durationMin: b.durationMin,
+          overnight: b.overnight,
+        });
       }
     }
     if (plan.sudden && !appliedSudden && clock.minute >= plan.sudden.minute && clock.minute - plan.sudden.minute < 120) {
@@ -514,7 +542,7 @@ function tick() {
   }
 
   // 漫游：活跃档每 10 游戏分钟换一次目标；息屏档不漫游
-  if (!activeInteraction && phase !== "sleep" && activity !== "asleep" && clock.minute - lastIntentMinute >= cfg.roamMin) {
+  if (!away && !activeInteraction && phase !== "sleep" && activity !== "asleep" && clock.minute - lastIntentMinute >= cfg.roamMin) {
     const chosen = pickInteraction();
     if (chosen) planIntent(chosen.act, chosen.hot.room, `interaction:${chosen.act}`);
     else requestIntent("roam");
@@ -533,6 +561,7 @@ function tick() {
     sleepAt,
     wakeAt,
     interaction: activeInteraction ? { act: activeInteraction.act, endsAt: activeInteraction.endsAt } : null,
+    away: away ? { place: away.place, until: away.until, overnight: away.overnight } : null,
   });
   if (stats.ticks % 2 === 0) emitSnapshot();
 }
@@ -555,6 +584,7 @@ function snapshotState() {
     appliedBehaviors: [...appliedBehaviors],
     appliedSudden,
     interaction: activeInteraction ? { act: activeInteraction.act, endsAt: activeInteraction.endsAt } : null,
+    away,
   };
 }
 
@@ -603,6 +633,7 @@ self.onmessage = (e) => {
         }
       }
       appliedSudden = !!snap?.appliedSudden;
+      away = snap?.away || null;
       pending = null;
       lastLlmMinute = clock.minute;
       if (phase === "sleep") {
@@ -615,10 +646,15 @@ self.onmessage = (e) => {
       schedule();
       emit({ type: "ready", day: clock.day, minute: clock.minute, phase, weather });
       emitSnapshot();
+      if (away) event("travel", { to: away.place, durationMin: Math.max(0, away.until - clock.minute), overnight: away.overnight, reason: "restore" });
       if (phase !== "sleep") event("wake", { reason: "boot" });
       break;
     }
     case "arrived": {
+      if (away) {
+        pending = null;
+        break;
+      }
       const act = msg.act || pending?.act || null;
       // 睡觉期间只接受 sleep 行为；旧路径/用户点击到达不得把角色带出卧室
       if (phase === "sleep" && act !== "sleep") {
@@ -709,6 +745,7 @@ self.onmessage = (e) => {
       if (Number.isFinite(msg.day) && Number.isFinite(msg.minute)) {
         clock.set(msg.day, msg.minute);
         phase = phaseOf(clock.minute);
+        resetAnchor();
         emitSnapshot();
       }
       break;

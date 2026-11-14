@@ -19,6 +19,25 @@ test("roomForAct：动作只在有热点的房间执行", () => {
   assert.equal(roomForAct(map, "write", "bedroom"), "hall");
 });
 
+test("normalizeBehaviors：外部场景保留 place 与停留时长", () => {
+  const out = normalizeBehaviors(
+    [
+      { minute: 900, act: "sit", place: "cafe", why: "喝咖啡", durationMin: 75, overnight: false },
+      { minute: 1020, act: "watch", place: "living", why: "看电视" },
+    ],
+    {
+      rooms: new Set(["living", "hall"]),
+      places: new Set(["cafe"]),
+      hotspots,
+      fallbackPlace: "living",
+    },
+  );
+  assert.deepEqual(out, [
+    { minute: 900, act: "sit", place: "cafe", why: "喝咖啡", durationMin: 75, overnight: false },
+    { minute: 1020, act: "watch", place: "living", why: "看电视" },
+  ]);
+});
+
 test("normalizeBehaviors：错地点改到可用房间，无热点动作丢弃", () => {
   const out = normalizeBehaviors(
     [

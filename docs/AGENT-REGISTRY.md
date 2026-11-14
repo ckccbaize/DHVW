@@ -84,7 +84,8 @@ createManagerAgent({ llm, registry, subAgents: { "plot-writer": (args) => plotAg
 |---|---|
 | `text` | 事件日志 / 显现台词素材 |
 | `event` / `mood` | `life.applyMood(..., {source:"plot"})`，影响状态机 |
-| `place` | 地点提示（新场景由 PC 产出侧生成） |
+| `place` | 当天主地点提示（新场景由 PC 产出侧生成） |
+| `behaviors[].place` | home 房间 id 或 `map_pool` 场景 id；外部场景带 `durationMin` / `overnight`，由状态机前往并返回 |
 | `imageQuery` | 背景图搜索（W15） |
 
 事件从 `EVENT_POOL` 按时段与最近 10 条随机挑选，避免连续重复。

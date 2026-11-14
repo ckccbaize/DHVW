@@ -43,24 +43,32 @@ export function roomForAct(map, act, requested) {
  * 校正 LLM 产出的 behaviors。
  * - act 在场景里没有热点 → 丢弃；
  * - place 不匹配 → 改到该动作的第一个可用房间；
- * - 保留 minute/why，由调用方补时间。
+ * - place 是外部场景（places 里、但不在 rooms 里）→ 保留，交给状态机旅行；
+ * - 保留 minute/why/durationMin/overnight，由调用方消费。
  */
-export function normalizeBehaviors(raw, { rooms, hotspots, fallbackPlace } = {}) {
+export function normalizeBehaviors(raw, { rooms, hotspots, fallbackPlace, places } = {}) {
   const roomSet = rooms instanceof Set ? rooms : new Set(rooms || []);
+  const placeSet = places instanceof Set ? places : new Set(places || []);
   const map = createActRoomMap(hotspots);
   if (!Array.isArray(raw)) return [];
   return raw
     .map((b) => {
       const act = String(b?.act || "").trim();
-      const requested = roomSet.has(b?.place) ? b.place : fallbackPlace;
-      const place = roomForAct(map, act, requested);
+      const requested = String(b?.place || "").trim();
+      const external = requested && !roomSet.has(requested) && placeSet.has(requested);
+      const place = external ? requested : roomForAct(map, act, roomSet.has(requested) ? requested : fallbackPlace);
       if (!act || !place) return null;
-      return {
+      const item = {
         minute: Number.isFinite(b?.minute) ? b.minute : -1,
         act,
         place,
         why: String(b?.why || "").trim(),
       };
+      if (external) {
+        item.durationMin = Math.max(10, Math.min(480, Number(b?.durationMin) || 60));
+        item.overnight = b?.overnight === true;
+      }
+      return item;
     })
     .filter((b) => b && b.minute >= 0);
 }

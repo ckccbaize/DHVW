@@ -423,7 +423,12 @@ export function createLocalRuntime({
   async function mapPoolText() {
     const custom = (await backend.getKV("places")) || [];
     const pool = [...DESTINATIONS, ...custom].filter((p) => p.id !== "home" && p.id !== "office" && p.kind !== "office");
-    return JSON.stringify(pool.map(({ id, name, kind, distance }) => ({ id, name, kind, distance })));
+    return JSON.stringify(pool.map(({ id, name, kind, distance, overnight }) => ({ id, name, kind, distance, overnight: overnight === true })));
+  }
+
+  async function placeIdSet() {
+    const custom = (await backend.getKV("places")) || [];
+    return new Set([...DESTINATIONS.map((d) => d.id), ...custom.map((p) => p.id)]);
   }
 
   async function loadFileState() {
@@ -537,6 +542,7 @@ export function createLocalRuntime({
       const text = String(obj?.text || "").trim();
       if (!text) throw new Error("空剧情");
       const rooms = new Set((scene.rooms || []).map((r) => r.id));
+      const places = await placeIdSet();
       const actRooms = createActRoomMap(scene.hotspots || []);
       const requestedPlace = rooms.has(obj?.place) ? obj.place : tick.room || scene.start;
       const planAct = String(obj?.act || "").trim();
@@ -546,7 +552,7 @@ export function createLocalRuntime({
       const wakeAt = parseClock(obj?.wakeAt, 8 * 60);
       const normalized = normalizeBehaviors(
         (obj?.behaviors || []).map((b) => ({ ...b, minute: parseClock(b?.time, -1) })),
-        { rooms, hotspots: scene.hotspots || [], fallbackPlace: place },
+        { rooms, places, hotspots: scene.hotspots || [], fallbackPlace: place },
       );
       let writeCount = 0;
       const behaviors = normalized
@@ -891,6 +897,7 @@ export function createLocalRuntime({
       dailyPlots = (await backend.getKV("daily_plots")) || {};
       const storedPlots = (await backend.getKV("plots")) || [];
       const roomSet = new Set((scene.rooms || []).map((r) => r.id));
+      const placeSet = await placeIdSet();
       const actRooms = createActRoomMap(scene.hotspots || []);
       const fixPlan = (p) => {
         if (!p) return p;
@@ -899,6 +906,7 @@ export function createLocalRuntime({
         if (actPlace) p.place = actPlace;
         p.behaviors = normalizeBehaviors(p.behaviors || [], {
           rooms: roomSet,
+          places: placeSet,
           hotspots: scene.hotspots || [],
           fallbackPlace: p.place || scene.start,
         });

@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T15:10:25.531Z",
+ "built_at": "2026-11-14T15:30:16.052Z",
  "files": [
   {
    "path": "agent/registry.json",
-   "size": 14749,
-   "sha256": "a2f32750d3be73db7fce4af1c3931d4409a0d1a630533a0e376c890db3589ef3"
+   "size": 15406,
+   "sha256": "a66f797aebd4e67f5b52141860b69b6930803e4977348aa8eb14ef5be6181f1e"
   },
   {
    "path": "assets/char/ojj_sheet.json",
@@ -744,8 +744,8 @@
   },
   {
    "path": "js/app.js",
-   "size": 22641,
-   "sha256": "cb64b0625162880cb7592b0f31731c768c426e3025257a83b6d2afb05997a9ad"
+   "size": 24942,
+   "sha256": "b826da2f65fe8f1c6d6f95b8f946d2efab047af4eaed608e9d1496c0f55fe4bf"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -869,8 +869,8 @@
   },
   {
    "path": "js/core/life/plan.js",
-   "size": 2086,
-   "sha256": "0575beb9d34d65fc94db45d8f1c02ed07776c4b9a93ee6c261891e872b663ba4"
+   "size": 2613,
+   "sha256": "02de417807f11859dc9d07f558dbf7b4bafa7e5366135950c666ebd91cd8b1e2"
   },
   {
    "path": "js/core/lifestore.js",
@@ -1014,8 +1014,8 @@
   },
   {
    "path": "js/core/worker.js",
-   "size": 72267,
-   "sha256": "eb24ef27031b4d79c02e85e27974e2cc83bbaec7cab4378871787a866e716a60"
+   "size": 72309,
+   "sha256": "d30f904aa2474dffb7e4940439da346c1b4982125fcac28d8d28d1580038ab95"
   },
   {
    "path": "js/forge/grammar.js",
@@ -1024,8 +1024,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 36935,
-   "sha256": "e497e1687b7ca94c8d18aaef57aa5f15da21c4b5aa94319583aec1204e2bf3fe"
+   "size": 37276,
+   "sha256": "7e3092a635571bea9e9526a9cb3e790b7386ad28696387e46dee7f29fe82999f"
   },
   {
    "path": "js/runtime/remote.js",
@@ -1059,8 +1059,8 @@
   },
   {
    "path": "js/view/scene-loader.js",
-   "size": 1912,
-   "sha256": "6beb2eeb668cb157bb53b766111ca6b1077cf115f8bd9e3b4044a1bed416e556"
+   "size": 1003,
+   "sha256": "a8e8c91241ac200832a7fb0e31477f772d49e0ef22b404549c9cd60775e43ef5"
   },
   {
    "path": "js/view/switch.js",
@@ -1073,19 +1073,14 @@
    "sha256": "3e57ea8f632e64a60d44cc8671e452ced8ad703cdeeaefcbc75738568d676ec9"
   },
   {
-   "path": "preview.html",
-   "size": 5629,
-   "sha256": "8df11e362efdf9bb13e65fe4797ca5463d0c58b9e5fc7e0dbc2c4e673b6af617"
-  },
-  {
    "path": "workers/forge.worker.js",
    "size": 9486,
    "sha256": "71ee9233f5474e649a6dc2f9b52573ee3cab028f876c4b231d8f5abbf1344c69"
   },
   {
    "path": "workers/life.worker.js",
-   "size": 27358,
-   "sha256": "c0f54ddd48008ba1ca2444585bea25a3ae064d50e7ce2cef60c8664c0aa0a7b7"
+   "size": 28840,
+   "sha256": "b5682a9ccc9b90d81510b5b3e6d8533aec45053cbbba191e38d8a4c560c3bb8a"
   }
  ]
 }

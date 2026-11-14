@@ -115,7 +115,8 @@ function buildOfficeSprites(scene) {
 async function boot() {
   const cfg = await loadConfig();
   const sceneParam = new URLSearchParams(location.search).get("scene") || cfg.scene || "home";
-  const scene = await loadScene(sceneParam);
+  let scene = await loadScene(sceneParam);
+  const homeScene = scene;
   const outerScene = await loadScene("office");
 
   const [sx, sy] = spawnPoint(scene);
@@ -137,7 +138,9 @@ async function boot() {
   });
 
   const root = $("#app");
-  const overview = createOverview({ canvas: $("#scene"), scene, store });
+  let overview = createOverview({ canvas: $("#scene"), scene, store });
+  let awayPlace = null;
+  let homePos = null;
   const officeSprites = buildOfficeSprites(outerScene);
   const outerOverview = createOverview({
     canvas: $("#sceneOuter"),
@@ -185,6 +188,12 @@ async function boot() {
     },
     onEvent: (ev) => {
       lastEvent = ev;
+      if (ev.kind === "travel" && ev.payload?.to) {
+        awayPlace = ev.payload.to;
+        void enterPlace(awayPlace);
+      } else if (ev.kind === "return") {
+        void returnHome();
+      }
       store.emit("event", ev);
     },
     onAsset: (meta) => handleAsset(meta),
@@ -380,7 +389,65 @@ async function boot() {
     pendingArrival = null;
   }
 
+  async function enterPlace(name) {
+    if (!name || name === (scene.name || scene.id)) return;
+    if (!homePos) homePos = { gx: agent.gx, gy: agent.gy, px: agent.px, py: agent.py, dir: { ...agent.dir } };
+    try {
+      const next = await loadScene(name);
+      const nextOverview = createOverview({ canvas: $("#scene"), scene: next, store });
+      await nextOverview.load();
+      scene = next;
+      overview = nextOverview;
+      const [x, y] = spawnPoint(next);
+      placeAt(agent, x, y);
+      agent.path = [];
+      agent.state = "idle";
+      agent.act = null;
+      agent.actTtl = 0;
+      pendingArrival = null;
+      store.patch({ scene: name });
+      if (window.__dhvw) window.__dhvw.scene = scene;
+    } catch (err) {
+      console.warn("[scene] 进入失败", name, err);
+      awayPlace = null;
+      homePos = null;
+      store.emit("travel_failed", { place: name, error: String(err?.message || err) });
+    }
+  }
+
+  async function returnHome() {
+    if (!awayPlace && scene === homeScene) return;
+    const name = homeScene.name || homeScene.id || "home";
+    try {
+      if (scene !== homeScene) {
+        const nextOverview = createOverview({ canvas: $("#scene"), scene: homeScene, store });
+        await nextOverview.load();
+        scene = homeScene;
+        overview = nextOverview;
+      }
+      const pos = homePos || { gx: spawnPoint(homeScene)[0], gy: spawnPoint(homeScene)[1], px: null, py: null, dir: { x: 0, y: 1 } };
+      placeAt(agent, pos.gx, pos.gy, pos.dir);
+      if (Number.isFinite(pos.px) && Number.isFinite(pos.py)) {
+        agent.px = pos.px;
+        agent.py = pos.py;
+      }
+      agent.path = [];
+      agent.state = "idle";
+      agent.act = null;
+      agent.actTtl = 0;
+      pendingArrival = null;
+      store.patch({ scene: name });
+      if (window.__dhvw) window.__dhvw.scene = scene;
+    } catch (err) {
+      console.warn("[scene] 返回失败", name, err);
+    } finally {
+      awayPlace = null;
+      homePos = null;
+    }
+  }
+
   function handleIntent({ x, y, act, room }) {
+    if (awayPlace) return;
     const path = bfsPath(scene.grid, agent.gx, agent.gy, x, y);
     if (path === null) {
       // 新意图不可达时必须取消旧路径，否则旧路径到达会把房间/动作写错
@@ -581,7 +648,7 @@ async function boot() {
       walkStuck = { px: null, py: null, since: 0 };
     }
 
-    if (now - lastPosSave > 1000) {
+    if (!awayPlace && now - lastPosSave > 1000) {
       lastPosSave = now;
       void local.persistAgentPos({
         scene: scene.name || scene.id,

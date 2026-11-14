@@ -874,7 +874,7 @@ function outingView() {
 function mapPool() {
   return (places ? places.list() : [])
     .filter((p) => p.id !== HOME_ID && p.id !== "office" && p.kind !== "office")
-    .map(({ id, name, kind, distance }) => ({ id, name, kind, distance }));
+    .map(({ id, name, kind, distance, overnight }) => ({ id, name, kind, distance, overnight: overnight === true }));
 }
 
 function deepMemoryText(limit = 12) {
