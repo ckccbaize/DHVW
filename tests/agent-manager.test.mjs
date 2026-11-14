@@ -167,7 +167,14 @@ test("run：真实注册表变量齐全（character-wake / plot）", async () =>
     now: () => 1000,
     idFactory: () => "r",
   });
-  const out = await agent.run("回应雨停", { mood: "calm", place: "客厅" });
+  const out = await agent.run("回应雨停", {
+    mood: "calm",
+    place: "客厅",
+    memory: "暂无",
+    desires: "[]",
+    behaviors: "暂无",
+    map: "房间：living",
+  });
   assert.equal(out.ok, true, JSON.stringify(out));
   assert.equal(out.tasks.length, 2);
 });

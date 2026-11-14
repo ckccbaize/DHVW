@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T06:28:36.885Z",
+ "built_at": "2026-11-14T06:45:32.277Z",
  "files": [
   {
    "path": "agent/registry.json",
-   "size": 11783,
-   "sha256": "41ed3533f74879b66256445b21b1b03e467b74a5c48499c3942c77a5bcb6d244"
+   "size": 12027,
+   "sha256": "b56e7ccfc0770c4260e6f1470feb1a113ad0e60162bd6512cb542550a3248b71"
   },
   {
    "path": "assets/char/ojj_sheet.json",
@@ -594,8 +594,8 @@
   },
   {
    "path": "debug-life.html",
-   "size": 20789,
-   "sha256": "aa11969a0163ed3598596a37e1c265939ff5390a5c7263c9f9cb775cc45fd4a0"
+   "size": 21665,
+   "sha256": "b676868abccbe5c468b9acec60b8c7b93fb48fe07e0dcb80ce30f9c15e045cb2"
   },
   {
    "path": "index.html",
@@ -924,8 +924,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 27610,
-   "sha256": "ff1411a13b1461b6d79e5e6b0a37dbcf5a733f3b4b7f8ae089070e86fa55e22f"
+   "size": 31377,
+   "sha256": "2fe3a9397be02ff67c14cad9224269af05513c5719fd7ebf1d3a01766f46f50b"
   },
   {
    "path": "js/runtime/remote.js",
@@ -979,8 +979,8 @@
   },
   {
    "path": "workers/life.worker.js",
-   "size": 17687,
-   "sha256": "59305a6a2fedba7ef2223c46154e8908cddfc969970147e217b0dc95a352fb51"
+   "size": 19637,
+   "sha256": "fb705e7848c80dc8a929eeebd4921fa685fbe6fabd09cfc34928f32490928214"
   }
  ]
 }

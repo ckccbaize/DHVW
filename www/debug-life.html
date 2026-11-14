@@ -88,6 +88,8 @@
   <h2>今日剧情 / 心情 <span class="count" id="todayCount"></span></h2>
   <div id="todayPlot" class="pre">还没有夜间剧情</div>
   <div id="moodView" class="hint" style="margin-top:6px"></div>
+  <div id="desiresView" class="pre" style="margin-top:6px"></div>
+  <div id="suddenView" class="pre" style="margin-top:6px"></div>
 </section>
 <div class="grid">
   <section class="wide">
@@ -405,7 +407,7 @@ async function refresh() {
     const llmCfg = { ...(cfg.llm || {}), ...(auto || {}), ...(readOverride() || {}) };
     $("#status").innerHTML = `LLM：<span class="${llmCfg.baseUrl && llmCfg.model ? "ok" : "bad"}">${llmCfg.baseUrl && llmCfg.model ? `${esc(llmCfg.model)} @ ${esc(llmCfg.baseUrl)}` : "未配置"}</span> · 每 2 秒刷新`;
     const db = await openDb();
-    const [llmLog, mem, writings, plots, daily, mood, maps, browses, events] = await Promise.all([
+    const [llmLog, mem, writings, plots, daily, mood, maps, browses, desires, sudden, events] = await Promise.all([
       getKV(db, "llm_log"),
       getKV(db, "memory_docs"),
       getKV(db, "writings"),
@@ -414,6 +416,8 @@ async function refresh() {
       getKV(db, "mood"),
       getKV(db, "generated_maps"),
       getKV(db, "browse_log"),
+      getKV(db, "desires"),
+      getKV(db, "sudden_events"),
       getAll(db, "events"),
     ]);
     renderLlm(llmLog || []);
@@ -424,12 +428,20 @@ async function refresh() {
     renderBrowses(browses || []);
     const today = Object.values(daily || {}).sort((a, b) => b.forDay - a.forDay)[0];
     $("#todayCount").textContent = today ? `第 ${today.forDay} 天` : "";
+    const hhmm = (m) => `${String(Math.floor((m || 0) / 60)).padStart(2, "0")}:${String((m || 0) % 60).padStart(2, "0")}`;
     $("#todayPlot").textContent = today
-      ? `${today.text}\n事件：${today.event || "—"} · 地点：${today.place || "—"} · 动作：${today.act || "—"}`
+      ? `${today.text}\n事件：${today.event || "—"} · 地点：${today.place || "—"} · 动作：${today.act || "—"}\n作息：${hhmm(today.sleepAt || 1320)} 睡 / ${hhmm(today.wakeAt || 480)} 起 · 日程 ${today.behaviors?.length || 0} 条 · 突发：${today.sudden?.text || "无"}`
       : "还没有夜间剧情";
     $("#moodView").textContent = mood
       ? `energy ${mood.energy?.toFixed(2)} · valence ${mood.valence?.toFixed(2)} · social ${mood.social?.toFixed(2)} · focus ${mood.focus?.toFixed(2)}`
       : "心情：0";
+    const lastDesire = (desires || []).slice(-1)[0];
+    $("#desiresView").textContent = lastDesire
+      ? `愿望：${(lastDesire.desires || []).join(" / ")}`
+      : "愿望：暂无";
+    $("#suddenView").textContent = (sudden || []).length
+      ? `突发事件：${sudden.slice(-3).map((s) => `第${s.day}天 ${s.text}`).join(" / ")}`
+      : "突发事件：暂无";
     renderEvents((events || []).sort((a, b) => a.t_corrected - b.t_corrected).slice(-80));
   } catch (err) {
     $("#status").innerHTML = `<span class="bad">读取失败：${esc(err.message)}</span>`;

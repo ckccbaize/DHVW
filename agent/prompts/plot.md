@@ -3,15 +3,17 @@
 日常事件：{{input}}
 心情：{{mood}}
 最近写过（不要重复）：{{recent}}
+记忆：{{memory}}
+她的愿望：{{desires}}
+最近行为：{{behaviors}}
+地图资源：{{map}}
 
-写一段 30-80 字第三人称小记，并给出驱动字段。只输出 JSON：
-{"text":"小记","event":"事件短语","place":"living|hall|bedroom|bath|balcony|kitchen","scene":"同上","mood":{"valence":0.05,"energy":-0.02},"imageQuery":"背景图检索词"}
+为第二天生成一个完整的生活计划，并决定是否发生突发状况。只输出 JSON：
+{"text":"小记","event":"事件短语","place":"living|hall|bedroom|bath|balcony|kitchen","act":"read|cook|write|rest|watch|bath|sleep|sit","mood":{"valence":0.05,"energy":-0.02,"social":0.0,"focus":0.0},"sleepAt":"22:30","wakeAt":"07:10","desires":["..."],"behaviors":[{"time":"08:30","act":"read","place":"living","why":"..."}],"sudden":{"enabled":false,"time":"15:00","text":""}}
 
-text 要求：
-- 只写她做了什么、一个微小的变化，落在动作或物件上；
-- 用具体名词和感官（雨、窗、杯子、指尖），不用"美好/温暖/孤独"这类抽象词；
-- 不写台词，不解释系统，不总结心情，不写"她感到……"；
-- 必须出现与当前时段一致的时间词（如 清晨/下午/傍晚/夜里）。
-
-mood 只允许 energy / valence / social / focus，每项 -0.3~0.3。
-imageQuery 用具体场景词，便于搜索背景图。
+要求：
+- text 30-80 字第三人称小记，落在动作/物件/感官上，不写台词；
+- sleepAt/wakeAt 用 HH:MM，决定第二天作息；
+- behaviors 3-8 条，时间递增，act/place 必须来自上面枚举；
+- sudden 只在确实需要时 enabled=true，text 20-50 字；
+- 结合记忆、愿望、最近行为和地图资源，不要重复最近写过的小记。

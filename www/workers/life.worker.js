@@ -32,8 +32,11 @@ let lastLlmMinute = -1e9;
 let llmBusy = false;
 let plan = null;
 let mood = { energy: 0, valence: 0, social: 0, focus: 0 };
-let sleepAt = 23 * 60;
-let wakeAt = 7 * 60;
+let memoryText = "";
+let sleepAt = 22 * 60;
+let wakeAt = 8 * 60;
+let appliedBehaviors = new Set();
+let appliedSudden = false;
 
 function hashDay(n) {
   let x = (n * 2654435761) >>> 0;
@@ -44,9 +47,14 @@ function hashDay(n) {
 }
 
 function scheduleFor(day) {
-  const h = hashDay(day);
-  sleepAt = 22 * 60 + (h % 150); // 22:00–00:29
-  wakeAt = 6 * 60 + ((h >>> 8) % 150); // 06:00–08:29
+  // 第一天默认 22:00 睡、08:00 起；之后由剧情机决定
+  if (plan && plan.day === day && Number.isFinite(plan.sleepAt) && Number.isFinite(plan.wakeAt)) {
+    sleepAt = plan.sleepAt;
+    wakeAt = plan.wakeAt;
+    return;
+  }
+  sleepAt = 22 * 60;
+  wakeAt = 8 * 60;
 }
 
 function phaseAt(minute) {
@@ -204,7 +212,7 @@ async function maybeLlmThought() {
   lastLlmMinute = clock.minute;
   llmBusy = true;
   const t0 = Date.now();
-  const promptText = `她在${currentRoom || "家里"}，${phase}，天气${weather}。她现在${describeMood(mood)}。${moodTone(mood)}。${plan && plan.day === clock.day ? `今天的方向：${plan.text}。` : ""}写一句 20 字内的独白，不要台词，不要解释。`;
+  const promptText = `她在${currentRoom || "家里"}，${phase}，天气${weather}。她现在${describeMood(mood)}。${moodTone(mood)}。她记得：${memoryText || "暂无"}。${plan && plan.day === clock.day ? `今天的方向：${plan.text}。` : ""}写一句 20 字内的独白，不要台词，不要解释。`;
   try {
     const res = await fetch("/__llm/chat/completions", {
       method: "POST",
@@ -262,6 +270,21 @@ const DEBUG_ACT_PROP = {
   sit: ["chair", "stool", "bench"],
   sleep: ["bed"],
 };
+
+function planIntent(act, place, reason) {
+  pending = null;
+  busyUntil = clock.minute;
+  const props = DEBUG_ACT_PROP[act] || [];
+  const inPlace = (scene.hotspots || []).filter((h) => (!place || h.room === place) && (h.act === act || props.includes(h.prop)));
+  const pool = inPlace.length ? inPlace : (scene.hotspots || []).filter((h) => h.act === act || props.includes(h.prop));
+  if (!pool.length) return;
+  const h = pool[Math.floor(Math.random() * pool.length)];
+  const t = { x: h.x, y: h.y, act, room: h.room || place || currentRoom, durationMin: pickDuration(act) };
+  pending = t;
+  lastIntentMinute = clock.minute;
+  stats.intents += 1;
+  emit({ type: "intent", x: t.x, y: t.y, act: t.act, room: t.room, durationMin: t.durationMin, reason });
+}
 
 function debugIntent(act) {
   pending = null;
@@ -342,6 +365,23 @@ function tick() {
   if (w.state !== weather) {
     weather = w.state;
     event("weather", { weather, temp: w.temp, wind: w.wind, block: w.block });
+  }
+
+  // 剧情机固定日程：到点强制切换行为
+  if (plan && plan.day === clock.day) {
+    for (let i = 0; i < (plan.behaviors || []).length; i++) {
+      const b = plan.behaviors[i];
+      if (appliedBehaviors.has(i)) continue;
+      if (clock.minute >= b.minute && clock.minute - b.minute < 180 && b.act) {
+        appliedBehaviors.add(i);
+        planIntent(b.act, b.place, `plan:${b.time || b.minute}`);
+      }
+    }
+    if (plan.sudden && !appliedSudden && clock.minute >= plan.sudden.minute && clock.minute - plan.sudden.minute < 120) {
+      appliedSudden = true;
+      event("sudden", { text: plan.sudden.text, minute: plan.sudden.minute });
+      emit({ type: "say", text: plan.sudden.text, ttl: 4200 });
+    }
   }
 
   // 漫游：活跃档每 10 游戏分钟换一次目标；息屏档不漫游
@@ -478,6 +518,13 @@ self.onmessage = (e) => {
     }
     case "setPlan": {
       plan = msg.plan || null;
+      appliedBehaviors = new Set();
+      appliedSudden = false;
+      if (plan) scheduleFor(plan.day);
+      break;
+    }
+    case "setMemory": {
+      memoryText = String(msg.text || "");
       break;
     }
     case "setMood": {

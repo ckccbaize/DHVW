@@ -322,6 +322,7 @@ export function createLocalRuntime({
       else seenText.add(key);
     }
     memoryPipeline = createMemoryPipeline({ llm, registry, localMemory, seen: new Set() });
+    postLife({ type: "setMemory", text: memoryText(10) });
     lastMemoryDay = (await backend.getKV("last_memory_day")) ?? -1;
     store.patch({ memory: { count: localMemory.count, terms: localMemory.terms } });
   }
@@ -359,33 +360,88 @@ export function createLocalRuntime({
         response: res.facts.map((f) => f.text).join(" | "),
       });
       store.emit("memory", res);
+      postLife({ type: "setMemory", text: memoryText(10) });
     } else {
       await logLlm({ agent: "memory", ok: false, response: `${res.reason}: ${res.error || ""}` });
     }
   }
 
+  function memoryText(limit = 8) {
+    return localMemory ? localMemory.all().slice(-limit).map((d) => d.text).join("\n") : "";
+  }
+
+  function parseClock(v, fallback) {
+    if (typeof v === "string") {
+      const m = v.match(/^(\d{1,2}):(\d{2})$/);
+      if (m) return Math.max(0, Math.min(1439, Number(m[1]) * 60 + Number(m[2])));
+    }
+    if (Number.isFinite(v)) return Math.max(0, Math.min(1439, Number(v)));
+    return fallback;
+  }
+
+  function mapSummary() {
+    const rooms = (scene.rooms || []).map((r) => `${r.id}:${r.name || ""}`).join("、");
+    const props = (scene.props || []).map((p) => p.id).slice(0, 40).join("、");
+    return `房间：${rooms}；家具：${props}`;
+  }
+
+  async function generateDesires(tick, behaviors) {
+    const prompt = `她的记忆：\n${memoryText(10) || "暂无"}\n\n最近行为：\n${behaviors || "暂无"}\n\n当前心情：${describeMood(mood)}\n时间：第${tick.day}天 ${Math.floor(tick.minute / 60)}:${String(Math.floor(tick.minute % 60)).padStart(2, "0")}\n\n以角色第一人称写出 3 条此刻最真实的愿望，每条 10-30 字，不要解释。只输出 JSON：{"desires":["...","...","..."]}`;
+    const t0 = now();
+    try {
+      const res = await llm.complete({
+        messages: [{ role: "user", content: prompt }],
+        maxTokens: 220,
+        temperature: 0.8,
+        json: true,
+        cls: "work",
+        kind: "desire",
+      });
+      const obj = extractJson(res.text);
+      const desires = Array.isArray(obj?.desires)
+        ? obj.desires.map((d) => String(d).trim()).filter(Boolean).slice(0, 3)
+        : [];
+      await appendKv("desires", { id: `d-${now()}`, day: tick.day, desires, created_at: now() }, 20);
+      await logLlm({ agent: "desire", ok: true, ms: now() - t0, prompt, response: desires.join(" | ") });
+      return desires;
+    } catch (err) {
+      await logLlm({ agent: "desire", ok: false, ms: now() - t0, prompt, response: err.message });
+      return [];
+    }
+  }
+
   async function maybePlot(tick, force = false) {
     if (!llm || !registry || suspended) return;
-    // 每天晚上固定生成一次，决定第二天走向；手动触发不受限
     if (!force && tick.phase !== "sleep") return;
     if (!force && lastPlotDay === tick.day) return;
     lastPlotDay = tick.day;
     const hh = String(Math.floor(tick.minute / 60)).padStart(2, "0");
     const mm = String(Math.floor(tick.minute % 60)).padStart(2, "0");
+    const evs = await backend.oldestEvents(80).catch(() => []);
+    const recentBehaviors = evs
+      .filter((e) => e.kind === "act")
+      .slice(-10)
+      .map((e) => `${Math.floor((e.payload?.minute || 0) / 60)}:${String((e.payload?.minute || 0) % 60).padStart(2, "0")} ${e.payload?.act}@${e.payload?.room}`)
+      .join("\n");
+    const desires = await generateDesires(tick, recentBehaviors);
     const prompt = registry.render("plot", {
       now: `第${tick.day}天 ${hh}:${mm}`,
       period: tick.phase,
       place: tick.room || scene.start,
-      input: `为明天埋一个变化；明天 ${String(Math.floor((tick.sleepAt || 1380) / 60)).padStart(2, "0")}:${String((tick.sleepAt || 1380) % 60).padStart(2, "0")} 睡、${String(Math.floor((tick.wakeAt || 420) / 60)).padStart(2, "0")}:${String((tick.wakeAt || 420) % 60).padStart(2, "0")} 醒`,
+      input: `为明天安排完整的一天；明天 ${String(Math.floor((tick.sleepAt || 1380) / 60)).padStart(2, "0")}:${String((tick.sleepAt || 1380) % 60).padStart(2, "0")} 睡、${String(Math.floor((tick.wakeAt || 420) / 60)).padStart(2, "0")}:${String((tick.wakeAt || 420) % 60).padStart(2, "0")} 醒`,
       mood: describeMood(mood),
       recent: JSON.stringify(recentPlots.slice(-5)),
+      memory: memoryText(10) || "暂无",
+      desires: JSON.stringify(desires),
+      behaviors: recentBehaviors || "暂无",
+      map: mapSummary(),
     });
     const t0 = now();
     try {
       const res = await llm.complete({
         messages: [{ role: "user", content: prompt }],
-        maxTokens: 400,
-        temperature: 0.6,
+        maxTokens: 900,
+        temperature: 0.7,
         json: true,
         cls: "work",
         kind: "plot",
@@ -395,6 +451,25 @@ export function createLocalRuntime({
       if (!text) throw new Error("空剧情");
       const rooms = new Set((scene.rooms || []).map((r) => r.id));
       const place = rooms.has(obj?.place) ? obj.place : tick.room || scene.start;
+      const sleepAt = parseClock(obj?.sleepAt, 22 * 60);
+      const wakeAt = parseClock(obj?.wakeAt, 8 * 60);
+      const behaviors = Array.isArray(obj?.behaviors)
+        ? obj.behaviors
+            .map((b) => ({
+              minute: parseClock(b?.time, -1),
+              act: String(b?.act || "").trim(),
+              place: rooms.has(b?.place) ? b.place : place,
+              why: String(b?.why || "").trim(),
+            }))
+            .filter((b) => b.minute >= 0 && b.act)
+            .slice(0, 12)
+        : [];
+      const sudden = obj?.sudden && obj.sudden.enabled
+        ? {
+            minute: parseClock(obj.sudden.time, 15 * 60),
+            text: String(obj.sudden.text || "").trim(),
+          }
+        : null;
       const item = {
         id: `p-${now()}`,
         text,
@@ -402,6 +477,11 @@ export function createLocalRuntime({
         place,
         mood: obj?.mood || {},
         act: obj?.act || null,
+        sleepAt,
+        wakeAt,
+        behaviors,
+        sudden,
+        desires,
         forDay: tick.day + 1,
         day: tick.day,
         minute: tick.minute,
@@ -413,11 +493,24 @@ export function createLocalRuntime({
       await appendKv("plots", item, 50);
       await backend.setKV("daily_plots", dailyPlots).catch(() => {});
       await backend.setKV("last_plot_day", lastPlotDay).catch(() => {});
+      if (sudden) await appendKv("sudden_events", { ...sudden, day: item.forDay, created_at: now() }, 50);
       await applyMood(item.mood);
       if (localMemory) {
         await localMemory.add({ id: `plot-${tick.day}`, text, tier: "L1", t: now(), meta: { source: "plot" } }).catch(() => {});
       }
-      postLife({ type: "setPlan", plan: { day: item.forDay, place, act: item.act, text } });
+      postLife({
+        type: "setPlan",
+        plan: {
+          day: item.forDay,
+          place,
+          act: item.act,
+          text,
+          sleepAt,
+          wakeAt,
+          behaviors,
+          sudden,
+        },
+      });
       await logLlm({ agent: "plot", ok: true, ms: now() - t0, prompt, response: text });
       store.emit("plot_event", item);
       onSay(text, 4200);
@@ -454,7 +547,7 @@ export function createLocalRuntime({
     if (!llm || !registry) return;
     const t0 = now();
     const planner = createBrowsePlanner({ llm, registry });
-    const plan = await planner.plan({ threads: [], recent: [], mood });
+    const plan = await planner.plan({ threads: memoryText(6).split("\n").filter(Boolean), recent: [], mood });
     if (!plan.ok) {
       await logLlm({ agent: "browse", ok: false, ms: now() - t0, response: plan.reason });
       return;
@@ -493,8 +586,8 @@ export function createLocalRuntime({
     const todayPlot = dailyPlots[ctx.day]?.text || dailyPlots[ctx.day + 1]?.text || "";
     const prompt =
       kind === "diary"
-        ? `写一篇角色日记，第一人称，120-200 字。时间：第${ctx.day}天 ${Math.floor(ctx.minute / 60)}:${String(Math.floor(ctx.minute % 60)).padStart(2, "0")}，地点：${ctx.room}。她现在${describeMood(mood)}；${moodTone(mood)}。今天发生的剧情：${todayPlot || "无特别事件"}。日记里要自然提到这件事。只输出正文。`
-        : `写一段角色正在创作的小说片段，第三人称，150-250 字。时间：第${ctx.day}天，地点：${ctx.room}。她现在${describeMood(mood)}；${moodTone(mood)}。今天发生的剧情：${todayPlot || "无特别事件"}。只输出正文。`;
+        ? `写一篇角色日记，第一人称，120-200 字。时间：第${ctx.day}天 ${Math.floor(ctx.minute / 60)}:${String(Math.floor(ctx.minute % 60)).padStart(2, "0")}，地点：${ctx.room}。她现在${describeMood(mood)}；${moodTone(mood)}。她记得：${memoryText(6) || "暂无"}。今天发生的剧情：${todayPlot || "无特别事件"}。日记里要自然提到这件事。只输出正文。`
+        : `写一段角色正在创作的小说片段，第三人称，150-250 字。时间：第${ctx.day}天，地点：${ctx.room}。她现在${describeMood(mood)}；${moodTone(mood)}。她记得：${memoryText(6) || "暂无"}。今天发生的剧情：${todayPlot || "无特别事件"}。只输出正文。`;
     const t0 = now();
     try {
       const res = await llm.complete({
