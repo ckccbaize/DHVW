@@ -1048,6 +1048,8 @@ async function maybeOuting({ force = false } = {}) {
     sceneRequests.unshift(request);
     sceneRequests = sceneRequests.slice(0, 20);
     await kvBackend.put("scene_requests", sceneRequests);
+    log("info", "scene_request", { id: request.id, name: request.mapSpec?.name, kind: request.mapSpec?.kind, status: request.status });
+    post("core:event", { ev: { kind: "scene_request", request } });
   } else {
     travel = await travelToPlace(destination.id, "outing");
   }

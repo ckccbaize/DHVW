@@ -118,6 +118,10 @@
     <div id="plots"></div>
   </section>
   <section>
+    <h2>地图申请 <span class="count" id="sceneReqCount"></span></h2>
+    <div id="sceneRequests"></div>
+  </section>
+  <section>
     <h2>浏览记录 <span class="count" id="browseCount"></span></h2>
     <div id="browses"></div>
   </section>
@@ -155,6 +159,23 @@ function getAll(db, store) {
     req.onerror = () => reject(req.error);
   });
 }
+function getCoreKV(k) {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open("dhvw-core", 4);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains("kv")) db.createObjectStore("kv", { keyPath: "k" });
+    };
+    req.onsuccess = () => {
+      const db = req.result;
+      const get = db.transaction("kv", "readonly").objectStore("kv").get(k);
+      get.onsuccess = () => { db.close(); resolve(get.result ? get.result.v : undefined); };
+      get.onerror = () => { db.close(); reject(get.error); };
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
 function getKV(db, k) {
   return new Promise((resolve, reject) => {
     const req = db.transaction("kv", "readonly").objectStore("kv").get(k);
@@ -214,6 +235,17 @@ function renderPlots(rows) {
     ? days.map((d) => planBlock(d, byDay.get(d))).join("")
     : '<div class="empty">还没有剧情产出</div>';
 }
+function renderSceneRequests(rows) {
+  $("#sceneReqCount").textContent = `${rows.length} 条`;
+  $("#sceneRequests").innerHTML = rows.length
+    ? rows.slice().reverse().map((r) => {
+        const spec = r.mapSpec || {};
+        const when = r.createdAt ? new Date(r.createdAt).toLocaleTimeString() : "";
+        return `<div class="row"><b>${esc(spec.name || r.id)}</b> <span class="pill">${esc(r.status || "?")}</span> ${esc(r.mode || "")} ${esc(spec.kind || "")} · ${esc(when)}<div class="pre">${esc(JSON.stringify(spec))}</div></div>`;
+      }).join("")
+    : '<div class="empty">还没有提交地图申请</div>';
+}
+
 function renderBrowses(rows) {
   $("#browseCount").textContent = `${rows.length} 条`;
   $("#browses").innerHTML = rows.length
@@ -348,11 +380,12 @@ async function refresh() {
     const llmCfg = { ...(cfg.llm || {}), ...(auto || {}), ...(readOverride() || {}) };
     $("#status").innerHTML = `LLM：<span class="${llmCfg.baseUrl && llmCfg.model ? "ok" : "bad"}">${llmCfg.baseUrl && llmCfg.model ? `${esc(llmCfg.model)} @ ${esc(llmCfg.baseUrl)}` : "未配置"}</span> · 每 2 秒刷新`;
     const db = await openDb();
-    const [llmLog, mem, writings, plots, daily, mood, browses, desires, sudden, highlight, summary, events] = await Promise.all([
+    const [llmLog, mem, writings, plots, sceneReqs, daily, mood, browses, desires, sudden, highlight, summary, events] = await Promise.all([
       getKV(db, "llm_log"),
       getKV(db, "memory_docs"),
       getKV(db, "writings"),
       getKV(db, "plots"),
+      getCoreKV("scene_requests"),
       getKV(db, "daily_plots"),
       getKV(db, "mood"),
       getKV(db, "browse_log"),
@@ -366,6 +399,7 @@ async function refresh() {
     renderMem(mem || []);
     renderWritings(writings || []);
     renderPlots(plots || []);
+    renderSceneRequests(sceneReqs || []);
     renderBrowses(browses || []);
     const today = Object.values(daily || {}).sort((a, b) => b.forDay - a.forDay)[0];
     $("#todayCount").textContent = today ? `第 ${today.forDay} 天` : "";

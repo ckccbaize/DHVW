@@ -83,6 +83,7 @@
   <button id="btnPoolList">看事件池</button>
   <button id="btnOutingCheck">检查出门</button>
   <button id="btnOutingGo">强制出门</button>
+  <button id="btnSceneRequests">地图申请</button>
   <button id="btnDigestWrite">写摘要</button>
   <button id="btnPcAction">PC 生成地图</button>
   <button id="btnGovernorCheck">检查治理</button>
@@ -401,6 +402,11 @@ const client = createCoreClient({
       renderGovernor(msg.payload.governor);
       renderObserve(msg.payload.observe);
     }
+    if (msg.type === "core:event" && msg.payload.ev?.kind === "scene_request") {
+      const r = msg.payload.ev.request;
+      pushLine(`地图申请 → ${r.mapSpec?.name || r.id} (${r.mapSpec?.kind || "?"}, ${r.status})`);
+      return;
+    }
     if (msg.type === "core:event" && msg.payload.ev?.kind === "world_transition") {
       const r = msg.payload.ev.payload;
       pushLine(`world ${r.event}${r.illegal ? " (illegal)" : ""} → ${r.to.display}/${r.to.conn}/${r.to.tier}`);
@@ -617,7 +623,17 @@ $("#btnOutingCheck").onclick = async () => {
 $("#btnOutingGo").onclick = async () => {
   try {
     const r = await client.request("core:command", { name: "outing_go" });
-    pushLine(`outing 强制 → ${r.destination?.name} (${r.reason})`);
+    const req = r.request ? ` · 已提交 ${r.request.id}` : "";
+    pushLine(`outing 强制 → ${r.destination?.name} (${r.reason}, ${r.mode || "existing"})${req}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnSceneRequests").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "agenda_list" });
+    if (!r.scenes?.length) { pushLine("地图申请：无"); return; }
+    for (const s of r.scenes) {
+      pushLine(`地图申请 ${s.id} → ${s.mapSpec?.name || "?"} (${s.mapSpec?.kind || "?"}, ${s.status}) ${s.mode || ""}`);
+    }
   } catch (e) { pushLine(e.message); }
 };
 $("#btnPoolRefresh").onclick = async () => {
