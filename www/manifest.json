@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T07:22:19.954Z",
+ "built_at": "2026-11-14T07:26:42.531Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -594,8 +594,8 @@
   },
   {
    "path": "debug-life.html",
-   "size": 23398,
-   "sha256": "76b985d9600f4d0d413ac9ab508d666b56f0159f97f023ef90dfaa373e99c57f"
+   "size": 23676,
+   "sha256": "134bbdb4ce7e4d634bd63a0b84106e8577c103700de019e760730e3cc76fcf92"
   },
   {
    "path": "index.html",

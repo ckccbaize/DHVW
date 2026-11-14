@@ -179,10 +179,16 @@ function getKV(db, k) {
 function renderLlm(rows) {
   $("#llmCount").textContent = `${rows.length} 条`;
   if (!rows.length) return ($("#llm").innerHTML = '<div class="empty">还没有 LLM 调用</div>');
+  const openKeys = new Set(
+    [...$("#llm").querySelectorAll("details[open]")].map((d) => d.dataset.key),
+  );
   $("#llm").innerHTML = rows
     .slice()
     .reverse()
-    .map((r) => `<details class="llm-item"><summary><span class="muted">${fmt(r.t)}</span><span class="pill">${esc(r.agent || r.kind || "?")}</span><span class="${r.ok ? "ok" : "bad"}">${r.ok ? "ok" : "fail"}</span><span class="muted">${r.ms ?? r.latencyMs ?? ""}ms</span></summary><div class="llm-body"><div class="llm-label">输入</div><div class="pre">${esc(r.prompt || "")}</div><div class="llm-label">输出</div><div class="pre">${esc(r.response || "")}</div></div></details>`)
+    .map((r) => {
+      const key = `${r.t}-${r.agent || r.kind || "?"}-${(r.response || "").length}`;
+      return `<details class="llm-item" data-key="${esc(key)}"${openKeys.has(key) ? " open" : ""}><summary><span class="muted">${fmt(r.t)}</span><span class="pill">${esc(r.agent || r.kind || "?")}</span><span class="${r.ok ? "ok" : "bad"}">${r.ok ? "ok" : "fail"}</span><span class="muted">${r.ms ?? r.latencyMs ?? ""}ms</span></summary><div class="llm-body"><div class="llm-label">输入</div><div class="pre">${esc(r.prompt || "")}</div><div class="llm-label">输出</div><div class="pre">${esc(r.response || "")}</div></div></details>`;
+    })
     .join("");
 }
 function renderMem(rows) {
