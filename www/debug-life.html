@@ -106,9 +106,11 @@
     <h2>剧情产出 <span class="count" id="plotCount"></span></h2>
     <div id="plots"></div>
   </section>
-  <section>
-    <h2>地图绘制 <span class="count" id="mapCount"></span></h2>
+  <section class="wide">
+    <h2>地图绘制 / 检查 <span class="count" id="mapCount"></span></h2>
     <div id="maps"></div>
+    <canvas id="mapCanvas" width="480" height="320" style="width:100%;max-width:480px;border:3px solid #1a1a2e;image-rendering:pixelated;margin-top:8px"></canvas>
+    <div id="mapInfo" class="hint"></div>
   </section>
   <section>
     <h2>浏览记录 <span class="count" id="browseCount"></span></h2>
@@ -184,17 +186,58 @@ function renderPlots(rows) {
     : '<div class="empty">还没有剧情产出</div>';
 }
 
+let mapRows = [];
+function renderMapPreview(m) {
+  const c = $("#mapCanvas");
+  const ctx = c.getContext("2d");
+  const w = m.w || 24;
+  const h = m.h || 16;
+  const tw = Math.floor(c.width / w);
+  const th = Math.floor(c.height / h);
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = "#2a2f3a";
+  ctx.fillRect(0, 0, c.width, c.height);
+  const grid = m.intGrid || [];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const t = grid[y * w + x] ?? 1;
+      ctx.fillStyle = t === 0 ? "#d9c7a3" : t === 2 ? "#e0b070" : t === 3 ? "#8fc7d8" : "#3a3f4b";
+      ctx.fillRect(x * tw, y * th, tw, th);
+    }
+  }
+  ctx.strokeStyle = "#e05a5a";
+  ctx.lineWidth = 2;
+  for (const r of m.rooms || []) {
+    const [x, y, rw, rh] = r.rect;
+    ctx.strokeRect(x * tw, y * th, rw * tw, rh * th);
+  }
+  $("#mapInfo").textContent = `${m.name || "场景"} · ${w}×${h} · ${(m.rooms || []).length} 房间 · seed ${m.seed}`;
+}
+
 function renderMaps(rows) {
+  mapRows = rows;
   $("#mapCount").textContent = `${rows.length} 张`;
   $("#maps").innerHTML = rows.length
-    ? rows.slice().reverse().map((m) => `<div class="row"><b>${esc(m.name || "场景")}</b> ${m.w}×${m.h} · ${m.rooms?.length || 0} 房间 · seed ${esc(m.seed)}</div>`).join("")
+    ? rows.slice().reverse().map((m, i) => `<div class="row"><b>${esc(m.name || "场景")}</b> ${m.w}×${m.h} · ${m.rooms?.length || 0} 房间 · seed ${esc(m.seed)} <button type="button" data-map="${rows.length - 1 - i}">查看</button></div>`).join("")
     : '<div class="empty">还没有生成地图</div>';
+  if (rows.length) renderMapPreview(rows[rows.length - 1]);
 }
+
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-map]");
+  if (!btn) return;
+  const m = mapRows[Number(btn.dataset.map)];
+  if (m) renderMapPreview(m);
+});
 
 function renderBrowses(rows) {
   $("#browseCount").textContent = `${rows.length} 条`;
   $("#browses").innerHTML = rows.length
-    ? rows.slice().reverse().map((b) => `<div class="row"><b>${esc(b.plan?.query || b.plan?.url || "浏览")}</b><div class="pre">${esc(JSON.stringify(b.result?.results?.slice(0, 2) || b.result || {}))}</div></div>`).join("")
+    ? rows.slice().reverse().map((b) => {
+        const page = b.result?.page;
+        const list = b.result?.results?.slice(0, 3) || [];
+        return `<div class="row"><b>${esc(b.plan?.query || b.plan?.url || "浏览")}</b><div class="pre">${esc(page?.title || "")}${page?.text ? `\n${esc(page.text.slice(0, 300))}` : ""}${list.length ? `\n${esc(list.map((r) => r.title + " " + r.url).join("\n"))}` : ""}</div></div>`;
+      }).join("")
     : '<div class="empty">还没有浏览记录</div>';
 }
 

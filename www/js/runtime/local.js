@@ -442,9 +442,20 @@ export function createLocalRuntime({
       return;
     }
     let result = null;
-    if (plan.mode === "search") {
-      const res = await fetch(`/__search?q=${encodeURIComponent(plan.query)}&n=5`, { cache: "no-store" });
+    const query = plan.query || plan.topic || plan.url || "";
+    if (query) {
+      const res = await fetch(`/__search?q=${encodeURIComponent(query)}&n=5`, { cache: "no-store" });
       result = res.ok ? await res.json() : { error: `http_${res.status}` };
+      const first = result?.results?.find((r) => r.url);
+      if (first) {
+        try {
+          const page = await fetch(`/__fetch?url=${encodeURIComponent(first.url)}`, { cache: "no-store" });
+          if (page.ok) {
+            const data = await page.json();
+            result.page = { url: first.url, title: data.title || first.title || "", text: String(data.text || "").slice(0, 1200) };
+          }
+        } catch {}
+      }
     }
     const item = { id: `browse-${now()}`, plan, result, created_at: now() };
     await appendKv("browse_log", item, 20);
@@ -452,8 +463,8 @@ export function createLocalRuntime({
       agent: "browse",
       ok: true,
       ms: now() - t0,
-      prompt: plan.query || plan.url,
-      response: JSON.stringify(result?.results?.slice(0, 3) || result || {}),
+      prompt: plan.query || plan.url || plan.topic,
+      response: JSON.stringify(result?.page || result?.results?.slice(0, 3) || result || {}),
     });
     store.emit("browse", item);
   }

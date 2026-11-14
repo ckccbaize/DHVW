@@ -1,11 +1,21 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T05:52:52.521Z",
+ "built_at": "2026-11-14T06:08:55.103Z",
  "files": [
   {
    "path": "agent/registry.json",
-   "size": 11747,
-   "sha256": "91428dc5fa155633994fe718cb7e06f8544894e44436e7e704d619c6f6cc02a7"
+   "size": 11723,
+   "sha256": "d487b8965275ac53bff746ebd4543f7632bc14ec6ab895febf8bb726da29e6cb"
+  },
+  {
+   "path": "assets/char/ojj_sheet.json",
+   "size": 7725,
+   "sha256": "ae926639c980e11f3064b0a15246a44a1d99a860fe77a399a7ac9aa288251ace"
+  },
+  {
+   "path": "assets/char/ojj_sheet.png",
+   "size": 292333,
+   "sha256": "8cca703acd587387551b2496ddf29f08819b03becf1e24a12b30aef3d27b272b"
   },
   {
    "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Arrows.woff2",
@@ -584,8 +594,8 @@
   },
   {
    "path": "debug-life.html",
-   "size": 17251,
-   "sha256": "8231e73de9f6495dda4892614eab4c53fac28ad026d4b64a2da996b5f4bd7309"
+   "size": 18973,
+   "sha256": "6cdb64660129b98ffa0ea9274626a5fb5c74e0cf8708fd588ba47ca512662228"
   },
   {
    "path": "index.html",
@@ -914,8 +924,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 25905,
-   "sha256": "63865704da12aa0407e127bee5fe61c7a4000cd19048281731a7604cf9de3783"
+   "size": 26413,
+   "sha256": "f22cf86fde40d0d2e339ea0d2d23e66cb5a10acff595f23a2a2cc32d9f55dcc4"
   },
   {
    "path": "js/runtime/remote.js",
@@ -929,8 +939,8 @@
   },
   {
    "path": "js/view/overview.js",
-   "size": 7920,
-   "sha256": "305ca143739230f5075af4fbfe264ca749065917d545fae2a068abe2665b1c6c"
+   "size": 9406,
+   "sha256": "456186b7a7cf66c1dba24d3c0c6791526550d3ee5853fc0abb9441a254fb5f5d"
   },
   {
    "path": "js/view/perf-overlay.js",

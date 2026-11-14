@@ -30,6 +30,8 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
   ctx.imageSmoothingEnabled = false;
 
   let terrain = null;
+  let charSheet = null;
+  let charImg = null;
   let lightKey = null;
   let lightLayer = null;
   let lightCtx = null;
@@ -75,11 +77,37 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
     lightKey = key;
   }
 
-  function drawAgent(agent, palette = {}) {
+  function dirName(dir = {}) {
+    if (Math.abs(dir.x || 0) > Math.abs(dir.y || 0)) return dir.x >= 0 ? "E" : "W";
+    return (dir.y || 0) <= 0 ? "N" : "S";
+  }
+
+  function drawSheetAgent(agent, now, actName) {
+    const name = actName && charSheet.animations[actName] ? actName : agent.state === "walk" ? "walk" : "idle";
+    const anim = charSheet.animations[name] || charSheet.animations.idle;
+    const frames = anim.frames[dirName(agent.dir)] || anim.frames.S || [0];
+    const idx = frames[Math.floor((now / 1000) * anim.fps) % frames.length];
+    const fw = charSheet.frame.w;
+    const fh = charSheet.frame.h;
+    const sx = (idx % 4) * fw;
+    const sy = Math.floor(idx / 4) * fh;
+    const k = cell / 24;
+    const dw = fw * k;
+    const dh = fh * k;
+    const x = agent.px * cell;
+    const y = agent.py * cell + cell * 0.25;
+    ctx.drawImage(charImg, sx, sy, fw, fh, x - dw / 2, y - dh, dw, dh);
+  }
+
+  function drawAgent(agent, palette = {}, now = performance.now(), actName = null) {
     const x = Math.round(agent.px * cell * scale);
     const y = Math.round(agent.py * cell * scale);
     const f = walkFrame(agent);
     const swing = agent.state === "walk" ? [0, 2, 0][f] : 0;
+    if (charSheet && charImg) {
+      drawSheetAgent(agent, now, actName || palette.act || null);
+      return;
+    }
     const skin = palette.skin || SKIN;
     const hair = palette.hair || HAIR;
     const sweater = palette.sweater || SWEATER;
@@ -211,11 +239,13 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
       ctx.fillStyle = "#2a2f3a";
       ctx.fillRect(0, 0, W, H);
     }
-    if (showAgent) drawAgent(agent);
+    if (showAgent) drawAgent(agent, {}, now, agent.act);
     for (const sp of sprites) {
       drawAgent(
         { px: sp.x + 0.5, py: sp.y + 0.5, state: "idle", frame: 0, dir: sp.dir || { x: 0, y: 1 } },
         sp.palette,
+        now,
+        sp.act || null,
       );
     }
     if (lightLayer) ctx.drawImage(lightLayer, 0, 0);
@@ -233,6 +263,16 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
     },
     async load() {
       terrain = await loadImage(scene.image2xUrl);
+      try {
+        const res = await fetch("assets/char/ojj_sheet.json", { cache: "no-cache" });
+        if (res.ok) {
+          charSheet = await res.json();
+          charImg = await loadImage("assets/char/ojj_sheet.png");
+        }
+      } catch {
+        charSheet = null;
+        charImg = null;
+      }
       buildLight(store.state.light || "day");
     },
     draw,
