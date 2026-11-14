@@ -101,6 +101,11 @@ export function createMemoryPipeline({
     const obj = extractJson(res.text);
     if (!obj || !Array.isArray(obj.facts)) return { ok: false, reason: "invalid_json" };
     const { facts, rejected } = validateFacts(obj.facts);
+    const highlightText = String(obj?.highlight?.text || "").trim();
+    const highlight = highlightText.length >= 10 && highlightText.length <= 120
+      ? { text: highlightText, reason: String(obj?.highlight?.reason || "").trim() }
+      : null;
+    const summary = String(obj?.summary || "").trim().slice(0, 300);
     const accepted = [];
     const known = localMemory ? localMemory.all() : [];
     for (const f of facts) {
@@ -118,7 +123,7 @@ export function createMemoryPipeline({
       for (const d of all.slice(0, localMemory.count - 200)) await localMemory.remove(d.id);
     }
     if (accepted.length) sendCandidates({ facts: accepted, events: selected.slice(-20) });
-    return { ok: true, facts: accepted, rejected, scanned: selected.length };
+    return { ok: true, facts: accepted, rejected, highlight, summary, raw: res.text, scanned: selected.length };
   }
 
   return { run, seen };

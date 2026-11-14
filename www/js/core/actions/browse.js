@@ -113,6 +113,7 @@ export function createBrowsePlanner({ llm, registry, hosts = DEFAULT_HOSTS, now 
         mode: "search",
         query: String(obj.query).trim(),
         reason: String(obj.reason || "").trim(),
+        raw: res.text,
         ts: now(),
       };
     }
@@ -122,6 +123,7 @@ export function createBrowsePlanner({ llm, registry, hosts = DEFAULT_HOSTS, now 
       topic: String(obj.topic || "").trim(),
       url: targetUrl(obj),
       reason: String(obj.reason || "").trim(),
+      raw: res.text,
       ts: now(),
     };
   }

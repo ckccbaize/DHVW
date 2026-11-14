@@ -19,7 +19,7 @@
   th,td { text-align:left; vertical-align:top; padding:4px 6px; border-bottom:1px solid #ddd4c4; }
   th { color:var(--muted); font-weight:400; }
   .ok { color:#1f7a3d; } .bad { color:#b3261e; }
-  .pre { white-space:pre-wrap; word-break:break-word; max-height:160px; overflow:auto; }
+  .pre { white-space:pre-wrap; word-break:break-word; max-height:none; overflow:visible; }
   .muted { color:var(--muted); }
   .pill { display:inline-block; border:1px solid var(--line); padding:0 6px; margin-right:4px; background:#fff; }
   .empty { color:var(--muted); padding:8px 0; }
@@ -90,6 +90,8 @@
   <div id="moodView" class="hint" style="margin-top:6px"></div>
   <div id="desiresView" class="pre" style="margin-top:6px"></div>
   <div id="suddenView" class="pre" style="margin-top:6px"></div>
+  <div id="highlightView" class="pre" style="margin-top:6px"></div>
+  <div id="summaryView" class="pre" style="margin-top:6px"></div>
 </section>
 <div class="grid">
   <section class="wide">
@@ -407,7 +409,7 @@ async function refresh() {
     const llmCfg = { ...(cfg.llm || {}), ...(auto || {}), ...(readOverride() || {}) };
     $("#status").innerHTML = `LLM：<span class="${llmCfg.baseUrl && llmCfg.model ? "ok" : "bad"}">${llmCfg.baseUrl && llmCfg.model ? `${esc(llmCfg.model)} @ ${esc(llmCfg.baseUrl)}` : "未配置"}</span> · 每 2 秒刷新`;
     const db = await openDb();
-    const [llmLog, mem, writings, plots, daily, mood, maps, browses, desires, sudden, events] = await Promise.all([
+    const [llmLog, mem, writings, plots, daily, mood, maps, browses, desires, sudden, highlight, summary, events] = await Promise.all([
       getKV(db, "llm_log"),
       getKV(db, "memory_docs"),
       getKV(db, "writings"),
@@ -418,6 +420,8 @@ async function refresh() {
       getKV(db, "browse_log"),
       getKV(db, "desires"),
       getKV(db, "sudden_events"),
+      getKV(db, "memory_highlight"),
+      getKV(db, "memory_summary"),
       getAll(db, "events"),
     ]);
     renderLlm(llmLog || []);
@@ -442,6 +446,8 @@ async function refresh() {
     $("#suddenView").textContent = (sudden || []).length
       ? `突发事件：${sudden.slice(-3).map((s) => `第${s.day}天 ${s.text}`).join(" / ")}`
       : "突发事件：暂无";
+    $("#highlightView").textContent = highlight ? `最高印象：${highlight.text}（${highlight.reason || ""}）` : "最高印象：暂无";
+    $("#summaryView").textContent = summary ? `记忆摘要：${summary}` : "记忆摘要：暂无";
     renderEvents((events || []).sort((a, b) => a.t_corrected - b.t_corrected).slice(-80));
   } catch (err) {
     $("#status").innerHTML = `<span class="bad">读取失败：${esc(err.message)}</span>`;

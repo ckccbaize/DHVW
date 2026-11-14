@@ -352,12 +352,23 @@ export function createLocalRuntime({
     eventsSinceMemory = 0;
     const res = await memoryPipeline.run(allEvents);
     if (res.ok) {
+      if (res.highlight) {
+        await localMemory.add({
+          id: `highlight-${lastMemoryDay}`,
+          text: res.highlight.text,
+          tier: "L1",
+          t: now(),
+          meta: { source: "highlight", reason: res.highlight.reason },
+        }).catch(() => {});
+        await backend.setKV("memory_highlight", res.highlight).catch(() => {});
+      }
+      if (res.summary) await backend.setKV("memory_summary", res.summary).catch(() => {});
       store.patch({ memory: { count: localMemory.count, terms: localMemory.terms } });
       await logLlm({
         agent: "memory",
         ok: true,
         prompt: `events=${res.scanned}`,
-        response: res.facts.map((f) => f.text).join(" | "),
+        response: res.raw || res.facts.map((f) => f.text).join(" | "),
       });
       store.emit("memory", res);
       postLife({ type: "setMemory", text: memoryText(10) });
@@ -402,7 +413,7 @@ export function createLocalRuntime({
         ? obj.desires.map((d) => String(d).trim()).filter(Boolean).slice(0, 3)
         : [];
       await appendKv("desires", { id: `d-${now()}`, day: tick.day, desires, created_at: now() }, 20);
-      await logLlm({ agent: "desire", ok: true, ms: now() - t0, prompt, response: desires.join(" | ") });
+      await logLlm({ agent: "desire", ok: true, ms: now() - t0, prompt, response: res.text });
       return desires;
     } catch (err) {
       await logLlm({ agent: "desire", ok: false, ms: now() - t0, prompt, response: err.message });
@@ -434,6 +445,12 @@ export function createLocalRuntime({
       memory: memoryText(10) || "暂无",
       desires: JSON.stringify(desires),
       behaviors: recentBehaviors || "暂无",
+      history: JSON.stringify(
+        Object.values(dailyPlots)
+          .sort((a, b) => b.forDay - a.forDay)
+          .slice(0, 3)
+          .map((d) => ({ day: d.forDay, text: d.text, behaviors: (d.behaviors || []).map((b) => b.act) })),
+      ),
       map: mapSummary(),
     });
     const t0 = now();
@@ -511,7 +528,7 @@ export function createLocalRuntime({
           sudden,
         },
       });
-      await logLlm({ agent: "plot", ok: true, ms: now() - t0, prompt, response: text });
+      await logLlm({ agent: "plot", ok: true, ms: now() - t0, prompt, response: res.text });
       store.emit("plot_event", item);
       onSay(text, 4200);
     } catch (err) {
@@ -575,7 +592,7 @@ export function createLocalRuntime({
       ok: true,
       ms: now() - t0,
       prompt: plan.query || plan.url || plan.topic,
-      response: JSON.stringify(result?.page || result?.results?.slice(0, 3) || result || {}),
+      response: plan.raw || JSON.stringify(result?.page || result?.results?.slice(0, 3) || result || {}),
     });
     store.emit("browse", item);
   }
@@ -609,7 +626,7 @@ export function createLocalRuntime({
         created_at: now(),
       };
       await appendKv("writings", item, 50);
-      await logLlm({ agent: "writing", ok: true, ms: now() - t0, prompt, response: text });
+      await logLlm({ agent: "writing", ok: true, ms: now() - t0, prompt, response: res.text });
       store.emit("writing", item);
     } catch (err) {
       await logLlm({ agent: "writing", ok: false, ms: now() - t0, prompt, response: err.message });
