@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T14:41:58.146Z",
+ "built_at": "2026-11-14T15:10:25.531Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -418,6 +418,76 @@
    "sha256": "8751c869c91bc13ba06dffadaf0c276f662917228f18072b28498b08c1e59ee6"
   },
   {
+   "path": "assets/scenes/cafe/cafe.built.json",
+   "size": 20048,
+   "sha256": "31ddf89658124a1f669e880aec5cfc3a4fb33d9940a9360b24b3efb8f194c71d"
+  },
+  {
+   "path": "assets/scenes/cafe/cafe.bundle.js",
+   "size": 12568,
+   "sha256": "df4c91ea96753d7fd2dcbe5181050241294c4a0357eafb4a12080bbc324b5172"
+  },
+  {
+   "path": "assets/scenes/cafe/cafe.png",
+   "size": 80688,
+   "sha256": "fd43d139766af1527c019a2578c9d35836e533f33460a8b04f2f0dd38fea1c42"
+  },
+  {
+   "path": "assets/scenes/cafe/cafe@2x.png",
+   "size": 99250,
+   "sha256": "5c494e069f3072fde11feb46cd2854e2c3e4808ee5e6bfefd19e1eb9acb232e9"
+  },
+  {
+   "path": "assets/scenes/cafe/character/sheet.json",
+   "size": 5286,
+   "sha256": "483bc8212627e18153f01b2681f095f0acbf7d978dcc4f1983aad2c474726a3d"
+  },
+  {
+   "path": "assets/scenes/cafe/character/sheet.png",
+   "size": 5070,
+   "sha256": "65368c47ccb963243ebccd58c4351f11103324046273b54e6075c5679e31ea02"
+  },
+  {
+   "path": "assets/scenes/cafe/furniture.png",
+   "size": 28747,
+   "sha256": "4fbbc9b26a9f2c352672125288c372bb87f16fcf6e860fa381c9939308a45d32"
+  },
+  {
+   "path": "assets/scenes/cafe/interactions.json",
+   "size": 11521,
+   "sha256": "b7e6822a9f702b45db1bfd764f0670c33e933860b6c30f8319f3ecb7c4bb7b91"
+  },
+  {
+   "path": "assets/scenes/cafe/intgrid.bin",
+   "size": 532,
+   "sha256": "df0c999b510b420058854b940ced40f79746af86907156c54c2d44cdb1325fb8"
+  },
+  {
+   "path": "assets/scenes/cafe/light_day.png",
+   "size": 3521,
+   "sha256": "957868a4898d9c6d78a8926b0b202971b5b3f2180e08bba421ae247fd7735c19"
+  },
+  {
+   "path": "assets/scenes/cafe/manifest.json",
+   "size": 1238,
+   "sha256": "c6a43f1317dbf9b8d6ab27759f988f91eff92aeedcec1a0938f78e72f0045d27"
+  },
+  {
+   "path": "assets/scenes/cafe/scene.json",
+   "size": 31658,
+   "sha256": "1cd63461a443f6bdcacaa825c0aeb4e4f3cac0ba582a32c56d1111f4b8adfbaa"
+  },
+  {
+   "path": "assets/scenes/cafe/sprites.png",
+   "size": 390,
+   "sha256": "df131de780de8fb2f8aa3a37a9ec3fabf751488fcabc2c453e4de798dbd49f9f"
+  },
+  {
+   "path": "assets/scenes/cafe/terrain.png",
+   "size": 56844,
+   "sha256": "a58d1cf364b795c31ab6b71a47570a247cf7d0852b0b7ceec2f7512f8c42e6ee"
+  },
+  {
    "path": "assets/scenes/home/character/sheet.json",
    "size": 7725,
    "sha256": "ae926639c980e11f3064b0a15246a44a1d99a860fe77a399a7ac9aa288251ace"
@@ -491,6 +561,76 @@
    "path": "assets/scenes/home/terrain.png",
    "size": 23876,
    "sha256": "53c35fb0390b0413b8dc0f3aaafcb99dfe64a7b065946242a7958a2d0c81a3fd"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/character/sheet.json",
+   "size": 5286,
+   "sha256": "483bc8212627e18153f01b2681f095f0acbf7d978dcc4f1983aad2c474726a3d"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/character/sheet.png",
+   "size": 5070,
+   "sha256": "65368c47ccb963243ebccd58c4351f11103324046273b54e6075c5679e31ea02"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/furniture.png",
+   "size": 28747,
+   "sha256": "4fbbc9b26a9f2c352672125288c372bb87f16fcf6e860fa381c9939308a45d32"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/indoor-66500.built.json",
+   "size": 17033,
+   "sha256": "ddf7a8de15881289986c86e273c104bf8bef32b53bbd9934a7a3ff5317969b54"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/indoor-66500.bundle.js",
+   "size": 12568,
+   "sha256": "df4c91ea96753d7fd2dcbe5181050241294c4a0357eafb4a12080bbc324b5172"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/indoor-66500.png",
+   "size": 80688,
+   "sha256": "fd43d139766af1527c019a2578c9d35836e533f33460a8b04f2f0dd38fea1c42"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/indoor-66500@2x.png",
+   "size": 99250,
+   "sha256": "5c494e069f3072fde11feb46cd2854e2c3e4808ee5e6bfefd19e1eb9acb232e9"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/interactions.json",
+   "size": 11521,
+   "sha256": "b7e6822a9f702b45db1bfd764f0670c33e933860b6c30f8319f3ecb7c4bb7b91"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/intgrid.bin",
+   "size": 532,
+   "sha256": "df0c999b510b420058854b940ced40f79746af86907156c54c2d44cdb1325fb8"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/light_day.png",
+   "size": 3521,
+   "sha256": "957868a4898d9c6d78a8926b0b202971b5b3f2180e08bba421ae247fd7735c19"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/manifest.json",
+   "size": 1238,
+   "sha256": "c6a43f1317dbf9b8d6ab27759f988f91eff92aeedcec1a0938f78e72f0045d27"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/scene.json",
+   "size": 27060,
+   "sha256": "7bee574a28826f8f8fa74195a0c74258fa8c2da37f11a78171e7c978ebf739f4"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/sprites.png",
+   "size": 390,
+   "sha256": "df131de780de8fb2f8aa3a37a9ec3fabf751488fcabc2c453e4de798dbd49f9f"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/terrain.png",
+   "size": 56844,
+   "sha256": "a58d1cf364b795c31ab6b71a47570a247cf7d0852b0b7ceec2f7512f8c42e6ee"
   },
   {
    "path": "assets/scenes/office/character/sheet.json",
@@ -919,8 +1059,8 @@
   },
   {
    "path": "js/view/scene-loader.js",
-   "size": 1003,
-   "sha256": "a8e8c91241ac200832a7fb0e31477f772d49e0ef22b404549c9cd60775e43ef5"
+   "size": 1912,
+   "sha256": "6beb2eeb668cb157bb53b766111ca6b1077cf115f8bd9e3b4044a1bed416e556"
   },
   {
    "path": "js/view/switch.js",
@@ -931,6 +1071,11 @@
    "path": "observe.html",
    "size": 8232,
    "sha256": "3e57ea8f632e64a60d44cc8671e452ced8ad703cdeeaefcbc75738568d676ec9"
+  },
+  {
+   "path": "preview.html",
+   "size": 5629,
+   "sha256": "8df11e362efdf9bb13e65fe4797ca5463d0c58b9e5fc7e0dbc2c4e673b6af617"
   },
   {
    "path": "workers/forge.worker.js",

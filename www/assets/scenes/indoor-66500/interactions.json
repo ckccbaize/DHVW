@@ -1,0 +1,699 @@
+{
+ "schema_version": 1,
+ "acts": {
+  "rest_armchair": {
+   "label": "瘫一会儿",
+   "trigger": {
+    "props": [
+     "armchair"
+    ]
+   },
+   "perform": {
+    "animation": "rest",
+    "duration_min": 25,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": 0.15,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "rest_armchair"
+    }
+   ],
+   "priority": 4,
+   "tags": [
+    "quiet"
+   ]
+  },
+  "sit_chair": {
+   "label": "坐下",
+   "trigger": {
+    "props": [
+     "chair",
+     "stool"
+    ]
+   },
+   "perform": {
+    "animation": "sit",
+    "duration_min": 15,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": 0.05,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "sit_chair"
+    }
+   ],
+   "priority": 2,
+   "tags": [
+    "quiet"
+   ]
+  },
+  "eat": {
+   "label": "吃饭",
+   "trigger": {
+    "props": [
+     "cafe_table"
+    ]
+   },
+   "perform": {
+    "animation": "eat",
+    "duration_min": 30,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": 0.3,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.1,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "advance_time",
+     "minutes": 30
+    },
+    {
+     "kind": "event",
+     "name": "eat"
+    }
+   ],
+   "priority": 8,
+   "bubble": "先吃饭。",
+   "tags": [
+    "meal"
+   ]
+  },
+  "snack": {
+   "label": "翻冰箱",
+   "trigger": {
+    "props": [
+     "fridge"
+    ]
+   },
+   "perform": {
+    "animation": "eat",
+    "duration_min": 10,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": 0.08,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "set_flag",
+     "name": "fridge_open"
+    },
+    {
+     "kind": "clear_flag",
+     "name": "fridge_open"
+    },
+    {
+     "kind": "event",
+     "name": "snack"
+    }
+   ],
+   "priority": 4,
+   "tags": [
+    "meal"
+   ]
+  },
+  "read": {
+   "label": "看书",
+   "trigger": {
+    "props": [
+     "bookshelf"
+    ]
+   },
+   "perform": {
+    "animation": "read",
+    "duration_min": 45,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.08,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "read"
+    }
+   ],
+   "priority": 5,
+   "tags": [
+    "quiet",
+    "leisure"
+   ]
+  },
+  "water_plants": {
+   "label": "浇花",
+   "trigger": {
+    "props": [
+     "plant",
+     "plant_big"
+    ]
+   },
+   "perform": {
+    "animation": "water_plants",
+    "duration_min": 5,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.06,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "water_plants"
+    }
+   ],
+   "priority": 3,
+   "bubble": "喝点水。",
+   "tags": [
+    "chore",
+    "quiet"
+   ]
+  },
+  "hang_coat": {
+   "label": "挂外套",
+   "trigger": {
+    "props": [
+     "coat_rack"
+    ]
+   },
+   "perform": {
+    "animation": "hang_coat",
+    "duration_min": 2,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "set_flag",
+     "name": "coat_hung"
+    },
+    {
+     "kind": "event",
+     "name": "hang_coat"
+    }
+   ],
+   "priority": 2,
+   "tags": [
+    "habit"
+   ]
+  },
+  "toggle_lamp": {
+   "label": "开灯",
+   "trigger": {
+    "props": [
+     "lamp"
+    ]
+   },
+   "perform": {
+    "animation": "idle",
+    "duration_min": 1,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "set_flag",
+     "name": "lamp_on"
+    },
+    {
+     "kind": "event",
+     "name": "toggle_lamp"
+    }
+   ],
+   "priority": 2,
+   "tags": [
+    "habit"
+   ]
+  },
+  "brew_espresso": {
+   "label": "做一杯咖啡",
+   "trigger": {
+    "props": [
+     "bar_counter"
+    ]
+   },
+   "perform": {
+    "animation": "brew",
+    "duration_min": 12,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.12,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": 0.04,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "advance_time",
+     "minutes": 12
+    },
+    {
+     "kind": "event",
+     "name": "brew_espresso"
+    }
+   ],
+   "priority": 7,
+   "bubble": "压粉、萃取、打奶泡。",
+   "tags": [
+    "work",
+    "craft"
+   ]
+  },
+  "wipe_bar": {
+   "label": "擦吧台",
+   "trigger": {
+    "props": [
+     "bar_counter"
+    ]
+   },
+   "perform": {
+    "animation": "tidy",
+    "duration_min": 8,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.04,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "wipe_bar"
+    }
+   ],
+   "priority": 3,
+   "bubble": "台面擦到没有水痕。",
+   "tags": [
+    "chore"
+   ]
+  },
+  "drink_latte": {
+   "label": "喝杯拿铁",
+   "trigger": {
+    "props": [
+     "cafe_table"
+    ]
+   },
+   "perform": {
+    "animation": "drink",
+    "duration_min": 10,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.1,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": 0.12,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "advance_time",
+     "minutes": 10
+    },
+    {
+     "kind": "event",
+     "name": "drink_latte"
+    }
+   ],
+   "priority": 4,
+   "bubble": "第一口最香。",
+   "tags": [
+    "quiet",
+    "drink"
+   ]
+  },
+  "long_table_work": {
+   "label": "在长桌上写字",
+   "trigger": {
+    "props": [
+     "communal_table"
+    ]
+   },
+   "requires": [
+    {
+     "kind": "place",
+     "in": [
+      "hall"
+     ]
+    }
+   ],
+   "perform": {
+    "animation": "work",
+    "duration_min": 45,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.06,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": -0.06,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "advance_time",
+     "minutes": 45
+    },
+    {
+     "kind": "event",
+     "name": "long_table_work"
+    }
+   ],
+   "priority": 5,
+   "bubble": "笔记本摊在长桌上。",
+   "tags": [
+    "work",
+    "quiet"
+   ]
+  },
+  "read_menu": {
+   "label": "看今日菜单",
+   "trigger": {
+    "props": [
+     "menu_sign"
+    ]
+   },
+   "perform": {
+    "animation": "read",
+    "duration_min": 4,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.05,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "read_menu"
+    }
+   ],
+   "priority": 4,
+   "bubble": "今日主推：榛果拿铁。",
+   "tags": [
+    "quiet"
+   ]
+  },
+  "sit_window": {
+   "label": "坐窗边",
+   "trigger": {
+    "props": [
+     "window_bench"
+    ]
+   },
+   "requires": [
+    {
+     "kind": "place",
+     "in": [
+      "lounge"
+     ]
+    }
+   ],
+   "perform": {
+    "animation": "sit",
+    "duration_min": 25,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": 0.1,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.08,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "advance_time",
+     "minutes": 25
+    },
+    {
+     "kind": "event",
+     "name": "sit_window"
+    }
+   ],
+   "priority": 5,
+   "bubble": "窗边的光正好落在杯口。",
+   "tags": [
+    "quiet",
+    "rest"
+   ]
+  },
+  "prep_food": {
+   "label": "备餐",
+   "trigger": {
+    "props": [
+     "prep_island"
+    ]
+   },
+   "requires": [
+    {
+     "kind": "place",
+     "in": [
+      "kitchen"
+     ]
+    }
+   ],
+   "perform": {
+    "animation": "cook",
+    "duration_min": 30,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": -0.08,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.05,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "advance_time",
+     "minutes": 30
+    },
+    {
+     "kind": "event",
+     "name": "prep_food"
+    }
+   ],
+   "priority": 6,
+   "bubble": "番茄切丁，罗勒撕碎。",
+   "tags": [
+    "work",
+    "cook"
+   ]
+  },
+  "wash_dishes": {
+   "label": "洗碗",
+   "trigger": {
+    "props": [
+     "kitchen_counter"
+    ]
+   },
+   "requires": [
+    {
+     "kind": "place",
+     "in": [
+      "kitchen"
+     ]
+    }
+   ],
+   "perform": {
+    "animation": "wash_up",
+    "duration_min": 15,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": -0.04,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "wash_dishes"
+    }
+   ],
+   "priority": 3,
+   "bubble": "热水冲过盘沿。",
+   "tags": [
+    "chore"
+   ]
+  },
+  "cook_order": {
+   "label": "出餐",
+   "trigger": {
+    "props": [
+     "range"
+    ]
+   },
+   "requires": [
+    {
+     "kind": "place",
+     "in": [
+      "kitchen"
+     ]
+    }
+   ],
+   "perform": {
+    "animation": "cook",
+    "duration_min": 20,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": -0.06,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "advance_time",
+     "minutes": 20
+    },
+    {
+     "kind": "event",
+     "name": "cook_order"
+    }
+   ],
+   "priority": 6,
+   "bubble": "三明治在铁板上滋滋响。",
+   "tags": [
+    "work",
+    "cook"
+   ]
+  },
+  "wash_hands": {
+   "label": "洗手",
+   "trigger": {
+    "props": [
+     "wash_basin"
+    ]
+   },
+   "perform": {
+    "animation": "wash_up",
+    "duration_min": 3,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": 0.02,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "wash_hands"
+    }
+   ],
+   "priority": 3,
+   "bubble": "冷水冲干净。",
+   "tags": [
+    "chore"
+   ]
+  },
+  "use_wc": {
+   "label": "用一下隔间",
+   "trigger": {
+    "props": [
+     "wc_cubicle"
+    ]
+   },
+   "requires": [
+    {
+     "kind": "place",
+     "in": [
+      "wc"
+     ]
+    }
+   ],
+   "perform": {
+    "animation": "wc",
+    "duration_min": 4,
+    "interruptible": false
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": 0.06,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "advance_time",
+     "minutes": 4
+    },
+    {
+     "kind": "event",
+     "name": "use_wc"
+    }
+   ],
+   "priority": 2,
+   "bubble": "门锁轻轻一响。",
+   "tags": [
+    "private"
+   ]
+  }
+ }
+}
