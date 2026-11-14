@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T13:20:43.447Z",
+ "built_at": "2026-11-14T13:28:36.489Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -604,8 +604,8 @@
   },
   {
    "path": "js/app.js",
-   "size": 21247,
-   "sha256": "014dc678cc12b27b7393fb7db4626bf353b09beb0a09c56f18c5ce3856eddba4"
+   "size": 21863,
+   "sha256": "4edb20179344564293ab5c46f457ab1911df94fd5d183f607bd916c7c03dfe0e"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -939,8 +939,8 @@
   },
   {
    "path": "workers/life.worker.js",
-   "size": 24097,
-   "sha256": "91711483e8f38928326db9c5c94134bc0275eeadffe9baf4d54d9423e559595f"
+   "size": 24419,
+   "sha256": "f5f4f0dbaa1f2f47ad3e5136f3d40c1fab67df7643f6d94bedacc59733d09bdc"
   }
  ]
 }

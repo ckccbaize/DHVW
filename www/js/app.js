@@ -166,6 +166,7 @@ async function boot() {
   let lastInput = performance.now();
   let activity = "active";
   let pendingArrival = null;
+  let walkStuck = { px: null, py: null, since: 0 };
   let refusedCount = 0;
   let lastEvent = null;
   const bgUrls = new Map();
@@ -562,6 +563,18 @@ async function boot() {
     if (arrived && pendingArrival) {
       local.arrived(pendingArrival.room || roomAt(agent.gx, agent.gy), pendingArrival.act);
       pendingArrival = null;
+    }
+    // 卡住保护：行走状态但位置长时间不动，取消路径并让 Worker 清 pending
+    if (agent.state === "walk") {
+      const moved = walkStuck.px == null || Math.abs(agent.px - walkStuck.px) + Math.abs(agent.py - walkStuck.py) > 0.01;
+      if (moved) walkStuck = { px: agent.px, py: agent.py, since: now };
+      else if (now - walkStuck.since > 1500) {
+        cancelMovement();
+        local.intentFailed();
+        walkStuck = { px: null, py: null, since: 0 };
+      }
+    } else {
+      walkStuck = { px: null, py: null, since: 0 };
     }
 
     const view = activeView === "outer" ? outerOverview : overview;

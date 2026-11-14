@@ -42,6 +42,7 @@ let appliedBehaviors = new Set();
 let appliedSudden = false;
 let interactionRegistry = null;
 let activeInteraction = null;
+let lastArrival = { key: "", minute: -1e9 };
 let interactionFlags = {};
 let interactionCooldowns = {};
 
@@ -181,7 +182,7 @@ function actProps(act) {
 
 function actDuration(act) {
   const d = scene?.interactions?.acts?.[act]?.perform?.duration_min;
-  return Number.isFinite(d) ? d : pickDuration(act);
+  return Number.isFinite(d) ? Math.max(1, d) : pickDuration(act);
 }
 
 function spotsForAct(act, room) {
@@ -560,6 +561,12 @@ self.onmessage = (e) => {
     }
     case "arrived": {
       const room = msg.room || pending?.room || currentRoom;
+      const arrivalKey = `${room}:${msg.act || pending?.act || ""}`;
+      if (lastArrival.key === arrivalKey && clock.minute - lastArrival.minute < 1) {
+        pending = null;
+        break;
+      }
+      lastArrival = { key: arrivalKey, minute: clock.minute };
       const changed = room !== currentRoom;
       currentRoom = room;
       if (changed) {
