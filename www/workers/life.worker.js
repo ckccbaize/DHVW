@@ -170,8 +170,17 @@ function hotspotsIn(room) {
   return (scene.hotspots || []).filter((h) => !room || h.room === room);
 }
 
+function actProps(act) {
+  return scene?.interactions?.acts?.[act]?.trigger?.props || DEBUG_ACT_PROP[act] || [];
+}
+
+function actDuration(act) {
+  const d = scene?.interactions?.acts?.[act]?.perform?.duration_min;
+  return Number.isFinite(d) ? d : pickDuration(act);
+}
+
 function spotsForAct(act, room) {
-  const props = DEBUG_ACT_PROP[act] || [];
+  const props = actProps(act);
   return (scene.hotspots || []).filter(
     (h) => (!room || h.room === room) && (h.act === act || props.includes(h.prop)),
   );
@@ -200,11 +209,11 @@ function pickTarget() {
   let act = h.act;
   // 剧情安排的动作优先（必须找到对应热点）
   if (plan && plan.day === clock.day && plan.act) {
-    const props = DEBUG_ACT_PROP[plan.act] || [];
+    const props = actProps(plan.act);
     const exact = (scene.hotspots || []).filter((x) => (!plan.place || x.room === plan.place) && (x.act === plan.act || props.includes(x.prop)));
     if (exact.length) {
       const p = exact[Math.floor(Math.random() * exact.length)];
-      return { x: p.x, y: p.y, act: plan.act, room: p.room || room, durationMin: pickDuration(plan.act) };
+      return { x: p.x, y: p.y, act: plan.act, room: p.room || room, durationMin: actDuration(plan.act) };
     }
   }
   // 晚上偶尔写作：必须找到可写热点，且当天没写过
@@ -228,7 +237,7 @@ function pickTarget() {
   if (mood.valence < -0.3) bias("read", 0.3);
   if (mood.social > 0.3) bias("sit", 0.25);
   const bed = act === "sleep" ? (scene.props || []).find((p) => p.id === "bed") : null;
-  return { x: h.x, y: h.y, act, room: h.room || room, durationMin: pickDuration(act), bed: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1, facing: bed.facing || "S" } : null };
+  return { x: h.x, y: h.y, act, room: h.room || room, durationMin: actDuration(act), bed: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1, facing: bed.facing || "S" } : null };
 }
 
 async function maybeLlmThought() {
@@ -283,7 +292,7 @@ const DEBUG_ACT_PROP = ACT_PROPS;
 function planIntent(act, place, reason) {
   pending = null;
   busyUntil = clock.minute;
-  const props = DEBUG_ACT_PROP[act] || [];
+  const props = actProps(act);
   const room = place || currentRoom;
   const pool = (scene.hotspots || []).filter((h) => h.room === room && (h.act === act || props.includes(h.prop)));
   if (!pool.length) {
@@ -291,7 +300,7 @@ function planIntent(act, place, reason) {
     return;
   }
   const h = pool[Math.floor(Math.random() * pool.length)];
-  const t = { x: h.x, y: h.y, act, room: h.room || place || currentRoom, durationMin: pickDuration(act) };
+  const t = { x: h.x, y: h.y, act, room: h.room || place || currentRoom, durationMin: actDuration(act) };
   pending = t;
   lastIntentMinute = clock.minute;
   stats.intents += 1;
@@ -301,13 +310,13 @@ function planIntent(act, place, reason) {
 function debugIntent(act) {
   pending = null;
   busyUntil = clock.minute;
-  const props = DEBUG_ACT_PROP[act] || [];
+  const props = actProps(act);
   const exact = (scene.hotspots || []).filter((h) => h.act === act || props.includes(h.prop));
   const target = exact.length
     ? exact[Math.floor(Math.random() * exact.length)]
     : pickTarget();
   if (!target) return;
-  const t = { x: target.x, y: target.y, act, room: target.room || currentRoom, durationMin: pickDuration(act) };
+  const t = { x: target.x, y: target.y, act, room: target.room || currentRoom, durationMin: actDuration(act) };
   pending = t;
   lastIntentMinute = clock.minute;
   stats.intents += 1;

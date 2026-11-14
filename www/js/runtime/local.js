@@ -14,6 +14,7 @@ import { createBrowsePlanner } from "../core/actions/browse.js";
 import { normalizeBehaviors, roomForAct, createActRoomMap } from "../core/life/plan.js";
 import { buildScene } from "../forge/scene.js";
 import { buildScenePackage, saveScenePackage } from "../core/scene-package.js";
+import { deriveScene } from "../forge/lexicon.js";
 
 const EVENT_CAP = 2000;
 const DEFAULT_QUOTA = 500 * 1024 * 1024;
@@ -218,6 +219,7 @@ export function createLocalRuntime({
   let plotBusy = false;
   let memoryBusy = false;
   let lastSnapshot = null;
+  let sceneLexicon = null;
   let recentPlots = [];
   let dailyPlots = {};
   let mood = { energy: 0, valence: 0, social: 0, focus: 0 };
@@ -229,6 +231,7 @@ export function createLocalRuntime({
     doors: scene.doors,
     start: scene.start,
     hotspots: scene.hotspots,
+    interactions: scene.interactions || null,
   });
 
   function postLife(msg) {
@@ -515,7 +518,7 @@ export function createLocalRuntime({
             text: String(obj.sudden.text || "").trim(),
           }
         : null;
-      const sceneSpec = typeof obj?.scene === "string"
+      let sceneSpec = typeof obj?.scene === "string"
         ? { dsl: obj.scene }
         : obj?.scene && typeof obj.scene === "object"
           ? (obj.scene.dsl
@@ -528,6 +531,13 @@ export function createLocalRuntime({
                   }
                 : null)
           : null;
+      if (!sceneSpec && sceneLexicon) {
+        const derived = deriveScene(
+          [text, obj?.event, (desires || []).join(" "), recentBehaviors].join(" "),
+          sceneLexicon,
+        );
+        if (derived.ok && derived.confidence >= 0.33) sceneSpec = { dsl: derived.dsl };
+      }
       const item = {
         id: `p-${now()}`,
         text,
@@ -883,6 +893,9 @@ export function createLocalRuntime({
         forgeWorker.onmessage = (e) => handleForge(e.data);
       }
 
+      sceneLexicon = await fetch("assets/lexicon/scene.json", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
       const day = await backend.getKV("day").catch(() => undefined);
       const minute = await backend.getKV("minute").catch(() => undefined);
       lastSnapshot = (await backend.getKV("life_snapshot").catch(() => undefined)) || null;

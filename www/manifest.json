@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T08:34:52.754Z",
+ "built_at": "2026-11-14T08:38:33.984Z",
  "files": [
   {
    "path": "agent/registry.json",
    "size": 13091,
-   "sha256": "646603e75dfebf9e66c2524e7681df0e0bc2cd3eea8533565bdc71c63e12421b"
+   "sha256": "44c8063452c067b8f61ddd302b15bcf551df63f1811744e251ed7d9d5e5782d5"
   },
   {
    "path": "assets/char/ojj_sheet.json",
@@ -416,6 +416,11 @@
    "path": "assets/fonts/fusion-pixel/LICENSE.txt",
    "size": 1062,
    "sha256": "8751c869c91bc13ba06dffadaf0c276f662917228f18072b28498b08c1e59ee6"
+  },
+  {
+   "path": "assets/lexicon/scene.json",
+   "size": 1756,
+   "sha256": "42c112ea5dc2fca32c4b4182264bb98ef0a39ea705ab9d9f6b5f6efd35c99306"
   },
   {
    "path": "assets/scenes/home/character/sheet.json",
@@ -923,6 +928,11 @@
    "sha256": "d0ced24ffa4413d94ddba8bb39aba42fe0c5b32a58342b13580a190a2689a041"
   },
   {
+   "path": "js/forge/lexicon.js",
+   "size": 1515,
+   "sha256": "457f1ec48487c0aa0a92cb1dcda832c63328dd0bdcf8e8c7a66250e10ba794e4"
+  },
+  {
    "path": "js/forge/painter.js",
    "size": 11008,
    "sha256": "b6a501751d16335535cc515623a1dfea32747f008b2cf534dff2abc1116825e2"
@@ -959,8 +969,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 36841,
-   "sha256": "4126b8d370645c49ef71d26fe3a3494fd086b98b9a39bf81b8c31ef4ea224b1c"
+   "size": 37415,
+   "sha256": "3bb09e11f937433ec2171f502a05d4404028fe288d36a4ac43fda255a5611cf8"
   },
   {
    "path": "js/runtime/remote.js",
@@ -1014,8 +1024,8 @@
   },
   {
    "path": "workers/life.worker.js",
-   "size": 21159,
-   "sha256": "fd56c560eebdd01f33fed250be1fb787e2146e1c0079ffe3629b63ef38e05bd0"
+   "size": 21376,
+   "sha256": "9b5ab3637ea94f82b31504ac0e04aa26ac9941d8fc7aa2e49b967db03d4916e0"
   }
  ]
 }
