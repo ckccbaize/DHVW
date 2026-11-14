@@ -197,6 +197,10 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.serveDigest(w, r)
 		return
 	}
+	if r.URL.Path == "/__state" {
+		s.serveState(w, r)
+		return
+	}
 	if r.URL.Path == "/__fetch" {
 		s.serveFetch(w, r)
 		return

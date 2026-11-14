@@ -139,6 +139,7 @@
 
 - 写 kv `digest`；
 - `POST /__digest` → 壳原子写 `data/digest.json`（PC 可 `GET /__digest` 读取）；
+- `POST /__state` → 壳原子写 `data/state.json`，保存 `{savedAt, life, agent}`；`GET /__state` 在浏览器会话/IndexedDB 丢失后恢复；
 - 主机在线时推 `world:digest`。
 
 ```json

@@ -204,6 +204,8 @@ export function createLocalRuntime({
   let assets = [];
   let forgeFail = 0;
   let lastTick = null;
+  let lastAgentPos = null;
+  let stateSaveTimer = null;
   let stats = { ticks: 0, intents: 0, says: 0, assets: 0, fails: 0 };
   let llm = null;
   let registry = null;
@@ -267,8 +269,11 @@ export function createLocalRuntime({
         break;
       }
       case "snapshot": {
-        lastSnapshot = msg.snapshot || null;
-        if (lastSnapshot) void backend.setKV("life_snapshot", lastSnapshot).catch(() => {});
+        lastSnapshot = msg.snapshot ? { ...msg.snapshot, savedAt: Date.now() } : null;
+        if (lastSnapshot) {
+          void backend.setKV("life_snapshot", lastSnapshot).catch(() => {});
+          scheduleStateSave();
+        }
         break;
       }
       case "intent": {
@@ -424,6 +429,37 @@ export function createLocalRuntime({
     const custom = (await backend.getKV("places")) || [];
     const pool = [...DESTINATIONS, ...custom].filter((p) => p.id !== "home" && p.id !== "office" && p.kind !== "office");
     return JSON.stringify(pool.map(({ id, name, kind, distance }) => ({ id, name, kind, distance })));
+  }
+
+  async function loadFileState() {
+    try {
+      const res = await fetch("/__state", { cache: "no-store" });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }
+
+  function scheduleStateSave() {
+    if (stateSaveTimer) return;
+    stateSaveTimer = setTimeout(() => {
+      stateSaveTimer = null;
+      void saveFileState();
+    }, 500);
+  }
+
+  async function saveFileState() {
+    if (!lastSnapshot && !lastAgentPos) return;
+    const payload = {
+      v: 1,
+      savedAt: Date.now(),
+      life: lastSnapshot,
+      agent: lastAgentPos,
+    };
+    try {
+      await fetch("/__state", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    } catch {}
   }
 
   function mapSummary() {
@@ -836,6 +872,14 @@ export function createLocalRuntime({
       const day = await backend.getKV("day").catch(() => undefined);
       const minute = await backend.getKV("minute").catch(() => undefined);
       lastSnapshot = (await backend.getKV("life_snapshot").catch(() => undefined)) || null;
+      lastAgentPos = (await backend.getKV("agent_pos").catch(() => undefined)) || null;
+      const fileState = await loadFileState();
+      if (fileState?.life && (!lastSnapshot || (fileState.savedAt || 0) > (lastSnapshot.savedAt || 0))) {
+        lastSnapshot = fileState.life;
+      }
+      if (fileState?.agent && (!lastAgentPos || (fileState.savedAt || 0) > (lastAgentPos.savedAt || 0))) {
+        lastAgentPos = fileState.agent;
+      }
       const snapDay = lastSnapshot?.day;
       const snapMinute = lastSnapshot?.minute;
       const useSnapshot = !!lastSnapshot && (
@@ -966,17 +1010,20 @@ export function createLocalRuntime({
       return backend.getBlob(id);
     },
     async getAgentPos() {
-      return backend.getKV("agent_pos").catch(() => null);
+      return lastAgentPos || (await backend.getKV("agent_pos").catch(() => null));
     },
     async persistAgentPos(pos) {
-      await backend.setKV("agent_pos", pos).catch(() => {});
+      lastAgentPos = { ...pos, savedAt: Date.now() };
+      await backend.setKV("agent_pos", lastAgentPos).catch(() => {});
+      scheduleStateSave();
     },
     async persistClock(day, minute) {
       await backend.setKV("day", day).catch(() => {});
       await backend.setKV("minute", minute).catch(() => {});
       if (lastSnapshot) {
-        lastSnapshot = { ...lastSnapshot, day, minute };
+        lastSnapshot = { ...lastSnapshot, day, minute, savedAt: Date.now() };
         await backend.setKV("life_snapshot", lastSnapshot).catch(() => {});
+        scheduleStateSave();
       }
     },
     setSpeed(value) {

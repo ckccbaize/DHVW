@@ -43,6 +43,7 @@ let appliedSudden = false;
 let interactionRegistry = null;
 let activeInteraction = null;
 let lastArrival = { key: "", minute: -1e9 };
+let badSpots = new Set();
 let interactionFlags = {};
 let interactionCooldowns = {};
 
@@ -203,7 +204,8 @@ function pickTarget() {
   const inRoom = hotspotsIn(room);
   // 35% 概率去别的房间，避免一直在同一角落
   const roam = inRoom.length > 0 && Math.random() < 0.35;
-  const base = roam ? scene.hotspots || [] : inRoom.length ? inRoom : scene.hotspots || [];
+  const allBase = roam ? scene.hotspots || [] : inRoom.length ? inRoom : scene.hotspots || [];
+  const base = allBase.filter((h) => !badSpots.has(`${h.x},${h.y}:${h.act}`) && clock.minute >= (interactionCooldowns[h.act] || 0));
   if (!base.length) return null;
   // 优先当前时段动作，其次同房间任意热点
   const preferred = roam ? [] : base.filter((h) => h.act === PHASE_ACT[phase]);
@@ -261,7 +263,8 @@ function pickInteraction() {
   if (!interactionRegistry?.ok) return null;
   const candidates = [];
   for (const [act, def] of Object.entries(interactionRegistry.acts)) {
-    const hot = (scene.hotspots || []).find((h) => h.act === act);
+    if (clock.minute < (interactionCooldowns[act] || 0)) continue;
+    const hot = (scene.hotspots || []).find((h) => h.act === act && !badSpots.has(`${h.x},${h.y}:${h.act}`));
     if (!hot) continue;
     const chosen = resolveInteraction({
       registry: interactionRegistry,
@@ -271,7 +274,11 @@ function pickInteraction() {
     });
     if (chosen) candidates.push({ act, hot, score: chosen.score });
   }
-  candidates.sort((a, b) => b.score - a.score);
+  candidates.sort((a, b) => {
+    const recentA = recentActs.slice(-2).includes(a.act) ? 0.5 : 1;
+    const recentB = recentActs.slice(-2).includes(b.act) ? 0.5 : 1;
+    return b.score * recentB - a.score * recentA;
+  });
   return candidates[0] || null;
 }
 
@@ -282,7 +289,7 @@ function finishInteraction() {
   mood = out.state.mood;
   interactionFlags = out.state.flags;
   interactionCooldowns = out.state.cooldowns;
-  if (def.cooldown_min) interactionCooldowns[act] = clock.minute + Number(def.cooldown_min);
+  interactionCooldowns[act] = clock.minute + Math.max(5, Number(def.cooldown_min) || 20);
   emit({ type: "mood", mood: { ...mood } });
   for (const e of out.events) {
     if (e.kind === "say") emit({ type: "say", text: e.text, ttl: e.ttl });
@@ -290,6 +297,9 @@ function finishInteraction() {
   }
   event("interaction_end", { act });
   activeInteraction = null;
+  lastIntentMinute = -1e9;
+  busyUntil = clock.minute;
+  requestIntent("interaction:end");
 }
 
 async function maybeLlmThought() {
@@ -363,7 +373,7 @@ function debugIntent(act) {
   pending = null;
   busyUntil = clock.minute;
   const props = actProps(act);
-  const exact = (scene.hotspots || []).filter((h) => h.act === act || props.includes(h.prop));
+  const exact = (scene.hotspots || []).filter((h) => (h.act === act || props.includes(h.prop)) && !badSpots.has(`${h.x},${h.y}:${h.act}`));
   const target = exact.length
     ? exact[Math.floor(Math.random() * exact.length)]
     : pickTarget();
@@ -533,8 +543,13 @@ self.onmessage = (e) => {
       llmCfg = msg.llm || null;
       interactionRegistry = scene?.interactions ? createInteractionRegistry(scene.interactions) : null;
       activeInteraction = null;
+      if (snap?.interaction?.act && Number.isFinite(snap.interaction.endsAt) && snap.interaction.endsAt > clock.minute) {
+        const def = interactionRegistry?.acts?.[snap.interaction.act];
+        if (def) activeInteraction = { act: snap.interaction.act, def, endsAt: snap.interaction.endsAt };
+      }
       interactionFlags = {};
       interactionCooldowns = {};
+      badSpots = new Set();
       weather = weatherAt(clock.day, clock.minute).state;
       scheduleFor(clock.day);
       phase = snap?.phase || phaseAt(clock.minute);
@@ -621,6 +636,7 @@ self.onmessage = (e) => {
       break;
     }
     case "intentFailed": {
+      if (pending) badSpots.add(`${pending.x},${pending.y}:${pending.act}`);
       pending = null;
       break;
     }
