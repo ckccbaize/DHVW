@@ -245,7 +245,7 @@ export function createLocalRuntime({
         if (msg.phase === "sleep") {
           if (!store.state.sleepView) {
             const bed = (scene.props || []).find((p) => p.id === "bed");
-            store.patch({ sleepView: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1 } : null });
+            store.patch({ sleepView: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1, facing: bed.facing || "S" } : null });
           }
         } else if (store.state.sleepView) {
           store.patch({ sleepView: null });

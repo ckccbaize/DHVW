@@ -202,7 +202,7 @@ function pickTarget() {
   if (mood.valence < -0.3 && Math.random() < 0.3) act = "read";
   if (mood.social > 0.3 && Math.random() < 0.25) act = "sit";
   const bed = act === "sleep" ? (scene.props || []).find((p) => p.id === "bed") : null;
-  return { x: h.x, y: h.y, act, room: h.room || room, durationMin: pickDuration(act), bed: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1 } : null };
+  return { x: h.x, y: h.y, act, room: h.room || room, durationMin: pickDuration(act), bed: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1, facing: bed.facing || "S" } : null };
 }
 
 async function maybeLlmThought() {
@@ -350,7 +350,7 @@ function tick() {
     phase = nextPhase;
     if (phase === "sleep") {
       const bed = (scene.props || []).find((p) => p.id === "bed");
-      event("sleep", { from: prev, bed: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1 } : null, sleepAt, wakeAt });
+      event("sleep", { from: prev, bed: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1, facing: bed.facing || "S" } : null, sleepAt, wakeAt });
       stats.sinceResume.sleeps += 1;
       pending = null;
       busyUntil = clock.minute;
@@ -430,7 +430,7 @@ self.onmessage = (e) => {
       lastLlmMinute = clock.minute;
       if (phase === "sleep") {
         const bed = (scene.props || []).find((p) => p.id === "bed");
-        event("sleep", { from: "boot", bed: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1 } : null, sleepAt, wakeAt });
+        event("sleep", { from: "boot", bed: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1, facing: bed.facing || "S" } : null, sleepAt, wakeAt });
       }
       resetAnchor();
       schedule();

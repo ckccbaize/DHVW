@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T07:06:06.091Z",
+ "built_at": "2026-11-14T07:08:28.120Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -924,8 +924,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 32475,
-   "sha256": "7d8a261ac25952434842364fb7d9a545bd4d36462924c0ac3f752b26f422d934"
+   "size": 32502,
+   "sha256": "aef9663fd0b3b3bd10d810d42f15f3a48ea049a77ce447baf5d4fc25f60e4620"
   },
   {
    "path": "js/runtime/remote.js",
@@ -939,8 +939,8 @@
   },
   {
    "path": "js/view/overview.js",
-   "size": 10266,
-   "sha256": "046b728f3e380a2bff32b956e5b6264e5766281ceceaa8363f39f0d7d2014007"
+   "size": 10377,
+   "sha256": "35c71cb6ac6e6eb2f5b3981aec7018790a545dc82d3e1fa75b0c50c3e98631f2"
   },
   {
    "path": "js/view/perf-overlay.js",
@@ -979,8 +979,8 @@
   },
   {
    "path": "workers/life.worker.js",
-   "size": 19703,
-   "sha256": "5c6c1f3621df7a8fd7e3166e02fac578c4ee6ae15f56b5f3cefcdd8355c3745f"
+   "size": 19784,
+   "sha256": "57ff3196652f955dbb3dede06ecad8011d1fe0f5aa2dbb466d35188004fd0c4f"
   }
  ]
 }
