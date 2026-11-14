@@ -112,6 +112,7 @@ createManagerAgent({ llm, registry, subAgents: { "plot-writer": (args) => plotAg
 
 `core/agent/subs/map.js` 消费出门/剧情的 `mapSpec`：
 
+- `forge/dsl.js` + `forge/scenekit.js`：模型只出 `arch/size/palette/light/features/focus` DSL，本地生成 32×24 单房间、家具、热点与 `interactions`；`produceScene({seed,dsl,intent})` 返回可烘焙场景；
 - `forge/floorplan.js`：按 `mapSpec.kind/name/description` 推断场景类型（咖啡厅、书店、餐厅、集市、公园、办公室、家等），按 seed 生成 1–3 个功能区；也接受 `mapSpec.program` 自定义房间，房间之间留 1 格墙并开门；
 - `forge/layout.js`：保留通用随机布局，作为未知 kind 的回退；
 - `forge/scene-spec.js`：按房间类型放家具、墙面小物，输出 forge 可烘焙的 spec；
@@ -120,7 +121,7 @@ createManagerAgent({ llm, registry, subAgents: { "plot-writer": (args) => plotAg
 - `generateMap`：同 seed 确定性，失败自动换 seed 重试 ≤6 次；
 - 端侧 `maybeMap` 用 `forge/scene.js` 烘焙三层图，结果落 kv `generated_maps`（环形 5），调试页直接显示合成图。
 
-`home` / `office` 不再输出空矩形骨架；调试页「生成家 / 生成办公室 / 生成咖啡厅 / 生成书店 / 生成公园」可看到带家具的完整地图。剧情 `scene` 字段（`{kind,name,program}`）会直接触发对应场景生成。
+`home` / `office` 不再输出空矩形骨架；调试页「生成家 / 生成办公室 / 生成咖啡厅 / 生成书店 / 生成公园 / 生成 DSL 书房」可看到带家具的完整地图。剧情 `scene` 字段可以是 DSL 字符串，也可以继续用 `{kind,name,program}`。
 
 ## 8. 唤醒运行时（W26）
 

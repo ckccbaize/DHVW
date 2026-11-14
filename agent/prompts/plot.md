@@ -12,8 +12,13 @@
 为第二天生成一个完整的生活计划，并决定是否发生突发状况。只输出 JSON：
 {"text":"小记","event":"事件短语","place":"living|hall|bedroom|bath|balcony|kitchen","act":"read|cook|write|rest|watch|bath|sleep|sit","mood":{"valence":0.05,"energy":-0.02,"social":0.0,"focus":0.0},"sleepAt":"22:30","wakeAt":"07:10","desires":["..."],"behaviors":[{"time":"08:30","act":"read","place":"living","why":"..."}],"sudden":{"enabled":false,"time":"15:00","text":""},"scene":null}
 
-如果剧情/愿望明确提到一个新地点（咖啡馆、书店、公园、集市等），给 scene：
-{"kind":"cafe","name":"街角咖啡馆","program":[{"kind":"cafe","name":"咖啡区"},{"kind":"counter","name":"吧台"}]}
+如果剧情/愿望明确需要一个新场景，scene 只给一行 DSL：
+arch/size/palette/light/features/focus
+arch ∈ bedroom|study|kitchen|living|entry|balcony|shop|park
+size ∈ s|m|l；palette ∈ warm_wood|cool_plaster|green_outdoor
+light ∈ dawn|day|dusk|night|rain|snow
+features 0-3 个，用 + 连接；focus 是该原型可交互道具。
+例：study/l/warm_wood/rain_dusk/old_books+window_seat/desk
 否则 scene 为 null。
 
 要求：

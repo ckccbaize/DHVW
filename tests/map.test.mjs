@@ -73,6 +73,8 @@ test("generateMap：home/office 生成可识别户型与家具", () => {
   assert.ok(home.scene.props.length >= 10);
   assert.ok(home.scene.props.some((p) => p.id === "bed"));
   assert.ok(home.scene.props.some((p) => p.id === "counter"));
+  assert.ok(home.scene.interactions.acts.sleep);
+  assert.ok(home.scene.entities.some((e) => e.type === "hotspot"));
   assert.deepEqual(validateMap(home.scene), []);
 
   const office = generateMap({ mapSpec: { kind: "office", name: "办公室" }, seed: "office-1" });

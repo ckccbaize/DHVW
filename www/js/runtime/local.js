@@ -514,13 +514,19 @@ export function createLocalRuntime({
             text: String(obj.sudden.text || "").trim(),
           }
         : null;
-      const sceneSpec = obj?.scene && typeof obj.scene === "object" && obj.scene.kind
-        ? {
-            kind: String(obj.scene.kind),
-            name: String(obj.scene.name || obj.scene.kind),
-            program: Array.isArray(obj.scene.program) ? obj.scene.program : undefined,
-          }
-        : null;
+      const sceneSpec = typeof obj?.scene === "string"
+        ? { dsl: obj.scene }
+        : obj?.scene && typeof obj.scene === "object"
+          ? (obj.scene.dsl
+              ? { dsl: String(obj.scene.dsl) }
+              : obj.scene.kind
+                ? {
+                    kind: String(obj.scene.kind),
+                    name: String(obj.scene.name || obj.scene.kind),
+                    program: Array.isArray(obj.scene.program) ? obj.scene.program : undefined,
+                  }
+                : null)
+          : null;
       const item = {
         id: `p-${now()}`,
         text,
@@ -610,7 +616,7 @@ export function createLocalRuntime({
 
   async function maybeMap(kindOrSpec = "home") {
     const mapSpec = typeof kindOrSpec === "string"
-      ? { kind: kindOrSpec, name: MAP_NAMES[kindOrSpec] || kindOrSpec }
+      ? (kindOrSpec.includes("/") ? { dsl: kindOrSpec } : { kind: kindOrSpec, name: MAP_NAMES[kindOrSpec] || kindOrSpec })
       : kindOrSpec || { kind: "home", name: "家" };
     const kind = mapSpec.kind || "home";
     const t0 = now();
@@ -639,7 +645,7 @@ export function createLocalRuntime({
       agent: "map",
       ok: true,
       ms: now() - t0,
-      prompt: `generateMap ${mapSpec.kind || kind} / ${mapSpec.name || ""}`,
+      prompt: `generateMap ${mapSpec.dsl || `${mapSpec.kind || kind} / ${mapSpec.name || ""}`}`,
       response: `${item.rooms.length} 房间 / ${item.props.length} 家具 / ${item.w}×${item.h}`,
     });
     store.emit("map_generated", item);

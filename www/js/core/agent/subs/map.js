@@ -4,6 +4,7 @@
 import { buildLayout } from "../../../forge/layout.js";
 import { buildSceneSpec } from "../../../forge/scene-spec.js";
 import { buildFloorplan } from "../../../forge/floorplan.js";
+import { produceScene, buildInteractions, buildHotspots } from "../../../forge/scenekit.js";
 import { buildIntGrid } from "../../../forge/scene.js";
 
 export const TILE = Object.freeze({ WALK: 0, BLOCK: 1, DOOR: 2, WINDOW: 3 });
@@ -102,6 +103,16 @@ export function generateMap({ mapSpec = {}, seed, w = 24, h = 16 } = {}) {
     return { ok: false, reason: "布局网格至少 12×10" };
   }
   const baseSeed = seed ?? mapSpec.seed ?? "map";
+  if (mapSpec.dsl) {
+    const p = produceScene({ seed: baseSeed, dsl: mapSpec.dsl, intent: mapSpec.intent });
+    if (!p.ok) return { ok: false, reason: p.reason, report: p.report };
+    return {
+      ok: true,
+      scene: { ...p.scene, name: mapSpec.name || p.scene.name },
+      attempts: 1,
+      report: p.report,
+    };
+  }
   let lastErr = null;
   for (let attempt = 0; attempt < 6; attempt++) {
     const s = attempt === 0 ? baseSeed : `${baseSeed}-${attempt}`;
@@ -149,6 +160,29 @@ export function generateMap({ mapSpec = {}, seed, w = 24, h = 16 } = {}) {
         lastErr = new Error(errors.join("; "));
         continue;
       }
+      scene.interactions = buildInteractions(scene.props);
+      const startRoom = scene.rooms.find((r) => r.id === scene.start) || scene.rooms[0];
+      const [rx, ry, rw, rh] = startRoom.rect;
+      let spawn = [rx + Math.floor(rw / 2), ry + Math.floor(rh / 2)];
+      if (scene.intGrid[spawn[1] * w + spawn[0]] !== 0) {
+        outer: for (let r = 1; r < Math.max(w, h); r++) {
+          for (let dy = -r; dy <= r; dy++) {
+            for (let dx = -r; dx <= r; dx++) {
+              const x = spawn[0] + dx;
+              const y = spawn[1] + dy;
+              if (x >= 0 && y >= 0 && x < w && y < h && scene.intGrid[y * w + x] === 0) {
+                spawn = [x, y];
+                break outer;
+              }
+            }
+          }
+        }
+      }
+      scene.entities = [
+        { type: "spawn", x: spawn[0], y: spawn[1] },
+        ...scene.doors.map((d) => ({ type: "door", x: d.x, y: d.y, to: d.to })),
+        ...buildHotspots(scene, scene.interactions),
+      ];
       return { ok: true, scene, attempts: attempt + 1 };
     } catch (err) {
       lastErr = err;

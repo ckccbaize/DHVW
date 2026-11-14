@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T08:13:16.775Z",
+ "built_at": "2026-11-14T08:21:36.440Z",
  "files": [
   {
    "path": "agent/registry.json",
-   "size": 12928,
-   "sha256": "e18168dd9f36f42b53e00905a44305e3adde6f30e62b64c6836b1d7a93824928"
+   "size": 13091,
+   "sha256": "c7e2597dc87ead20bf6a8425b00808a8d598ca835aad731c1b7a321c711883ee"
   },
   {
    "path": "assets/char/ojj_sheet.json",
@@ -594,8 +594,8 @@
   },
   {
    "path": "debug-life.html",
-   "size": 25243,
-   "sha256": "343322f26f82b84a089de6d759fcbdfac116df212059676b5b12b186669942e8"
+   "size": 25381,
+   "sha256": "0b6f5b72921da805c3b2f95ed2acbf5560f3ddcaf07e3a6069e2f7d14b571525"
   },
   {
    "path": "index.html",
@@ -649,8 +649,8 @@
   },
   {
    "path": "js/core/agent/subs/map.js",
-   "size": 5742,
-   "sha256": "1e5e796413cd7fa50d47e6e1a0d85ef90be8729883cc370793dcaa7488994a8b"
+   "size": 7150,
+   "sha256": "2a2101db1f27f68aea33a211b722214a4038a7e3827401c9b2a4535b33cbf3e0"
   },
   {
    "path": "js/core/agent/subs/place.js",
@@ -888,6 +888,11 @@
    "sha256": "8c36aa15585664a7fd58bff705e304ab6fe5f2e26b054ebaf870d2f55ff531bf"
   },
   {
+   "path": "js/forge/dsl.js",
+   "size": 2355,
+   "sha256": "8ae266512d52f237ad139d63ca51794b70542b8565001f4c360b87d7ed629031"
+  },
+  {
    "path": "js/forge/floorplan.js",
    "size": 7242,
    "sha256": "6849e32aeac8e069c29372cada773af66400c723ba284858c7d05c88e9f56203"
@@ -928,6 +933,11 @@
    "sha256": "26cacc5b03396f29523b90bab9315f5573cc8101f636773db29867e0539dc520"
   },
   {
+   "path": "js/forge/scenekit.js",
+   "size": 11166,
+   "sha256": "a3663be49a0e394ec790611924975c8dff8af04745d13ab4c758198aa60537f1"
+  },
+  {
    "path": "js/forge/shapes.js",
    "size": 2869,
    "sha256": "8cb6ca8be34d0c6ceac9dcccf4b54730bb8b6c388c6324c76d2607b304657a33"
@@ -939,8 +949,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 36157,
-   "sha256": "6942790a09d1426a70a97e273aa094601f21075810403a5d11988136e6cb4755"
+   "size": 36451,
+   "sha256": "c8e4477844e87668e3c8c334db27060beb721b4749fdacd702ae745911eafb4e"
   },
   {
    "path": "js/runtime/remote.js",
