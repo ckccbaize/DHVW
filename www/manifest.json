@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T08:32:08.067Z",
+ "built_at": "2026-11-14T08:34:52.754Z",
  "files": [
   {
    "path": "agent/registry.json",
    "size": 13091,
-   "sha256": "a5fa657f1d1eb45a5a8b25c53ec3043ee850fb13b67912c0e545c9030d486044"
+   "sha256": "646603e75dfebf9e66c2524e7681df0e0bc2cd3eea8533565bdc71c63e12421b"
   },
   {
    "path": "assets/char/ojj_sheet.json",
@@ -594,8 +594,8 @@
   },
   {
    "path": "debug-life.html",
-   "size": 25381,
-   "sha256": "0b6f5b72921da805c3b2f95ed2acbf5560f3ddcaf07e3a6069e2f7d14b571525"
+   "size": 25687,
+   "sha256": "519a2e4cabc7d97ec3c29d051f01173e023aa251d36301c83e4d73afaf61cb20"
   },
   {
    "path": "index.html",
@@ -604,8 +604,8 @@
   },
   {
    "path": "js/app.js",
-   "size": 21245,
-   "sha256": "2c79b217cd985733ffd579884dcc1730f6a6219cd98c0f1919d12d3845cbce3e"
+   "size": 21492,
+   "sha256": "9b9aebe1130d7a1681e4b8dc0a7a35dcfec2f9e018483f228cf019a6acbdfc61"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -844,8 +844,8 @@
   },
   {
    "path": "js/core/scene-package.js",
-   "size": 4932,
-   "sha256": "33af82bca3bf4c4591a7a285dfdda9208b16268eb1932e8e73d69d50b85a9b9c"
+   "size": 5093,
+   "sha256": "b8858aa3f5fe4823ba50e03bd80549482f257b3d1c07d55872f7019d2301718a"
   },
   {
    "path": "js/core/sched/scheduler.js",
@@ -994,8 +994,8 @@
   },
   {
    "path": "js/view/scene-loader.js",
-   "size": 1003,
-   "sha256": "a8e8c91241ac200832a7fb0e31477f772d49e0ef22b404549c9cd60775e43ef5"
+   "size": 3162,
+   "sha256": "ca232c4c1f3b58a20bd28b0bbe016d1831b225787d11bfa9c88628fef129ceab"
   },
   {
    "path": "js/view/switch.js",

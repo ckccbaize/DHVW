@@ -26,12 +26,12 @@ test("buildScenePackage：包结构、manifest、intgrid", async () => {
   assert.equal(pkg.ok, true);
   const paths = pkg.files.map((f) => f.path).sort();
   assert.deepEqual(paths, [
-    "furniture.png", "interactions.json", "intgrid.bin", "light.png",
+    "furniture.png", "image.png", "interactions.json", "intgrid.bin", "light.png",
     "manifest.json", "scene.json", "terrain.png",
   ]);
   assert.equal(pkg.sceneJson.intGrid, "intgrid.bin");
   assert.equal(pkg.sceneJson.interactions, "interactions.json");
-  assert.equal(pkg.manifest.files.length, 6);
+  assert.equal(pkg.manifest.files.length, 7);
   assert.ok(pkg.manifest.files.every((f) => f.sha256.length === 64));
 });
 

@@ -44,6 +44,7 @@ export async function buildScenePackage(scene, baked, {
       terrain: "terrain.png",
       furniture: "furniture.png",
       light: { day: "light.png" },
+      image: "image.png",
     },
     interactions: "interactions.json",
     rooms: scene.rooms || [],
@@ -63,6 +64,7 @@ export async function buildScenePackage(scene, baked, {
   await add("terrain.png", await encodePngImpl(baked.terrain.data, baked.terrain.w, baked.terrain.h));
   await add("furniture.png", await encodePngImpl(baked.furniture.data, baked.furniture.w, baked.furniture.h));
   await add("light.png", await encodePngImpl(baked.light.data, baked.light.w, baked.light.h));
+  await add("image.png", await encodePngImpl(baked.image.data, baked.image.w, baked.image.h));
   await add("interactions.json", jsonBlob(scene.interactions || { schema_version: 1, acts: {} }));
   const manifest = {
     schema_version: 1,
@@ -98,7 +100,8 @@ export async function loadScenePackage(backend, id) {
     sceneJson,
     intGrid,
     interactions,
-    imageUrl: await url("terrain.png"),
+    imageUrl: await url("image.png"),
+    terrainUrl: await url("terrain.png"),
     furnitureUrl: await url("furniture.png"),
     lightUrl: await url("light.png"),
   };

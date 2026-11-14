@@ -279,7 +279,7 @@ function renderMaps(rows) {
   mapRows = rows;
   $("#mapCount").textContent = `${rows.length} 张`;
   $("#maps").innerHTML = rows.length
-    ? rows.slice().reverse().map((m, i) => `<div class="row"><b>${esc(m.name || "场景")}</b> ${m.w}×${m.h} · ${m.rooms?.length || 0} 房间 · seed ${esc(m.seed)} <button type="button" data-map="${rows.length - 1 - i}">查看</button> <button type="button" data-map-enter="${rows.length - 1 - i}">进入</button></div>`).join("")
+    ? rows.slice().reverse().map((m, i) => `<div class="row"><b>${esc(m.name || "场景")}</b> ${m.w}×${m.h} · ${m.rooms?.length || 0} 房间 · seed ${esc(m.seed)} <button type="button" data-map="${rows.length - 1 - i}">查看</button> <button type="button" data-map-enter="${rows.length - 1 - i}">查看</button> <button type="button" data-map-open="${rows.length - 1 - i}">进入主页面</button></div>`).join("")
     : '<div class="empty">还没有生成地图</div>';
   if (rows.length) renderMapPreview(rows[rows.length - 1]);
 }
@@ -327,6 +327,7 @@ function drawMapTo(canvas, m) {
 document.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-map]");
   const enter = e.target.closest("[data-map-enter]");
+  const open = e.target.closest("[data-map-open]");
   if (btn) {
     const m = mapRows[Number(btn.dataset.map)];
     if (m) renderMapPreview(m);
@@ -337,6 +338,10 @@ document.addEventListener("click", (e) => {
       drawMapTo($("#mapBig"), m);
       $("#mapViewer").style.display = "flex";
     }
+  }
+  if (open) {
+    const m = mapRows[Number(open.dataset.mapOpen)];
+    if (m?.packageId) location.href = `index.html?scene=gen:${encodeURIComponent(m.packageId)}`;
   }
 });
 $("#mapViewerClose").addEventListener("click", () => { $("#mapViewer").style.display = "none"; });

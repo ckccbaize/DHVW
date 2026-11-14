@@ -13,7 +13,7 @@ import { createOverview } from "./view/overview.js";
 import { createPresent } from "./view/present.js";
 import { createHud } from "./view/hud.js";
 import { createSwitch, createSwitchSource } from "./view/switch.js";
-import { loadScene } from "./view/scene-loader.js";
+import { loadScene, loadGeneratedScene } from "./view/scene-loader.js";
 import { createPerfOverlay } from "./view/perf-overlay.js";
 import { normalizePresentUrl, probePresent } from "./view/present-host.js";
 
@@ -114,8 +114,14 @@ function buildOfficeSprites(scene) {
 
 async function boot() {
   const cfg = await loadConfig();
-  const sceneName = new URLSearchParams(location.search).get("scene") || cfg.scene || "home";
-  const scene = await loadScene(sceneName);
+  const sceneParam = new URLSearchParams(location.search).get("scene") || cfg.scene || "home";
+  const sceneName = sceneParam.startsWith("gen:") ? "home" : sceneParam;
+  let scene;
+  if (sceneParam.startsWith("gen:")) {
+    scene = await loadGeneratedScene(sceneParam.slice(4)).catch(() => loadScene("home"));
+  } else {
+    scene = await loadScene(sceneName);
+  }
   const outerScene = await loadScene("office");
 
   const [sx, sy] = spawnPoint(scene);
