@@ -514,6 +514,13 @@ export function createLocalRuntime({
             text: String(obj.sudden.text || "").trim(),
           }
         : null;
+      const sceneSpec = obj?.scene && typeof obj.scene === "object" && obj.scene.kind
+        ? {
+            kind: String(obj.scene.kind),
+            name: String(obj.scene.name || obj.scene.kind),
+            program: Array.isArray(obj.scene.program) ? obj.scene.program : undefined,
+          }
+        : null;
       const item = {
         id: `p-${now()}`,
         text,
@@ -526,6 +533,7 @@ export function createLocalRuntime({
         behaviors,
         sudden,
         desires,
+        scene: sceneSpec,
         forDay: tick.day + 1,
         day: tick.day,
         minute: tick.minute,
@@ -557,6 +565,7 @@ export function createLocalRuntime({
       });
       await logLlm({ agent: "plot", ok: true, ms: now() - t0, prompt, response: res.text });
       store.emit("plot_event", item);
+      if (sceneSpec) void maybeMap(sceneSpec);
       if (tick.phase !== "sleep") onSay(text, 4200);
     } catch (err) {
       await logLlm({ agent: "plot", ok: false, ms: now() - t0, prompt, response: err.message });
@@ -576,10 +585,37 @@ export function createLocalRuntime({
     postLife({ type: "setMood", mood: { ...mood } });
   }
 
-  async function maybeMap(kind = "home") {
+  const MAP_NAMES = {
+    home: "家",
+    office: "办公室",
+    cafe: "咖啡馆",
+    bookstore: "书店",
+    library: "图书馆",
+    restaurant: "餐厅",
+    bar: "酒吧",
+    market: "集市",
+    shop: "商店",
+    cinema: "电影院",
+    gym: "健身房",
+    clinic: "诊所",
+    gallery: "画廊",
+    workshop: "工坊",
+    park: "公园",
+    nature: "公园",
+    quiet: "书店",
+    social: "咖啡馆",
+    lively: "集市",
+    errand: "商店",
+  };
+
+  async function maybeMap(kindOrSpec = "home") {
+    const mapSpec = typeof kindOrSpec === "string"
+      ? { kind: kindOrSpec, name: MAP_NAMES[kindOrSpec] || kindOrSpec }
+      : kindOrSpec || { kind: "home", name: "家" };
+    const kind = mapSpec.kind || "home";
     const t0 = now();
     const r = generateMap({
-      mapSpec: { kind, name: kind === "home" ? "家" : kind === "office" ? "办公室" : "未命名场景" },
+      mapSpec,
       seed: `${lastTick?.day || 1}-${Math.floor(lastTick?.minute || 0)}-${now()}`,
       w: 24,
       h: 16,
@@ -603,7 +639,7 @@ export function createLocalRuntime({
       agent: "map",
       ok: true,
       ms: now() - t0,
-      prompt: `generateMap kind=${kind}`,
+      prompt: `generateMap ${mapSpec.kind || kind} / ${mapSpec.name || ""}`,
       response: `${item.rooms.length} 房间 / ${item.props.length} 家具 / ${item.w}×${item.h}`,
     });
     store.emit("map_generated", item);

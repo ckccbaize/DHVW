@@ -108,9 +108,7 @@ export function generateMap({ mapSpec = {}, seed, w = 24, h = 16 } = {}) {
     try {
       const kind = mapSpec.kind || "home";
       const name = mapSpec.name || (kind === "home" ? "家" : "未命名场景");
-      const layout = ["home", "office", "nature", "quiet", "social", "lively", "errand"].includes(kind)
-        ? buildFloorplan(kind, w, h, s)
-        : buildLayout(w, h, s);
+      const layout = buildFloorplan(kind, w, h, s, mapSpec);
       const { windows } = layout.windows ? { windows: layout.windows } : buildGrid(layout);
       const spec = buildSceneSpec(layout, { kind, name, seed: s });
       spec.windows = windows;

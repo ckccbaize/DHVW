@@ -83,6 +83,27 @@ test("generateMap：home/office 生成可识别户型与家具", () => {
   assert.deepEqual(validateMap(office.scene), []);
 });
 
+test("generateMap：任意场景按名称生成对应房间与家具", () => {
+  const cafe = generateMap({ mapSpec: { kind: "social", name: "咖啡馆" }, seed: "cafe-1" });
+  assert.equal(cafe.ok, true, cafe.reason);
+  assert.ok(cafe.scene.rooms.some((r) => r.kind === "cafe"));
+  assert.ok(cafe.scene.props.some((p) => p.id === "counter"));
+  assert.ok(cafe.scene.props.some((p) => p.id === "table"));
+
+  const books = generateMap({ mapSpec: { kind: "quiet", name: "书店" }, seed: "books-1" });
+  assert.equal(books.ok, true, books.reason);
+  assert.ok(books.scene.rooms.some((r) => r.kind === "bookstore"));
+  assert.ok(books.scene.props.some((p) => p.id === "bookshelf"));
+
+  const custom = generateMap({
+    mapSpec: { kind: "custom", name: "花店", program: [{ kind: "shop", name: "花店" }, { kind: "counter", name: "包扎台" }] },
+    seed: "flower-1",
+  });
+  assert.equal(custom.ok, true, custom.reason);
+  assert.deepEqual(custom.scene.rooms.map((r) => r.kind), ["shop", "counter"]);
+  assert.ok(custom.scene.props.length >= 3);
+});
+
 test("generateMap：网格过小直接失败", () => {
   const r = generateMap({ mapSpec: { seed: "x" }, w: 8, h: 6 });
   assert.equal(r.ok, false);

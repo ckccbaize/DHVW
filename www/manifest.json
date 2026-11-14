@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T08:04:35.093Z",
+ "built_at": "2026-11-14T08:13:16.775Z",
  "files": [
   {
    "path": "agent/registry.json",
-   "size": 12627,
-   "sha256": "6ad188efefe18a20c334b207cfc31915159cfc813af76f9ff06fc58304da36e4"
+   "size": 12928,
+   "sha256": "e18168dd9f36f42b53e00905a44305e3adde6f30e62b64c6836b1d7a93824928"
   },
   {
    "path": "assets/char/ojj_sheet.json",
@@ -594,8 +594,8 @@
   },
   {
    "path": "debug-life.html",
-   "size": 24986,
-   "sha256": "f1ccf41e429febfe118f69d92d1da4d7c9a0ff08b84df0422e4d931a0c56a170"
+   "size": 25243,
+   "sha256": "343322f26f82b84a089de6d759fcbdfac116df212059676b5b12b186669942e8"
   },
   {
    "path": "index.html",
@@ -649,8 +649,8 @@
   },
   {
    "path": "js/core/agent/subs/map.js",
-   "size": 5857,
-   "sha256": "36ccf79ee9225bf80aaf757687f14f08a71c5c604d8332f2155cf8fb73fcee91"
+   "size": 5742,
+   "sha256": "1e5e796413cd7fa50d47e6e1a0d85ef90be8729883cc370793dcaa7488994a8b"
   },
   {
    "path": "js/core/agent/subs/place.js",
@@ -889,8 +889,8 @@
   },
   {
    "path": "js/forge/floorplan.js",
-   "size": 3150,
-   "sha256": "b15e6226c8cee473b992c41171683684c04d53c0b37398502b266cb3a2c940d5"
+   "size": 7242,
+   "sha256": "6849e32aeac8e069c29372cada773af66400c723ba284858c7d05c88e9f56203"
   },
   {
    "path": "js/forge/furniture.js",
@@ -919,8 +919,8 @@
   },
   {
    "path": "js/forge/scene-spec.js",
-   "size": 6165,
-   "sha256": "5bf432fc62b625e8a45a8ea7ddb1d4cd9a11546350af705f707a20630c4fc84f"
+   "size": 7539,
+   "sha256": "48cf48044839bf6120bc51611787a745c44f7a23861402f93c22a7ee18582ebd"
   },
   {
    "path": "js/forge/scene.js",
@@ -939,8 +939,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 35127,
-   "sha256": "e49446cea90e6676f6f4ad60a9329857f90f2f67e3f3a05b212dd76c847f750e"
+   "size": 36157,
+   "sha256": "6942790a09d1426a70a97e273aa094601f21075810403a5d11988136e6cb4755"
   },
   {
    "path": "js/runtime/remote.js",

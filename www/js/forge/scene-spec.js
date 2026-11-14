@@ -2,6 +2,7 @@
 // 纯函数，不依赖 DOM；供地图 Agent 与 forge 烘焙共用。
 
 import { FURNITURE_SIZES } from "./furniture.js";
+import { fnv1a, mulberry32 } from "./grammar.js";
 
 const NON_BLOCK = new Set(["rug", "door_mat", "bath_mat"]);
 
@@ -61,6 +62,17 @@ const PROPS_BY_ROOM = {
   park: [["bench", 2], ["plant_big", 2], ["plant", 2], ["lamp", 1]],
   lawn: [["bench", 1], ["plant_big", 1], ["plant", 2]],
   cabin: [["bed", 1], ["table", 1], ["chair", 1], ["lamp", 1]],
+  bookstore: [["bookshelf", 3], ["shelf", 2], ["table", 1], ["chair", 2], ["plant", 1]],
+  restaurant: [["table", 2], ["chair", 4], ["counter", 1], ["plant", 1]],
+  bar: [["counter", 1], ["chair", 3], ["shelf", 1], ["lamp", 1]],
+  cinema: [["bench", 3], ["plant", 1], ["lamp", 1]],
+  gym: [["bench", 2], ["plant", 1], ["lamp", 1]],
+  clinic: [["table", 1], ["chair", 2], ["shelf", 1], ["plant", 1]],
+  gallery: [["bench", 2], ["plant", 2], ["lamp", 1]],
+  workshop: [["table", 2], ["shelf", 2], ["chair", 2], ["lamp", 1]],
+  shop: [["shelf", 2], ["counter", 1], ["fridge", 1], ["plant", 1]],
+  garden: [["plant_big", 2], ["plant", 2], ["bench", 1], ["lamp", 1]],
+  venue: [["counter", 1], ["table", 2], ["chair", 3], ["plant", 1], ["lamp", 1]],
 };
 
 const WALL_PROPS = {
@@ -72,6 +84,11 @@ const WALL_PROPS = {
   meeting: ["clock", "picture"],
   library: ["picture", "wall_shelf"],
   cafe: ["picture", "clock"],
+  bookstore: ["picture", "wall_shelf"],
+  restaurant: ["picture", "clock"],
+  bar: ["picture", "clock"],
+  gallery: ["picture", "picture"],
+  cinema: ["picture", "clock"],
 };
 
 const area = (r) => r.rect[2] * r.rect[3];
@@ -79,10 +96,11 @@ const area = (r) => r.rect[2] * r.rect[3];
 function roomKinds(layout, kind) {
   const set = ROOM_SETS[kind] || ROOM_SETS.home;
   if (layout.semantic) {
-    return layout.rooms.map((r, i) => {
-      const t = set[Math.min(i, set.length - 1)];
-      return { ...r, kind: t.kind, name: t.name };
-    });
+    return layout.rooms.map((r) => ({
+      ...r,
+      kind: r.kind || "venue",
+      name: r.name || ROOM_SETS[kind]?.[0]?.name || "房间",
+    }));
   }
   const closed = layout.rooms.filter((r) => r.corner);
   const open = layout.rooms.filter((r) => !r.corner).sort((a, b) => area(b) - area(a));
@@ -111,7 +129,17 @@ function doorZones(doors) {
   return set;
 }
 
-function placeProps(rooms, doors, kind) {
+function shuffled(list, seed) {
+  const rnd = mulberry32(fnv1a(String(seed)));
+  const out = [...list];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+function placeProps(rooms, doors, kind, seed) {
   const props = [];
   const occupied = new Set();
   const zones = doorZones(doors);
@@ -127,19 +155,24 @@ function placeProps(rooms, doors, kind) {
     return true;
   };
   for (const room of rooms) {
-    const list = PROPS_BY_ROOM[room.kind] || PROPS_BY_ROOM.living;
+    const list = PROPS_BY_ROOM[room.kind] || PROPS_BY_ROOM.venue;
     for (const [id, count] of list) {
       const [w, h] = FURNITURE_SIZES[id] || [1, 1];
       let placed = 0;
-      for (let y = room.rect[1]; y <= room.rect[1] + room.rect[3] - h && placed < count; y++) {
-        for (let x = room.rect[0]; x <= room.rect[0] + room.rect[2] - w && placed < count; x++) {
-          if (!can(room, x, y, w, h)) continue;
-          props.push({ id, x, y, w, h, room: room.id });
-          if (!NON_BLOCK.has(id)) {
-            for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) occupied.add(`${xx},${yy}`);
-          }
-          placed++;
+      const candidates = [];
+      for (let y = room.rect[1]; y <= room.rect[1] + room.rect[3] - h; y++) {
+        for (let x = room.rect[0]; x <= room.rect[0] + room.rect[2] - w; x++) {
+          candidates.push([x, y]);
         }
+      }
+      for (const [x, y] of shuffled(candidates, `${seed}|${room.id}|${id}`)) {
+        if (placed >= count) break;
+        if (!can(room, x, y, w, h)) continue;
+        props.push({ id, x, y, w, h, room: room.id });
+        if (!NON_BLOCK.has(id)) {
+          for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) occupied.add(`${xx},${yy}`);
+        }
+        placed++;
       }
     }
   }
@@ -162,7 +195,7 @@ function placeWallProps(rooms) {
 
 export function buildSceneSpec(layout, { kind = "home", name = "未命名场景", seed = "map" } = {}) {
   const rooms = roomKinds(layout, kind);
-  const props = placeProps(rooms, layout.doors || [], kind);
+  const props = placeProps(rooms, layout.doors || [], kind, seed);
   const wallProps = placeWallProps(rooms);
   const startRoom = [...rooms].sort((a, b) => area(b) - area(a))[0];
   return {
