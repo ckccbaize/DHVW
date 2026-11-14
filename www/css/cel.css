@@ -265,3 +265,25 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   #dock, .dock-btn { transition: none; }
 }
+
+/* UI 常态收起：只有触摸/点击地图后显示 */
+#hud,
+#agentCard,
+.asset-counts,
+#switch {
+  transition: opacity 140ms linear, transform 140ms linear;
+}
+
+body:not(.ui-open) #hud,
+body:not(.ui-open) #agentCard,
+body:not(.ui-open) .asset-counts,
+body:not(.ui-open) #switch {
+  opacity: 0;
+  pointer-events: none;
+}
+
+body:not(.ui-open) #hud,
+body:not(.ui-open) #agentCard { transform: translateY(-8px); }
+
+body:not(.ui-open) .asset-counts,
+body:not(.ui-open) #switch { transform: translateY(8px); }

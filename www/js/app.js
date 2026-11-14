@@ -449,6 +449,7 @@ async function boot() {
   function setDock(open) {
     dock.classList.toggle("open", open);
     dock.setAttribute("aria-hidden", open ? "false" : "true");
+    document.body.classList.toggle("ui-open", open);
   }
   function setView(next) {
     activeView = next === "outer" ? "outer" : "inner";
@@ -475,8 +476,8 @@ async function boot() {
   // 触摸招出 UI；鼠标点击不触发任何角色行为
   const stage = $("#stage");
   stage.addEventListener("pointerdown", (e) => {
-    if (e.pointerType !== "touch") return;
     if (e.target.closest("#dock")) return;
+    // 鼠标/触摸都只唤出 UI，不移动角色
     setDock(!dock.classList.contains("open"));
   });
 

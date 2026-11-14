@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T04:16:20.192Z",
+ "built_at": "2026-11-14T04:36:57.547Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -569,8 +569,8 @@
   },
   {
    "path": "css/cel.css",
-   "size": 6515,
-   "sha256": "a8cdcff23d2968603d8b44ff422cc15fa021e0e2eb3e09317ea005d212b72a31"
+   "size": 7023,
+   "sha256": "15894d7d56c04d9646c7fc57f473efa6f8995e5aaa9bd3ac3c74ed41b886a8f6"
   },
   {
    "path": "css/tokens.css",
@@ -594,8 +594,8 @@
   },
   {
    "path": "js/app.js",
-   "size": 18237,
-   "sha256": "60a2b1088880e99b4f12447f75684c1c66ced6a373e21f4e234aaf2c0e57029d"
+   "size": 18301,
+   "sha256": "05502b6f0889ab7bbdc731dd6fe3bfd283eb94d79ccfcf47cd66ce8fcad8e1ec"
   },
   {
    "path": "js/core/actions/browse.js",
