@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T11:03:42.157Z",
+ "built_at": "2026-11-14T11:07:21.396Z",
  "files": [
   {
    "path": "agent/registry.json",
-   "size": 21876,
-   "sha256": "879cafaa987b2f4694e79cced7a184b27f101104f0172987e82f4b66a951d749"
+   "size": 22770,
+   "sha256": "e168cced155ed6c46e0838dcdefd12d9268f13f5bbe0485048098cc5f81ed7ec"
   },
   {
    "path": "assets/char/ojj_sheet.json",
@@ -643,6 +643,11 @@
    "sha256": "c9c2abcac04112ceca3d37f2a9da93655169aa1086b26d4e3df345122b904e9e"
   },
   {
+   "path": "js/core/agent/scene-detail-agent.js",
+   "size": 4715,
+   "sha256": "07106205b8afef69e30b100c17acb0e84a2c5699c506a6748a07f0fb91c572c1"
+  },
+  {
    "path": "js/core/agent/subs/bg.js",
    "size": 3709,
    "sha256": "6769455f9f183d19964d3c341ba1e7e5b4d3df97ba6fb74bd55e38ec3d90a1c8"
@@ -969,8 +974,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 38669,
-   "sha256": "c7a5b33960063dfc3a84179e4893aac5cade5fc4628360687916ecdce243dada"
+   "size": 39662,
+   "sha256": "3718ae482854941f8eee8665801c243fc0617bc5e8a09217dca90014194de601"
   },
   {
    "path": "js/runtime/remote.js",

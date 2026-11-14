@@ -17,6 +17,7 @@ import { buildScene } from "../forge/scene.js";
 import { buildOpenSceneSpec } from "../forge/scene-spec.js";
 import { buildScenePackage, saveScenePackage } from "../core/scene-package.js";
 import { runSceneAgent } from "../core/agent/scene-agent.js";
+import { runSceneDetailAgent } from "../core/agent/scene-detail-agent.js";
 
 const EVENT_CAP = 2000;
 const DEFAULT_QUOTA = 500 * 1024 * 1024;
@@ -659,6 +660,31 @@ export function createLocalRuntime({
       if (agent.ok) {
         scene = agent.scene;
         await logLlm({ agent: "scene-agent", ok: true, ms: now() - t0, response: `turns=${agent.turns} props=${scene.props?.length || 0}` });
+        const detail = await runSceneDetailAgent({
+          llm,
+          registry,
+          scene,
+          kind,
+          name,
+          maxTurns: 6,
+          onTurn: async (turn) => {
+            await logLlm({
+              agent: "scene-detail",
+              ok: turn.ok !== false,
+              turn: turn.turn,
+              tool: turn.tool,
+              result: turn.result || null,
+              error: turn.error || null,
+              raw: turn.raw || null,
+            });
+          },
+        });
+        if (detail.ok) {
+          scene = detail.scene;
+          await logLlm({ agent: "scene-detail", ok: true, ms: now() - t0, response: `turns=${detail.turns} decor=${scene.decor?.length || 0}` });
+        } else {
+          await logLlm({ agent: "scene-detail", ok: false, ms: now() - t0, response: `${detail.reason || "failed"}: ${(detail.errors || []).slice(0, 6).join("; ")}` });
+        }
       } else {
         await logLlm({ agent: "scene-agent", ok: false, ms: now() - t0, response: `${agent.reason || "failed"}: ${(agent.errors || []).slice(0, 8).join("; ")}` });
       }

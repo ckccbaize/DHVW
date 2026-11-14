@@ -113,7 +113,8 @@ createManagerAgent({ llm, registry, subAgents: { "plot-writer": (args) => plotAg
 `core/agent/subs/map.js` 消费出门/剧情的 `mapSpec`：
 
 - `agent/prompts/scene.md`：LLM 在 `pickOpenLayout` 给定的 1-2 间封闭房 + 开放 zones 骨架上填家具/交互/路线；
-- `core/agent/scene-agent.js`：多轮工具调用 Agent（get_layout / add_props / remove_props / auto_interactions / set_routes / validate / finish / add_prop_detail / add_floor_detail）；家具由 LLM 用 shape 自己画，本地只执行工具与闸门；validate 通过后还有一轮细化（家具高光/阴影/纹理、地板拼花）；
+- `core/agent/scene-agent.js`：多轮工具调用 Agent（get_layout / add_props / remove_props / auto_interactions / set_routes / validate / finish）；家具由 LLM 用 shape 自己画，本地只执行工具与闸门；
+- `core/agent/scene-detail-agent.js`：独立细化 Agent，只做加法（add_prop_detail / add_floor_detail），不增删家具、不改 interactions；场景 Agent 通过后单独跑一轮；
 - `forge/scene-llm.js`：校验 LLM 场景（家具白名单、动画/效果枚举、路线可走、房间密度、功能区数量），通过后生成可烘焙 spec；LLM 输出 32×24 时按目标 24×18 缩放，避免大空房间；
 - `props[].shape`：LLM 可用 rect/ellipse/line/polygon 直接定义新物体（非 home 家具），`forge/furniture.js` 的 `paintShape` 负责绘制；home 家具表只是可选素材，不是场景生成上限；
 - `forge/dsl.js` + `forge/scenekit.js`：保留为离线/兜底生成器（DSL → 32×24 单房间），不再是默认路径；
