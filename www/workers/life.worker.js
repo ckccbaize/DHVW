@@ -133,10 +133,12 @@ function nowMs() {
 }
 
 function emit(msg) {
+  if (msg.type === "say" && phase === "sleep") return;
   self.postMessage(msg);
 }
 
 function event(kind, payload = {}) {
+  if (kind === "say" && phase === "sleep") return;
   emit({
     type: "event",
     ev: {
@@ -214,7 +216,7 @@ function pickTarget() {
   // 35% 概率去别的房间，避免一直在同一角落
   const roam = inRoom.length > 0 && Math.random() < 0.35;
   const allBase = roam ? scene.hotspots || [] : inRoom.length ? inRoom : scene.hotspots || [];
-  const base = allBase.filter((h) => !badSpots.has(`${h.x},${h.y}:${h.act}`) && clock.minute >= (interactionCooldowns[h.act] || 0));
+  const base = allBase.filter((h) => !badSpots.has(`${h.x},${h.y}:${h.act}`) && (h.act === "sleep" || clock.minute >= (interactionCooldowns[h.act] || 0)));
   if (!base.length) return null;
   // 优先当前时段动作，其次同房间任意热点
   const preferred = roam ? [] : base.filter((h) => h.act === PHASE_ACT[phase]);
@@ -361,6 +363,7 @@ async function maybeLlmThought() {
 const DEBUG_ACT_PROP = ACT_PROPS;
 
 function planIntent(act, place, reason) {
+  if (phase === "sleep" && act !== "sleep") return;
   pending = null;
   busyUntil = clock.minute;
   const props = actProps(act);
@@ -379,6 +382,7 @@ function planIntent(act, place, reason) {
 }
 
 function debugIntent(act) {
+  if (phase === "sleep" && act !== "sleep") return;
   pending = null;
   busyUntil = clock.minute;
   const props = actProps(act);
@@ -443,6 +447,7 @@ function tick() {
     if (phase === "sleep") {
       pending = null;
       busyUntil = clock.minute;
+      delete interactionCooldowns.sleep;
       requestIntent("phase:sleep");
     } else if (prev === "sleep") {
       event("wake", { to: phase, sleepAt, wakeAt });
@@ -577,6 +582,7 @@ self.onmessage = (e) => {
       if (phase === "sleep") {
         pending = null;
         busyUntil = clock.minute;
+        delete interactionCooldowns.sleep;
         requestIntent("phase:sleep");
       }
       resetAnchor();
@@ -602,7 +608,7 @@ self.onmessage = (e) => {
       }
       const act = msg.act || pending?.act || null;
       // 睡觉期间只接受 sleep 行为；旧路径/用户点击到达不得把角色带出卧室
-      if (phase === "sleep" && act !== "sleep" && !pending) {
+      if (phase === "sleep" && act !== "sleep") {
         pending = null;
         break;
       }
