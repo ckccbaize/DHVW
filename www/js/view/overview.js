@@ -189,28 +189,6 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
       const pseudo = { px: bed.x + (bed.w || 1) / 2, py: bed.y + (bed.h || 1) / 2, state: "idle", frame: 0, dir, act: "sleep" };
       drawAgent(pseudo, {}, now, "sleep");
     }
-
-    // 被子：盖住身体，露出头；竖床从胸口往下，横床从身体中部往脚
-    let bx, by, bw, bh;
-    if (vertical) {
-      bx = bed.x * cell + 1;
-      by = bed.y * cell + (bed.h || 1) * cell * 0.42;
-      bw = (bed.w || 1) * cell - 2;
-      bh = (bed.h || 1) * cell * 0.58;
-    } else {
-      const headEast = (bed.facing || "E") === "E";
-      bx = bed.x * cell + (headEast ? 1 : (bed.w || 1) * cell * 0.42);
-      by = bed.y * cell + 1;
-      bw = (bed.w || 1) * cell * 0.58;
-      bh = (bed.h || 1) * cell - 2;
-    }
-    ctx.fillStyle = "#c9626f";
-    ctx.fillRect(bx, by, bw, bh);
-    ctx.strokeStyle = "#1a1a2e";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(bx + 1, by + 1, bw - 2, bh - 2);
-    ctx.fillStyle = "rgba(255,255,255,0.18)";
-    ctx.fillRect(bx + 2, by + 2, bw - 4, 3);
   }
 
   function drawBubble() {

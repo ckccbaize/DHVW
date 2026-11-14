@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T07:11:58.779Z",
+ "built_at": "2026-11-14T07:13:10.715Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -939,8 +939,8 @@
   },
   {
    "path": "js/view/overview.js",
-   "size": 11658,
-   "sha256": "b187af3b8a76fdbde3b5b0cc9b27ec05c4b685b6c4954fdf47e6f2a1bf088d4e"
+   "size": 10850,
+   "sha256": "a4d696daa337733a6374d316f29087b905b609c4bc6cbce533b5f3b50eb1e21e"
   },
   {
    "path": "js/view/perf-overlay.js",
