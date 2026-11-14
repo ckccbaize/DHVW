@@ -81,11 +81,20 @@ export function validateLlmScene(obj, { quality = true } = {}) {
   const occupied = new Set();
   const propIds = new Set();
   for (const p of obj.props) {
-    if (!FURNITURE_SIZES[p.id]) {
+    const known = FURNITURE_SIZES[p.id];
+    const custom = Array.isArray(p.shape);
+    if (!known && !custom) {
       errors.push(`unknown_prop:${p.id}`);
       continue;
     }
-    const [dw, dh] = FURNITURE_SIZES[p.id];
+    if (custom) {
+      if (!Number.isInteger(p.w) || !Number.isInteger(p.h) || p.w < 1 || p.h < 1) errors.push(`custom_size:${p.id}`);
+      for (const sh of p.shape) {
+        if (!sh || !["rect", "ellipse", "line", "polygon"].includes(sh.kind)) errors.push(`shape_kind:${p.id}`);
+        if (sh?.kind === "polygon" && !Array.isArray(sh.points)) errors.push(`shape_points:${p.id}`);
+      }
+    }
+    const [dw, dh] = known || [p.w || 1, p.h || 1];
     const pw = Number(p.w || dw);
     const ph = Number(p.h || dh);
     const room = rooms.get(p.room);
@@ -133,7 +142,7 @@ export function validateLlmScene(obj, { quality = true } = {}) {
     ...obj,
     grid: { w, h, cell: obj.grid?.cell || 16 },
     props: obj.props.map((p) => {
-      const [dw, dh] = FURNITURE_SIZES[p.id] || [1, 1];
+      const [dw, dh] = FURNITURE_SIZES[p.id] || [p.w || 1, p.h || 1];
       return { ...p, w: p.w || dw, h: p.h || dh };
     }),
     doors: obj.doors || [],
@@ -271,10 +280,11 @@ function normalizeLlmScene(input) {
   const props = [];
   for (const p of obj.props || []) {
     const size = FURNITURE_SIZES[p.id];
+    const custom = Array.isArray(p.shape);
     const room = rooms.get(p.room);
-    if (!size || !room) continue;
-    const pw = p.w || size[0];
-    const ph = p.h || size[1];
+    if ((!size && !custom) || !room) continue;
+    const pw = p.w || size?.[0] || 1;
+    const ph = p.h || size?.[1] || 1;
     if (!inside(room, p.x, p.y, pw, ph)) continue;
     if (!NON_BLOCK.has(p.id)) {
       let clash = false;
@@ -317,7 +327,7 @@ export function buildSceneFromLlm(input, options = {}) {
     ...obj,
     grid: { w, h, cell: obj.grid.cell || 16 },
     props: obj.props.map((p) => {
-      const [dw, dh] = FURNITURE_SIZES[p.id] || [1, 1];
+      const [dw, dh] = FURNITURE_SIZES[p.id] || [p.w || 1, p.h || 1];
       return { ...p, w: p.w || dw, h: p.h || dh };
     }),
     wallProps: obj.wallProps || [],

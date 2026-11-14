@@ -114,6 +114,7 @@ createManagerAgent({ llm, registry, subAgents: { "plot-writer": (args) => plotAg
 
 - `agent/prompts/scene.md`：LLM 直接产出完整场景 JSON（房间/家具/交互/路线）；
 - `forge/scene-llm.js`：校验 LLM 场景（家具白名单、动画/效果枚举、路线可走、房间密度、功能区数量），通过后生成可烘焙 spec；LLM 输出 32×24 时按目标 24×18 缩放，避免大空房间；
+- `props[].shape`：LLM 可用 rect/ellipse/line/polygon 直接定义新物体（非 home 家具），`forge/furniture.js` 的 `paintShape` 负责绘制；home 家具表只是可选素材，不是场景生成上限；
 - `forge/dsl.js` + `forge/scenekit.js`：保留为离线/兜底生成器（DSL → 32×24 单房间），不再是默认路径；
 - `forge/floorplan.js`：按 `mapSpec.kind/name/description` 推断场景类型（咖啡厅、书店、餐厅、集市、公园、办公室、家等），按 seed 生成 1–3 个功能区；也接受 `mapSpec.program` 自定义房间，房间之间留 1 格墙并开门；
 - `forge/layout.js`：保留通用随机布局，作为未知 kind 的回退；

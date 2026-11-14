@@ -112,6 +112,22 @@
   ]
 }
 
+非家居/幻想场景（太空站、森林、海底、废墟等）：
+- 不要复用 home 的床/沙发/吧台；用 props[].shape 直接定义新物体；
+- shape 坐标相对物体左上角，单位是像素（1 格 = 16px）；颜色用 #rrggbb；
+- 例：
+  {"id":"console","x":3,"y":2,"w":2,"h":1,"room":"lab","blocks":true,
+   "shape":[
+     {"kind":"rect","x":0,"y":0,"w":32,"h":14,"color":"#2a3340"},
+     {"kind":"rect","x":2,"y":2,"w":28,"h":8,"color":"#4a6a8a"},
+     {"kind":"ellipse","x":6,"y":4,"w":8,"h":6,"color":"#8fd3ff"},
+     {"kind":"line","x1":0,"y1":15,"x2":31,"y2":15,"color":"#111111"}
+   ]}
+- kind 只能是 rect / ellipse / line / polygon；polygon 用 points:[[x,y],...]；
+- 每个自定义物体 3–8 个图元，不要只画一个矩形；至少包含深色底座/轮廓 + 亮色面板/灯/窗；
+- 用 polygon 做山体、树冠、飞船外壳；ellipse 做舱窗、灯、石头；line 做管线、支架、栏杆；
+- 自定义物体也要给 w/h，并让 interactions.trigger.props 引用它的 id。
+
 质量基线（必须满足，否则视为不合格）：
 - 4–6 个房间/功能区，rect 互不重叠，房间之间留 1 格墙；每个房间至少 5×4；
 - 咖啡厅至少 5 个功能区：吧台、座位 A、座位 B、卫生间、储藏/入口；

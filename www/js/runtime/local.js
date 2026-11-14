@@ -654,7 +654,7 @@ export function createLocalRuntime({
         try {
           const res = await llm.complete({
             messages: [{ role: "user", content: prompt }],
-            maxTokens: 4096,
+            maxTokens: 8192,
             temperature: attempt === 0 ? 0.7 : 0.4,
             json: true,
             cls: "work",

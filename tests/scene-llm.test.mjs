@@ -58,6 +58,29 @@ test("validateLlmScene：质量基线拒绝单房间/稀疏场景", () => {
   assert.ok(errors.includes("cafe_rooms_too_few"));
 });
 
+test("validateLlmScene：自定义 shape 物体", () => {
+  const spec = cafeSpec();
+  spec.props.push({
+    id: "console",
+    x: 15, y: 11, w: 2, h: 1, room: "main", blocks: true,
+    shape: [
+      { kind: "rect", x: 0, y: 0, w: 32, h: 14, color: "#2a3340" },
+      { kind: "ellipse", x: 6, y: 4, w: 8, h: 6, color: "#8fd3ff" },
+    ],
+  });
+  spec.interactions.acts.use_console = {
+    label: "操作控制台",
+    trigger: { props: ["console"] },
+    perform: { animation: "work", duration_min: 10, interruptible: true },
+    effects: [{ kind: "event", name: "console" }],
+    priority: 4,
+  };
+  assert.deepEqual(validateLlmScene(spec, { quality: false }), []);
+  const r = buildSceneFromLlm(spec, { quality: false });
+  assert.equal(r.ok, true);
+  assert.ok(r.scene.entities.some((e) => e.type === "hotspot" && e.act === "use_console"));
+});
+
 test("validateLlmScene：未知家具/动画/路线阻挡", () => {
   const a = cafeSpec();
   a.props.push({ id: "piano", x: 15, y: 10, w: 1, h: 1, room: "main" });

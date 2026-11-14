@@ -500,6 +500,44 @@ const FURNITURE = {
 const WALLPROPS = { picture:w_picture, clock:w_clock, wall_shelf:w_wall_shelf, mirror:w_mirror, towel:w_towel, wall_lamp:w_wall_lamp };
 const DECOR = { book:d_book, mug:d_mug, yarn:d_yarn, watering_can:d_watering_can, keys:d_keys, slippers:d_slippers };
 
+function hexRgb(hex, fallback = INK) {
+  const m = String(hex || "").match(/^#?([0-9a-f]{6})$/i);
+  if (!m) return fallback;
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function shapeLine(cv, x1, y1, x2, y2, c) {
+  let dx = Math.abs(x2 - x1), dy = -Math.abs(y2 - y1);
+  let sx = x1 < x2 ? 1 : -1, sy = y1 < y2 ? 1 : -1, err = dx + dy;
+  for (;;) {
+    put(cv, x1, y1, c);
+    if (x1 === x2 && y1 === y2) break;
+    const e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x1 += sx; }
+    if (e2 <= dx) { err += dx; y1 += sy; }
+  }
+}
+
+function paintShape(cv, p) {
+  const px = p.x * T;
+  const py = p.y * T;
+  const shapes = Array.isArray(p.shape) ? p.shape : [p.shape];
+  for (const s of shapes) {
+    if (!s || typeof s !== "object") continue;
+    const c = hexRgb(s.color || p.color);
+    if (s.kind === "rect") {
+      rect(cv, px + (s.x || 0), py + (s.y || 0), Math.max(1, s.w || 1), Math.max(1, s.h || 1), c);
+    } else if (s.kind === "ellipse") {
+      ellipse(cv, px + (s.x || 0), py + (s.y || 0), px + (s.x || 0) + Math.max(1, s.w || 1) - 1, py + (s.y || 0) + Math.max(1, s.h || 1) - 1, c);
+    } else if (s.kind === "line") {
+      shapeLine(cv, px + (s.x1 || 0), py + (s.y1 || 0), px + (s.x2 || 0), py + (s.y2 || 0), c);
+    } else if (s.kind === "polygon" && Array.isArray(s.points)) {
+      polygon(cv, s.points.map(([x, y]) => [px + x, py + y]), c);
+    }
+  }
+}
+
 export const FURNITURE_SIZES = SIZES;
 export const FURNITURE_IDS = Object.keys(FURNITURE);
 
@@ -511,12 +549,13 @@ export function paintFurniture(spec) {
     if (fn) fn(cv, wp.x, wp.y);
   }
   const props = (spec.props || []).map((p) => {
-    const [dw, dh] = SIZES[p.id] || [1, 1];
+    const [dw, dh] = SIZES[p.id] || [p.w || 1, p.h || 1];
     return { ...p, w: p.w || dw, h: p.h || dh };
   });
   for (const p of props) if (p.id === "rug") FURNITURE.rug(cv, p.x, p.y, p.w, p.h);
   for (const p of props) {
     if (p.id === "rug") continue;
+    if (p.shape) { paintShape(cv, p); continue; }
     const fn = FURNITURE[p.id];
     if (fn) fn(cv, p.x, p.y, p.w, p.h);
   }
