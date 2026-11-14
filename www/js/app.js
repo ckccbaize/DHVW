@@ -446,55 +446,14 @@ async function boot() {
 
   const dock = $("#dock");
   const consolePanel = $("#consolePanel");
-  let consoleTimer = null;
-  const esc = (v) => String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const fmtClock = (c) => `第 ${c?.day || 1} 天 ${String(Math.floor((c?.minute || 0) / 60)).padStart(2, "0")}:${String(Math.floor((c?.minute || 0) % 60)).padStart(2, "0")}`;
-
-  async function refreshConsole() {
-    if (consolePanel.hidden) return;
-    const [llm, mem, plots, writings, events, mood, daily] = await Promise.all([
-      local.getLlmLog(),
-      local.getMemory(),
-      local.getPlots(),
-      local.getWritings(),
-      local.getEvents(40),
-      local.getMood(),
-      local.getDailyPlots(),
-    ]);
-    const st = store.state;
-    const tick = local.lastTick || {};
-    $("#consoleStatus").textContent = [
-      `时钟 ${fmtClock(st.clock)}`,
-      `阶段 ${st.phase} · 天气 ${st.weather} · 房间 ${tick.room || "-"}`,
-      `档位 ${st.tier} · 连接 ${st.conn} · 活动 ${tick.activity || "-"}`,
-      `心情 energy ${mood.energy?.toFixed(2)} valence ${mood.valence?.toFixed(2)} social ${mood.social?.toFixed(2)} focus ${mood.focus?.toFixed(2)}`,
-      `LLM ${llm.length} · 记忆 ${mem.length} · 剧情 ${plots.length} · 写作 ${writings.length}`,
-    ].join("\n");
-    $("#consoleLlm").innerHTML = llm.length
-      ? llm.slice(-20).reverse().map((r) => `<div class="row"><b>${esc(r.agent)}</b> <span class="${r.ok ? "ok" : "bad"}">${r.ok ? "ok" : "fail"}</span> ${r.ms ?? ""}ms<div class="pre">${esc(r.prompt || "")}</div><div class="pre">${esc(r.response || "")}</div></div>`).join("")
-      : '<div class="muted">还没有调用</div>';
-    $("#consoleMemory").innerHTML = mem.length
-      ? mem.slice(-20).reverse().map((m) => `<div class="row">${esc(m.text)}</div>`).join("")
-      : '<div class="muted">还没有记忆</div>';
-    const today = Object.values(daily || {}).sort((a, b) => b.forDay - a.forDay)[0];
-    $("#consolePlots").innerHTML = `${today ? `<div class="row"><b>第 ${today.forDay} 天</b> ${esc(today.text)}</div>` : '<div class="muted">还没有夜间剧情</div>'}${plots.slice(-5).reverse().map((p) => `<div class="row">${esc(p.text)}</div>`).join("")}`;
-    $("#consoleWritings").innerHTML = writings.length
-      ? writings.slice(-5).reverse().map((w) => `<div class="row"><b>${esc(w.kind)}</b> ${esc(w.text)}</div>`).join("")
-      : '<div class="muted">还没有写作</div>';
-    $("#consoleEvents").innerHTML = events.slice().reverse().map((e) => `<div class="row"><b>${esc(e.kind)}</b> ${esc(JSON.stringify(e.payload || {}))}</div>`).join("");
-  }
 
   function openConsole() {
     consolePanel.hidden = false;
-    void refreshConsole();
-    clearInterval(consoleTimer);
-    consoleTimer = setInterval(() => void refreshConsole(), 2000);
   }
   function closeConsole() {
     consolePanel.hidden = true;
-    clearInterval(consoleTimer);
-    consoleTimer = null;
   }
+
   function setDock(open) {
     dock.classList.toggle("open", open);
     dock.setAttribute("aria-hidden", open ? "false" : "true");
