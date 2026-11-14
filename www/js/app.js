@@ -179,6 +179,7 @@ async function boot() {
     getOffset: () => clock.offsetMs,
     onIntent: (msg) => handleIntent(msg),
     onSay: (text, ttl) => {
+      if (store.state.phase === "sleep") return;
       overview.say(text, ttl);
       store.emit("say", { text });
     },
@@ -187,7 +188,9 @@ async function boot() {
       store.emit("event", ev);
     },
     onAsset: (meta) => handleAsset(meta),
-    onSummary: (text) => overview.say(text, 6000),
+    onSummary: (text) => {
+      if (store.state.phase !== "sleep") overview.say(text, 6000);
+    },
     onQueue: (q) => store.emit("queue", q),
   });
 
@@ -413,7 +416,7 @@ async function boot() {
     if (meta.kind === "plot" && meta.text) {
       // 端侧剧情是"她写下的东西"，不是台词：只提示一句，全文留给她自己看
       store.emit("plot", meta);
-      overview.say("写了一段小东西。", 2200);
+      if (store.state.phase !== "sleep") overview.say("写了一段小东西。", 2200);
     }
   }
 
