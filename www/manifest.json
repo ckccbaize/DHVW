@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T04:55:06.924Z",
+ "built_at": "2026-11-14T05:39:36.308Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -409,13 +409,13 @@
   },
   {
    "path": "assets/scenes/home/character/sheet.json",
-   "size": 6342,
-   "sha256": "3e73f8892267238d3702317d77bb6862b505156a9d4dff9f3b22315f1746bd2e"
+   "size": 7725,
+   "sha256": "ae926639c980e11f3064b0a15246a44a1d99a860fe77a399a7ac9aa288251ace"
   },
   {
    "path": "assets/scenes/home/character/sheet.png",
-   "size": 6016,
-   "sha256": "e83c487326e164314cff988599e4e64e748be5c4112b21c0736563a7d22fe1dd"
+   "size": 431071,
+   "sha256": "5ad90214be800fd2a40b477c24364882b7dcbffd9f2fec54e9610297c633a3db"
   },
   {
    "path": "assets/scenes/home/furniture.png",
@@ -464,8 +464,8 @@
   },
   {
    "path": "assets/scenes/home/manifest.json",
-   "size": 1230,
-   "sha256": "09c82fc0aee64010f54fbb371ae0d971235a9e6c5aeaf6eaad5c9e1d67635e31"
+   "size": 1232,
+   "sha256": "b2de2763e678c97799b17f2ffac06aa721c28ba6d9d1c9099fffb80a529b8f0d"
   },
   {
    "path": "assets/scenes/home/scene.json",
@@ -484,13 +484,13 @@
   },
   {
    "path": "assets/scenes/office/character/sheet.json",
-   "size": 4940,
-   "sha256": "4f208e3f3400d5b36b86272fe7270c2ef0633aa8d2cacdaf55863aa3442bf941"
+   "size": 7725,
+   "sha256": "ae926639c980e11f3064b0a15246a44a1d99a860fe77a399a7ac9aa288251ace"
   },
   {
    "path": "assets/scenes/office/character/sheet.png",
-   "size": 4763,
-   "sha256": "985bbbad21c759c79318181e9a4e7c4d85fab6fdb971f0ab9969993d9cf297fc"
+   "size": 431071,
+   "sha256": "5ad90214be800fd2a40b477c24364882b7dcbffd9f2fec54e9610297c633a3db"
   },
   {
    "path": "assets/scenes/office/furniture.png",
@@ -514,8 +514,8 @@
   },
   {
    "path": "assets/scenes/office/manifest.json",
-   "size": 1231,
-   "sha256": "0f9a720a5b676d36e1857f85844badeb85d88a7fbfb1edede4e1188f2ad4afec"
+   "size": 1233,
+   "sha256": "30ce062a5ceda94ae1c666eb16d341fc6caf5fa499a4870dfe9396aea88ef9e1"
   },
   {
    "path": "assets/scenes/office/office.built.json",
@@ -569,8 +569,8 @@
   },
   {
    "path": "css/cel.css",
-   "size": 8400,
-   "sha256": "17175ceb0c944ff1fc3f69a67fe32b5e464efab0268cc06a80c4f107794b0575"
+   "size": 8976,
+   "sha256": "3532fcead05173e38f7b47dd9d97e73a2c85dbbc8114feba7346b436b2be87c4"
   },
   {
    "path": "css/tokens.css",
@@ -584,18 +584,18 @@
   },
   {
    "path": "debug-life.html",
-   "size": 15346,
-   "sha256": "ba109a24ccd96526582f17e18d37292f1ee392eb9082786346ef642c955a0a80"
+   "size": 15888,
+   "sha256": "2c552588a00200da51a8c7eb3b147291c24c636ac9c4085753b5b753f5502c71"
   },
   {
    "path": "index.html",
-   "size": 3224,
-   "sha256": "a16d3c67664e0836edcc6ecbc9d210e03ff800cf7be60a417b91e5d535560422"
+   "size": 3537,
+   "sha256": "f23c7770e9ec548d74ef6ac7a3f3f016f3eb435009e7a2cbb3c8f0825f779a0b"
   },
   {
    "path": "js/app.js",
-   "size": 18347,
-   "sha256": "b31c6a7e5afb5f8c26009b9d79fb1bca8dc2d40c36d326aaff7c48474a64b64e"
+   "size": 21119,
+   "sha256": "65dff8dcb03e042b04036307960a238fbc2a378378181480021cc2d41ccadb80"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -915,7 +915,7 @@
   {
    "path": "js/runtime/local.js",
    "size": 23875,
-   "sha256": "b8b11bb48f5783a4d766c27a62e2239c3e3a66806f66b74c11c97033bd06ef5c"
+   "sha256": "21f78bc2ab61eb7d6c02f7c0e7d0bd6586832cc43609807e3be8e2b7fc2f6e77"
   },
   {
    "path": "js/runtime/remote.js",

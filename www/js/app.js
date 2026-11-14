@@ -84,6 +84,15 @@ const SPRITE_PALETTES = [
   { sweater: "#4f8f8a", hair: "#263033" },
 ];
 
+const AGENT_SPRITES = [
+  { id: "plot", label: "剧情" },
+  { id: "memory", label: "记忆" },
+  { id: "writing", label: "写作" },
+  { id: "thought", label: "独白" },
+  { id: "wake", label: "唤醒" },
+  { id: "browse", label: "浏览" },
+];
+
 /** 外层办公室：每个工位（办公桌）配一个精灵，站在对应椅子上。 */
 function buildOfficeSprites(scene) {
   const desks = (scene.props || []).filter((p) => p.id === "desk_modern");
@@ -93,11 +102,14 @@ function buildOfficeSprites(scene) {
       chairs.find((c) => c.x === desk.x && c.y === desk.y + 1) ||
       chairs.find((c) => Math.abs(c.x - desk.x) <= 1 && Math.abs(c.y - desk.y) <= 2) ||
       desk;
+    const agent = AGENT_SPRITES[i % AGENT_SPRITES.length];
     return {
       x: chair.x,
       y: chair.y,
       dir: { x: 0, y: 1 },
       palette: SPRITE_PALETTES[i % SPRITE_PALETTES.length],
+      agent: agent.id,
+      label: agent.label,
     };
   });
 }
@@ -128,11 +140,12 @@ async function boot() {
 
   const root = $("#app");
   const overview = createOverview({ canvas: $("#scene"), scene, store });
+  const officeSprites = buildOfficeSprites(outerScene);
   const outerOverview = createOverview({
     canvas: $("#sceneOuter"),
     scene: outerScene,
     store,
-    sprites: buildOfficeSprites(outerScene),
+    sprites: officeSprites,
     showAgent: false,
   });
   await Promise.all([overview.load(), outerOverview.load()]);
@@ -454,6 +467,54 @@ async function boot() {
     consolePanel.hidden = true;
   }
 
+  const agentPanel = $("#agentPanel");
+  const agentBody = $("#agentBody");
+  const agentTitle = $("#agentTitle");
+
+  function esc(v) {
+    return String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  }
+
+  async function openAgentPanel(agent, label) {
+    agentPanel.hidden = false;
+    agentTitle.textContent = `${label} · 工作记录`;
+    agentBody.innerHTML = '<div class="muted">读取中…</div>';
+    const [logs, events] = await Promise.all([local.getLlmLog(), local.getEvents(120)]);
+    const rows = logs.filter((r) => r.agent === agent).slice(-30).reverse();
+    const evs = events.filter((e) => String(e.kind || "").includes(agent)).slice(-10).reverse();
+    const parts = [];
+    if (rows.length) {
+      parts.push(rows.map((r) => `<div class="row"><b>${esc(r.agent)}</b> <span class="${r.ok ? "ok" : "bad"}">${r.ok ? "ok" : "fail"}</span> ${r.ms ?? ""}ms<div class="pre">${esc(r.prompt || "")}</div><div class="pre">${esc(r.response || "")}</div></div>`).join(""));
+    }
+    if (evs.length) {
+      parts.push(evs.map((e) => `<div class="row"><b>${esc(e.kind)}</b> ${esc(JSON.stringify(e.payload || {}))}</div>`).join(""));
+    }
+    agentBody.innerHTML = parts.length ? parts.join("") : '<div class="muted">这个 agent 还没有工作记录</div>';
+  }
+
+  function closeAgentPanel() {
+    agentPanel.hidden = true;
+  }
+
+  function hitOfficeSprite(clientX, clientY) {
+    if (activeView !== "outer") return null;
+    const canvas = $("#sceneOuter");
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    const gx = ((clientX - rect.left) / rect.width) * outerScene.grid.w;
+    const gy = ((clientY - rect.top) / rect.height) * outerScene.grid.h;
+    let best = null;
+    let bestD = 1.4;
+    for (const sp of officeSprites) {
+      const d = Math.hypot(gx - (sp.x + 0.5), gy - (sp.y + 0.5));
+      if (d < bestD) {
+        bestD = d;
+        best = sp;
+      }
+    }
+    return best;
+  }
+
   function setDock(open) {
     dock.classList.toggle("open", open);
     dock.setAttribute("aria-hidden", open ? "false" : "true");
@@ -470,6 +531,7 @@ async function boot() {
   $("#btnViewOuter").addEventListener("click", () => setView("outer"));
   $("#btnConsole").addEventListener("click", openConsole);
   $("#btnCloseConsole").addEventListener("click", closeConsole);
+  $("#btnCloseAgent").addEventListener("click", closeAgentPanel);
   $("#btnReconnect").addEventListener("click", () => {
     remote.stop();
     remote.start();
@@ -480,8 +542,14 @@ async function boot() {
   // 触摸招出 UI；鼠标点击不触发任何角色行为
   const stage = $("#stage");
   stage.addEventListener("pointerdown", (e) => {
-    if (e.target.closest("#dock")) return;
-    // 鼠标/触摸都只唤出 UI，不移动角色
+    if (e.target.closest("#dock") || e.target.closest("#consolePanel") || e.target.closest("#agentPanel")) return;
+    // 外层点击小人：立刻打开对应 agent 工作记录
+    const sprite = hitOfficeSprite(e.clientX, e.clientY);
+    if (sprite) {
+      void openAgentPanel(sprite.agent, sprite.label);
+      return;
+    }
+    // 其他位置鼠标/触摸只唤出 UI，不移动角色
     setDock(!dock.classList.contains("open"));
   });
 

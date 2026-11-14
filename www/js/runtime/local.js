@@ -46,7 +46,7 @@ function kvMemoryBackend(backend, key = "memory_docs") {
 
 // ---------------- IndexedDB 后端（无 IDB 时退化为内存，便于测试/排障） ----------------
 
-function openDb(idbFactory, name = "dhvw", version = 1) {
+function openDb(idbFactory, name = "dhvw", version = 2) {
   return new Promise((resolve, reject) => {
     const req = idbFactory.open(name, version);
     req.onupgradeneeded = () => {

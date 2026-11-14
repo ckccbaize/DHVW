@@ -345,3 +345,28 @@ body:not(.ui-open) #switch { transform: translateY(8px); }
 .console-body .ok { color: #1f7a3d; }
 .console-body .bad { color: #b3261e; }
 #consoleStatus { margin: 0; white-space: pre-wrap; font: inherit; }
+
+/* ---------- 外层 Agent 记录 ---------- */
+
+.agent-panel {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 46;
+  width: min(560px, 92vw);
+  max-height: min(70vh, 560px);
+  display: flex;
+  flex-direction: column;
+  transform: translate(-50%, -50%);
+  background: var(--color-cel-white);
+  border: var(--line);
+  box-shadow: var(--shadow-hard);
+  animation: agent-in 140ms linear;
+}
+
+.agent-panel[hidden] { display: none; }
+
+@keyframes agent-in {
+  from { opacity: 0; transform: translate(-50%, -46%); }
+  to { opacity: 1; transform: translate(-50%, -50%); }
+}
