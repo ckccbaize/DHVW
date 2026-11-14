@@ -472,6 +472,12 @@ self.onmessage = (e) => {
         pending = null;
         busyUntil = clock.minute;
         requestIntent("debug:wake");
+      } else if (kind === "night") {
+        clock.set(clock.day, 22 * 60);
+        phase = "night";
+        pending = null;
+        busyUntil = clock.minute;
+        requestIntent("debug:night");
       } else if (kind === "act" && msg.act) {
         debugIntent(msg.act);
       }

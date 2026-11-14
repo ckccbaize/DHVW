@@ -60,6 +60,9 @@
     <button type="button" data-trigger="memory">立即归纳记忆</button>
     <button type="button" data-trigger="write">立即写作</button>
     <button type="button" data-trigger="plot">立即剧情</button>
+    <button type="button" data-trigger="night">设为黑夜</button>
+    <button type="button" data-trigger="map">生成地图</button>
+    <button type="button" data-trigger="browse">浏览网页</button>
     <button type="button" data-trigger="sleep">强制睡觉</button>
     <button type="button" data-trigger="wake">强制醒来</button>
     <button type="button" data-trigger="act" data-act="read">去阅读</button>
@@ -102,6 +105,14 @@
   <section>
     <h2>剧情产出 <span class="count" id="plotCount"></span></h2>
     <div id="plots"></div>
+  </section>
+  <section>
+    <h2>地图绘制 <span class="count" id="mapCount"></span></h2>
+    <div id="maps"></div>
+  </section>
+  <section>
+    <h2>浏览记录 <span class="count" id="browseCount"></span></h2>
+    <div id="browses"></div>
   </section>
   <section class="wide">
     <h2>最近事件 <span class="count" id="evCount"></span></h2>
@@ -171,6 +182,20 @@ function renderPlots(rows) {
   $("#plots").innerHTML = rows.length
     ? rows.slice().reverse().map((p) => `<div style="margin-bottom:8px"><span class="pill">${esc(p.event || "剧情")}</span><span class="muted">第${p.day}天 ${Math.floor(p.minute / 60)}:${String(Math.floor(p.minute % 60)).padStart(2, "0")} · ${esc(p.place || "")}</span><div class="pre">${esc(p.text)}</div></div>`).join("")
     : '<div class="empty">还没有剧情产出</div>';
+}
+
+function renderMaps(rows) {
+  $("#mapCount").textContent = `${rows.length} 张`;
+  $("#maps").innerHTML = rows.length
+    ? rows.slice().reverse().map((m) => `<div class="row"><b>${esc(m.name || "场景")}</b> ${m.w}×${m.h} · ${m.rooms?.length || 0} 房间 · seed ${esc(m.seed)}</div>`).join("")
+    : '<div class="empty">还没有生成地图</div>';
+}
+
+function renderBrowses(rows) {
+  $("#browseCount").textContent = `${rows.length} 条`;
+  $("#browses").innerHTML = rows.length
+    ? rows.slice().reverse().map((b) => `<div class="row"><b>${esc(b.plan?.query || b.plan?.url || "浏览")}</b><div class="pre">${esc(JSON.stringify(b.result?.results?.slice(0, 2) || b.result || {}))}</div></div>`).join("")
+    : '<div class="empty">还没有浏览记录</div>';
 }
 
 function renderEvents(rows) {
@@ -296,19 +321,23 @@ async function refresh() {
     const llmCfg = { ...(cfg.llm || {}), ...(auto || {}), ...(readOverride() || {}) };
     $("#status").innerHTML = `LLM：<span class="${llmCfg.baseUrl && llmCfg.model ? "ok" : "bad"}">${llmCfg.baseUrl && llmCfg.model ? `${esc(llmCfg.model)} @ ${esc(llmCfg.baseUrl)}` : "未配置"}</span> · 每 2 秒刷新`;
     const db = await openDb();
-    const [llmLog, mem, writings, plots, daily, mood, events] = await Promise.all([
+    const [llmLog, mem, writings, plots, daily, mood, maps, browses, events] = await Promise.all([
       getKV(db, "llm_log"),
       getKV(db, "memory_docs"),
       getKV(db, "writings"),
       getKV(db, "plots"),
       getKV(db, "daily_plots"),
       getKV(db, "mood"),
+      getKV(db, "generated_maps"),
+      getKV(db, "browse_log"),
       getAll(db, "events"),
     ]);
     renderLlm(llmLog || []);
     renderMem(mem || []);
     renderWritings(writings || []);
     renderPlots(plots || []);
+    renderMaps(maps || []);
+    renderBrowses(browses || []);
     const today = Object.values(daily || {}).sort((a, b) => b.forDay - a.forDay)[0];
     $("#todayCount").textContent = today ? `第 ${today.forDay} 天` : "";
     $("#todayPlot").textContent = today

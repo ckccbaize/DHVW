@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T05:39:36.308Z",
+ "built_at": "2026-11-14T05:52:52.521Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -414,8 +414,8 @@
   },
   {
    "path": "assets/scenes/home/character/sheet.png",
-   "size": 431071,
-   "sha256": "5ad90214be800fd2a40b477c24364882b7dcbffd9f2fec54e9610297c633a3db"
+   "size": 292333,
+   "sha256": "8cca703acd587387551b2496ddf29f08819b03becf1e24a12b30aef3d27b272b"
   },
   {
    "path": "assets/scenes/home/furniture.png",
@@ -465,7 +465,7 @@
   {
    "path": "assets/scenes/home/manifest.json",
    "size": 1232,
-   "sha256": "b2de2763e678c97799b17f2ffac06aa721c28ba6d9d1c9099fffb80a529b8f0d"
+   "sha256": "17b9d7b77c808922b514224af13e4e9a73e54f96d8a2e41b8c0d2442517be891"
   },
   {
    "path": "assets/scenes/home/scene.json",
@@ -489,8 +489,8 @@
   },
   {
    "path": "assets/scenes/office/character/sheet.png",
-   "size": 431071,
-   "sha256": "5ad90214be800fd2a40b477c24364882b7dcbffd9f2fec54e9610297c633a3db"
+   "size": 292333,
+   "sha256": "8cca703acd587387551b2496ddf29f08819b03becf1e24a12b30aef3d27b272b"
   },
   {
    "path": "assets/scenes/office/furniture.png",
@@ -515,7 +515,7 @@
   {
    "path": "assets/scenes/office/manifest.json",
    "size": 1233,
-   "sha256": "30ce062a5ceda94ae1c666eb16d341fc6caf5fa499a4870dfe9396aea88ef9e1"
+   "sha256": "fe014c44490b07f4706f1b4feefa90a4d5d9d7e6db36965b460ce6197695304c"
   },
   {
    "path": "assets/scenes/office/office.built.json",
@@ -584,8 +584,8 @@
   },
   {
    "path": "debug-life.html",
-   "size": 15888,
-   "sha256": "2c552588a00200da51a8c7eb3b147291c24c636ac9c4085753b5b753f5502c71"
+   "size": 17251,
+   "sha256": "8231e73de9f6495dda4892614eab4c53fac28ad026d4b64a2da996b5f4bd7309"
   },
   {
    "path": "index.html",
@@ -594,8 +594,8 @@
   },
   {
    "path": "js/app.js",
-   "size": 21119,
-   "sha256": "65dff8dcb03e042b04036307960a238fbc2a378378181480021cc2d41ccadb80"
+   "size": 21078,
+   "sha256": "e791c9ed3d92f93400cb4ac23dc2dd8ddcdcbb786cde1d4d8ca3e5901812e504"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -914,8 +914,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 23875,
-   "sha256": "21f78bc2ab61eb7d6c02f7c0e7d0bd6586832cc43609807e3be8e2b7fc2f6e77"
+   "size": 25905,
+   "sha256": "63865704da12aa0407e127bee5fe61c7a4000cd19048281731a7604cf9de3783"
   },
   {
    "path": "js/runtime/remote.js",
@@ -969,8 +969,8 @@
   },
   {
    "path": "workers/life.worker.js",
-   "size": 16157,
-   "sha256": "8fc94e6b7601175efc244e8bccf3edcc1f3519eb1315c5fe98262677efb306bb"
+   "size": 16354,
+   "sha256": "a86b16f76159490b61630194519009f39180d018ea489126362638bb1fd09422"
   }
  ]
 }

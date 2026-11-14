@@ -89,15 +89,13 @@ const AGENT_SPRITES = [
   { id: "memory", label: "记忆" },
   { id: "writing", label: "写作" },
   { id: "thought", label: "独白" },
-  { id: "wake", label: "唤醒" },
-  { id: "browse", label: "浏览" },
 ];
 
 /** 外层办公室：每个工位（办公桌）配一个精灵，站在对应椅子上。 */
 function buildOfficeSprites(scene) {
   const desks = (scene.props || []).filter((p) => p.id === "desk_modern");
   const chairs = (scene.props || []).filter((p) => p.id === "office_chair");
-  return desks.map((desk, i) => {
+  return desks.slice(0, AGENT_SPRITES.length).map((desk, i) => {
     const chair =
       chairs.find((c) => c.x === desk.x && c.y === desk.y + 1) ||
       chairs.find((c) => Math.abs(c.x - desk.x) <= 1 && Math.abs(c.y - desk.y) <= 2) ||

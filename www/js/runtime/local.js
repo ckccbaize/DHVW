@@ -9,6 +9,8 @@ import { createLocalMemory } from "../core/memory/local.js";
 import { createMemoryPipeline } from "../core/memory/pipeline.js";
 import { extractJson } from "../core/agent/json.js";
 import { describeMood, moodTone } from "../core/mood/describe.js";
+import { generateMap } from "../core/agent/subs/map.js";
+import { createBrowsePlanner } from "../core/actions/browse.js";
 
 const EVENT_CAP = 2000;
 const DEFAULT_QUOTA = 500 * 1024 * 1024;
@@ -417,6 +419,45 @@ export function createLocalRuntime({
     postLife({ type: "setMood", mood: { ...mood } });
   }
 
+  async function maybeMap() {
+    const t0 = now();
+    const r = generateMap({ seed: `${lastTick?.day || 1}-${Math.floor(lastTick?.minute || 0)}-${now()}`, w: 24, h: 16 });
+    if (!r.ok) {
+      await logLlm({ agent: "map", ok: false, ms: now() - t0, response: r.reason });
+      return;
+    }
+    const item = { id: `map-${now()}`, ...r.scene, created_at: now() };
+    await appendKv("generated_maps", item, 5);
+    await logLlm({ agent: "map", ok: true, ms: now() - t0, prompt: "generateMap", response: `${item.rooms.length} 房间 / ${item.w}×${item.h}` });
+    store.emit("map_generated", item);
+  }
+
+  async function maybeBrowse() {
+    if (!llm || !registry) return;
+    const t0 = now();
+    const planner = createBrowsePlanner({ llm, registry });
+    const plan = await planner.plan({ threads: [], recent: [], mood });
+    if (!plan.ok) {
+      await logLlm({ agent: "browse", ok: false, ms: now() - t0, response: plan.reason });
+      return;
+    }
+    let result = null;
+    if (plan.mode === "search") {
+      const res = await fetch(`/__search?q=${encodeURIComponent(plan.query)}&n=5`, { cache: "no-store" });
+      result = res.ok ? await res.json() : { error: `http_${res.status}` };
+    }
+    const item = { id: `browse-${now()}`, plan, result, created_at: now() };
+    await appendKv("browse_log", item, 20);
+    await logLlm({
+      agent: "browse",
+      ok: true,
+      ms: now() - t0,
+      prompt: plan.query || plan.url,
+      response: JSON.stringify(result?.results?.slice(0, 3) || result || {}),
+    });
+    store.emit("browse", item);
+  }
+
   async function generateWriting(ctx) {
     if (!llm) return;
     const kind = Math.random() < 0.5 ? "diary" : "novel";
@@ -701,6 +742,14 @@ export function createLocalRuntime({
         void maybeMemory(true);
         return;
       }
+      if (kind === "map") {
+        void maybeMap();
+        return;
+      }
+      if (kind === "browse") {
+        void maybeBrowse();
+        return;
+      }
       if (kind === "plot") {
         void maybePlot(lastTick || { day: 1, minute: 0, phase: "morning", room: scene.start }, true);
         return;
@@ -726,6 +775,12 @@ export function createLocalRuntime({
     },
     async getPlots() {
       return (await backend.getKV("plots")) || [];
+    },
+    async getMaps() {
+      return (await backend.getKV("generated_maps")) || [];
+    },
+    async getBrowseLog() {
+      return (await backend.getKV("browse_log")) || [];
     },
     async getEvents(n = 80) {
       const rows = await backend.oldestEvents(400);
