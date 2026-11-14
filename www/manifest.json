@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T04:36:57.547Z",
+ "built_at": "2026-11-14T04:46:13.169Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -589,13 +589,13 @@
   },
   {
    "path": "index.html",
-   "size": 2874,
-   "sha256": "5e97b5c9dbddf25acc6f55ec4e6713c228819646070468f8021abe87eebc7779"
+   "size": 2786,
+   "sha256": "fa57d821bf4ed2cec89670131c98e0298aef17219f02d37554f381568a8071bb"
   },
   {
    "path": "js/app.js",
-   "size": 18301,
-   "sha256": "05502b6f0889ab7bbdc731dd6fe3bfd283eb94d79ccfcf47cd66ce8fcad8e1ec"
+   "size": 18050,
+   "sha256": "4e71b59ca9dbbe0bb00fbf4bca9c8c572b04c5ef08cc767bfe7f25d381c20b91"
   },
   {
    "path": "js/core/actions/browse.js",

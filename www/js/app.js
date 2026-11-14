@@ -157,7 +157,6 @@ async function boot() {
   let pendingArrival = null;
   let refusedCount = 0;
   let lastEvent = null;
-  let forgePaused = false;
   const bgUrls = new Map();
 
   const local = createLocalRuntime({
@@ -460,12 +459,6 @@ async function boot() {
   }
   $("#btnViewInner").addEventListener("click", () => setView("inner"));
   $("#btnViewOuter").addEventListener("click", () => setView("outer"));
-  $("#btnPauseForge").addEventListener("click", () => {
-    forgePaused = !forgePaused;
-    $("#btnPauseForge").textContent = forgePaused ? "恢复生成" : "暂停生成";
-    if (forgePaused) local.suspend();
-    else local.resume();
-  });
   $("#btnReconnect").addEventListener("click", () => {
     remote.stop();
     remote.start();
@@ -522,6 +515,7 @@ async function boot() {
   hud.render(store.state);
 
   await local.start();
+  local.resume();
   local.setTier("edge");
   setTier("edge");
   remote.start();
