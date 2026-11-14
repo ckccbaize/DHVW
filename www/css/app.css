@@ -39,7 +39,7 @@ html, body {
   height: 100%;
   max-width: none;
   max-height: none;
-  object-fit: contain;
+  object-fit: fill;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   cursor: default;
