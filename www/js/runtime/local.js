@@ -813,6 +813,18 @@ export function createLocalRuntime({
       const day = await backend.getKV("day").catch(() => undefined);
       const minute = await backend.getKV("minute").catch(() => undefined);
       lastSnapshot = (await backend.getKV("life_snapshot").catch(() => undefined)) || null;
+      const snapDay = lastSnapshot?.day;
+      const snapMinute = lastSnapshot?.minute;
+      const useSnapshot = !!lastSnapshot && (
+        day == null ||
+        snapDay > day ||
+        (snapDay === day && (minute == null || snapMinute >= minute))
+      );
+      const startDay = useSnapshot ? snapDay : day ?? 1;
+      const startMinute = useSnapshot ? snapMinute : minute ?? config.life?.startMinute ?? 8 * 60;
+      const startSnapshot = lastSnapshot
+        ? (useSnapshot ? lastSnapshot : { ...lastSnapshot, day: startDay, minute: startMinute })
+        : null;
       lastPlotDay = (await backend.getKV("last_plot_day")) ?? -1;
       dailyPlots = (await backend.getKV("daily_plots")) || {};
       const storedPlots = (await backend.getKV("plots")) || [];
@@ -840,9 +852,9 @@ export function createLocalRuntime({
       postLife({
         type: "init",
         scene: sceneSummary(),
-        day: lastSnapshot?.day ?? day ?? 1,
-        minute: lastSnapshot?.minute ?? minute ?? config.life?.startMinute ?? 8 * 60,
-        snapshot: lastSnapshot,
+        day: startDay,
+        minute: startMinute,
+        snapshot: startSnapshot,
         timeScale: config.life?.timeScale ?? 1,
         tickMs: config.life?.tickMs ?? 1000,
         roamMin: config.life?.roamMin ?? 30,
@@ -850,7 +862,7 @@ export function createLocalRuntime({
         llm: config.llm || null,
       });
       postLife({ type: "setMood", mood: { ...mood } });
-      const plan = dailyPlots[lastSnapshot?.day ?? day ?? 1];
+      const plan = dailyPlots[startDay];
       if (plan && !lastSnapshot?.plan) {
         postLife({
           type: "setPlan",
@@ -933,6 +945,10 @@ export function createLocalRuntime({
     async persistClock(day, minute) {
       await backend.setKV("day", day).catch(() => {});
       await backend.setKV("minute", minute).catch(() => {});
+      if (lastSnapshot) {
+        lastSnapshot = { ...lastSnapshot, day, minute };
+        await backend.setKV("life_snapshot", lastSnapshot).catch(() => {});
+      }
     },
     setSpeed(value) {
       const v = Math.max(0.5, Math.min(30, Number(value) || 1));
