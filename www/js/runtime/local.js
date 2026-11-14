@@ -212,6 +212,8 @@ export function createLocalRuntime({
   let eventsSinceMemory = 0;
   let lastMemoryDay = -1;
   let lastPlotDay = -1;
+  let plotBusy = false;
+  let memoryBusy = false;
   let recentPlots = [];
   let dailyPlots = {};
   let mood = { energy: 0, valence: 0, social: 0, focus: 0 };
@@ -337,7 +339,9 @@ export function createLocalRuntime({
 
   async function maybeMemory(force = false) {
     if (!memoryPipeline || suspended) return;
+    if (memoryBusy) return;
     if (!force && now() - lastMemoryAt < 60000) return;
+    memoryBusy = true;
     const [events, writings, browses, plots] = await Promise.all([
       backend.oldestEvents(40),
       backend.getKV("writings"),
@@ -355,7 +359,10 @@ export function createLocalRuntime({
     }
     for (const p of (plots || []).slice(-5)) extra.push({ kind: "plot", payload: { text: p.text, event: p.event }, t_local: p.created_at });
     const allEvents = [...events, ...extra];
-    if (allEvents.length < 3) return;
+    if (allEvents.length < 3) {
+      memoryBusy = false;
+      return;
+    }
     lastMemoryAt = now();
     eventsSinceMemory = 0;
     const res = await memoryPipeline.run(allEvents);
@@ -383,6 +390,7 @@ export function createLocalRuntime({
     } else {
       await logLlm({ agent: "memory", ok: false, response: `${res.reason}: ${res.error || ""}` });
     }
+    memoryBusy = false;
   }
 
   function memoryText(limit = 8) {
@@ -433,6 +441,8 @@ export function createLocalRuntime({
     if (!llm || !registry || suspended) return;
     if (!force && tick.phase !== "sleep") return;
     if (!force && lastPlotDay === tick.day) return;
+    if (plotBusy) return;
+    plotBusy = true;
     lastPlotDay = tick.day;
     const hh = String(Math.floor(tick.minute / 60)).padStart(2, "0");
     const mm = String(Math.floor(tick.minute % 60)).padStart(2, "0");
@@ -538,9 +548,11 @@ export function createLocalRuntime({
       });
       await logLlm({ agent: "plot", ok: true, ms: now() - t0, prompt, response: res.text });
       store.emit("plot_event", item);
-      onSay(text, 4200);
+      if (tick.phase !== "sleep") onSay(text, 4200);
     } catch (err) {
       await logLlm({ agent: "plot", ok: false, ms: now() - t0, prompt, response: err.message });
+    } finally {
+      plotBusy = false;
     }
   }
 
