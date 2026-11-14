@@ -25,6 +25,7 @@ const ANIMATION_ALIAS = {
 };
 
 const NON_BLOCK = new Set(["rug", "door_mat", "bath_mat"]);
+const BIG_ITEMS = new Set(["bed", "wardrobe", "dresser", "desk", "bookshelf", "sofa", "tv", "counter", "stove", "fridge", "table", "bench", "cat_tree", "coffee_table"]);
 
 function inside(room, x, y, w, h) {
   const [rx, ry, rw, rh] = room.rect;
@@ -68,7 +69,7 @@ export function validateLlmScene(obj, { quality = true } = {}) {
   if (errors.length) return errors;
 
   const rooms = new Map();
-  for (const r of obj.rooms) {
+  for (const r of [...(obj.rooms || []), ...(obj.zones || [])]) {
     if (!r.id || !Array.isArray(r.rect) || r.rect.length !== 4) {
       errors.push(`room:${r.id || "?"}`);
       continue;
@@ -147,6 +148,7 @@ export function validateLlmScene(obj, { quality = true } = {}) {
     }),
     doors: obj.doors || [],
     windows: obj.windows || [],
+    zones: obj.zones || [],
     wallProps: obj.wallProps || [],
     decor: obj.decor || [],
   };
@@ -164,25 +166,45 @@ export function validateLlmScene(obj, { quality = true } = {}) {
     }
   }
   if (quality) {
-    if ((obj.rooms || []).length < 2) errors.push("rooms_too_few");
+    const enclosed = obj.rooms || [];
+    const zones = obj.zones || [];
+    if (enclosed.length < 1) errors.push("rooms_too_few");
+    if (enclosed.length > 2) errors.push("rooms_too_many");
+    if (zones.length < 2) errors.push("zones_too_few");
     if ((obj.props || []).length < 40) errors.push("props_too_few");
     if (!(obj.doors || []).length) errors.push("doors_missing");
     if (!(obj.windows || []).length) errors.push("windows_missing");
+    if (obj.wallStyle && !["solid", "glass"].includes(obj.wallStyle)) errors.push("wall_style");
     const interior = Math.max(1, (w - 2) * (h - 2));
-    const area = (obj.rooms || []).reduce((sum, r) => sum + (r.rect?.[2] || 0) * (r.rect?.[3] || 0), 0);
-    if (area / interior < 0.55) errors.push("rooms_too_sparse");
-    const roomIds = new Set((obj.rooms || []).map((r) => r.id));
+    const roomArea = enclosed.reduce((sum, r) => sum + (r.rect?.[2] || 0) * (r.rect?.[3] || 0), 0);
+    const zoneArea = zones.reduce((sum, r) => sum + (r.rect?.[2] || 0) * (r.rect?.[3] || 0), 0);
+    if ((roomArea + zoneArea) / interior < 0.7) errors.push("rooms_too_sparse");
+    if (zoneArea / Math.max(1, roomArea + zoneArea) < 0.5) errors.push("open_area_too_small");
+    for (const z of zones) {
+      if (!z.name) errors.push(`zone_name:${z.id || "?"}`);
+      if ((z.rect?.[2] || 0) * (z.rect?.[3] || 0) < 6) errors.push(`zone_too_small:${z.id || "?"}`);
+    }
+    if (enclosed.length === 2) {
+      const [a, b] = enclosed;
+      const ac = [(a.rect?.[0] || 0) + (a.rect?.[2] || 0) / 2, (a.rect?.[1] || 0) + (a.rect?.[3] || 0) / 2];
+      const bc = [(b.rect?.[0] || 0) + (b.rect?.[2] || 0) / 2, (b.rect?.[1] || 0) + (b.rect?.[3] || 0) / 2];
+      if (Math.abs(ac[0] - bc[0]) < 3 || Math.abs(ac[1] - bc[1]) < 3) errors.push("enclosed_rooms_not_diagonal");
+      if (a.rect?.[2] === b.rect?.[2] && a.rect?.[3] === b.rect?.[3]) errors.push("enclosed_rooms_same_size");
+    }
+    const allAreas = [...enclosed, ...zones];
+    const roomIds = new Set(allAreas.map((r) => r.id));
     for (const id of roomIds) {
-      const room = (obj.rooms || []).find((r) => r.id === id);
+      const room = allAreas.find((r) => r.id === id);
       const count = (obj.props || []).filter((p) => p.room === id).length;
       const need = Math.max(4, Math.ceil(((room?.rect?.[2] || 0) * (room?.rect?.[3] || 0)) / 12));
       if (!count) errors.push(`room_empty:${id}`);
       else if (count < need) errors.push(`room_props_too_few:${id}:${count}/${need}`);
     }
+    const names = (obj.props || []).map((p) => p.name).filter(Boolean);
+    if (new Set(names).size !== names.length) errors.push("prop_name_duplicate");
     const ids = new Set((obj.props || []).map((p) => p.id));
     const countOf = (id) => (obj.props || []).filter((p) => p.id === id).length;
     if (obj.kind === "cafe") {
-      if ((obj.rooms || []).length < 5) errors.push("cafe_rooms_too_few");
       for (const need of ["counter", "table", "chair", "plant", "rug", "lamp"]) {
         if (!ids.has(need)) errors.push(`missing_prop:${need}`);
       }
@@ -191,6 +213,48 @@ export function validateLlmScene(obj, { quality = true } = {}) {
       if (countOf("plant") < 3) errors.push("cafe_plants_too_few");
       if (countOf("rug") < 3) errors.push("cafe_rugs_too_few");
       if (countOf("lamp") < 2) errors.push("cafe_lamps_too_few");
+    }
+    for (const item of BIG_ITEMS) {
+      if (countOf(item) > 1) errors.push(`big_item_duplicate:${item}`);
+    }
+    const allNames = [...(obj.rooms || []), ...(obj.zones || [])].map((r) => r.name).filter(Boolean);
+    if (new Set(allNames).size !== allNames.length) errors.push("area_name_duplicate");
+    const filled = new Set();
+    for (const p of obj.props || []) {
+      const pw = p.w || 1;
+      const ph = p.h || 1;
+      for (let yy = p.y; yy < p.y + ph; yy++) for (let xx = p.x; xx < p.x + pw; xx++) filled.add(`${xx},${yy}`);
+    }
+    const doorClear = new Set();
+    for (const d of obj.doors || []) {
+      for (let yy = d.y - 1; yy <= d.y + 1; yy++) for (let xx = d.x - 1; xx <= d.x + 1; xx++) doorClear.add(`${xx},${yy}`);
+    }
+    for (const d of obj.doors || []) {
+      for (const p of obj.props || []) {
+        if (NON_BLOCK.has(p.id)) continue;
+        const pw = p.w || 1;
+        const ph = p.h || 1;
+        let hit = false;
+        for (let yy = p.y; yy < p.y + ph && !hit; yy++) for (let xx = p.x; xx < p.x + pw; xx++) if (doorClear.has(`${xx},${yy}`)) { hit = true; break; }
+        if (hit) errors.push(`door_clearance:${d.id}:${p.name || p.id}`);
+      }
+    }
+    let blanks = 0;
+    for (const area of [...(obj.rooms || []), ...(obj.zones || [])]) {
+      const [rx, ry, rw, rh] = area.rect || [];
+      for (let y = ry; y <= ry + rh - 3; y++) {
+        for (let x = rx; x <= rx + rw - 3; x++) {
+          let skip = false;
+          for (let yy = y; yy < y + 3 && !skip; yy++) for (let xx = x; xx < x + 3; xx++) if (doorClear.has(`${xx},${yy}`)) { skip = true; break; }
+          if (skip) continue;
+          let has = false;
+          for (let yy = y; yy < y + 3 && !has; yy++) for (let xx = x; xx < x + 3; xx++) if (filled.has(`${xx},${yy}`)) { has = true; break; }
+          if (!has && blanks < 5) {
+            errors.push(`blank_3x3:${area.id || "?"}@${x},${y}`);
+            blanks += 1;
+          }
+        }
+      }
     }
   }
   return errors;
@@ -275,7 +339,7 @@ function normalizeLlmScene(input) {
   const w = obj.grid?.w;
   const h = obj.grid?.h;
   if (!Number.isInteger(w) || !Number.isInteger(h)) return obj;
-  const rooms = new Map((obj.rooms || []).map((r) => [r.id, r]));
+  const rooms = new Map([...(obj.rooms || []), ...(obj.zones || [])].map((r) => [r.id, r]));
   const occupied = new Set();
   const props = [];
   for (const p of obj.props || []) {

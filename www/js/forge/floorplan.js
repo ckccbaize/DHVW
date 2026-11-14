@@ -142,6 +142,110 @@ function venuePlan(w, h, seed, type, customProgram) {
   return { rooms, doors };
 }
 
+
+const OPEN_FLOORS = ["wood", "tile", "carpet", "stone"];
+
+function closedRect(corner, w, h, cw, ch) {
+  if (corner === "NW") return [1, 1, cw, ch];
+  if (corner === "NE") return [w - 1 - cw, 1, cw, ch];
+  if (corner === "SW") return [1, h - 1 - ch, cw, ch];
+  return [w - 1 - cw, h - 1 - ch, cw, ch];
+}
+
+function decompose(cells, w, h) {
+  const left = new Set(cells);
+  const rects = [];
+  for (let y = 1; y < h - 1; y++) {
+    let x = 1;
+    while (x < w - 1) {
+      if (!left.has(`${x},${y}`)) { x += 1; continue; }
+      let x2 = x;
+      while (left.has(`${x2 + 1},${y}`)) x2 += 1;
+      let y2 = y;
+      while (y2 + 1 < h - 1) {
+        let ok = true;
+        for (let xx = x; xx <= x2; xx++) if (!left.has(`${xx},${y2 + 1}`)) { ok = false; break; }
+        if (!ok) break;
+        y2 += 1;
+      }
+      rects.push([x, y, x2 - x + 1, y2 - y + 1]);
+      for (let yy = y; yy <= y2; yy++) for (let xx = x; xx <= x2; xx++) left.delete(`${xx},${yy}`);
+      x = x2 + 1;
+    }
+  }
+  return rects;
+}
+
+/** 按 MAP-SCENE-DESIGN §3.5 生成 1-2 间封闭房 + 开放 zones 骨架。 */
+export function pickOpenLayout(w = 32, h = 24, seed = "layout") {
+  const rnd = mulberry32(fnv1a(String(seed)));
+  const n = rnd() < 0.7 ? 1 : 2;
+  const diag = rnd() < 0.5 ? ["NW", "SE"] : ["NE", "SW"];
+  const corners = diag.slice(0, n);
+  const closed = corners.map((corner) => {
+    const cw = 4 + Math.floor(rnd() * Math.min(3, Math.floor(w / 4) - 3));
+    const ch = 4 + Math.floor(rnd() * Math.min(3, Math.floor(h / 3) - 3));
+    return { corner, rect: closedRect(corner, w, h, cw, ch) };
+  });
+  if (closed.length === 2 && closed[0].rect[2] === closed[1].rect[2] && closed[0].rect[3] === closed[1].rect[3]) {
+    const [x, y, cw, ch] = closed[1].rect;
+    closed[1].rect = [x, y, Math.max(4, cw - 1), ch];
+  }
+  const blocked = new Set();
+  for (const c of closed) {
+    const [x, y, cw, ch] = c.rect;
+    for (let xx = x - 1; xx <= x + cw; xx++) for (let yy = y - 1; yy <= y + ch; yy++) {
+      if (xx >= 1 && xx <= w - 2 && yy >= 1 && yy <= h - 2) blocked.add(`${xx},${yy}`);
+    }
+  }
+  const interior = [];
+  for (let y = 1; y <= h - 2; y++) for (let x = 1; x <= w - 2; x++) if (!blocked.has(`${x},${y}`)) interior.push(`${x},${y}`);
+  const openRects = decompose(interior, w, h);
+  const floors = OPEN_FLOORS.slice().sort(() => rnd() - 0.5);
+  const rooms = closed.map((c, i) => ({
+    id: `room${i + 1}`, name: `封闭房间${i + 1}`, kind: "room", corner: c.corner,
+    rect: c.rect, floor: ["wood", "tile", "stone"][Math.floor(rnd() * 3)],
+    unlock: { type: "start" }, story: "",
+  }));
+  const zones = openRects.map((rect, i) => ({
+    id: `open${i + 1}`, name: `开放区${i + 1}`, rect,
+    floor: floors[i % floors.length], unlock: { type: "start" },
+  }));
+  const closedArea = rooms.reduce((sum, r) => sum + r.rect[2] * r.rect[3], 0);
+  const openArea = zones.reduce((sum, z) => sum + z.rect[2] * z.rect[3], 0);
+  const openShare = openArea / Math.max(1, closedArea + openArea);
+  const openCells = new Map();
+  for (const z of zones) {
+    const [x, y, ww, hh] = z.rect;
+    for (let yy = y; yy < y + hh; yy++) for (let xx = x; xx < x + ww; xx++) openCells.set(`${xx},${yy}`, z.id);
+  }
+  const doors = [];
+  for (const r of rooms) {
+    const [x, y, cw, ch] = r.rect;
+    const ring = [];
+    for (let yy = y; yy < y + ch; yy++) ring.push([x - 1, yy], [x + cw, yy]);
+    for (let xx = x; xx < x + cw; xx++) ring.push([xx, y - 1], [xx, y + ch]);
+    const cand = [];
+    for (const [cx, cy] of ring) {
+      if (cx < 1 || cx > w - 2 || cy < 1 || cy > h - 2) continue;
+      const near = [[cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]];
+      const target = near.map(([nx, ny]) => openCells.get(`${nx},${ny}`)).find(Boolean);
+      if (target) cand.push([cx, cy, target]);
+    }
+    if (cand.length) {
+      const [dx, dy, target] = cand[Math.floor(rnd() * cand.length)];
+      doors.push({ id: `${r.id}_door`, x: dx, y: dy, to: target });
+    }
+  }
+  const biggest = zones.slice().sort((a, b) => b.rect[2] * b.rect[3] - a.rect[2] * a.rect[3])[0];
+  const spawn = biggest ? { x: biggest.rect[0] + 1, y: biggest.rect[1] + 1 } : { x: 2, y: 2 };
+  const windows = [];
+  for (let x = 2; x < w - 2; x += 5) windows.push({ x, y: 0 });
+  return {
+    grid: { w, h, cell: 16 }, wallStyle: "solid",
+    rooms, zones, doors, windows, spawn, openShare: Math.round(openShare * 100) / 100,
+  };
+}
 export function buildFloorplan(kind, w, h, seed = "plan", mapSpec = {}) {
   const type = inferSceneType({ ...mapSpec, kind: mapSpec.kind || kind });
   let plan;

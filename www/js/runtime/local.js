@@ -10,6 +10,7 @@ import { createMemoryPipeline } from "../core/memory/pipeline.js";
 import { extractJson } from "../core/agent/json.js";
 import { describeMood, moodTone } from "../core/mood/describe.js";
 import { generateMap } from "../core/agent/subs/map.js";
+import { pickOpenLayout } from "../forge/floorplan.js";
 import { createBrowsePlanner } from "../core/actions/browse.js";
 import { normalizeBehaviors, roomForAct, createActRoomMap } from "../core/life/plan.js";
 import { buildScene } from "../forge/scene.js";
@@ -636,11 +637,13 @@ export function createLocalRuntime({
     let scene = null;
     let prompt = "";
     if (llm && registry) {
+      const layout = pickOpenLayout(32, 24, `${kind}-${Date.now()}`);
       const basePrompt = registry.render("scene", {
         description,
         kind,
         name,
-        grid: "24×18，cell=16",
+        grid: "32×24，cell=16",
+        layout: JSON.stringify(layout),
         furniture: Object.keys(FURNITURE_SIZES).join(", "),
         acts: Object.keys(ACT_DEFS).join(", "),
         animations: [...ANIMATIONS].join(", "),
@@ -661,7 +664,20 @@ export function createLocalRuntime({
             kind: "scene",
           });
           const obj = extractJson(res.text);
-          const built = buildSceneFromLlm(obj, { grid: { w: 24, h: 18 } });
+          const merged = obj && typeof obj === "object"
+            ? {
+                ...layout,
+                ...obj,
+                grid: layout.grid,
+                rooms: layout.rooms,
+                zones: layout.zones,
+                doors: layout.doors,
+                windows: layout.windows,
+                wallStyle: layout.wallStyle,
+                spawn: obj.spawn || layout.spawn,
+              }
+            : obj;
+          const built = buildSceneFromLlm(merged, { grid: { w: 32, h: 24 } });
           if (built.ok) {
             scene = built.scene;
             await logLlm({ agent: "scene", ok: true, ms: now() - t0, prompt, response: res.text });

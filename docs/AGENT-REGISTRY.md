@@ -112,7 +112,7 @@ createManagerAgent({ llm, registry, subAgents: { "plot-writer": (args) => plotAg
 
 `core/agent/subs/map.js` 消费出门/剧情的 `mapSpec`：
 
-- `agent/prompts/scene.md`：LLM 直接产出完整场景 JSON（房间/家具/交互/路线）；
+- `agent/prompts/scene.md`：LLM 在 `pickOpenLayout` 给定的 1-2 间封闭房 + 开放 zones 骨架上填家具/交互/路线；
 - `forge/scene-llm.js`：校验 LLM 场景（家具白名单、动画/效果枚举、路线可走、房间密度、功能区数量），通过后生成可烘焙 spec；LLM 输出 32×24 时按目标 24×18 缩放，避免大空房间；
 - `props[].shape`：LLM 可用 rect/ellipse/line/polygon 直接定义新物体（非 home 家具），`forge/furniture.js` 的 `paintShape` 负责绘制；home 家具表只是可选素材，不是场景生成上限；
 - `forge/dsl.js` + `forge/scenekit.js`：保留为离线/兜底生成器（DSL → 32×24 单房间），不再是默认路径；
@@ -125,7 +125,7 @@ createManagerAgent({ llm, registry, subAgents: { "plot-writer": (args) => plotAg
 - 端侧 `maybeMap` 用 `forge/scene.js` 烘焙三层图，`core/scene-package.js` 打包 `scene.json / intgrid.bin / 三层 PNG / interactions.json / manifest`，包存 IDB `blobs`，索引存 kv `scene_packages`（环形 8），调试页直接显示合成图。
 - `core/interactions.js` 提供 `createInteractionRegistry / resolveInteraction / applyEffects`；`grid.js` 热点优先从 `interactions.json` 推导，`PROP_ACT` 仅作旧场景兜底。
 
-`home` / `office` 不再输出空矩形骨架；调试页「生成家 / 生成办公室 / 生成咖啡厅 / 生成书店 / 生成公园 / 生成 DSL 书房」可看到带家具的完整地图。剧情 `scene` 字段给 `{kind,name,description}`，由 `scene` prompt 生成完整场景；LLM 失败时才回退本地生成器。场景质量基线：4–6 个功能区、45–65 件家具、房间密度每 12 格至少 1 件，咖啡厅必须有吧台/座位/卫生间/储藏、3 盆绿植、3 块地毯、2 盏灯。
+`home` / `office` 不再输出空矩形骨架；调试页「生成家 / 生成办公室 / 生成咖啡厅 / 生成书店 / 生成公园 / 生成 DSL 书房」可看到带家具的完整地图。剧情 `scene` 字段给 `{kind,name,description}`，由 `scene` prompt 生成完整场景；LLM 失败时才回退本地生成器。场景质量基线按 `docs/MAP-SCENE-DESIGN.md` §3.5：封闭房间 ≤2 且对角错开、开放面积 ≥50%、zones ≥2、3×3 无空白、大件唯一、门净空 3×3、命名唯一；家具 45–65 件。
 
 ## 8. 唤醒运行时（W26）
 

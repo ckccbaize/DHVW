@@ -8,7 +8,7 @@ export function buildIntGrid(spec) {
   const W = spec.grid.w;
   const H = spec.grid.h;
   const roomOf = Array.from({ length: H }, () => Array(W).fill(null));
-  for (const r of spec.rooms) {
+  for (const r of [...(spec.rooms || []), ...(spec.zones || [])]) {
     const [x, y, w, h] = r.rect;
     for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) roomOf[yy][xx] = r.id;
   }

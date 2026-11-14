@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T09:30:51.183Z",
+ "built_at": "2026-11-14T10:00:43.735Z",
  "files": [
   {
    "path": "agent/registry.json",
-   "size": 20584,
-   "sha256": "fdabc429152e5497af09825d3d1e0ad25d281381318f63d18d4f476e1dc932f9"
+   "size": 19531,
+   "sha256": "689f22aaa08bd9d44051833e86915308e44feb642a4393e0e96b838b0ce09fcc"
   },
   {
    "path": "assets/char/ojj_sheet.json",
@@ -904,13 +904,13 @@
   },
   {
    "path": "js/forge/floorplan.js",
-   "size": 7242,
-   "sha256": "6849e32aeac8e069c29372cada773af66400c723ba284858c7d05c88e9f56203"
+   "size": 11647,
+   "sha256": "cfab99c0b7a658f9eb6d5b39fdb73662a8e88fee7ce313abc22f409c7623ff46"
   },
   {
    "path": "js/forge/furniture.js",
-   "size": 18089,
-   "sha256": "d8880fff288fa780503576b53738414bba9a6f32a0a11c57058855f86775a71e"
+   "size": 19568,
+   "sha256": "4874b1b9bf4ca9b75eb753949f417c0822b4db7650983349b725ddb246785fe6"
   },
   {
    "path": "js/forge/grammar.js",
@@ -924,8 +924,8 @@
   },
   {
    "path": "js/forge/painter.js",
-   "size": 11008,
-   "sha256": "b6a501751d16335535cc515623a1dfea32747f008b2cf534dff2abc1116825e2"
+   "size": 11044,
+   "sha256": "46e4a48fbb2a2646161584adcf9776e12ca09b02ad1e85182203d4676ec20eab"
   },
   {
    "path": "js/forge/placement.js",
@@ -934,8 +934,8 @@
   },
   {
    "path": "js/forge/scene-llm.js",
-   "size": 13572,
-   "sha256": "e75ac6d29d342a6036b559ed1a7c7692b184522d9f58eee9de6a4a6a3e68be2e"
+   "size": 17681,
+   "sha256": "3077833c8f930cddf8c29ff9785c43d0e69190e70cf790801162b81d98b33fca"
   },
   {
    "path": "js/forge/scene-spec.js",
@@ -944,8 +944,8 @@
   },
   {
    "path": "js/forge/scene.js",
-   "size": 3843,
-   "sha256": "26cacc5b03396f29523b90bab9315f5573cc8101f636773db29867e0539dc520"
+   "size": 3879,
+   "sha256": "2961bf1eebf501d8319952244cd924031625c727bdfb536d6a15afefb82b2ba7"
   },
   {
    "path": "js/forge/scenekit.js",
@@ -964,8 +964,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 39190,
-   "sha256": "ce9950fdbf95ab4ccb2be26c034496f41a8836257ff9b6ba0e3cfa3d34cb9219"
+   "size": 39799,
+   "sha256": "b763744b7b88017272a61eaf58375115477c559ca05149374cf7e3d40a33a186"
   },
   {
    "path": "js/runtime/remote.js",

@@ -53,9 +53,9 @@ test("validateLlmScene：合法完整场景", () => {
 
 test("validateLlmScene：质量基线拒绝单房间/稀疏场景", () => {
   const errors = validateLlmScene(cafeSpec());
-  assert.ok(errors.includes("rooms_too_few"));
+  assert.ok(errors.includes("zones_too_few"));
   assert.ok(errors.includes("props_too_few"));
-  assert.ok(errors.includes("cafe_rooms_too_few"));
+  assert.ok(errors.includes("open_area_too_small"));
 });
 
 test("validateLlmScene：自定义 shape 物体", () => {
