@@ -402,6 +402,32 @@ function requestIntent(reason) {
   if (pending) return;
   if (phase === "sleep" && reason !== "phase:sleep" && reason !== "debug:sleep") return;
   if (clock.minute < busyUntil) return;
+  if (phase === "sleep") {
+    const bedHot = (scene.hotspots || []).find((h) => h.act === "sleep" && !badSpots.has(`${h.x},${h.y}:${h.act}`));
+    if (!bedHot) return;
+    const bed = (scene.props || []).find((p) => p.id === "bed");
+    pending = {
+      x: bedHot.x,
+      y: bedHot.y,
+      act: "sleep",
+      room: bedHot.room || "bedroom",
+      durationMin: actDuration("sleep"),
+      bed: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1, facing: bed.facing || "S" } : null,
+    };
+    lastIntentMinute = clock.minute;
+    stats.intents += 1;
+    emit({
+      type: "intent",
+      x: pending.x,
+      y: pending.y,
+      act: pending.act,
+      room: pending.room,
+      durationMin: pending.durationMin,
+      bed: pending.bed,
+      reason,
+    });
+    return;
+  }
   const target = pickTarget();
   if (!target) return;
   pending = target;
@@ -593,8 +619,14 @@ self.onmessage = (e) => {
       break;
     }
     case "arrived": {
+      const act = msg.act || pending?.act || null;
+      // 睡觉期间只接受 sleep 行为；旧路径/用户点击到达不得把角色带出卧室
+      if (phase === "sleep" && act !== "sleep") {
+        pending = null;
+        break;
+      }
       const room = msg.room || pending?.room || currentRoom;
-      const arrivalKey = `${room}:${msg.act || pending?.act || ""}`;
+      const arrivalKey = `${room}:${act || ""}`;
       if (lastArrival.key === arrivalKey && clock.minute - lastArrival.minute < 1) {
         pending = null;
         break;
@@ -605,12 +637,6 @@ self.onmessage = (e) => {
       if (changed) {
         stats.sinceResume.rooms += 1;
         event("enter", { room });
-      }
-      const act = msg.act || pending?.act || null;
-      // 睡觉期间只接受 sleep 行为；旧路径/用户点击到达不得把角色带出卧室
-      if (phase === "sleep" && act !== "sleep") {
-        pending = null;
-        break;
       }
       const durationMin = pending?.durationMin || 10;
       const interactionDef = interactionRegistry?.acts?.[act];
