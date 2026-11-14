@@ -14,6 +14,7 @@ import { createRemoteMemory } from "./memory/remote.js";
 import { createScheduler, createIdbJobBackend, createMemoryJobBackend } from "./sched/scheduler.js";
 import { createProviderStore, maskKey, isConfigured } from "./llm/provider.js";
 import { createLlmClient } from "./llm/client.js";
+import { extractJson } from "./agent/json.js";
 import { createBudgetLedger } from "./llm/budget.js";
 import { createAgentRegistry } from "./agent/registry.js";
 import { createManagerAgent } from "./agent/manager.js";
@@ -189,13 +190,86 @@ host.on("pc:action:ack", (p) => {
   void kvBackend.put("pc_actions", pcActions);
   scheduleDigest();
 });
-host.on("scene:ready", async (p) => {
+let hostWsUrl = "";
+
+function orchestratorHttpUrl(relPath) {
+  if (!hostWsUrl) return "";
+  try {
+    const u = new URL(hostWsUrl);
+    u.protocol = u.protocol === "wss:" ? "https:" : "http:";
+    const prefix = u.pathname.startsWith("/ws/orchestrator") ? "/orchestrator" : "";
+    u.pathname = `${prefix}${relPath.startsWith("/") ? relPath : `/${relPath}`}`;
+    return u.toString();
+  } catch {
+    return "";
+  }
+}
+
+async function cacheRemoteScene(sceneId, basePath) {
+  if (!sceneId || !basePath || !hostWsUrl || typeof globalThis.caches === "undefined") return false;
+  const manifestUrl = orchestratorHttpUrl(`${basePath}/manifest.json`);
+  if (!manifestUrl) return false;
+  const mRes = await fetch(manifestUrl, { cache: "no-store" });
+  if (!mRes.ok) return false;
+  const manifest = await mRes.json();
+  const rels = new Set([
+    ...(Array.isArray(manifest.files) ? manifest.files.map((f) => f.path).filter(Boolean) : []),
+    "manifest.json",
+    `${sceneId}.built.json`,
+    `${sceneId}.png`,
+    `${sceneId}@2x.png`,
+  ]);
+  const cache = await globalThis.caches.open("dhvw-scenes-v1");
+  for (const rel of rels) {
+    const remote = orchestratorHttpUrl(`${basePath}/${rel}`);
+    if (!remote) continue;
+    const res = await fetch(remote, { cache: "no-store" });
+    if (!res.ok) return false;
+    await cache.put(`assets/scenes/${sceneId}/${rel}`, res);
+  }
+  return true;
+}
+
+async function handleSceneReady(p = {}) {
+  const sceneId = p.sceneId || p.job;
+  let cached = false;
+  if (sceneId && p.basePath) {
+    try {
+      cached = await cacheRemoteScene(sceneId, p.basePath);
+    } catch (err) {
+      log("warn", "scene:cache_failed", { sceneId, error: err?.message || String(err) });
+    }
+  }
   const item = sceneRequests.find((s) => s.id === p.id);
-  if (!item) return;
-  item.status = "ready";
-  await kvBackend.put("scene_requests", sceneRequests);
-  scheduleDigest();
-});
+  if (item) {
+    item.status = "ready";
+    if (sceneId) item.sceneId = sceneId;
+    item.cached = cached;
+    await kvBackend.put("scene_requests", sceneRequests);
+    if (item.mapSpec) {
+      let added = null;
+      for (const id of [sceneId, item.placeId, item.id].filter(Boolean)) {
+        added = places.add({
+          id,
+          name: String(p.name || item.mapSpec.name || "新场景").slice(0, 20),
+          kind: String(item.mapSpec.kind || "venue"),
+          distance: Math.max(0, Math.min(120, Number(item.mapSpec.distance) || 5)),
+        });
+        if (added.ok) {
+          await kvBackend.put("places", places.custom());
+          await appendEvent("scene:added", { id, name: added.place.name, kind: added.place.kind });
+          if (item.travel) await travelToPlace(id, "outing");
+          break;
+        }
+      }
+    }
+    scheduleDigest();
+  }
+  post("core:event", { ev: { kind: "scene_ready", id: p.id, sceneId, name: p.name, cached } });
+  return { ok: !!item, item, sceneId, cached };
+}
+
+host.on("scene:ready", (p) => handleSceneReady(p));
 
 const world = createWorldRuntime({
   log(rec) {
@@ -797,6 +871,102 @@ function outingView() {
   };
 }
 
+function mapPool() {
+  return (places ? places.list() : [])
+    .filter((p) => p.id !== HOME_ID && p.id !== "office" && p.kind !== "office")
+    .map(({ id, name, kind, distance }) => ({ id, name, kind, distance }));
+}
+
+function deepMemoryText(limit = 12) {
+  if (!localMemory) return "暂无";
+  const rank = { L3: 0, L2: 1, L1: 2 };
+  return localMemory
+    .all()
+    .filter((d) => d && d.text)
+    .sort((a, b) => (rank[a.tier] ?? 3) - (rank[b.tier] ?? 3) || (b.t || 0) - (a.t || 0))
+    .slice(0, limit)
+    .map((d) => d.text)
+    .join("\n");
+}
+
+async function decideOuting({ mood, boredom, recent }) {
+  if (!llm || !agentRegistry) return null;
+  const pool = mapPool();
+  try {
+    const prompt = agentRegistry.render("outing", {
+      current: places?.get(currentPlace)?.name || currentPlace,
+      mood: JSON.stringify(mood || {}),
+      boredom: Number(boredom || 0).toFixed(2),
+      recent: recent || "暂无",
+      memory: deepMemoryText(),
+      map_pool: JSON.stringify(pool),
+    });
+    const res = await llm.complete({
+      messages: [{ role: "user", content: prompt }],
+      maxTokens: 500,
+      temperature: 0.7,
+      json: true,
+      cls: "work",
+      kind: "outing",
+    });
+    const obj = extractJson(res.text);
+    if (!obj || typeof obj !== "object") return null;
+    if (obj.mode === "existing") {
+      const place = pool.find((p) => p.id === obj.placeId);
+      if (!place) return null;
+      return { mode: "existing", place, reason: String(obj.reason || "").slice(0, 80) };
+    }
+    if (obj.mode === "new") {
+      const kinds = new Set(["nature", "quiet", "social", "lively", "errand"]);
+      const kind = kinds.has(obj.kind) ? obj.kind : "social";
+      const name = String(obj.name || "").trim().slice(0, 20);
+      const description = String(obj.description || "").trim().slice(0, 240);
+      if (!name || !description) return null;
+      return {
+        mode: "new",
+        destination: {
+          id: `scene-${Date.now().toString(36)}`,
+          name,
+          kind,
+          distance: Math.max(3, Math.min(30, Number(obj.distance) || 6)),
+          mood: { valence: 0.06, social: kind === "social" || kind === "lively" ? 0.04 : 0 },
+        },
+        description,
+        reason: String(obj.reason || "").slice(0, 80),
+      };
+    }
+  } catch (err) {
+    log("warn", "outing_llm_failed", { error: err?.message || String(err) });
+  }
+  return null;
+}
+
+async function travelToPlace(to, reason = "travel") {
+  const plan = planTravel({ graph: places, from: currentPlace, to, minute: life.snapshot().minute });
+  if (!plan.ok) return plan;
+  const dest = places.get(to);
+  if (plan.minutes > 0) {
+    life.advance(plan.minutes);
+    patch({ life: life.snapshot() });
+    void sampleMood("plot", `去${dest?.name || to}`);
+  }
+  currentPlace = to;
+  await kvBackend.put("current_place", currentPlace);
+  await appendEvent("travel:depart", { from: plan.from, to, minutes: plan.minutes, reason });
+  await appendEvent("travel:arrive", {
+    to,
+    minute: life.snapshot().minute,
+    crossesNight: plan.crossesNight,
+    reason,
+  });
+  if (plan.crossesNight) {
+    await appendEvent("travel:cross_night", { from: plan.from, to, minutes: plan.minutes });
+  }
+  patch({ places: { current: currentPlace, count: places.list().length } });
+  scheduleDigest();
+  return { ok: true, plan, currentPlace, life: life.snapshot() };
+}
+
 async function maybeOuting({ force = false } = {}) {
   if (!force && scheduler.stats.present) return { ok: false, reason: "present" };
   const now = Date.now();
@@ -820,23 +990,36 @@ async function maybeOuting({ force = false } = {}) {
     patch({ outing: outingView() });
     return { ok: true, ...r };
   }
-  const destination = r.destination || pickDestination({ mood: snap.mood, special: r.special });
+  const recent = (eventLog ? await eventLog.latest(8).catch(() => []) : [])
+    .filter((e) => e.kind === "act" || e.kind === "plot:generated")
+    .map((e) => e.payload?.text || e.payload?.act || e.kind)
+    .slice(-6)
+    .join(" / ");
+  const decision = await decideOuting({ mood: snap.mood, boredom: r.boredom, recent });
+  const fallback = r.destination || pickDestination({ mood: snap.mood, special: r.special });
+  const mode = decision?.mode || "existing";
+  const destination = decision?.mode === "new" ? decision.destination : decision?.place || fallback;
+  const reason = decision?.reason || r.reason;
+  const moodDelta = destination.mood || { valence: 0.06 };
   outing.lastAt = now;
   outing.count += 1;
   outing.plan = {
     ts: now,
-    reason: r.reason,
+    reason,
     special: r.special,
+    mode,
     destination,
-    moodDelta: destination.mood,
+    description: decision?.description || "",
+    moodDelta,
     mapSpec: {
       kind: destination.kind,
       name: destination.name,
       distance: destination.distance,
+      description: decision?.description || "",
       seed: `${day}-${outing.count}`,
     },
   };
-  applyGuidedMood({ source: "plot", reason: `出门:${destination.name}`, deltas: destination.mood });
+  applyGuidedMood({ source: "plot", reason: `出门:${destination.name}`, deltas: moodDelta });
   patch({ life: life.snapshot(), outing: outingView() });
   scheduleSnapshot();
   await kvBackend.put("outing_state", outing);
@@ -846,19 +1029,30 @@ async function maybeOuting({ force = false } = {}) {
     kind: "outing",
     at: now,
     status: "planned",
-    payload: { destination, mapSpec: outing.plan.mapSpec, reason: outing.plan.reason },
+    payload: { destination, mode, mapSpec: outing.plan.mapSpec, reason },
   });
-  sceneRequests.unshift({
-    id: `scene-${now.toString(36)}`,
-    reason: "outing",
-    mapSpec: outing.plan.mapSpec,
-    status: "pending",
-    createdAt: now,
-  });
-  sceneRequests = sceneRequests.slice(0, 20);
-  void kvBackend.put("scene_requests", sceneRequests);
+  let travel = null;
+  let request = null;
+  if (mode === "new") {
+    request = {
+      id: `scene-${now.toString(36)}`,
+      reason: "outing",
+      mode: "new",
+      placeId: destination.id,
+      mapSpec: outing.plan.mapSpec,
+      description: outing.plan.description,
+      travel: true,
+      status: "pending",
+      createdAt: now,
+    };
+    sceneRequests.unshift(request);
+    sceneRequests = sceneRequests.slice(0, 20);
+    await kvBackend.put("scene_requests", sceneRequests);
+  } else {
+    travel = await travelToPlace(destination.id, "outing");
+  }
   scheduleDigest();
-  return { ok: true, ...r, go: true, destination };
+  return { ok: true, ...r, go: true, mode, destination, pending: mode === "new", request, travel };
 }
 
 async function refreshEventPool(count = 6) {
@@ -1129,6 +1323,7 @@ const handlers = {
       remote = null;
     }
     const hostCfg = p.config?.host || {};
+    hostWsUrl = hostCfg.wsUrl || "";
     remote = createRemoteRuntime({
       url: hostCfg.wsUrl || "",
       probeUrl: hostCfg.probeUrl || "",
@@ -1474,39 +1669,7 @@ const handlers = {
       return planTravel({ graph: places, from: p.args?.from || currentPlace, to: p.args?.to, minute: life.snapshot().minute });
     }
     if (p.name === "travel_go") {
-      const to = p.args?.to;
-      const plan = planTravel({ graph: places, from: currentPlace, to, minute: life.snapshot().minute });
-      if (!plan.ok) return plan;
-      if (plan.minutes === 0) return { ok: true, plan, currentPlace };
-      const dest = places.get(to);
-      life.advance(plan.minutes);
-      patch({ life: life.snapshot() });
-      void sampleMood("plot", `去${dest?.name || to}`);
-      currentPlace = to;
-      await kvBackend.put("current_place", currentPlace);
-      await appendEvent("travel:depart", { from: plan.from, to, minutes: plan.minutes });
-      await appendEvent("travel:arrive", {
-        to,
-        minute: life.snapshot().minute,
-        crossesNight: plan.crossesNight,
-      });
-      if (plan.crossesNight) {
-        await appendEvent("travel:cross_night", { from: plan.from, to, minutes: plan.minutes });
-      }
-      if (dest && to !== HOME_ID) {
-        sceneRequests.unshift({
-          id: `scene-travel-${Date.now().toString(36)}`,
-          reason: "travel",
-          mapSpec: { kind: dest.kind, name: dest.name, distance: dest.distance, seed: `${to}-${Date.now().toString(36)}` },
-          status: "pending",
-          createdAt: Date.now(),
-        });
-        sceneRequests = sceneRequests.slice(0, 20);
-        await kvBackend.put("scene_requests", sceneRequests);
-      }
-      patch({ places: { current: currentPlace, count: places.list().length } });
-      scheduleDigest();
-      return { ok: true, plan, currentPlace, life: life.snapshot() };
+      return await travelToPlace(p.args?.to, "travel");
     }
     if (p.name === "place_current") {
       return { ok: true, current: currentPlace, place: places.get(currentPlace) };
@@ -1631,12 +1794,7 @@ const handlers = {
       return { ok: true, agenda, scenes: sceneRequests };
     }
     if (p.name === "scene_ready") {
-      const item = sceneRequests.find((s) => s.id === p.args?.id);
-      if (!item) return { ok: false, reason: "not_found" };
-      item.status = "ready";
-      await kvBackend.put("scene_requests", sceneRequests);
-      scheduleDigest();
-      return { ok: true, scene: item };
+      return await handleSceneReady(p.args || {});
     }
     if (p.name === "outing_check") {
       return await maybeOuting();

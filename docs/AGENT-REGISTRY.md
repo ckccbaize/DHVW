@@ -108,6 +108,15 @@ createManagerAgent({ llm, registry, subAgents: { "plot-writer": (args) => plotAg
 - 设备侧裁成 960×540（cover），JPEG 质量递减到 ≤200KB，单色图直接拒绝；
 - 结果字节存 kv `bg_last`，元数据进 `health.bg`。
 
+## 6.5 出门决策（outing prompt）
+
+`agent/prompts/outing.md`：核心机判定需要出门后，把心情、无聊度、最近行为、深层记忆和**全部已有场景池**（排除 home/office）交给 LLM。输出二选一：
+
+- `{"mode":"existing","placeId":"..."}`：直接旅行到已有场景；
+- `{"mode":"new","kind":"...","name":"...","description":"...","distance":N}`：写入 `sceneRequests`，由 PC 生成后回 `scene:ready`。
+
+LLM 失败/非法输出时回退 `pickDestination`，不阻塞状态机。
+
 ## 7. 地图子 Agent（W16，废案）
 
 **2026-11-14 废案**：ARM 侧地图生成已移除。设备不再生成户型、摆放家具、烘焙地图或打包场景；`core/agent/subs/map.js`、`scene-agent.js`、`scene-detail-agent.js`、`forge/` 地图生成模块与相关 prompt/测试已删除；`forge/grammar.js` 剧情文法保留。

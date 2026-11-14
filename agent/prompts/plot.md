@@ -8,6 +8,7 @@
 最近行为：{{behaviors}}
 最近几天（避免重复）：{{history}}
 地图资源：{{map}}
+地图池（已有场景）：{{map_pool}}
 
 为第二天生成一个完整的生活计划，并决定是否发生突发状况。只输出 JSON：
 {"text":"小记","event":"事件短语","place":"living|hall|bedroom|bath|balcony|kitchen","act":"read|cook|write|rest|watch|bath|sleep|sit","mood":{"valence":0.05,"energy":-0.02,"social":0.0,"focus":0.0},"sleepAt":"22:30","wakeAt":"07:10","desires":["..."],"behaviors":[{"time":"08:30","act":"read","place":"living","why":"..."}],"sudden":{"enabled":false,"time":"15:00","text":""}}

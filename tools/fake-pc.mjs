@@ -174,6 +174,10 @@ const llm = http.createServer((req, res) => {
         })
       : body.includes("diagnosis") && body.includes("safeMode")
       ? JSON.stringify({ diagnosis: "本地记忆为空，先保存快照", actions: [{ type: "snapshot_save" }], safeMode: false })
+      : body.includes("已有场景池") && body.includes("探索一个从未去过的新地方")
+      ? JSON.stringify({ mode: "new", kind: "lively", name: "旧码头夜市", description: "河边旧码头改的夜市，摊位挂着暖灯，风里有烤鱼味", distance: 9, reason: "记忆里一直想去没去过的地方" })
+      : body.includes("已有场景池")
+      ? JSON.stringify({ mode: "existing", placeId: "cafe", reason: "想去熟悉的咖啡馆坐一会儿" })
       : body.includes("可用家具") && body.includes("只输出 JSON")
       ? JSON.stringify({
           props: [

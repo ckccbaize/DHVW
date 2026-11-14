@@ -177,6 +177,7 @@ test("run：真实注册表变量齐全（character-wake / plot）", async () =>
     behaviors: "暂无",
     history: "[]",
     map: "房间：living",
+    map_pool: "[]",
   });
   assert.equal(out.ok, true, JSON.stringify(out));
   assert.equal(out.tasks.length, 2);

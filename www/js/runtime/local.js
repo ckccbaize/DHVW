@@ -9,6 +9,7 @@ import { createLocalMemory } from "../core/memory/local.js";
 import { createMemoryPipeline } from "../core/memory/pipeline.js";
 import { extractJson } from "../core/agent/json.js";
 import { describeMood, moodTone } from "../core/mood/describe.js";
+import { DESTINATIONS } from "../core/life/outing.js";
 import { createBrowsePlanner } from "../core/actions/browse.js";
 import { normalizeBehaviors, roomForAct, createActRoomMap } from "../core/life/plan.js";
 
@@ -419,6 +420,12 @@ export function createLocalRuntime({
     return fallback;
   }
 
+  async function mapPoolText() {
+    const custom = (await backend.getKV("places")) || [];
+    const pool = [...DESTINATIONS, ...custom].filter((p) => p.id !== "home" && p.id !== "office" && p.kind !== "office");
+    return JSON.stringify(pool.map(({ id, name, kind, distance }) => ({ id, name, kind, distance })));
+  }
+
   function mapSummary() {
     const rooms = (scene.rooms || []).map((r) => `${r.id}:${r.name || ""}`).join("、");
     const props = (scene.props || []).map((p) => p.id).slice(0, 40).join("、");
@@ -483,6 +490,7 @@ export function createLocalRuntime({
           .map((d) => ({ day: d.forDay, text: d.text, behaviors: (d.behaviors || []).map((b) => b.act) })),
       ),
       map: mapSummary(),
+      map_pool: await mapPoolText(),
     });
     const t0 = now();
     try {

@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T11:49:07.652Z",
+ "built_at": "2026-11-14T12:53:00.038Z",
  "files": [
   {
    "path": "agent/registry.json",
-   "size": 11465,
-   "sha256": "013e7be9f8921ed03ecb199096295ddc5ac16fd8233e2a2ec3202b1a91083e8f"
+   "size": 12465,
+   "sha256": "f5321d2ee3cf5dbd7b12873442fdee3930dfa3a62a7b618bd67a904d2b74172b"
   },
   {
    "path": "assets/char/ojj_sheet.json",
@@ -874,8 +874,8 @@
   },
   {
    "path": "js/core/worker.js",
-   "size": 66710,
-   "sha256": "4c08f74c9d9c1e3477981c48b3373269de517280f760c4472574e1cd7d132dd1"
+   "size": 72089,
+   "sha256": "af4861c06735a2f43c01d8847ef82c9ce7602d23120d9536c367b571d40f3abb"
   },
   {
    "path": "js/forge/grammar.js",
@@ -884,8 +884,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 33903,
-   "sha256": "b1dfbfd4a65b1b4cac76b172ade12503697eb3b62500686dd99ecddee0288408"
+   "size": 34316,
+   "sha256": "8729dc847e156ac305bb0415504c29a7b7d53797a850ea21f4b2f1329c8ffc80"
   },
   {
    "path": "js/runtime/remote.js",
