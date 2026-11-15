@@ -234,7 +234,28 @@ async function boot() {
   let overview = createOverview({ canvas: $("#scene"), scene, store });
   let awayPlace = null;
   let awayAct = null;
+  let placeToken = 0;
+  let queuedHomeIntent = null;
   let homePos = null;
+  const EXTERNAL_ACT_ALIASES = {
+    read: ["read_here", "browse_stacks", "skim_periodicals"],
+    read_here: ["read", "browse_stacks"],
+    sit: ["sit_chair", "sit_window", "rest_armchair"],
+    rest: ["rest_armchair", "sit_chair"],
+    write: ["long_table_work", "study_session"],
+    study: ["study_session", "long_table_work"],
+    browse: ["browse_stacks", "skim_periodicals"],
+  };
+  function externalHotspot(nextScene, act) {
+    const hotspots = nextScene.hotspots || [];
+    const exact = hotspots.find((h) => h.act === act);
+    if (exact) return exact;
+    for (const alias of EXTERNAL_ACT_ALIASES[act] || []) {
+      const hit = hotspots.find((h) => h.act === alias);
+      if (hit) return hit;
+    }
+    return null;
+  }
   const officeSprites = buildOfficeSprites(outerScene);
   const outerOverview = createOverview({
     canvas: $("#sceneOuter"),
@@ -294,6 +315,7 @@ async function boot() {
       if (ev.kind === "travel" && ev.payload?.to) {
         awayPlace = ev.payload.to;
         awayAct = ev.payload.act || null;
+        queuedHomeIntent = null;
         void enterPlace(awayPlace, awayAct);
       } else if (ev.kind === "return") {
         void returnHome();
@@ -788,10 +810,13 @@ async function boot() {
   async function enterPlace(name, act = null) {
     if (!name || name === (scene.name || scene.id)) return;
     if (!homePos) homePos = { gx: agent.gx, gy: agent.gy, px: agent.px, py: agent.py, dir: { ...agent.dir } };
+    const token = ++placeToken;
     try {
       const next = await loadScene(name);
+      if (token !== placeToken || awayPlace !== name) return;
       const nextOverview = createOverview({ canvas: $("#scene"), scene: next, store });
       await nextOverview.load();
+      if (token !== placeToken || awayPlace !== name) return;
       scene = next;
       overview = nextOverview;
       const [x, y] = spawnPoint(next);
@@ -805,7 +830,7 @@ async function boot() {
       if (window.__dhvw) window.__dhvw.scene = scene;
       // 外部场景也要执行计划里的动作：进门后走到对应热点，而不是只停在出生点。
       if (act) {
-        const hot = (scene.hotspots || []).find((h) => h.act === act);
+        const hot = externalHotspot(scene, act);
         if (hot) {
           const path = bfsPath(scene.grid, agent.gx, agent.gy, hot.x, hot.y);
           if (path && path.length) {
@@ -819,6 +844,7 @@ async function boot() {
         }
       }
     } catch (err) {
+      if (token !== placeToken) return;
       console.warn("[scene] 进入失败", name, err);
       const queued = await local.requestScene(name, "travel").catch(() => ({ ok: false }));
       // 场景还没生成：保留 awayPlace，等 scene:ready 后自动进入；否则回退到总观。
@@ -837,10 +863,12 @@ async function boot() {
   async function returnHome() {
     if (!awayPlace && scene === homeScene) return;
     const name = homeScene.name || homeScene.id || "home";
+    const token = ++placeToken;
     try {
       if (scene !== homeScene) {
         const nextOverview = createOverview({ canvas: $("#scene"), scene: homeScene, store });
         await nextOverview.load();
+        if (token !== placeToken) return;
         scene = homeScene;
         overview = nextOverview;
       }
@@ -857,17 +885,29 @@ async function boot() {
       pendingArrival = null;
       store.patch({ scene: name });
       if (window.__dhvw) window.__dhvw.scene = scene;
+      if (queuedHomeIntent) {
+        const intent = queuedHomeIntent;
+        queuedHomeIntent = null;
+        handleIntent(intent);
+      }
     } catch (err) {
       console.warn("[scene] 返回失败", name, err);
     } finally {
-      awayPlace = null;
-      awayAct = null;
-      homePos = null;
+      if (token === placeToken) {
+        awayPlace = null;
+        awayAct = null;
+        homePos = null;
+      }
     }
   }
 
-  function handleIntent({ x, y, act, room }) {
-    if (awayPlace) return;
+  function handleIntent(intent) {
+    // 返回 home 的收尾是异步的：场景已经切回 home 时，不能再把计划意图丢掉。
+    if (awayPlace && scene !== homeScene) {
+      queuedHomeIntent = intent;
+      return;
+    }
+    const { x, y, act, room } = intent;
     lastLocalMotionAt = performance.now();
     const path = bfsPath(scene.grid, agent.gx, agent.gy, x, y);
     if (path === null) {
