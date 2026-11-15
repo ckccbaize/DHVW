@@ -70,7 +70,7 @@ arm/
 ├─ www/                         资源包（部署到 /opt/dhvw/www）
 │   ├─ index.html               总观 + 显现同页（两态互斥渲染）
 │   ├─ manifest.json            资源包清单（sha256 + size），部署校验基准
-│   ├─ config.json              主机地址/心跳/配额（设备侧唯一配置入口）
+│   ├─ config.json              主机地址/心跳/配额（设备侧唯一配置入口；`?host=` 首次会写入 localStorage `dhvw_host`，kiosk 无 query 时续连）
 │   ├─ css/app.css
 │   ├─ js/
 │   │   ├─ app.js               启动、模式控制、装配

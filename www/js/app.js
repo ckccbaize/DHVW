@@ -30,6 +30,29 @@ const DEFAULTS = {
 };
 
 const $ = (sel) => document.querySelector(sel);
+const HOST_KEY = "dhvw_host";
+
+/** 从 WS 地址推导 HTTP 探活地址：网关走 /orchestrator/health，直连走 /health。 */
+function probeUrlFor(wsUrl) {
+  try {
+    const u = new URL(wsUrl);
+    u.protocol = u.protocol === "wss:" ? "https:" : "http:";
+    u.pathname = u.pathname.startsWith("/ws/orchestrator") ? "/orchestrator/health" : "/health";
+    return u.toString();
+  } catch {
+    return "";
+  }
+}
+
+function readSavedHost() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(HOST_KEY) || "null");
+    if (saved && typeof saved.wsUrl === "string" && saved.wsUrl) return saved;
+  } catch {
+    /* 旧数据损坏时忽略 */
+  }
+  return null;
+}
 
 async function loadConfig() {
   try {
@@ -38,7 +61,16 @@ async function loadConfig() {
     const raw = await res.json();
     const hostParam = new URLSearchParams(location.search).get("host");
     if (hostParam) {
-      raw.host = { ...(raw.host || {}), wsUrl: hostParam, probeUrl: hostParam.replace(/^ws/, "http").replace(/\/dhvw$/, "/health") };
+      raw.host = { ...(raw.host || {}), wsUrl: hostParam, probeUrl: probeUrlFor(hostParam) };
+      try {
+        localStorage.setItem(HOST_KEY, JSON.stringify(raw.host));
+      } catch {
+        /* 隐私模式/配额满时只影响本次连接 */
+      }
+    } else if (!raw.host?.wsUrl) {
+      // kiosk 固定打开 127.0.0.1:8080，不带 ?host=；用上次配对地址续连。
+      const savedHost = readSavedHost();
+      if (savedHost) raw.host = { ...(raw.host || {}), ...savedHost, probeUrl: savedHost.probeUrl || probeUrlFor(savedHost.wsUrl) };
     }
     let saved = null;
     try {
