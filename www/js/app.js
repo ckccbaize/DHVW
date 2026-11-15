@@ -16,6 +16,7 @@ import { createSwitch, createSwitchSource } from "./view/switch.js";
 import { loadScene } from "./view/scene-loader.js";
 import { createPerfOverlay } from "./view/perf-overlay.js";
 import { normalizePresentUrl, probePresent } from "./view/present-host.js";
+import { createBlockTransition } from "./view/transition.js";
 
 const DEFAULTS = {
   host: { wsUrl: "", probeUrl: "", ttsUrl: "" },
@@ -185,6 +186,14 @@ async function boot() {
 
   store.patch({ sceneCount: await countScenePackages() });
   const root = $("#app");
+  const transition = createBlockTransition({
+    root: $("#blockTransition"),
+    canvas: $("#blockTransitionCanvas"),
+    label: $("#blockTransitionLabel"),
+  });
+  let presentOpening = false;
+  let presentCancelled = false;
+  let presentExiting = false;
   let overview = createOverview({ canvas: $("#scene"), scene, store });
   let awayPlace = null;
   let homePos = null;
@@ -271,10 +280,14 @@ async function boot() {
 
   function onSwitchRequest(next) {
     if (!next) {
-      if (store.state.display === "present") exitPresent("switch");
+      if (presentOpening) {
+        presentCancelled = true;
+        return true;
+      }
+      if (store.state.display === "present") void exitPresent("switch");
       return true;
     }
-    if (store.state.display === "present") return true;
+    if (store.state.display === "present" || presentOpening) return true;
     // 闸门 1（硬）：主机可达。不可达一律不进入，只出气泡（A15）
     if (store.state.conn !== "up") {
       refusePresent();
@@ -308,40 +321,123 @@ async function boot() {
     return url;
   }
 
-  async function openPresent() {
-    if (store.state.display === "present") return;
-    const tts = await probeTts();
-    const bg = await bestBackground();
-    const presentUrl = normalizePresentUrl(cfg.present?.url || cfg.host?.presentUrl || "");
-    if (presentUrl) {
-      const probe = await probePresent(presentUrl);
-      if (!probe.ok) {
-        overview.say("显现页不可用，先留在总观", 3000);
-        return;
+  async function waitForPresentReady(presentUrl, maxWaitMs = 45000) {
+    const start = Date.now();
+    let updatedHint = false;
+    while (!presentCancelled && store.state.conn === "up") {
+      const probe = await probePresent(presentUrl, { timeoutMs: 2000 });
+      if (probe.ok) return probe;
+      const elapsed = Date.now() - start;
+      if (elapsed >= maxWaitMs) return probe;
+      if (!updatedHint && elapsed >= 3000) {
+        updatedHint = true;
+        transition.setText("正在等待 OLVT 引擎就绪…");
       }
+      await new Promise((r) => setTimeout(r, 800));
     }
-    local.suspend();
-    remote.send({ type: "world:stop" });
-    remote.send({ type: "present:request", payload: { t: Date.now() } });
-    present.open({ backgroundUrl: bg, iframeUrl: presentUrl || "", live2d: false, tts });
-    store.patch({ display: "present" });
-    displayChangedAt = performance.now();
-    presentOpenedAt = displayChangedAt;
-    store.emit("state", { display: "present", reason: "open" });
+    return { ok: false, reason: presentCancelled ? "cancelled" : "host_lost" };
   }
 
-  function exitPresent(reason) {
-    if (store.state.display !== "present") return;
-    present.close();
-    store.patch({ display: "overview" });
-    displayChangedAt = performance.now();
-    presentOpenedAt = 0;
-    local.resume();
-    if (store.state.tier === "edge") local.setTier("edge");
-    remote.send({ type: "world:resume" });
-    if (reason === "host_lost") overview.say("主机断开了，我先回去", 3000);
-    if (reason === "iframe_timeout" || reason === "iframe_error") overview.say("显现页加载失败，先回总观", 3000);
-    store.emit("state", { display: "overview", reason });
+  async function openPresent() {
+    if (store.state.display === "present" || presentOpening) return;
+    presentOpening = true;
+    presentCancelled = false;
+    try {
+      const coverPromise = transition.cover("正在唤醒显现服务…", 420);
+      remote.send({ type: "world:stop" });
+      remote.send({ type: "present:request", payload: { t: Date.now() } });
+
+      const presentUrl = normalizePresentUrl(cfg.present?.url || cfg.host?.presentUrl || "");
+      const [tts, bg] = await Promise.all([probeTts(), bestBackground(), coverPromise]);
+      if (presentCancelled || store.state.conn !== "up") {
+        remote.send({ type: "world:resume" });
+        await transition.reveal(320);
+        if (store.state.conn !== "up") overview.say("主机断开了，先留在总观", 3000);
+        return;
+      }
+
+      if (presentUrl) {
+        const probe = await waitForPresentReady(presentUrl, 45000);
+        if (presentCancelled) {
+          remote.send({ type: "world:resume" });
+          await transition.reveal(320);
+          return;
+        }
+        if (!probe.ok) {
+          remote.send({ type: "world:resume" });
+          await transition.reveal(320);
+          overview.say(store.state.conn !== "up" ? "主机断开了，先留在总观" : "显现服务启动超时，先留在总观", 3000);
+          return;
+        }
+      }
+
+      transition.setText("正在加载显现面板…");
+      local.suspend();
+      await new Promise((resolve) => {
+        let settled = false;
+        const done = () => {
+          if (settled) return;
+          settled = true;
+          resolve();
+        };
+        const guard = setTimeout(done, 12000);
+        present.open({
+          backgroundUrl: bg,
+          iframeUrl: presentUrl || "",
+          live2d: false,
+          tts,
+          timeoutMs: 20000,
+          onReady: () => {
+            clearTimeout(guard);
+            done();
+          },
+        });
+      });
+      if (presentCancelled) {
+        present.close();
+        local.resume();
+        remote.send({ type: "world:resume" });
+        await transition.reveal(320);
+        return;
+      }
+      store.patch({ display: "present" });
+      displayChangedAt = performance.now();
+      presentOpenedAt = displayChangedAt;
+      store.emit("state", { display: "present", reason: "open" });
+      await transition.reveal(400);
+    } finally {
+      presentOpening = false;
+    }
+  }
+
+  async function exitPresent(reason) {
+    if (presentOpening) {
+      presentCancelled = true;
+      return;
+    }
+    if (store.state.display !== "present" || presentExiting) return;
+    presentExiting = true;
+    try {
+      const isError = reason === "host_lost" || reason === "iframe_timeout" || reason === "iframe_error" || reason === "deny";
+      if (isError) {
+        transition.abort();
+      } else {
+        await transition.cover("正在返回总观…", 320);
+      }
+      present.close();
+      store.patch({ display: "overview" });
+      displayChangedAt = performance.now();
+      presentOpenedAt = 0;
+      local.resume();
+      if (store.state.tier === "edge") local.setTier("edge");
+      remote.send({ type: "world:resume" });
+      if (reason === "host_lost") overview.say("主机断开了，我先回去", 3000);
+      if (reason === "iframe_timeout" || reason === "iframe_error") overview.say("显现页加载失败，先回总观", 3000);
+      store.emit("state", { display: "overview", reason });
+      if (!isError) await transition.reveal(360);
+    } finally {
+      presentExiting = false;
+    }
   }
 
   // ---------- 世界档位 ----------
@@ -558,7 +654,7 @@ async function boot() {
       }
       case "display:set": {
         if (p.state === "present") void onSwitchRequest(true);
-        else if (p.state === "overview") exitPresent("pc");
+        else if (p.state === "overview") void onSwitchRequest(false);
         break;
       }
       case "present:grant": {

@@ -13,6 +13,7 @@ export function createPresent({ root, store, onExit }) {
   let iframeUrl = "";
   let iframeLoaded = false;
   let loadTimer = null;
+  let pendingReady = null;
 
   function clearLoadTimer() {
     if (loadTimer) clearTimeout(loadTimer);
@@ -21,6 +22,7 @@ export function createPresent({ root, store, onExit }) {
 
   function fail(reason) {
     clearLoadTimer();
+    pendingReady = null;
     if (onExit) onExit(reason);
   }
 
@@ -29,6 +31,9 @@ export function createPresent({ root, store, onExit }) {
       if (!iframeUrl) return;
       iframeLoaded = true;
       clearLoadTimer();
+      const cb = pendingReady;
+      pendingReady = null;
+      if (cb) cb();
     });
     frame.addEventListener("error", () => {
       if (iframeUrl) fail("iframe_error");
@@ -53,7 +58,7 @@ export function createPresent({ root, store, onExit }) {
     get idleMs() {
       return lastInteract ? performance.now() - lastInteract : 0;
     },
-    open({ backgroundUrl = null, iframeUrl: nextUrl = "", live2d = false, tts = false } = {}) {
+    open({ backgroundUrl = null, iframeUrl: nextUrl = "", live2d = false, tts = false, onReady = null, timeoutMs = 20000 } = {}) {
       root.hidden = false;
       openedAt = performance.now();
       lastInteract = openedAt;
@@ -62,18 +67,26 @@ export function createPresent({ root, store, onExit }) {
         if (nextUrl !== iframeUrl) {
           iframeUrl = nextUrl;
           iframeLoaded = false;
+          pendingReady = onReady;
           frame.src = nextUrl;
           frame.hidden = false;
           root.classList.add("iframe-mode");
           clearLoadTimer();
           loadTimer = setTimeout(() => {
             if (!iframeLoaded) fail("iframe_timeout");
-          }, 8000);
+          }, timeoutMs);
+        } else if (iframeLoaded && onReady) {
+          onReady();
+        } else {
+          pendingReady = onReady;
         }
         return;
       }
 
-      if (iframeUrl) return; // 已在 iframe 模式，忽略背景更新
+      if (iframeUrl) {
+        if (onReady) onReady();
+        return; // 已在 iframe 模式，忽略背景更新
+      }
       setBackground(backgroundUrl);
       name.textContent = "她";
       subtitle.textContent = "";
@@ -83,9 +96,11 @@ export function createPresent({ root, store, onExit }) {
           ? ""
           : "语音未就绪，先文字聊"
         : "Live2D 资源未就绪 · 静态立绘模式";
+      if (onReady) onReady();
     },
     close() {
       clearLoadTimer();
+      pendingReady = null;
       iframeUrl = "";
       iframeLoaded = false;
       if (frame) {
