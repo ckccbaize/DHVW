@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-15T10:38:02.301Z",
+ "built_at": "2026-11-15T10:52:18.305Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -869,8 +869,8 @@
   },
   {
    "path": "js/core/life/plan.js",
-   "size": 2613,
-   "sha256": "02de417807f11859dc9d07f558dbf7b4bafa7e5366135950c666ebd91cd8b1e2"
+   "size": 3634,
+   "sha256": "af929a7fb19a8c3ce560b16a2c5977ebd34e9863ee01a281aa0ec610914c9d87"
   },
   {
    "path": "js/core/lifestore.js",
@@ -1079,8 +1079,8 @@
   },
   {
    "path": "workers/life.worker.js",
-   "size": 28880,
-   "sha256": "cc50109d8a9a82a784aa19d8df91141d5cc97dafc0662cf4b72373e0ed99882b"
+   "size": 28848,
+   "sha256": "52e50ba1fc1d504096c28844b8260f5629637855e027ab8dcfc6556f6c6efe6a"
   }
  ]
 }

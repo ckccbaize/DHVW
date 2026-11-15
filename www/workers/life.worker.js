@@ -7,7 +7,7 @@ import { pickLine as pickLineCore, tickInterval } from "../js/core/life/lines.js
 import { weatherAt } from "../js/core/weather.js";
 import { describeMood, moodTone } from "../js/core/mood/describe.js";
 import { pickDuration } from "../js/core/life/acts.js";
-import { ACT_PROPS } from "../js/core/life/plan.js";
+import { ACT_PROPS, chooseHotspot } from "../js/core/life/plan.js";
 import { applyEffects, createInteractionRegistry, resolveInteraction } from "../js/core/interactions.js";
 
 const cfg = {
@@ -189,16 +189,12 @@ function actDuration(act) {
   return Number.isFinite(d) ? Math.max(1, d) : pickDuration(act);
 }
 
-function spotsForAct(act, room) {
-  const props = actProps(act);
-  return (scene.hotspots || []).filter(
-    (h) => (!room || h.room === room) && (h.act === act || props.includes(h.prop)),
-  );
-}
-
 function pickSpotForAct(act, room) {
-  const pool = spotsForAct(act, room);
-  return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+  return chooseHotspot(scene.hotspots || [], act, {
+    room,
+    props: actProps(act),
+    blocked: badSpots,
+  });
 }
 
 function pickTarget() {
@@ -230,18 +226,22 @@ function pickTarget() {
   // 剧情安排的动作优先（必须找到对应热点）
   if (plan && plan.day === clock.day && plan.act) {
     const props = actProps(plan.act);
-    const exact = (scene.hotspots || []).filter((x) => (!plan.place || x.room === plan.place) && (x.act === plan.act || props.includes(x.prop)));
-    if (exact.length) {
-      const p = exact[Math.floor(Math.random() * exact.length)];
-      return { x: p.x, y: p.y, act: plan.act, room: p.room || room, durationMin: actDuration(plan.act) };
+    const chosen = chooseHotspot(scene.hotspots || [], plan.act, {
+      room: plan.place,
+      props,
+      blocked: badSpots,
+    });
+    if (chosen) {
+      const p = chosen.hot;
+      return { x: p.x, y: p.y, act: chosen.act, room: p.room || room, durationMin: actDuration(chosen.act) };
     }
   }
   // 晚上偶尔写作：必须找到可写热点，且当天没写过
   if ((phase === "evening" || phase === "night") && !recentActs.includes("write") && Math.random() < 0.06) {
     const spot = pickSpotForAct("write");
     if (spot) {
-      h = spot;
-      act = "write";
+      h = spot.hot;
+      act = spot.act;
     }
   }
   // 心情偏置：只改到有对应热点的位置
@@ -249,8 +249,8 @@ function pickTarget() {
     if (Math.random() >= chance) return;
     const spot = pickSpotForAct(next);
     if (spot) {
-      h = spot;
-      act = next;
+      h = spot.hot;
+      act = spot.act;
     }
   };
   if (mood.energy < -0.25) bias("rest", 0.4);
@@ -378,15 +378,21 @@ function planIntent(act, place, reason, opts = {}) {
   }
   pending = null;
   busyUntil = clock.minute;
-  const props = actProps(act);
   const room = place || currentRoom;
-  const pool = (scene.hotspots || []).filter((h) => h.room === room && (h.act === act || props.includes(h.prop)));
-  if (!pool.length) {
+  const chosen = opts.hotspot
+    ? { hot: opts.hotspot, act: opts.hotspot.act || act }
+    : chooseHotspot(scene.hotspots || [], act, {
+        room,
+        props: actProps(act),
+        blocked: badSpots,
+      });
+  if (!chosen) {
     event("plan_skipped", { act, place: room, reason: "no_hotspot" });
     return;
   }
-  const h = pool[Math.floor(Math.random() * pool.length)];
-  const t = { x: h.x, y: h.y, act, room: h.room || place || currentRoom, durationMin: actDuration(act) };
+  const h = chosen.hot;
+  const targetAct = chosen.act || act;
+  const t = { x: h.x, y: h.y, act: targetAct, room: h.room || place || currentRoom, durationMin: actDuration(targetAct) };
   pending = t;
   lastIntentMinute = clock.minute;
   stats.intents += 1;
@@ -397,13 +403,17 @@ function debugIntent(act) {
   if (phase === "sleep" && act !== "sleep") return;
   pending = null;
   busyUntil = clock.minute;
-  const props = actProps(act);
-  const exact = (scene.hotspots || []).filter((h) => (h.act === act || props.includes(h.prop)) && !badSpots.has(`${h.x},${h.y}:${h.act}`));
-  const target = exact.length
-    ? exact[Math.floor(Math.random() * exact.length)]
-    : pickTarget();
-  if (!target) return;
-  const t = { x: target.x, y: target.y, act, room: target.room || currentRoom, durationMin: actDuration(act) };
+  const chosen = chooseHotspot(scene.hotspots || [], act, {
+    props: actProps(act),
+    blocked: badSpots,
+  });
+  if (!chosen) {
+    event("plan_skipped", { act, place: currentRoom, reason: "no_hotspot" });
+    return;
+  }
+  const target = chosen.hot;
+  const targetAct = chosen.act || act;
+  const t = { x: target.x, y: target.y, act: targetAct, room: target.room || currentRoom, durationMin: actDuration(targetAct) };
   pending = t;
   lastIntentMinute = clock.minute;
   stats.intents += 1;
@@ -701,7 +711,9 @@ self.onmessage = (e) => {
       if (recentSpots.length > 6) recentSpots.shift();
       pending = null;
       if (phase !== "sleep" && activity !== "asleep") {
-        const text = (interactionDef?.bubble && String(interactionDef.bubble).trim()) || pickLineCore({
+        const text = (interactionDef?.bubble && String(interactionDef.bubble).trim())
+          || (interactionDef?.label ? `${interactionDef.label}。` : "")
+          || pickLineCore({
           phase,
           weather,
           act,

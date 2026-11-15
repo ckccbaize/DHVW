@@ -20,6 +20,29 @@ export const ACT_PROPS = Object.freeze({
   sleep: ["bed"],
 });
 
+/**
+ * 选热点：优先 act 完全一致的热点；没有时才按道具回退。
+ * 回退时必须返回热点自己的 act，调用方不能用请求的 act 覆盖，
+ * 否则会出现“人在桌边、气泡却在吃饭”的错位。
+ */
+export function chooseHotspot(hotspots = [], act, { room = null, props = null, blocked = null, random = Math.random } = {}) {
+  const wanted = props || ACT_PROPS[act] || [];
+  const usable = hotspots.filter((h) => {
+    if (!h || (room && h.room !== room)) return false;
+    if (blocked && blocked.has(`${h.x},${h.y}:${h.act}`)) return false;
+    return true;
+  });
+  const exact = usable.filter((h) => h.act === act);
+  if (exact.length) {
+    const hot = exact[Math.floor(random() * exact.length) % exact.length];
+    return { hot, act: hot.act };
+  }
+  const fallback = usable.filter((h) => wanted.includes(h.prop));
+  if (!fallback.length) return null;
+  const hot = fallback[Math.floor(random() * fallback.length) % fallback.length];
+  return { hot, act: hot.act };
+}
+
 export function createActRoomMap(hotspots = []) {
   const map = new Map();
   for (const h of hotspots) {

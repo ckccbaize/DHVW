@@ -17,6 +17,7 @@ import { createRingBuffer } from "../www/js/core/ringbuffer.js";
 import { pickAsset, selectEvictions, totalSize } from "../www/js/core/assetstore.js";
 import { createStore } from "../www/js/core/lifestore.js";
 import { lightFor } from "../www/js/core/light.js";
+import { chooseHotspot } from "../www/js/core/life/plan.js";
 
 const GRID = parseIntGrid([
   "11111",
@@ -156,6 +157,22 @@ test("placeAt：切场景落点与朝向", () => {
   assert.deepEqual(agent.dir, { x: 0, y: -1 });
   assert.equal(agent.path.length, 0);
   assert.equal(walkFrame(agent), 0);
+});
+
+test("chooseHotspot：优先同动作，回退不冒充请求动作", () => {
+  const hotspots = [
+    { x: 1, y: 1, prop: "table", act: "eat", room: "hall" },
+    { x: 2, y: 2, prop: "table", act: "meet", room: "hall" },
+    { x: 3, y: 3, prop: "sofa", act: "sit_sofa", room: "living" },
+  ];
+  const exact = chooseHotspot(hotspots, "eat", { room: "hall", random: () => 0 });
+  assert.equal(exact.act, "eat");
+  assert.equal(exact.hot.prop, "table");
+  const fallback = chooseHotspot(hotspots, "write", { room: "hall", props: ["table"], random: () => 0 });
+  assert.equal(fallback.act, "eat");
+  assert.equal(fallback.hot.x, 1);
+  assert.equal(chooseHotspot(hotspots, "write", { room: "living", props: ["table"] }), null);
+  assert.equal(chooseHotspot(hotspots, "eat", { room: "hall", blocked: new Set(["1,1:eat"]) }).act, "meet");
 });
 
 test("Clock：跨天推进与时段划分", () => {
