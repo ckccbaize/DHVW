@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-15T13:09:56.896Z",
+ "built_at": "2026-11-15T13:11:08.495Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -1069,8 +1069,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 51175,
-   "sha256": "5b77f8fc9b47aba7b92bed4d845ccc1e7872cb2dd3045c1a5935dd98c5ef9044"
+   "size": 51647,
+   "sha256": "a242a9c8ee8e50d0705e8ec999cb8f4b416eb905024ecfb6c7ba907cc1634f4f"
   },
   {
    "path": "js/runtime/remote.js",
