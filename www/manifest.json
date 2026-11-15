@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-15T13:30:00.237Z",
+ "built_at": "2026-11-15T13:31:35.125Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -1084,8 +1084,8 @@
   },
   {
    "path": "js/view/overview.js",
-   "size": 11918,
-   "sha256": "e22c16a6de095e44948c5ecc0c546cf4bc24eb55765bbaddfdbf48c6637763fe"
+   "size": 12431,
+   "sha256": "dd7fb7fb3787bdd53b73209fa74e8fdb8d0c12ca46651ba744cc97dc6eb06781"
   },
   {
    "path": "js/view/perf-overlay.js",
@@ -1104,8 +1104,8 @@
   },
   {
    "path": "js/view/scene-loader.js",
-   "size": 1003,
-   "sha256": "a8e8c91241ac200832a7fb0e31477f772d49e0ef22b404549c9cd60775e43ef5"
+   "size": 1386,
+   "sha256": "e05f5f8f1e33d4a62339f5d37951bd9d0dcd7cec56dd355aecff130fe1da81f4"
   },
   {
    "path": "js/view/switch.js",

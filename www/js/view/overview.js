@@ -49,10 +49,25 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
   let fps = 0;
 
   async function loadImage(url) {
+    let src = url;
+    let objectUrl = "";
+    if (typeof caches !== "undefined" && typeof location !== "undefined") {
+      try {
+        const cache = await caches.open("dhvw-scenes-v1");
+        const hit = await cache.match(new URL(url, location.href).href);
+        if (hit) {
+          objectUrl = URL.createObjectURL(await hit.blob());
+          src = objectUrl;
+        }
+      } catch {
+        /* Cache API 不可用时直接走网络 */
+      }
+    }
     const img = new Image();
     img.decoding = "async";
-    img.src = url;
+    img.src = src;
     await img.decode();
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
     return img;
   }
 
