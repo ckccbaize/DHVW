@@ -39,7 +39,8 @@ export function createHud({ root, store }) {
     }
 
     const a = state.assets || { scene: 0, plot: 0, bg: 0 };
-    assetEl.textContent = `场景 ${a.scene} / 剧情 ${a.plot} / 背景 ${a.bg}`;
+    const scenes = Number.isFinite(state.sceneCount) ? state.sceneCount : a.scene;
+    assetEl.textContent = `场景 ${scenes} / 剧情 ${a.plot} / 背景 ${a.bg}`;
   }
 
   function setFps(fps) {

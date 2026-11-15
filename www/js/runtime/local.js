@@ -1144,7 +1144,8 @@ export function createLocalRuntime({
       const id = String(place.id || "").trim();
       if (!id) return { ok: false, error: "缺 id" };
       const custom = (await backend.getKV("places")) || [];
-      if (!custom.some((p) => p.id === id)) {
+      const exists = custom.some((p) => p.id === id);
+      if (!exists) {
         custom.push({
           id,
           name: String(place.name || id).slice(0, 20),
@@ -1154,7 +1155,7 @@ export function createLocalRuntime({
         });
         await backend.setKV("places", custom);
       }
-      return { ok: true, id };
+      return { ok: true, id, added: !exists };
     },
     async buildDigest(extra = {}) {
       const snap = lastSnapshot || {};

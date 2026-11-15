@@ -116,6 +116,22 @@ function buildOfficeSprites(scene) {
   });
 }
 
+async function countScenePackages() {
+  try {
+    const res = await fetch("manifest.json", { cache: "no-store" });
+    if (!res.ok) return 0;
+    const manifest = await res.json();
+    const ids = new Set();
+    for (const file of manifest.files || []) {
+      const m = /^assets\/scenes\/([^/]+)\/\1\.built\.json$/.exec(String(file.path || ""));
+      if (m && m[1] !== "office") ids.add(m[1]);
+    }
+    return ids.size;
+  } catch {
+    return 0;
+  }
+}
+
 async function boot() {
   const cfg = await loadConfig();
   const sceneParam = new URLSearchParams(location.search).get("scene") || cfg.scene || "home";
@@ -138,9 +154,11 @@ async function boot() {
     agent,
     agentCard: null,
     assets: { scene: 0, plot: 0, bg: 0 },
+    sceneCount: 0,
     stats: { fps: 0 },
   });
 
+  store.patch({ sceneCount: await countScenePackages() });
   const root = $("#app");
   let overview = createOverview({ canvas: $("#scene"), scene, store });
   let awayPlace = null;
@@ -477,6 +495,8 @@ async function boot() {
             kind: p.kind === "street" ? "street" : "indoor",
             distance: p.distance,
             overnight: p.overnight === true,
+          }).then((added) => {
+            if (added?.added) store.patch({ sceneCount: (store.state.sceneCount || 0) + 1 });
           });
           store.emit("scene_ready", { ...p, cached });
         });
