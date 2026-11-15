@@ -819,6 +819,7 @@ async function boot(): Promise<void> {
           PYTHONUNBUFFERED: '1',
           // 思考模型默认带 reasoning_content，首字多 1–2 s 且内容无法出声
           OLVT_LLM_EXTRA_BODY: '{"reasoning_effort":"none"}',
+          DHVW_ORCHESTRATOR_URL: `http://127.0.0.1:${portOf('orchestrator')}`,
         },
         healthMode: 'tcp',
         healthPath: undefined,

@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 from . import data_dir
+from .embedder import DIM, LocalEmbedder
 
 
 def _bigrams(text: str) -> list[str]:
@@ -33,11 +34,12 @@ def _normalize(text: str) -> str:
 
 
 class Store:
-    def __init__(self, root: Path | None = None) -> None:
+    def __init__(self, root: Path | None = None, embedder: LocalEmbedder | None = None) -> None:
         self.root = root or data_dir()
         self.root.mkdir(parents=True, exist_ok=True)
         self.digest_file = self.root / "digest.json"
         self._lock = threading.Lock()
+        self.embedder = embedder or LocalEmbedder(data_root=self.root)
         self._life = sqlite3.connect(self.root / "life.db", check_same_thread=False)
         self._life.row_factory = sqlite3.Row
         self._life.execute("pragma journal_mode=wal")
@@ -76,6 +78,7 @@ class Store:
         self._memory = sqlite3.connect(self.root / "memory.db", check_same_thread=False)
         self._memory.row_factory = sqlite3.Row
         self._memory.execute("pragma journal_mode=wal")
+        self._vec_ready = self._load_sqlite_vec(self._memory)
         self._memory.executescript(
             """
             create table if not exists mem_meta (
@@ -92,7 +95,10 @@ class Store:
             create virtual table if not exists mem_fts using fts5(idx);
             """
         )
+        if self._vec_ready:
+            self._memory.execute(f"create virtual table if not exists mem_vec using vec0(embedding float[{DIM}])")
         self._rebuild_fts_if_needed()
+        self._rebuild_vec_if_needed()
 
     # ---------------- events ----------------
     def add_events(self, events: list[dict]) -> dict:
@@ -192,6 +198,27 @@ class Store:
         return self.get_kv("digest", {}) or {}
 
     # ---------------- memory ----------------
+    @staticmethod
+    def _load_sqlite_vec(conn: sqlite3.Connection) -> bool:
+        try:
+            import sqlite_vec
+
+            conn.enable_load_extension(True)
+            sqlite_vec.load(conn)
+            conn.enable_load_extension(False)
+            return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def _serialize_vec(vec: list[float]) -> object:
+        try:
+            import sqlite_vec
+
+            return sqlite_vec.serialize_float32(vec)
+        except Exception:
+            return json.dumps(vec)
+
     def _rebuild_fts_if_needed(self) -> None:
         with self._lock, self._memory:
             fts = self._memory.execute("select count(*) c from mem_fts").fetchone()["c"]
@@ -203,10 +230,53 @@ class Store:
             for row in self._memory.execute("select rowid, norm from mem_meta"):
                 self._memory.execute("insert into mem_fts(rowid, idx) values(?,?)", (row["rowid"], _index_text(row["norm"])))
 
+    def _rebuild_vec_if_needed(self) -> int:
+        if not (self._vec_ready and self.embedder.available):
+            return 0
+        with self._lock:
+            rows = self._memory.execute(
+                "select m.rowid, m.norm from mem_meta m left join mem_vec v on v.rowid = m.rowid where v.rowid is null"
+            ).fetchall()
+        if not rows:
+            return 0
+        vecs = self.embedder.encode([r["norm"] for r in rows])
+        if len(vecs) != len(rows):
+            return 0
+        with self._lock, self._memory:
+            for r, vec in zip(rows, vecs):
+                self._memory.execute(
+                    "insert or replace into mem_vec(rowid, embedding) values(?,?)",
+                    (r["rowid"], self._serialize_vec(vec)),
+                )
+        return len(rows)
+
+    def rebuild_indexes(self) -> dict:
+        """删除并由 mem_meta 正文重灌 FTS5 与 vec0 索引。"""
+        with self._lock, self._memory:
+            self._memory.execute("delete from mem_fts")
+            if self._vec_ready:
+                self._memory.execute("delete from mem_vec")
+            rows = self._memory.execute("select rowid, norm from mem_meta").fetchall()
+            for row in rows:
+                self._memory.execute("insert into mem_fts(rowid, idx) values(?,?)", (row["rowid"], _index_text(row["norm"])))
+        vec_built = 0
+        if self._vec_ready and self.embedder.available and rows:
+            vecs = self.embedder.encode([r["norm"] for r in rows])
+            if len(vecs) == len(rows):
+                with self._lock, self._memory:
+                    for row, vec in zip(rows, vecs):
+                        self._memory.execute(
+                            "insert into mem_vec(rowid, embedding) values(?,?)",
+                            (row["rowid"], self._serialize_vec(vec)),
+                        )
+                vec_built = len(rows)
+        return {"total": len(rows), "fts": len(rows), "vec": vec_built, "semantic": self._vec_ready and self.embedder.available}
+
     def upsert_facts(self, facts: list[dict], src: str = "device") -> dict:
         accepted: list[str] = []
         merged: list[str] = []
         rejected: list[dict] = []
+        new_rows: list[tuple[int, str]] = []
         now = int(time.time() * 1000)
         with self._lock, self._memory:
             for fact in facts:
@@ -223,7 +293,7 @@ class Store:
                 # updated_at 用服务端接收时间：设备（或脚本）给的 t 可能是事件时刻、甚至是未来的值，
                 # 拿它当游标会把之后写入的事实挡在增量之外
                 updated = now
-                existing = self._memory.execute("select id, conf, updated_at from mem_meta where norm=?", (text,)).fetchone()
+                existing = self._memory.execute("select rowid, id, conf, updated_at from mem_meta where norm=?", (text,)).fetchone()
                 if existing:
                     # LWW：同文本取 conf 高者，时间戳相同时 pc 覆盖 device
                     keep_new = existing["updated_at"] <= updated or src == "pc"
@@ -238,39 +308,122 @@ class Store:
                     "insert into mem_meta(id, text, norm, tier, conf, t, updated_at, src) values(?,?,?,?,?,?,?,?)",
                     (fact_id, text, text, str(fact.get("tier") or "L2"), float(fact.get("conf") or 0.6), int(fact.get("t") or 0), updated, src),
                 )
-                self._memory.execute("insert into mem_fts(rowid, idx) values(?,?)", (cur.lastrowid, _index_text(text)))
+                rowid = int(cur.lastrowid)
+                self._memory.execute("insert into mem_fts(rowid, idx) values(?,?)", (rowid, _index_text(text)))
+                new_rows.append((rowid, text))
                 accepted.append(fact_id)
+        if new_rows and self._vec_ready and self.embedder.available:
+            vecs = self.embedder.encode([t for _, t in new_rows])
+            if len(vecs) == len(new_rows):
+                with self._lock, self._memory:
+                    for (rowid, _), vec in zip(new_rows, vecs):
+                        self._memory.execute(
+                            "insert or replace into mem_vec(rowid, embedding) values(?,?)",
+                            (rowid, self._serialize_vec(vec)),
+                        )
         return {"accepted": accepted, "merged": merged, "rejected": rejected}
 
-    def search(self, text: str, k: int = 8) -> list[dict]:
-        query = _normalize(text)
-        if not query:
-            return []
+    def _fts_candidates(self, query: str, limit: int) -> dict[int, float]:
         tokens = _bigrams(query)
-        # 二元组之间用 AND 收敛；命中不了再退到 OR，避免长句全空
+        if not tokens:
+            return {}
         for joiner in (" AND ", " OR "):
             expr = joiner.join(f'"{t}"' for t in tokens)
             try:
                 with self._lock:
                     rows = self._memory.execute(
-                        "select m.id, m.text, m.tier, m.t, bm25(mem_fts) as rank from mem_fts"
-                        " join mem_meta m on m.rowid = mem_fts.rowid where mem_fts match ? order by rank limit ?",
-                        (expr, k),
+                        "select rowid, bm25(mem_fts) as rank from mem_fts where mem_fts match ? order by rank limit ?",
+                        (expr, limit),
                     ).fetchall()
             except sqlite3.OperationalError:
                 rows = []
             if rows:
-                return [
-                    {
-                        "id": r["id"],
-                        "text": r["text"],
-                        "tier": r["tier"],
-                        "ts": r["t"],
-                        "score": round(1.0 / (1.0 + abs(float(r["rank"]))), 4),
-                    }
-                    for r in rows
-                ]
-        return []
+                return {int(r["rowid"]): 1.0 / (1.0 + abs(float(r["rank"]))) for r in rows}
+        return {}
+
+    def search_hybrid(self, text: str, k: int = 8) -> tuple[list[dict], bool]:
+        """三路融合检索（0.5×向量 + 0.3×FTS5 + 0.2×时间衰减）；无向量模型时降级纯 FTS5。"""
+        query = _normalize(text)
+        if not query:
+            return [], False
+        cand_limit = max(k * 3, 12)
+        fts_scores = self._fts_candidates(query, cand_limit)
+
+        if self._vec_ready and self.embedder.available:
+            qvec = self.embedder.encode_one(query)
+            if qvec is not None:
+                with self._lock:
+                    vec_rows = self._memory.execute(
+                        "select rowid, distance from mem_vec where embedding match ? order by distance limit ?",
+                        (self._serialize_vec(qvec), cand_limit),
+                    ).fetchall()
+                vec_scores = {int(r["rowid"]): 1.0 / (1.0 + float(r["distance"])) for r in vec_rows}
+                all_ids = sorted(set(vec_scores) | set(fts_scores))
+                if not all_ids:
+                    return [], True
+                placeholders = ",".join("?" for _ in all_ids)
+                with self._lock:
+                    meta_rows = self._memory.execute(
+                        f"select rowid, id, text, tier, t from mem_meta where rowid in ({placeholders})",
+                        all_ids,
+                    ).fetchall()
+                now_ms = int(time.time() * 1000)
+                scored: list[tuple[float, dict]] = []
+                for r in meta_rows:
+                    rowid = int(r["rowid"])
+                    ts_ms = int(r["t"] or 0)
+                    age_days = max(0.0, (now_ms - ts_ms) / 86_400_000.0) if ts_ms > 0 else 0.0
+                    decay = 0.5 ** (age_days / 30.0)
+                    score = 0.5 * vec_scores.get(rowid, 0.0) + 0.3 * fts_scores.get(rowid, 0.0) + 0.2 * decay
+                    scored.append(
+                        (
+                            score,
+                            {
+                                "id": r["id"],
+                                "text": r["text"],
+                                "tier": r["tier"],
+                                "ts": ts_ms,
+                                "score": round(score, 4),
+                            },
+                        )
+                    )
+                scored.sort(key=lambda item: -item[0])
+                return [item[1] for item in scored[:k]], True
+
+        if not fts_scores:
+            return [], False
+        ids = list(fts_scores.keys())
+        placeholders = ",".join("?" for _ in ids)
+        with self._lock:
+            meta_rows = self._memory.execute(
+                f"select rowid, id, text, tier, t from mem_meta where rowid in ({placeholders})",
+                ids,
+            ).fetchall()
+        meta_map = {int(r["rowid"]): r for r in meta_rows}
+        hits = []
+        for rowid, sc in sorted(fts_scores.items(), key=lambda kv: -kv[1])[:k]:
+            r = meta_map.get(rowid)
+            if r:
+                hits.append({"id": r["id"], "text": r["text"], "tier": r["tier"], "ts": r["t"], "score": round(sc, 4)})
+        return hits, False
+
+    def search(self, text: str, k: int = 8) -> list[dict]:
+        hits, _ = self.search_hybrid(text, k)
+        return hits
+
+    def memory_stats(self) -> dict:
+        with self._lock:
+            total = int(self._memory.execute("select count(*) c from mem_meta").fetchone()["c"])
+            fts = int(self._memory.execute("select count(*) c from mem_fts").fetchone()["c"])
+            vec = int(self._memory.execute("select count(*) c from mem_vec").fetchone()["c"]) if self._vec_ready else 0
+        return {
+            "total": total,
+            "fts": fts,
+            "vec": vec,
+            "vec_ready": self._vec_ready,
+            "semantic": self._vec_ready and self.embedder.available,
+            "model_dir": str(self.embedder.model_dir) if self.embedder.model_dir else None,
+        }
 
     def facts_since(self, since: int = 0, limit: int = 200) -> tuple[list[dict], int]:
         """按 updated_at 增量取事实，供 memory:facts 回流设备。返回 (facts, 本批最大 updated_at)。"""

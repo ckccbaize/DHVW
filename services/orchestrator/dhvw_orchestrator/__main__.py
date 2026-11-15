@@ -435,10 +435,10 @@ class Orchestrator:
             text = str(payload.get("text") or "")
             k = int(payload.get("k") or 8)
             started = time.perf_counter()
-            hits = self.store.search(text, k)
+            hits, semantic = self.store.search_hybrid(text, k)
             elapsed = round((time.perf_counter() - started) * 1000, 1)
-            await self.send(ws, "memory:result", {"req_id": payload.get("req_id"), "hits": hits, "semantic": False}, msg_id)
-            log("info", "记忆检索", req=payload.get("req_id"), hits=len(hits), ms=elapsed, semantic=False)
+            await self.send(ws, "memory:result", {"req_id": payload.get("req_id"), "hits": hits, "semantic": semantic}, msg_id)
+            log("info", "记忆检索", req=payload.get("req_id"), hits=len(hits), ms=elapsed, semantic=semantic)
             return
 
         if type_ == "world:digest":
@@ -871,6 +871,35 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
         result = store.upsert_facts(facts, src="pc")
         pushed = await orch.push_facts()
         return JSONResponse({"ok": True, **result, "pushed": pushed})
+
+    @app.post("/dhvw/memory/rebuild")
+    async def rebuild_memory() -> JSONResponse:
+        """删除并由 mem_meta 正文重建 FTS5 与 vec0 向量索引。"""
+        return JSONResponse({"ok": True, **store.rebuild_indexes()})
+
+    @app.get("/dhvw/memory/stats")
+    async def memory_stats() -> JSONResponse:
+        return JSONResponse(store.memory_stats())
+
+    @app.get("/dhvw/memory/context")
+    async def memory_context(q: str = "", k: int = 5) -> JSONResponse:
+        """供 OLVT 每轮对话前拉取相关向量记忆与设备近况（ADR-PC-004）。"""
+        k = max(1, min(int(k), 12))
+        hits, semantic = store.search_hybrid(q, k) if q.strip() else ([], False)
+        ctx = store.get_kv("context", {}) or {}
+        clock = (orch.digest or {}).get("clock") or {}
+        lines: list[str] = []
+        if clock.get("phase") or ctx.get("place") or ctx.get("weather"):
+            parts = [p for p in (clock.get("phase"), ctx.get("place"), ctx.get("weather")) if p]
+            if parts:
+                lines.append("当前状态：" + " / ".join(str(p) for p in parts))
+        if hits:
+            lines.append("相关记忆：")
+            for h in hits:
+                tier = h.get("tier") or "L2"
+                lines.append(f"- [{tier}] {h.get('text', '')}")
+        block = "\n".join(lines)
+        return JSONResponse({"ok": True, "semantic": semantic, "hits": hits, "context": ctx, "block": block})
 
     @app.post("/dhvw/config")
     async def config(request: Request) -> JSONResponse:
