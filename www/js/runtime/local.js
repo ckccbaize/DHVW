@@ -222,7 +222,7 @@ export function createLocalRuntime({
   let lastSnapshot = null;
   let recentPlots = [];
   let dailyPlots = {};
-  let mood = { energy: 0, valence: 0, social: 0, focus: 0 };
+  let mood = { energy: 0.55, valence: 0.55, social: 0.4, focus: 0.5 };
   let digestSeq = 0;
 
   const sceneSummary = () => ({
@@ -622,7 +622,8 @@ export function createLocalRuntime({
     const dims = ["energy", "valence", "social", "focus"];
     for (const k of dims) {
       if (deltas[k] === undefined) continue;
-      mood[k] = Math.max(-1, Math.min(1, (mood[k] || 0) + Number(deltas[k] || 0)));
+      const cur = Number.isFinite(Number(mood[k])) ? Number(mood[k]) : 0.5;
+      mood[k] = Math.max(0, Math.min(1, cur + Number(deltas[k] || 0)));
     }
     await backend.setKV("mood", mood).catch(() => {});
     store.patch({ mood: { ...mood } });

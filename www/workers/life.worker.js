@@ -34,7 +34,7 @@ let llmCfg = null;
 let lastLlmMinute = -1e9;
 let llmBusy = false;
 let plan = null;
-let mood = { energy: 0, valence: 0, social: 0, focus: 0 };
+let mood = { energy: 0.55, valence: 0.55, social: 0.4, focus: 0.5 };
 let memoryText = "";
 let sleepAt = 22 * 60;
 let wakeAt = 8 * 60;
@@ -254,9 +254,9 @@ function pickTarget() {
       act = spot.act;
     }
   };
-  if (mood.energy < -0.25) bias("rest", 0.4);
-  if (mood.valence < -0.3) bias("read", 0.3);
-  if (mood.social > 0.3) bias("sit", 0.25);
+  if (mood.energy < 0.35) bias("rest", 0.4);
+  if (mood.valence < 0.38) bias("read", 0.3);
+  if (mood.social > 0.6) bias("sit", 0.25);
   const bed = act === "sleep" ? (scene.props || []).find((p) => p.id === "bed") : null;
   return { x: h.x, y: h.y, act, room: h.room || room, durationMin: actDuration(act), bed: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1, facing: bed.facing || "S" } : null };
 }
