@@ -571,6 +571,9 @@ function tick() {
     }
   }
 
+  // 睡眠交互跨过醒来时间时必须清掉，否则白天会一直锁在 sleep/busyUntil。
+  clearStaleSleep();
+
   // 天气按游戏日：一天一种，换天时重新随机
   const w = weatherAt(clock.day, clock.minute);
   if (w.state !== weather) {
