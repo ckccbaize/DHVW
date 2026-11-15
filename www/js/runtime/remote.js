@@ -37,7 +37,7 @@ export function createRemoteRuntime({
   function send(obj) {
     if (ws && ws.readyState === 1) {
       try {
-        ws.send(JSON.stringify(makeMsg(obj.type, obj.payload ?? {}, { id: obj.id, ts: obj.ts })));
+        ws.send(JSON.stringify(makeMsg(obj.type, obj.payload ?? {}, { id: obj.id, ts: obj.ts, replyTo: obj.replyTo })));
         return true;
       } catch {
         return false;

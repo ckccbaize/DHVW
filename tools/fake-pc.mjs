@@ -3,6 +3,8 @@
 // 设备页：http://127.0.0.1:8080/debug-core.html?host=ws://127.0.0.1:8877/dhvw
 import http from "node:http";
 import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 
 const PORT = Number(process.argv[2] || 8877);
 const GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
@@ -21,6 +23,22 @@ const server = http.createServer((req, res) => {
   if (req.url === "/health") {
     res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
     res.end(JSON.stringify({ ok: true, host: "fake-pc" }));
+    return;
+  }
+  if (req.url.startsWith("/dhvw/scenes/")) {
+    const m = /^\/dhvw\/scenes\/([^/]+)\/dist\/(.+)$/.exec(req.url);
+    if (m) {
+      const root = path.resolve("www/assets/scenes", m[1]);
+      const file = path.resolve(root, m[2]);
+      if (file.startsWith(root + path.sep) && fs.existsSync(file) && fs.statSync(file).isFile()) {
+        const ext = path.extname(file).toLowerCase();
+        const mime = { ".json": "application/json", ".png": "image/png", ".bin": "application/octet-stream", ".js": "text/javascript" }[ext] || "application/octet-stream";
+        res.writeHead(200, { "Content-Type": mime, "Access-Control-Allow-Origin": "*" });
+        fs.createReadStream(file).pipe(res);
+        return;
+      }
+    }
+    res.writeHead(404).end("scene not found");
     return;
   }
   if (req.url.startsWith("/present")) {
@@ -102,7 +120,7 @@ server.on("upgrade", (req, socket) => {
         const events = msg.payload?.events || [];
         const seq = events.reduce((m, e) => Math.max(m, e.seq || 0), 0);
         console.log(`[fake-pc]   batch=${events.length} ack=${seq}`);
-        if (seq) sendMsg("events:ack", { seq });
+        if (seq || events.length) sendMsg("events:ack", { seq: seq || 1 });
       }
       if (msg.type === "facts:ack") {
         console.log(`[fake-pc]   facts ack accepted=${msg.payload?.accepted} merged=${msg.payload?.merged}`);
@@ -133,7 +151,22 @@ server.on("upgrade", (req, socket) => {
   setTimeout(() => {
     sendMsg("hello", { host_id: "fake-pc", t_server: Date.now(), tts: true, live2d: false, world_tier: "idle" });
     sendMsg("say", { text: "主机上线了", ttl: 3000 });
+    sendMsg("llm:config", {
+      baseUrl: `http://127.0.0.1:${PORT + 1}/v1`,
+      apiKey: "fake-key",
+      model: "fake-model",
+      maxAttempts: 1,
+    });
+    sendMsg("digest:get", {});
     sendMsg("mood:get", {});
+    sendMsg("scene:ready", {
+      id: "req-test",
+      sceneId: "cafe",
+      job: "cafe",
+      name: "咖啡馆",
+      kind: "indoor",
+      basePath: "/dhvw/scenes/cafe/dist",
+    });
     sendMsg("memory:facts", {
       since: 0,
       facts: [

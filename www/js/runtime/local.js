@@ -9,6 +9,7 @@ import { createLocalMemory } from "../core/memory/local.js";
 import { createMemoryPipeline } from "../core/memory/pipeline.js";
 import { extractJson } from "../core/agent/json.js";
 import { describeMood, moodTone } from "../core/mood/describe.js";
+import { buildMoodView } from "../core/mood.js";
 import { DESTINATIONS } from "../core/life/outing.js";
 import { createBrowsePlanner } from "../core/actions/browse.js";
 import { normalizeBehaviors, roomForAct, createActRoomMap } from "../core/life/plan.js";
@@ -221,6 +222,7 @@ export function createLocalRuntime({
   let recentPlots = [];
   let dailyPlots = {};
   let mood = { energy: 0, valence: 0, social: 0, focus: 0 };
+  let digestSeq = 0;
 
   const sceneSummary = () => ({
     grid: scene.grid,
@@ -1080,6 +1082,135 @@ export function createLocalRuntime({
     },
     async getMood() {
       return { ...mood };
+    },
+    async setLlmConfig(payload = {}) {
+      const next = { ...(config.llm || {}) };
+      for (const key of ["baseUrl", "apiKey", "model", "timeoutMs", "maxAttempts", "retryBaseMs", "reasoningEffort"]) {
+        if (payload[key] !== undefined) next[key] = payload[key];
+      }
+      if (next.baseUrl && String(next.baseUrl).includes("codex.mintcat.work") && !next.reasoningEffort) {
+        next.reasoningEffort = "none";
+      }
+      config.llm = next;
+      try {
+        localStorage.setItem("dhvw_llm", JSON.stringify({ baseUrl: next.baseUrl || "", apiKey: next.apiKey || "", model: next.model || "" }));
+      } catch {}
+      if (next.baseUrl && next.model && !llm) await setupBrain();
+      store.emit("llm_config", { baseUrl: next.baseUrl || "", model: next.model || "", hasKey: !!next.apiKey });
+      return { ok: true, baseUrl: next.baseUrl || "", model: next.model || "", hasKey: !!next.apiKey };
+    },
+    async ingestFacts(facts = []) {
+      const accepted = [];
+      const merged = [];
+      const rejected = [];
+      if (!localMemory) {
+        for (const f of facts) rejected.push({ id: String(f?.id || ""), reason: "memory_not_ready" });
+        return { accepted, merged, rejected };
+      }
+      const byId = new Map(localMemory.all().map((d) => [d.id, d]));
+      const byText = new Map(localMemory.all().map((d) => [String(d.text || "").replace(/\s+/g, ""), d]));
+      for (const f of facts) {
+        const text = String(f?.text || "").trim();
+        const id = String(f?.id || "").trim();
+        if (!text) {
+          rejected.push({ id, reason: "empty_text" });
+          continue;
+        }
+        const key = text.replace(/\s+/g, "");
+        const hit = (id && byId.get(id)) || byText.get(key);
+        if (hit) {
+          merged.push(hit.id);
+          continue;
+        }
+        const doc = {
+          id: id || `pc-${key.slice(0, 12)}`,
+          text,
+          tier: f?.tier || "L2",
+          t: Number(f?.t) || now(),
+          meta: { source: "pc", conf: f?.conf },
+        };
+        await localMemory.add(doc);
+        byId.set(doc.id, doc);
+        byText.set(key, doc);
+        accepted.push(doc.id);
+      }
+      if (accepted.length || merged.length) {
+        postLife({ type: "setMemory", text: memoryText(10) });
+        store.patch({ memory: { count: localMemory.count, terms: localMemory.terms } });
+      }
+      return { accepted, merged, rejected };
+    },
+    async addPlace(place = {}) {
+      const id = String(place.id || "").trim();
+      if (!id) return { ok: false, error: "缺 id" };
+      const custom = (await backend.getKV("places")) || [];
+      if (!custom.some((p) => p.id === id)) {
+        custom.push({
+          id,
+          name: String(place.name || id).slice(0, 20),
+          kind: place.kind === "street" ? "street" : "indoor",
+          distance: Math.max(0, Math.min(120, Number(place.distance) || 5)),
+          overnight: place.overnight === true,
+        });
+        await backend.setKV("places", custom);
+      }
+      return { ok: true, id };
+    },
+    async buildDigest(extra = {}) {
+      const snap = lastSnapshot || {};
+      const events = await backend.oldestEvents(20).catch(() => []);
+      const plan = dailyPlots[snap.day] || null;
+      const custom = (await backend.getKV("places")) || [];
+      return {
+        v: 1,
+        ts: now(),
+        seq: ++digestSeq,
+        clock: { day: snap.day ?? 1, minute: Math.round(snap.minute ?? 0), phase: snap.phase || "morning" },
+        world: {
+          tier: store.state.tier,
+          conn: store.state.conn,
+          display: store.state.display,
+          scene: scene.name || scene.id || "home",
+          phase: snap.phase || "morning",
+          weather: store.state.weather || "clear",
+          ...(extra.world || {}),
+        },
+        life: snap,
+        agenda: (plan?.behaviors || []).map((b, i) => ({
+          id: `plan-${i}`,
+          kind: "plot",
+          at: b.minute,
+          status: "planned",
+          payload: b,
+        })),
+        sceneRequests: [],
+        pcActions: [],
+        recentEvents: events.slice(-20),
+        budget: null,
+        eventPool: null,
+        outing: null,
+        lastPlot: plan,
+        mood: buildMoodView({
+          now: now(),
+          minute: Math.round(snap.minute ?? 0),
+          mood,
+          band: store.state.band || "calm",
+          series: [],
+          moodLog: [],
+        }),
+        places: [...DESTINATIONS, ...custom].map(({ id, name, kind, distance }) => ({ id, name, kind, distance })),
+      };
+    },
+    moodState() {
+      const snap = lastSnapshot || {};
+      return buildMoodView({
+        now: now(),
+        minute: Math.round(snap.minute ?? 0),
+        mood,
+        band: store.state.band || "calm",
+        series: [],
+        moodLog: [],
+      });
     },
     getSnapshot() {
       return lastSnapshot;

@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-14T15:30:16.052Z",
+ "built_at": "2026-11-15T07:59:34.077Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -744,8 +744,8 @@
   },
   {
    "path": "js/app.js",
-   "size": 24942,
-   "sha256": "b826da2f65fe8f1c6d6f95b8f946d2efab047af4eaed608e9d1496c0f55fe4bf"
+   "size": 28877,
+   "sha256": "bfc4075bdfb445be6e07982d032b54457725b6bf8c3fd7ea4700e5e7ea6c9b33"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -1024,13 +1024,13 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 37276,
-   "sha256": "7e3092a635571bea9e9526a9cb3e790b7386ad28696387e46dee7f29fe82999f"
+   "size": 42158,
+   "sha256": "cc473f56bfc174d7bf22f3d60286df02f3b95e65dd27c989be2bcd0f4a4a9831"
   },
   {
    "path": "js/runtime/remote.js",
-   "size": 4400,
-   "sha256": "3e19fdee57345f3b8cc85d68b1f89fea8dedbf1bb00054d3cefab6e149000d2e"
+   "size": 4422,
+   "sha256": "0632981453e8bcfc6a0ab1cf10ce5fae5d05141f1de0e28ab84f7589a927de67"
   },
   {
    "path": "js/view/hud.js",

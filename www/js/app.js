@@ -35,6 +35,10 @@ async function loadConfig() {
     const res = await fetch("config.json", { cache: "no-store" });
     if (!res.ok) throw new Error(String(res.status));
     const raw = await res.json();
+    const hostParam = new URLSearchParams(location.search).get("host");
+    if (hostParam) {
+      raw.host = { ...(raw.host || {}), wsUrl: hostParam, probeUrl: hostParam.replace(/^ws/, "http").replace(/\/dhvw$/, "/health") };
+    }
     let saved = null;
     try {
       saved = JSON.parse(localStorage.getItem("dhvw_llm") || "null");
@@ -172,6 +176,8 @@ async function boot() {
   let walkStuck = { px: null, py: null, since: 0 };
   let refusedCount = 0;
   let lastEvent = null;
+  let pendingEvents = [];
+  let batchInFlight = false;
   const bgUrls = new Map();
 
   const local = createLocalRuntime({
@@ -188,6 +194,7 @@ async function boot() {
     },
     onEvent: (ev) => {
       lastEvent = ev;
+      if (store.state.conn === "up") void flushEvents();
       if (ev.kind === "travel" && ev.payload?.to) {
         awayPlace = ev.payload.to;
         void enterPlace(awayPlace);
@@ -272,7 +279,7 @@ async function boot() {
     }
     local.suspend();
     remote.send({ type: "world:stop" });
-    remote.send({ type: "present:request", t: Date.now() });
+    remote.send({ type: "present:request", payload: { t: Date.now() } });
     present.open({ backgroundUrl: bg, iframeUrl: presentUrl || "", live2d: false, tts });
     store.patch({ display: "present" });
     displayChangedAt = performance.now();
@@ -307,6 +314,8 @@ async function boot() {
     const was = store.state.conn;
     store.patch({ conn: next });
     if (next === "down") {
+      batchInFlight = false;
+      pendingEvents = [];
       hostLostAt = performance.now();
       setTier("edge");
       if (was === "up") overview.say("主机断开了，我先自己过", 2600);
@@ -321,58 +330,162 @@ async function boot() {
   }
 
   async function flushEvents() {
-    if (store.state.conn !== "up") return;
+    if (store.state.conn !== "up" || batchInFlight) return;
     const events = await local.drainEvents(200);
     if (!events.length) return;
-    const ok = remote.send({ type: "events:batch", events });
-    if (ok) await local.markSynced(events.map((e) => e.uuid));
+    const ok = remote.send({ type: "events:batch", payload: { events } });
+    if (ok) {
+      pendingEvents = events;
+      batchInFlight = true;
+    }
+  }
+
+  async function sendDigest() {
+    if (store.state.conn !== "up") return;
+    try {
+      const digest = await local.buildDigest({ world: { pos_checksum: { x: agent.gx, y: agent.gy } } });
+      remote.send({ type: "world:digest", payload: { digest } });
+    } catch (err) {
+      console.warn("[remote] digest 生成失败", err);
+    }
+  }
+
+  function sendMood() {
+    if (store.state.conn !== "up") return;
+    remote.send({ type: "mood:state", payload: local.moodState() });
+  }
+
+  async function cacheSceneAssets(p) {
+    const sceneId = String(p.sceneId || p.job || "").trim();
+    const basePath = String(p.basePath || "").trim();
+    if (!sceneId || !basePath || typeof caches === "undefined") return false;
+    const raw = cfg.host.wsUrl || cfg.host.probeUrl || "";
+    if (!raw) return false;
+    let origin = "";
+    try {
+      const u = new URL(raw);
+      u.protocol = u.protocol === "wss:" ? "https:" : "http:";
+      origin = u.origin;
+    } catch {
+      return false;
+    }
+    const base = new URL(basePath.replace(/\/$/, "") + "/", origin);
+    const manifestRes = await fetch(new URL("manifest.json", base), { cache: "no-store" });
+    if (!manifestRes.ok) return false;
+    const manifest = await manifestRes.json();
+    const files = Array.isArray(manifest?.files) ? manifest.files : [];
+    if (!files.length) return false;
+    const cache = await caches.open("dhvw-scenes-v1");
+    for (const file of files) {
+      const rel = String(file?.path || "").trim();
+      if (!rel || rel.includes("..")) return false;
+      const res = await fetch(new URL(rel, base), { cache: "no-store" });
+      if (!res.ok) return false;
+      await cache.put(`assets/scenes/${sceneId}/${rel}`, res);
+    }
+    return true;
   }
 
   function handleRemoteMessage(msg) {
+    const p = msg.payload || {};
     switch (msg.type) {
       case "hello": {
-        if (Number.isFinite(msg.t_server)) clock.setOffsetFromServer(msg.t_server);
-        if (msg.world_tier) setTier(msg.world_tier);
-        if (msg.agent) store.patch({ agentCard: msg.agent });
+        if (Number.isFinite(p.t_server)) clock.setOffsetFromServer(p.t_server);
+        if (p.world_tier) setTier(p.world_tier);
+        if (p.agent) store.patch({ agentCard: p.agent });
         break;
       }
       case "state:overview": {
-        if (msg.pos_checksum) {
-          const snapped = applyChecksum(agent, msg.pos_checksum.x, msg.pos_checksum.y);
+        if (p.pos_checksum) {
+          const snapped = applyChecksum(agent, p.pos_checksum.x, p.pos_checksum.y);
           if (snapped) store.emit("checksum", { snapped: true });
         }
-        if (msg.work_tier) setTier(msg.work_tier);
-        if (msg.clock) {
-          clock.set(msg.clock.day, msg.clock.minute);
-          local.syncClock(msg.clock.day, msg.clock.minute);
+        if (p.work_tier) setTier(p.work_tier);
+        if (p.clock) {
+          clock.set(p.clock.day, p.clock.minute);
+          local.syncClock(p.clock.day, p.clock.minute);
         }
-        if (msg.agent) store.patch({ agentCard: msg.agent });
+        if (p.agent) store.patch({ agentCard: p.agent });
         break;
       }
       case "moveTo": {
-        if (Array.isArray(msg.path) && msg.path.length) {
-          moveTo(agent, msg.path, { act: msg.act || null });
-          pendingArrival = { room: msg.room || null, act: msg.act || null };
+        if (Array.isArray(p.path) && p.path.length) {
+          moveTo(agent, p.path, { act: p.act || null });
+          pendingArrival = { room: p.room || null, act: p.act || null };
         }
         break;
       }
       case "say": {
-        overview.say(msg.text, msg.ttl || 2600);
-        if (present.isOpen) present.say(msg.text);
+        overview.say(p.text, p.ttl || 2600);
+        if (present.isOpen) present.say(p.text);
         break;
       }
       case "tier": {
-        setTier(msg.value);
-        break;
-      }
-      case "present:deny": {
-        exitPresent("deny");
-        overview.say(msg.reason || "主机现在不方便", 3000);
+        setTier(p.value);
         break;
       }
       case "switchScene": {
         // 单场景资源包：不切图，只记日志（多场景待 M6-T11 模板集）
-        store.emit("switchScene", msg);
+        store.emit("switchScene", p);
+        break;
+      }
+      case "llm:config": {
+        void local.setLlmConfig(p);
+        break;
+      }
+      case "digest:get": {
+        void sendDigest();
+        break;
+      }
+      case "mood:get": {
+        sendMood();
+        break;
+      }
+      case "events:ack": {
+        if (pendingEvents.length) {
+          const done = pendingEvents;
+          pendingEvents = [];
+          batchInFlight = false;
+          void local.markSynced(done.map((e) => e.uuid)).then(() => flushEvents());
+        }
+        break;
+      }
+      case "memory:facts": {
+        void local.ingestFacts(Array.isArray(p.facts) ? p.facts : []).then((result) => {
+          remote.send({ type: "facts:ack", payload: result, replyTo: msg.id });
+        });
+        break;
+      }
+      case "scene:ready": {
+        void cacheSceneAssets(p).catch((err) => {
+          console.warn("[remote] 场景资源缓存失败", p.sceneId || p.job, err);
+          return false;
+        }).then((cached) => {
+          const id = String(p.sceneId || p.job || p.id || "").trim();
+          if (!id) return;
+          void local.addPlace({
+            id,
+            name: p.name || id,
+            kind: p.kind === "street" ? "street" : "indoor",
+            distance: p.distance,
+            overnight: p.overnight === true,
+          });
+          store.emit("scene_ready", { ...p, cached });
+        });
+        break;
+      }
+      case "display:set": {
+        if (p.state === "present") void onSwitchRequest(true);
+        else if (p.state === "overview") exitPresent("pc");
+        break;
+      }
+      case "present:grant": {
+        store.emit("present_grant", p);
+        break;
+      }
+      case "present:deny": {
+        exitPresent("deny");
+        overview.say(p.reason || "主机现在不方便", 3000);
         break;
       }
       default:
@@ -697,6 +810,11 @@ async function boot() {
   local.setTier("edge");
   setTier("edge");
   remote.start();
+  setInterval(() => {
+    if (store.state.conn !== "up") return;
+    void sendDigest();
+    sendMood();
+  }, 5000);
 
   store.patch({ light: lightFor("morning", "clear") });
   store.on("tick", (t) => {
