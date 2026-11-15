@@ -35,6 +35,26 @@ def _normalize(text: str) -> str:
 
 
 _UPDATE_CUES = re.compile(r"(改口|不再|换成|改为|其实更|现在更|讨厌了|不喜欢了)")
+_WARM_CUES = re.compile(r"(喜欢|暖|灯|风衣|茶|咖啡|雨|陪|睡|休息|周记)")
+_SOCIAL_CUES = re.compile(r"(约定|一起|下次|想去|聊|见面|出门|去玩)")
+
+
+def _mood_boost(text: str, tier: str, mood: dict | None) -> float:
+    if not isinstance(mood, dict) or not mood:
+        return 0.0
+    dims = mood.get("dims") if isinstance(mood.get("dims"), dict) else {}
+    band = str(mood.get("band") or "").lower()
+    valence = float(dims.get("valence", 0.5))
+    energy = float(dims.get("energy", 0.5))
+    social = float(dims.get("social", 0.4))
+    boost = 0.0
+    if band in ("low", "tired", "down") or valence < 0.3 or energy < 0.3:
+        if tier == "L0" or _WARM_CUES.search(text):
+            boost += 0.04
+    if social > 0.55 or band in ("social", "lively"):
+        if _SOCIAL_CUES.search(text):
+            boost += 0.04
+    return boost
 
 
 class Store:
@@ -383,8 +403,10 @@ class Store:
                 return {int(r["rowid"]): 1.0 / (1.0 + abs(float(r["rank"]))) for r in rows}
         return {}
 
-    def search_hybrid(self, text: str, k: int = 8, min_score: float = 0.0) -> tuple[list[dict], bool]:
-        """三路融合检索（0.5×向量 + 0.3×FTS5 + 0.2×时间衰减）；无向量模型时降级纯 FTS5。"""
+    def search_hybrid(
+        self, text: str, k: int = 8, min_score: float = 0.0, mood: dict | None = None
+    ) -> tuple[list[dict], bool]:
+        """三路融合检索（0.5×向量 + 0.3×FTS5 + 0.2×时间衰减 + 情绪共鸣微调）；无向量模型时降级纯 FTS5。"""
         query = _normalize(text)
         if not query:
             return [], False
@@ -417,7 +439,12 @@ class Store:
                     ts_ms = int(r["t"] or 0)
                     age_days = max(0.0, (now_ms - ts_ms) / 86_400_000.0) if ts_ms > 0 else 0.0
                     decay = 0.5 ** (age_days / 30.0)
-                    score = 0.5 * vec_scores.get(rowid, 0.0) + 0.3 * fts_scores.get(rowid, 0.0) + 0.2 * decay
+                    score = (
+                        0.5 * vec_scores.get(rowid, 0.0)
+                        + 0.3 * fts_scores.get(rowid, 0.0)
+                        + 0.2 * decay
+                        + _mood_boost(str(r["text"]), str(r["tier"] or ""), mood)
+                    )
                     if min_score > 0.0 and score < min_score:
                         continue
                     scored.append(

@@ -993,7 +993,7 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
     async def memory_context(q: str = "", k: int = 5) -> JSONResponse:
         """供 OLVT 每轮对话前拉取相关向量记忆与设备近况（ADR-PC-004）。"""
         k = max(1, min(int(k), 12))
-        hits, semantic = store.search_hybrid(q, k, min_score=0.35) if q.strip() else ([], False)
+        hits, semantic = store.search_hybrid(q, k, min_score=0.35, mood=orch.mood) if q.strip() else ([], False)
         l0 = store.get_l0_facts(3)
         hit_ids = {h["id"] for h in hits}
         l0_extra = [f for f in l0 if f["id"] not in hit_ids]
