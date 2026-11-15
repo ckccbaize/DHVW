@@ -370,7 +370,13 @@ export class Gateway {
     const [, targetName, ...rest] = route.split('/')
     let target = this.opts.targets.find((t) => t.name === targetName)
     let suffix = '/' + rest.join('/')
-    if (!target && targetName && (OLVT_ROOT_PREFIXES.has(targetName) || (targetName === 'assets' && String(req.headers.referer || '').includes('/olvt')))) {
+    if (
+      !target &&
+      targetName &&
+      (OLVT_ROOT_PREFIXES.has(targetName) ||
+        ((targetName === 'assets' || targetName === 'libs' || targetName === 'favicon.ico') &&
+          String(req.headers.referer || '').includes('/olvt')))
+    ) {
       target = this.opts.targets.find((t) => t.name === 'olvt')
       suffix = route
     }
@@ -381,7 +387,7 @@ export class Gateway {
     const queryToken = url.searchParams.get('token')
     const setCookie =
       target.name === 'olvt' && queryToken
-        ? `dhvw_token=${encodeURIComponent(queryToken)}; Path=/; HttpOnly; SameSite=None; Secure`
+        ? `dhvw_token=${encodeURIComponent(queryToken)}; Path=/; HttpOnly; SameSite=None; Secure; Partitioned`
         : undefined
     const cleanSearch = url.search.replace(/[?&]token=[^&]*/g, '').replace(/^&/, '?')
     this.forward(req, res, target, suffix + (cleanSearch === '?' ? '' : cleanSearch), setCookie)

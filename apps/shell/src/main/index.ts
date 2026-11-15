@@ -780,6 +780,9 @@ async function boot(): Promise<void> {
     process.env.DHVW_ARM_WWW ?? '',
     path.join(process.resourcesPath, 'arm-www'),
     path.resolve(app.getAppPath(), '..', '..', '..', 'arm', 'www'),
+    path.resolve(__dirname, '..', '..', '..', '..', '..', 'arm', 'www'),
+    path.resolve(process.cwd(), 'arm', 'www'),
+    path.resolve(process.cwd(), '..', '..', 'arm', 'www'),
   ])
   if (armWww) {
     armPreviewUrl = await startArmPreviewServer(armWww, () => orchestratorPort).catch((err) => {
