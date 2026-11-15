@@ -627,6 +627,9 @@ export function createLocalRuntime({
     if (plotBusy) return;
     plotBusy = true;
     lastPlotDay = tick.day;
+    try {
+      localStorage.setItem("dhvw_plot_pending", JSON.stringify({ day: tick.day, forDay: tick.day + 1, startedAt: Date.now() }));
+    } catch {}
     const hh = String(Math.floor(tick.minute / 60)).padStart(2, "0");
     const mm = String(Math.floor(tick.minute % 60)).padStart(2, "0");
     const evs = await backend.oldestEvents(80).catch(() => []);
@@ -715,6 +718,7 @@ export function createLocalRuntime({
       await appendKv("plots", item, 50);
       await backend.setKV("daily_plots", dailyPlots).catch(() => {});
       await backend.setKV("last_plot_day", lastPlotDay).catch(() => {});
+      try { localStorage.removeItem("dhvw_plot_pending"); } catch {}
       if (sudden) await appendKv("sudden_events", { ...sudden, day: item.forDay, created_at: now() }, 50);
       await applyMood(item.mood);
       if (localMemory) {
@@ -737,6 +741,7 @@ export function createLocalRuntime({
       store.emit("plot_event", item);
       if (tick.phase !== "sleep") onSay(text, 4200);
     } catch (err) {
+      try { localStorage.removeItem("dhvw_plot_pending"); } catch {}
       await logLlm({ agent: "plot", ok: false, ms: now() - t0, prompt, response: err.message });
     } finally {
       plotBusy = false;
@@ -1054,6 +1059,31 @@ export function createLocalRuntime({
         : null;
       lastPlotDay = (await backend.getKV("last_plot_day")) ?? -1;
       dailyPlots = (await backend.getKV("daily_plots")) || {};
+      // 刷新时如果剧情调用还在进行，不能立刻再发一次；保留 2 分钟占位，超时后再补。
+      try {
+        const rawPending = localStorage.getItem("dhvw_plot_pending");
+        const pending = rawPending ? JSON.parse(rawPending) : null;
+        if (pending && Number.isFinite(pending.day) && pending.day === startDay) {
+          const age = Date.now() - (Number(pending.startedAt) || 0);
+          if (age >= 0 && age < 120000 && !dailyPlots[pending.forDay]) {
+            lastPlotDay = pending.day;
+            setTimeout(() => {
+              if (lastPlotDay !== pending.day || plotBusy || suspended) return;
+              if (dailyPlots[pending.forDay]) {
+                try { localStorage.removeItem("dhvw_plot_pending"); } catch {}
+                return;
+              }
+              lastPlotDay = -1;
+              void maybePlot(lastTick || { day: startDay, minute: startMinute, phase: "sleep", room: scene.start }, true);
+            }, 120000 - age);
+          } else {
+            localStorage.removeItem("dhvw_plot_pending");
+          }
+        } else if (pending) {
+          localStorage.removeItem("dhvw_plot_pending");
+        }
+      } catch {}
+
       sceneRequests = (await backend.getKV("scene_requests")) || [];
       // 丢掉过去日期的 pending，避免补请求旧计划；同一地点只保留一条 pending/ready。
       const currentDay = lastSnapshot?.day ?? 1;
