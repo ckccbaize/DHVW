@@ -97,8 +97,8 @@ export interface SettingsPatch {
 export interface Live2dModelView {
   id: string
   file: string
-  /** bundled=随包；user=用户导入（live2d-models）；olvt=OLVT 组件自带 */
-  source: 'bundled' | 'olvt' | 'user'
+  /** bundled=随包；olvt=OLVT 组件模型目录（live2d-models） */
+  source: 'bundled' | 'olvt'
 }
 
 export interface ComponentStatus {
@@ -244,14 +244,6 @@ export interface PathPickArgs {
 export interface PathPickResult {
   ok: boolean
   path?: string
-}
-
-/** 从文件夹导入 Live2D 模型的结果（复制进用户模型库） */
-export interface Live2dImportResult {
-  ok: boolean
-  imported: string[]
-  errors: string[]
-  models: Live2dModelView[]
 }
 
 export interface ActionRequest {

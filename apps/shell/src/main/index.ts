@@ -9,7 +9,6 @@ import { HostSupervisor } from './host'
 import { startLive2dServer, stopLive2dServer } from './live2d'
 import {
   findModel,
-  importModels as importLive2dModels,
   listModels as listLive2dModels,
   modelUrlPath,
   type Live2dModelRef,
@@ -527,24 +526,10 @@ function registerIpc(): void {
     return picked ? { ok: true, path: picked } : { ok: false }
   })
   ipcMain.handle('dhvw:openLive2dDir', async () => {
-    fs.mkdirSync(userLive2dRoot, { recursive: true })
-    const err = await electronShell.openPath(userLive2dRoot)
-    return { ok: !err, path: userLive2dRoot, error: err || undefined }
-  })
-  ipcMain.handle('dhvw:live2dImport', async () => {
-    fs.mkdirSync(userLive2dRoot, { recursive: true })
-    const pick = win
-      ? await dialog.showOpenDialog(win, {
-          title: '选择 Live2D 模型文件夹',
-          properties: ['openDirectory'],
-        })
-      : await dialog.showOpenDialog({ title: '选择 Live2D 模型文件夹', properties: ['openDirectory'] })
-    const src = pick.canceled ? '' : (pick.filePaths[0] ?? '')
-    if (!src) return { ok: false, imported: [], errors: [], models: live2dModelsView() }
-    const result = importLive2dModels(src, userLive2dRoot)
-    log('info', 'live2d', '导入模型', { from: src, imported: result.imported, errors: result.errors })
-    for (const id of result.imported) live2dModel ??= findModel(live2dRoots, id)
-    return { ok: result.imported.length > 0, ...result, models: live2dModelsView() }
+    const dir = activeLive2dDir()
+    fs.mkdirSync(dir, { recursive: true })
+    const err = await electronShell.openPath(dir)
+    return { ok: !err, path: dir, error: err || undefined }
   })
   ipcMain.handle('dhvw:armPreview', () => ({
     url: armPreviewUrl,
@@ -772,12 +757,18 @@ function applyLive2dModel(): void {
 
 let live2dUrl: string | null = null
 let armPreviewUrl: string | null = null
-/** 用户导入的模型库（data/live2d-models），设置页可打开/往里导入 */
-const userLive2dRoot = path.join(dataDir, 'live2d-models')
+const bundledLive2dRoot = (): string =>
+  path.join(app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'resources'), 'live2d')
+/** 打开现用 Live2D 模型目录：优先 OLVT 组件的 live2d-models（直接对 OLVT 生效且含当前角色），未就绪时退回随包 models */
+const activeLive2dDir = (): string => {
+  const olvtDir = resolveOlvtDir(config.sidecars.olvt?.cwd || config.olvt.dir)
+  if (olvtDir) return path.join(olvtDir, 'live2d-models')
+  return live2dModel ? path.dirname(live2dModel.dir) : path.join(bundledLive2dRoot(), 'models')
+}
 const live2dModelsView = (): Live2dModelView[] =>
   listLive2dModels(live2dRoots).map((m) => ({ id: m.id, source: m.source, file: m.file }))
 
-/** 模型库根：随包资源 → 用户导入 → OLVT 组件自带（三者目录结构一致） */
+/** 模型库根：随包资源 → OLVT 组件自带（两者扫描结构一致） */
 let live2dRoots: Array<{ root: string; source: Live2dModelRef['source'] }> = []
 let live2dModel: Live2dModelRef | null = null
 
@@ -791,13 +782,10 @@ async function boot(): Promise<void> {
     resources: resourcesRoot(),
   })
 
-  const live2dRoot = path.join(app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'resources'), 'live2d')
+  const live2dRoot = bundledLive2dRoot()
   const olvtRootDir = resolveOlvtDir(config.sidecars.olvt?.cwd || config.olvt.dir)
-  // 用户导入库：设置页「从文件夹导入」写这里，随包/组件目录都不动
-  fs.mkdirSync(userLive2dRoot, { recursive: true })
   live2dRoots = [
     { root: path.join(live2dRoot, 'models'), source: 'bundled' as const },
-    { root: userLive2dRoot, source: 'user' as const },
     ...(olvtRootDir ? [{ root: path.join(olvtRootDir, 'live2d-models'), source: 'olvt' as const }] : []),
   ]
   live2dModel = findModel(live2dRoots, config.live2d.model) ?? findModel(live2dRoots, 'mao_pro')

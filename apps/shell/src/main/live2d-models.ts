@@ -4,26 +4,46 @@ import path from 'node:path'
 /**
  * Live2D 模型库：PC 舞台和 OLVT 共用同一份模型。
  *
- * 目录约定（与 OLVT 一致）：`<库根>/<模型 id>/runtime/<id>.model3.json`。
+ * 目录约定：`<库根>/<模型 id>/runtime/*.model3.json`（OLVT 标准）或 `<库根>/<模型 id>/*.model3.json`。
  * 两个库根按顺序取第一个命中的：随包资源（resources/live2d/models）→ OLVT 组件的 live2d-models。
  */
 export interface Live2dModelRef {
   id: string
   /** model3.json 文件名 */
   file: string
-  /** 模型目录（含 runtime/） */
+  /** 相对于模型目录的 model3.json 路径（如 runtime/mao_pro.model3.json 或 大肥鱼.model3.json，POSIX 斜杠） */
+  relFile: string
+  /** 模型目录 */
   dir: string
-  /** 启动时该模型来自哪个库 */
-  source: 'bundled' | 'olvt' | 'user'
+  /** 该模型来自哪个库 */
+  source: 'bundled' | 'olvt'
 }
 
-const SAFE_ID = /^[a-z0-9][a-z0-9_-]{0,63}$/
+const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
 
 export function isSafeModelId(id: string): boolean {
   return SAFE_ID.test(id)
 }
 
-/** 扫一个库根下的模型：只看 `<id>/runtime/*.model3.json` */
+function findModelEntry(dir: string): { file: string; relFile: string } | null {
+  try {
+    const runtimeFiles = fs.readdirSync(path.join(dir, 'runtime'))
+    const runtimeModel = runtimeFiles.find((f) => f.toLowerCase().endsWith('.model3.json'))
+    if (runtimeModel) return { file: runtimeModel, relFile: `runtime/${runtimeModel}` }
+  } catch {
+    // 无 runtime 目录时继续尝试模型根目录（兼容 VTube Studio 直接导出的目录结构）
+  }
+  try {
+    const rootFiles = fs.readdirSync(dir)
+    const rootModel = rootFiles.find((f) => f.toLowerCase().endsWith('.model3.json'))
+    if (rootModel) return { file: rootModel, relFile: rootModel }
+  } catch {
+    return null
+  }
+  return null
+}
+
+/** 扫一个库根下的模型：支持 `<id>/runtime/*.model3.json` 与 `<id>/*.model3.json` */
 export function scanModels(root: string, source: Live2dModelRef['source']): Live2dModelRef[] {
   let entries: fs.Dirent[]
   try {
@@ -35,93 +55,10 @@ export function scanModels(root: string, source: Live2dModelRef['source']): Live
   for (const entry of entries) {
     if (!entry.isDirectory() || !isSafeModelId(entry.name)) continue
     const dir = path.join(root, entry.name)
-    const runtime = path.join(dir, 'runtime')
-    let files: string[]
-    try {
-      files = fs.readdirSync(runtime)
-    } catch {
-      continue
-    }
-    const file = files.find((f) => f.toLowerCase().endsWith('.model3.json'))
-    if (file) out.push({ id: entry.name, file, dir, source })
+    const hit = findModelEntry(dir)
+    if (hit) out.push({ id: entry.name, file: hit.file, relFile: hit.relFile, dir, source })
   }
   return out.sort((a, b) => a.id.localeCompare(b.id))
-}
-
-/** 目录里 runtime/*.model3.json 的文件名，没有则 null */
-function modelFileOf(dir: string): string | null {
-  try {
-    return fs.readdirSync(path.join(dir, 'runtime')).find((f) => f.toLowerCase().endsWith('.model3.json')) ?? null
-  } catch {
-    return null
-  }
-}
-
-/** 从文件夹名推出合法模型 id；推不出返回 null（不猜） */
-function idFromDirName(name: string): string | null {
-  const id = name
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, '-')
-    .replace(/-{2,}/g, '-')
-    .replace(/^[-_]+|[-_]+$/g, '')
-    .slice(0, 64)
-  return isSafeModelId(id) ? id : null
-}
-
-export interface ImportResult {
-  imported: string[]
-  errors: string[]
-}
-
-/**
- * 把用户选的文件夹里的模型复制进用户模型库。
- * 支持两种布局：选中的就是模型目录（含 runtime/），或选中一堆模型目录的父目录（逐个导入）。
- * 同名不覆盖——已有模型请先在库里删掉，避免把正在用的模型静默换掉。
- */
-export function importModels(srcDir: string, destRoot: string): ImportResult {
-  const out: ImportResult = { imported: [], errors: [] }
-  let isDir = false
-  try {
-    isDir = fs.statSync(srcDir).isDirectory()
-  } catch {
-    out.errors.push('所选路径不存在或不是文件夹')
-    return out
-  }
-  if (!isDir) {
-    out.errors.push('所选路径不是文件夹')
-    return out
-  }
-  const candidates = modelFileOf(srcDir)
-    ? [srcDir]
-    : fs
-        .readdirSync(srcDir, { withFileTypes: true })
-        .filter((e) => e.isDirectory())
-        .map((e) => path.join(srcDir, e.name))
-        .filter((d) => modelFileOf(d) !== null)
-  if (candidates.length === 0) {
-    out.errors.push('所选文件夹里没有模型：需要 <模型>/runtime/*.model3.json')
-    return out
-  }
-  for (const dir of candidates) {
-    const id = idFromDirName(path.basename(dir))
-    if (!id) {
-      out.errors.push(`${path.basename(dir)}：文件夹名要能以小写字母/数字开头（只允许 a-z 0-9 _ -）`)
-      continue
-    }
-    const target = path.join(destRoot, id)
-    if (fs.existsSync(target)) {
-      out.errors.push(`${id}：模型库里已有同名模型（先删掉旧目录再导入）`)
-      continue
-    }
-    try {
-      fs.mkdirSync(destRoot, { recursive: true })
-      fs.cpSync(dir, target, { recursive: true })
-      out.imported.push(id)
-    } catch (err) {
-      out.errors.push(`${id}：复制失败 ${(err as Error).message}`)
-    }
-  }
-  return out
 }
 
 /** 合并多个库根；同 id 以先出现的为准（随包资源优先） */
@@ -151,7 +88,7 @@ export function olvtModelEntry(model: Live2dModelRef): Record<string, unknown> {
   let idleGroup = 'Idle'
   let expressionCount = 0
   try {
-    const json = JSON.parse(fs.readFileSync(path.join(model.dir, 'runtime', model.file), 'utf8')) as {
+    const json = JSON.parse(fs.readFileSync(path.join(model.dir, ...model.relFile.split('/')), 'utf8')) as {
       FileReferences?: { Motions?: Record<string, unknown[]>; Expressions?: unknown[] }
     }
     const motions = json.FileReferences?.Motions ?? {}
@@ -169,7 +106,7 @@ export function olvtModelEntry(model: Live2dModelRef): Record<string, unknown> {
   return {
     name: model.id,
     description: '',
-    url: `/live2d-models/${model.id}/runtime/${model.file}`,
+    url: `/live2d-models/${model.id}/${model.relFile}`,
     kScale: 0.5,
     initialXshift: 0,
     initialYshift: 0,
@@ -182,5 +119,6 @@ export function olvtModelEntry(model: Live2dModelRef): Record<string, unknown> {
 
 /** 舞台页面用的模型地址（服务端路由见 live2d.ts） */
 export function modelUrlPath(model: Live2dModelRef): string {
-  return `/model/${model.id}/runtime/${encodeURIComponent(model.file)}`
+  const encodedRel = model.relFile.split('/').map(encodeURIComponent).join('/')
+  return `/model/${encodeURIComponent(model.id)}/${encodedRel}`
 }

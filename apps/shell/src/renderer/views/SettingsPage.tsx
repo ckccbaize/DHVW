@@ -58,22 +58,6 @@ export function SettingsPage({
     if (res.ok && res.path) apply(res.path)
   }
 
-  const importLive2d = async (): Promise<void> => {
-    setBusy(true)
-    try {
-      const res = await window.dhvw.importLive2dModels()
-      setLive2dList(res.models)
-      if (res.imported.length > 0) {
-        setLive2dModel(res.imported[0] ?? live2dModel)
-        setMsg({ ok: true, text: `已导入 ${res.imported.join('、')}，保存后生效` })
-      } else if (res.errors.length > 0) {
-        setMsg({ ok: false, text: `导入失败：${res.errors.join('；')}` })
-      }
-    } finally {
-      setBusy(false)
-    }
-  }
-
   useEffect(() => {
     void refreshLive2d()
     // 只在进入设置页时取一次；换模型后由「刷新模型列表」重取
@@ -265,33 +249,30 @@ export function SettingsPage({
               {!live2dList.some((m) => m.id === live2dModel) && <option value={live2dModel}>{live2dModel}</option>}
               {live2dList.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.id} · {m.source === 'bundled' ? '随包' : m.source === 'user' ? '导入' : '组件'}
+                  {m.id} · {m.source === 'bundled' ? '随包' : '组件'}
                 </option>
               ))}
             </select>
             <button onClick={() => void refreshLive2d()}>刷新模型列表</button>
           </div>
-          <div className="row2 tight">
+          <div className="actions">
             <button
               onClick={() =>
                 void window.dhvw.openLive2dDir().then((res) => {
                   setMsg(
                     res.ok
-                      ? { ok: true, text: `已打开模型库：${res.path}` }
-                      : { ok: false, text: res.error || '打开模型库失败' },
+                      ? { ok: true, text: `已打开模型目录：${res.path}` }
+                      : { ok: false, text: res.error || '打开模型目录失败' },
                   )
                 })
               }
             >
               打开模型文件夹
             </button>
-            <button disabled={busy} onClick={() => void importLive2d()}>
-              从文件夹导入
-            </button>
           </div>
           <p className="hint">
-            模型库 = 随包模型 + 用户导入（&lt;数据目录&gt;/live2d-models）+ 组件自带。导入要求文件夹里有
-            <code>runtime/*.model3.json</code>，文件夹名就是模型 id（小写字母/数字）。
+            直接把模型文件夹放进打开的模型目录（包含 <code>runtime/*.model3.json</code> 或根目录
+            <code>*.model3.json</code>），然后点「刷新模型列表」选用。
           </p>
         </div>
         <div className="field">
