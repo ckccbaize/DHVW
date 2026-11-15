@@ -31,7 +31,9 @@ DHVW_BOOTSTRAP_SCRIPT = """<script>
     localStorage.setItem('baseUrl', JSON.stringify(base));
   } catch (e) {}
 })();
-</script>"""
+</script>
+<link rel="stylesheet" href="./dhvw-cel.css" />
+<script src="./dhvw-arm.js" defer></script>"""
 
 
 class CORSStaticFiles(StarletteStaticFiles):
@@ -44,11 +46,14 @@ class CORSStaticFiles(StarletteStaticFiles):
         response.headers["Access-Control-Allow-Headers"] = "*"
         if path.endswith(".js"):
             response.headers["Content-Type"] = "application/javascript"
+        norm = (path or "").strip("/")
+        if norm in ("dhvw-cel.css", "dhvw-arm.js"):
+            response.headers["Cache-Control"] = "no-store"
         return response
 
 
 class FrontendStaticFiles(CORSStaticFiles):
-    """Injects runtime wsUrl/baseUrl before the Vite bundle runs on index.html."""
+    """Injects runtime wsUrl/baseUrl and DHVW Cel UI overrides into index.html."""
 
     async def get_response(self, path: str, scope):
         response = await super().get_response(path, scope)
@@ -58,7 +63,7 @@ class FrontendStaticFiles(CORSStaticFiles):
             if os.path.isfile(idx):
                 with open(idx, "r", encoding="utf-8") as f:
                     html = f.read()
-                if "localStorage.setItem('wsUrl'" not in html:
+                if "dhvw-cel.css" not in html:
                     html = html.replace("<head>", "<head>\n" + DHVW_BOOTSTRAP_SCRIPT, 1)
                 return HTMLResponse(
                     html,

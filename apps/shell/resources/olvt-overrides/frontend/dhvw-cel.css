@@ -1,0 +1,650 @@
+/* DHVW OLVT 赛璐璐动画风重绘 & ARM 适配样式（严格对齐 PC/docs/design.md） */
+:root {
+  --color-ink: #1a1a2e;
+  --color-cel-white: #fafaf5;
+  --color-red: #e63946;
+  --color-red-hover: #ff4d5a;
+  --color-aqua: #4ea8de;
+  --color-grass: #2ecc71;
+  --color-sunset: #f1c40f;
+  --line: 3px solid #1a1a2e;
+  --shadow-hard: 4px 4px 0 #1a1a2e;
+  --shadow-hard-hover: 6px 6px 0 #1a1a2e;
+  --shadow-hard-sm: 3px 3px 0 #1a1a2e;
+  --ease-cel: 75ms linear;
+  --font-cel: "Inter", "Noto Sans SC", "Microsoft YaHei", "Arial Black", Helvetica, sans-serif;
+}
+
+html.dhvw-cel,
+html.dhvw-cel body,
+html.dhvw-cel #root {
+  background: var(--color-cel-white) !important;
+  color: var(--color-ink) !important;
+  font-family: var(--font-cel) !important;
+  font-weight: 700;
+  overflow: hidden !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0;
+  padding: 0;
+}
+
+html.dhvw-cel *,
+html.dhvw-cel *::before,
+html.dhvw-cel *::after {
+  box-sizing: border-box;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* ---------- 布局骨架 ---------- */
+html.dhvw-cel [data-dhvw="app-container"] {
+  display: flex !important;
+  flex-direction: row !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: var(--color-cel-white) !important;
+  color: var(--color-ink) !important;
+  position: relative !important;
+  overflow: hidden !important;
+  margin-top: 0 !important;
+}
+
+html.dhvw-cel [data-dhvw="main-content"] {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  height: 100% !important;
+  position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background: var(--color-cel-white) !important;
+  overflow: hidden !important;
+  transition: none !important;
+}
+
+/* ---------- Live2D 舞台与背景 ---------- */
+html.dhvw-cel [data-dhvw="bg-container"] {
+  background: var(--color-cel-white) !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  width: 100% !important;
+}
+
+html.dhvw-cel [data-dhvw="bg-container"] img[data-dhvw-broken="1"] {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* 确保在宽屏/窄屏与 ARM 嵌入下 Live2D 居中铺展且不被压扁 */
+html.dhvw-cel [data-dhvw="live2d-stage"] {
+  top: 0 !important;
+  height: 100% !important;
+  z-index: 5 !important;
+  transition: left var(--ease-cel), width var(--ease-cel) !important;
+  pointer-events: auto !important;
+}
+
+html.dhvw-cel[data-dhvw-sidebar="collapsed"] [data-dhvw="live2d-stage"],
+html.dhvw-arm [data-dhvw="live2d-stage"] {
+  left: 34px !important;
+  width: calc(100% - 34px) !important;
+}
+
+html.dhvw-cel:not(.dhvw-arm)[data-dhvw-sidebar="open"] [data-dhvw="live2d-stage"] {
+  left: min(380px, 86vw) !important;
+  width: calc(100% - min(380px, 86vw)) !important;
+}
+
+@media (max-width: 960px) {
+  html.dhvw-cel [data-dhvw="live2d-stage"] {
+    left: 34px !important;
+    width: calc(100% - 34px) !important;
+  }
+}
+
+/* ---------- 侧边栏（平涂抽屉 + 3px 墨线） ---------- */
+html.dhvw-cel [data-dhvw="sidebar-outer"] {
+  position: relative !important;
+  height: 100% !important;
+  flex-shrink: 0 !important;
+  background: var(--color-cel-white) !important;
+  border-right: var(--line) !important;
+  border-radius: 0 !important;
+  color: var(--color-ink) !important;
+  transition: width var(--ease-cel) !important;
+  z-index: 30 !important;
+}
+
+html.dhvw-cel [data-dhvw="sidebar-outer"][data-dhvw-collapsed="true"] {
+  width: 34px !important;
+  min-width: 34px !important;
+  flex-basis: 34px !important;
+}
+
+html.dhvw-cel [data-dhvw="sidebar-outer"][data-dhvw-collapsed="false"] {
+  width: min(380px, 86vw) !important;
+  box-shadow: 6px 0 0 var(--color-ink) !important;
+}
+
+html.dhvw-arm [data-dhvw="sidebar-outer"][data-dhvw-collapsed="false"] {
+  position: fixed !important;
+  left: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  z-index: 45 !important;
+}
+
+@media (max-width: 960px) {
+  html.dhvw-cel [data-dhvw="sidebar-outer"][data-dhvw-collapsed="false"] {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    z-index: 45 !important;
+  }
+}
+
+html.dhvw-cel [data-dhvw="sidebar-inner"] {
+  background: var(--color-cel-white) !important;
+  width: 100% !important;
+  height: 100% !important;
+  transform: none !important;
+  transition: none !important;
+  padding-right: 34px !important;
+}
+
+html.dhvw-cel [data-dhvw="sidebar-outer"][data-dhvw-collapsed="true"] [data-dhvw="sidebar-inner"] {
+  padding-right: 0 !important;
+}
+
+/* 侧栏折叠开关把手：清晰的高对比度日落黄竖条 */
+html.dhvw-cel [data-dhvw="sidebar-toggle"] {
+  position: absolute !important;
+  right: 0 !important;
+  top: 0 !important;
+  width: 34px !important;
+  height: 100% !important;
+  background: var(--color-sunset) !important;
+  color: var(--color-ink) !important;
+  border-left: var(--line) !important;
+  transition: background var(--ease-cel), color var(--ease-cel) !important;
+  z-index: 5 !important;
+}
+
+html.dhvw-cel [data-dhvw="sidebar-outer"][data-dhvw-collapsed="true"] [data-dhvw="sidebar-toggle"] {
+  border-left: none !important;
+  background: var(--color-cel-white) !important;
+}
+
+html.dhvw-cel [data-dhvw="sidebar-toggle"]:hover {
+  background: var(--color-red) !important;
+  color: var(--color-cel-white) !important;
+}
+
+html.dhvw-cel [data-dhvw="sidebar-toggle"] svg {
+  width: 20px !important;
+  height: 20px !important;
+  stroke-width: 3px !important;
+}
+
+/* ARM 嵌入式视口中隐藏 Electron 专属窗口/桌宠切换菜单 */
+html.dhvw-arm [data-dhvw="mode-menu"] {
+  display: none !important;
+}
+
+/* ---------- 状态徽标（999px 唯一圆角胶囊） ---------- */
+html.dhvw-cel [data-dhvw="ws-status-wrap"] {
+  top: 14px !important;
+  left: 14px !important;
+  z-index: 20 !important;
+}
+
+html.dhvw-cel [data-dhvw="ws-status"] {
+  border: var(--line) !important;
+  border-radius: 999px !important;
+  box-shadow: var(--shadow-hard-sm) !important;
+  color: var(--color-ink) !important;
+  font-weight: 900 !important;
+  font-size: 13px !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  padding: 5px 14px !important;
+  transition: transform var(--ease-cel), box-shadow var(--ease-cel) !important;
+}
+
+html.dhvw-cel [data-dhvw="ws-status"]:hover {
+  opacity: 1 !important;
+  transform: translate(-2px, -2px) !important;
+  box-shadow: 5px 5px 0 var(--color-ink) !important;
+}
+
+html.dhvw-cel [data-dhvw="ws-status"]:active {
+  transform: scaleX(1.1) scaleY(0.9) translate(3px, 5px) !important;
+  box-shadow: none !important;
+}
+
+html.dhvw-cel [data-dhvw="ai-state"] {
+  background: var(--color-aqua) !important;
+  color: var(--color-ink) !important;
+  border: var(--line) !important;
+  border-radius: 999px !important;
+  box-shadow: var(--shadow-hard-sm) !important;
+  font-weight: 900 !important;
+  height: 30px !important;
+  min-width: 96px !important;
+  width: auto !important;
+  padding: 0 12px !important;
+}
+
+html.dhvw-cel [data-dhvw="ai-state"] p,
+html.dhvw-cel [data-dhvw="ai-state"] span {
+  color: var(--color-ink) !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+}
+
+/* ---------- 字幕气泡 ---------- */
+html.dhvw-cel [data-dhvw="subtitle-wrap"] {
+  width: min(680px, calc(100% - 28px)) !important;
+  bottom: 126px !important;
+  z-index: 20 !important;
+  transition: bottom var(--ease-cel) !important;
+}
+
+html.dhvw-cel:has([data-dhvw="footer-wrap"][data-dhvw-collapsed="true"]) [data-dhvw="subtitle-wrap"] {
+  bottom: 84px !important;
+}
+
+html.dhvw-cel [data-dhvw="subtitle-card"] {
+  background: var(--color-cel-white) !important;
+  color: var(--color-ink) !important;
+  border: var(--line) !important;
+  border-radius: 0 !important;
+  box-shadow: var(--shadow-hard) !important;
+  padding: 12px 18px !important;
+  max-width: 100% !important;
+}
+
+html.dhvw-cel [data-dhvw="subtitle-card"] p,
+html.dhvw-cel [data-dhvw="subtitle-card"] span {
+  color: var(--color-ink) !important;
+  font-weight: 900 !important;
+  font-size: clamp(14px, 2vw, 20px) !important;
+  line-height: 1.4 !important;
+  text-shadow: none !important;
+}
+
+/* ---------- 底部交互栏（适配 ARM 开关安全区） ---------- */
+html.dhvw-cel [data-dhvw="footer-wrap"] {
+  position: relative !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  background: transparent !important;
+  z-index: 25 !important;
+  transition: transform var(--ease-cel) !important;
+  overflow: visible !important;
+}
+
+html.dhvw-cel [data-dhvw="footer-card"] {
+  background: var(--color-cel-white) !important;
+  color: var(--color-ink) !important;
+  border-top: var(--line) !important;
+  border-radius: 0 !important;
+  padding-bottom: 12px !important;
+  height: auto !important;
+  transition: transform var(--ease-cel) !important;
+}
+
+html.dhvw-cel [data-dhvw="footer-card"][data-dhvw-collapsed="true"] {
+  background: transparent !important;
+  border-top: none !important;
+  transform: translateY(calc(100% - 30px)) !important;
+}
+
+html.dhvw-cel [data-dhvw="footer-toggle"] {
+  height: 28px !important;
+  width: 96px !important;
+  margin: 0 auto 6px !important;
+  background: var(--color-cel-white) !important;
+  color: var(--color-ink) !important;
+  border: var(--line) !important;
+  border-top: none !important;
+  border-radius: 0 !important;
+  box-shadow: 3px 3px 0 var(--color-ink) !important;
+  transition: background var(--ease-cel), transform var(--ease-cel) !important;
+}
+
+html.dhvw-cel [data-dhvw="footer-card"][data-dhvw-collapsed="true"] [data-dhvw="footer-toggle"] {
+  border-top: var(--line) !important;
+}
+
+html.dhvw-cel [data-dhvw="footer-toggle"]:hover {
+  background: var(--color-sunset) !important;
+  color: var(--color-ink) !important;
+}
+
+html.dhvw-cel [data-dhvw="footer-body"] {
+  padding: 0 14px !important;
+}
+
+/* ARM 模式为右下角 #switch 保留 192px 安全距离，避免任何按钮或输入框被遮挡 */
+html.dhvw-arm [data-dhvw="footer-body"] {
+  padding-right: 196px !important;
+}
+
+html.dhvw-cel [data-dhvw="footer-row"] {
+  display: flex !important;
+  align-items: flex-end !important;
+  gap: 12px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+html.dhvw-cel [data-dhvw="footer-actions-col"] {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  flex-shrink: 0 !important;
+}
+
+html.dhvw-cel [data-dhvw="input-group"] {
+  display: flex !important;
+  align-items: stretch !important;
+  gap: 8px !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+
+html.dhvw-cel [data-dhvw="input-group"] > :first-child {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+
+/* ---------- 赛璐璐按钮、输入框与挤压物理 ---------- */
+html.dhvw-cel button,
+html.dhvw-cel [role="button"] {
+  border-radius: 0 !important;
+  font-family: var(--font-cel) !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+html.dhvw-cel [data-dhvw="sidebar-inner"] button,
+html.dhvw-cel [data-dhvw="mic-btn"],
+html.dhvw-cel [data-dhvw="hand-btn"],
+html.dhvw-cel [data-dhvw="send-btn"],
+html.dhvw-cel [role="dialog"] button,
+html.dhvw-cel [data-scope="drawer"] button {
+  border: var(--line) !important;
+  border-radius: 0 !important;
+  box-shadow: var(--shadow-hard-sm) !important;
+  transition: transform var(--ease-cel), box-shadow var(--ease-cel), background var(--ease-cel), color var(--ease-cel) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+html.dhvw-cel [data-dhvw="sidebar-inner"] button {
+  background: var(--color-cel-white) !important;
+  color: var(--color-ink) !important;
+}
+
+html.dhvw-cel [data-dhvw="sidebar-inner"] button:hover,
+html.dhvw-cel [data-dhvw="mic-btn"]:hover,
+html.dhvw-cel [data-dhvw="hand-btn"]:hover,
+html.dhvw-cel [data-dhvw="send-btn"]:hover,
+html.dhvw-cel [role="dialog"] button:hover,
+html.dhvw-cel [data-scope="drawer"] button:hover {
+  transform: translate(-2px, -2px) !important;
+  box-shadow: 5px 5px 0 var(--color-ink) !important;
+}
+
+html.dhvw-cel [data-dhvw="sidebar-inner"] button:active,
+html.dhvw-cel [data-dhvw="mic-btn"]:active,
+html.dhvw-cel [data-dhvw="hand-btn"]:active,
+html.dhvw-cel [data-dhvw="send-btn"]:active,
+html.dhvw-cel [role="dialog"] button:active,
+html.dhvw-cel [data-scope="drawer"] button:active {
+  transform: scaleX(1.1) scaleY(0.9) translate(3px, 5px) !important;
+  box-shadow: none !important;
+}
+
+html.dhvw-cel [data-dhvw="mic-btn"] {
+  width: 46px !important;
+  min-width: 46px !important;
+  height: 46px !important;
+  color: var(--color-ink) !important;
+}
+
+html.dhvw-cel [data-dhvw="hand-btn"] {
+  width: 46px !important;
+  min-width: 46px !important;
+  height: 46px !important;
+  background: var(--color-sunset) !important;
+  color: var(--color-ink) !important;
+}
+
+html.dhvw-cel [data-dhvw="attach-btn"] {
+  color: var(--color-ink) !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  left: 6px !important;
+}
+
+html.dhvw-cel [data-dhvw="attach-btn"]:hover {
+  color: var(--color-red) !important;
+  transform: none !important;
+}
+
+html.dhvw-cel [data-dhvw="input-group"] textarea {
+  background: var(--color-cel-white) !important;
+  color: var(--color-ink) !important;
+  border: var(--line) !important;
+  border-radius: 0 !important;
+  box-shadow: var(--shadow-hard-sm) !important;
+  height: 54px !important;
+  min-height: 54px !important;
+  max-height: 84px !important;
+  padding: 13px 12px 10px 44px !important;
+  font-family: var(--font-cel) !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  line-height: 1.4 !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+html.dhvw-cel [data-dhvw="input-group"] textarea::placeholder {
+  color: #5c5c72 !important;
+  font-weight: 700 !important;
+}
+
+html.dhvw-cel [data-dhvw="input-group"] textarea:focus {
+  outline: none !important;
+  box-shadow: var(--shadow-hard) !important;
+  background: #ffffff !important;
+}
+
+html.dhvw-cel [data-dhvw="send-btn"] {
+  background: var(--color-red) !important;
+  color: var(--color-cel-white) !important;
+  min-width: 72px !important;
+  height: 54px !important;
+  padding: 0 16px !important;
+  font-size: 14px !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  cursor: pointer;
+}
+
+html.dhvw-cel [data-dhvw="send-btn"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 30%, rgba(255, 255, 255, 0.3) 50%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 300ms linear;
+  pointer-events: none;
+}
+
+html.dhvw-cel [data-dhvw="send-btn"]:hover {
+  background: var(--color-red-hover) !important;
+}
+
+html.dhvw-cel [data-dhvw="send-btn"]:hover::before {
+  transform: translateX(120%);
+}
+
+/* ---------- 聊天面板 / 历史消息 / 抽屉与设置窗口 ---------- */
+html.dhvw-cel .cs-main-container,
+html.dhvw-cel .cs-chat-container,
+html.dhvw-cel .cs-message-list {
+  background: var(--color-cel-white) !important;
+  color: var(--color-ink) !important;
+  border-radius: 0 !important;
+}
+
+html.dhvw-cel .cs-chat-container {
+  border: var(--line) !important;
+  box-shadow: var(--shadow-hard-sm) !important;
+  margin: 0 8px !important;
+}
+
+html.dhvw-cel .cs-message__content {
+  background: var(--color-cel-white) !important;
+  color: var(--color-ink) !important;
+  border: var(--line) !important;
+  border-radius: 0 !important;
+  box-shadow: var(--shadow-hard-sm) !important;
+  font-weight: 700 !important;
+}
+
+html.dhvw-cel .cs-message--outgoing .cs-message__content {
+  background: var(--color-aqua) !important;
+  color: var(--color-ink) !important;
+}
+
+html.dhvw-cel .cs-message__sender,
+html.dhvw-cel .cs-message__sender-name,
+html.dhvw-cel .cs-message__header,
+html.dhvw-cel .cs-message__footer {
+  color: var(--color-ink) !important;
+  font-weight: 900 !important;
+}
+
+html.dhvw-cel .cs-avatar {
+  border: 2px solid var(--color-ink) !important;
+  border-radius: 999px !important;
+  color: var(--color-ink) !important;
+  font-weight: 900 !important;
+}
+
+html.dhvw-cel [data-scope="tabs"] [role="tab"] {
+  border: var(--line) !important;
+  border-radius: 0 !important;
+  background: var(--color-cel-white) !important;
+  color: var(--color-ink) !important;
+  font-weight: 900 !important;
+}
+
+html.dhvw-cel [data-scope="tabs"] [role="tab"][aria-selected="true"],
+html.dhvw-cel [data-scope="tabs"] [role="tab"][data-selected] {
+  background: var(--color-sunset) !important;
+  color: var(--color-ink) !important;
+}
+
+html.dhvw-cel [role="dialog"],
+html.dhvw-cel [data-scope="drawer"] [data-part="content"],
+html.dhvw-cel .chakra-drawer__content {
+  background: var(--color-cel-white) !important;
+  color: var(--color-ink) !important;
+  border: var(--line) !important;
+  border-radius: 0 !important;
+  box-shadow: var(--shadow-hard) !important;
+  max-width: min(440px, 94vw) !important;
+}
+
+html.dhvw-cel [role="dialog"] *,
+html.dhvw-cel [data-scope="drawer"] [data-part="content"] * {
+  color: var(--color-ink);
+}
+
+html.dhvw-cel [role="dialog"] input,
+html.dhvw-cel [role="dialog"] select,
+html.dhvw-cel [data-scope="drawer"] input,
+html.dhvw-cel [data-scope="drawer"] select,
+html.dhvw-cel [data-dhvw="sidebar-inner"] input,
+html.dhvw-cel [data-dhvw="sidebar-inner"] select {
+  background: #ffffff !important;
+  color: var(--color-ink) !important;
+  border: var(--line) !important;
+  border-radius: 0 !important;
+}
+
+html.dhvw-cel [data-scope="toast"] [data-part="root"] {
+  background: var(--color-cel-white) !important;
+  color: var(--color-ink) !important;
+  border: var(--line) !important;
+  border-radius: 0 !important;
+  box-shadow: var(--shadow-hard) !important;
+}
+
+/* ---------- 窄屏适配（杜绝溢出与挤压） ---------- */
+@media (max-width: 640px) {
+  html.dhvw-cel [data-dhvw="footer-body"] {
+    padding: 0 10px !important;
+  }
+
+  html.dhvw-arm [data-dhvw="footer-body"] {
+    padding-right: 176px !important;
+  }
+
+  html.dhvw-cel [data-dhvw="footer-row"] {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+
+  html.dhvw-cel [data-dhvw="footer-actions-col"] {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  html.dhvw-cel [data-dhvw="mic-btn"],
+  html.dhvw-cel [data-dhvw="hand-btn"] {
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 40px !important;
+  }
+
+  html.dhvw-cel [data-dhvw="send-btn"] {
+    min-width: 58px !important;
+    height: 48px !important;
+    padding: 0 10px !important;
+  }
+
+  html.dhvw-cel [data-dhvw="input-group"] textarea {
+    height: 48px !important;
+    min-height: 48px !important;
+  }
+
+  html.dhvw-cel [data-dhvw="subtitle-wrap"] {
+    bottom: 162px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.dhvw-cel *,
+  html.dhvw-cel *::before,
+  html.dhvw-cel *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
