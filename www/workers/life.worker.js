@@ -74,6 +74,17 @@ function phaseAt(minute) {
   const p = phaseOf(minute);
   return p === "sleep" ? "wake" : p;
 }
+/** 睡眠交互跨午夜时 endsAt 仍是分钟数；醒来后必须清掉，否则 busyUntil 会锁住一整天。 */
+function clearStaleSleep() {
+  if (phase !== "sleep" && activeInteraction?.act === "sleep") {
+    activeInteraction = null;
+    busyUntil = Math.min(busyUntil, clock.minute);
+  }
+  if (phase !== "sleep" && busyUntil > clock.minute + 480) {
+    busyUntil = clock.minute;
+  }
+}
+
 let saidToday = new Map(); // text -> day
 let recentLines = [];
 let stats = { ticks: 0, intents: 0, says: 0, sinceResume: { rooms: 0, says: 0, sleeps: 0 } };
@@ -652,9 +663,12 @@ self.onmessage = (e) => {
       weather = weatherAt(clock.day, clock.minute).state;
       scheduleFor(clock.day);
       phase = snap?.phase || phaseAt(clock.minute);
+      // 旧快照可能把 sleep 相位带到白天；以当前时钟为准，避免醒来后继续锁住。
+      if (phase === "sleep" && phaseAt(clock.minute) !== "sleep") phase = phaseAt(clock.minute);
       currentRoom = snap?.room || PHASE_ROOM[phase] || "living";
       activity = snap?.activity || "active";
       busyUntil = Number.isFinite(snap?.busyUntil) ? snap.busyUntil : -1e9;
+      clearStaleSleep();
       if (snap?.plan) plan = snap.plan;
       if (Number.isFinite(snap?.sleepAt)) sleepAt = snap.sleepAt;
       if (Number.isFinite(snap?.wakeAt)) wakeAt = snap.wakeAt;
@@ -782,6 +796,7 @@ self.onmessage = (e) => {
       // 主机回显的 clock 可能比端侧旧；只接受向前校准，避免时间倒退。
       if (clock.setForward(msg.day, msg.minute)) {
         phase = phaseOf(clock.minute);
+        clearStaleSleep();
         resetAnchor();
         emitSnapshot();
       }
