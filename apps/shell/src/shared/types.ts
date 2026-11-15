@@ -97,7 +97,8 @@ export interface SettingsPatch {
 export interface Live2dModelView {
   id: string
   file: string
-  source: 'bundled' | 'olvt'
+  /** bundled=随包；user=用户导入（live2d-models）；olvt=OLVT 组件自带 */
+  source: 'bundled' | 'olvt' | 'user'
 }
 
 export interface ComponentStatus {
@@ -230,6 +231,27 @@ export interface SaveView {
   scene: string | null
   bytes: number
   sha256: string
+}
+
+/** 系统文件/文件夹选择框的参数与结果 */
+export interface PathPickArgs {
+  kind: 'dir' | 'file'
+  title?: string
+  defaultPath?: string
+  filters?: Array<{ name: string; extensions: string[] }>
+}
+
+export interface PathPickResult {
+  ok: boolean
+  path?: string
+}
+
+/** 从文件夹导入 Live2D 模型的结果（复制进用户模型库） */
+export interface Live2dImportResult {
+  ok: boolean
+  imported: string[]
+  errors: string[]
+  models: Live2dModelView[]
 }
 
 export interface ActionRequest {

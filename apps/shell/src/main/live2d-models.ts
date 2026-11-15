@@ -14,7 +14,7 @@ export interface Live2dModelRef {
   /** 模型目录（含 runtime/） */
   dir: string
   /** 启动时该模型来自哪个库 */
-  source: 'bundled' | 'olvt'
+  source: 'bundled' | 'olvt' | 'user'
 }
 
 const SAFE_ID = /^[a-z0-9][a-z0-9_-]{0,63}$/
@@ -46,6 +46,82 @@ export function scanModels(root: string, source: Live2dModelRef['source']): Live
     if (file) out.push({ id: entry.name, file, dir, source })
   }
   return out.sort((a, b) => a.id.localeCompare(b.id))
+}
+
+/** 目录里 runtime/*.model3.json 的文件名，没有则 null */
+function modelFileOf(dir: string): string | null {
+  try {
+    return fs.readdirSync(path.join(dir, 'runtime')).find((f) => f.toLowerCase().endsWith('.model3.json')) ?? null
+  } catch {
+    return null
+  }
+}
+
+/** 从文件夹名推出合法模型 id；推不出返回 null（不猜） */
+function idFromDirName(name: string): string | null {
+  const id = name
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^[-_]+|[-_]+$/g, '')
+    .slice(0, 64)
+  return isSafeModelId(id) ? id : null
+}
+
+export interface ImportResult {
+  imported: string[]
+  errors: string[]
+}
+
+/**
+ * 把用户选的文件夹里的模型复制进用户模型库。
+ * 支持两种布局：选中的就是模型目录（含 runtime/），或选中一堆模型目录的父目录（逐个导入）。
+ * 同名不覆盖——已有模型请先在库里删掉，避免把正在用的模型静默换掉。
+ */
+export function importModels(srcDir: string, destRoot: string): ImportResult {
+  const out: ImportResult = { imported: [], errors: [] }
+  let isDir = false
+  try {
+    isDir = fs.statSync(srcDir).isDirectory()
+  } catch {
+    out.errors.push('所选路径不存在或不是文件夹')
+    return out
+  }
+  if (!isDir) {
+    out.errors.push('所选路径不是文件夹')
+    return out
+  }
+  const candidates = modelFileOf(srcDir)
+    ? [srcDir]
+    : fs
+        .readdirSync(srcDir, { withFileTypes: true })
+        .filter((e) => e.isDirectory())
+        .map((e) => path.join(srcDir, e.name))
+        .filter((d) => modelFileOf(d) !== null)
+  if (candidates.length === 0) {
+    out.errors.push('所选文件夹里没有模型：需要 <模型>/runtime/*.model3.json')
+    return out
+  }
+  for (const dir of candidates) {
+    const id = idFromDirName(path.basename(dir))
+    if (!id) {
+      out.errors.push(`${path.basename(dir)}：文件夹名要能以小写字母/数字开头（只允许 a-z 0-9 _ -）`)
+      continue
+    }
+    const target = path.join(destRoot, id)
+    if (fs.existsSync(target)) {
+      out.errors.push(`${id}：模型库里已有同名模型（先删掉旧目录再导入）`)
+      continue
+    }
+    try {
+      fs.mkdirSync(destRoot, { recursive: true })
+      fs.cpSync(dir, target, { recursive: true })
+      out.imported.push(id)
+    } catch (err) {
+      out.errors.push(`${id}：复制失败 ${(err as Error).message}`)
+    }
+  }
+  return out
 }
 
 /** 合并多个库根；同 id 以先出现的为准（随包资源优先） */

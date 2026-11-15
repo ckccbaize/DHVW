@@ -10,7 +10,10 @@ import type {
   SettingsPatch,
   SceneJobView,
   SceneOutputView,
+  Live2dImportResult,
   Live2dModelView,
+  PathPickArgs,
+  PathPickResult,
   SceneRequestView,
   SaveView,
   SettingsView,
@@ -46,6 +49,13 @@ const api = {
     ipcRenderer.invoke('dhvw:live2d'),
   live2dModels: (): Promise<{ current: string | null; models: Live2dModelView[] }> =>
     ipcRenderer.invoke('dhvw:live2dModels'),
+  /** 系统选择框：取一个文件夹/文件路径（取消时 ok=false） */
+  pickPath: (args: PathPickArgs): Promise<PathPickResult> => ipcRenderer.invoke('dhvw:pickPath', args),
+  /** 在资源管理器里打开用户模型库（data/live2d-models） */
+  openLive2dDir: (): Promise<{ ok: boolean; path: string; error?: string }> =>
+    ipcRenderer.invoke('dhvw:openLive2dDir'),
+  /** 选一个文件夹，把里面的 Live2D 模型复制进用户模型库 */
+  importLive2dModels: (): Promise<Live2dImportResult> => ipcRenderer.invoke('dhvw:live2dImport'),
   armPreview: (): Promise<{ url: string | null; error?: string }> => ipcRenderer.invoke('dhvw:armPreview'),
   setDisplay: (
     state: 'overview' | 'present',

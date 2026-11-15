@@ -87,6 +87,8 @@ PC 端“完成”= 下列全部成立，缺一不算：
 | PCM7 | 桥接与接管 | BRIDGE / DESK | PCM4 | Stub 契约稳定；接管零冲突 |
 | PCM8 | 硬化 | SUP / OBS 收口 | 全部 | 72 h 长稳、冷启动、断网恢复达标 |
 
+> 进展（2026-11-15，设置页路径选择）：设置里所有路径项加系统选择框（GPT-SoVITS 目录走 `openDirectory`、参考音色走 `openFile` + 音频筛选），Live2D 模型可「打开模型文件夹」（用户库 `%APPDATA%/DigitalHuman/live2d-models`）与「从文件夹导入」（校验 `<模型>/runtime/*.model3.json`、文件夹名转模型 id、同名拒绝、只写数据目录）。实测：选择框弹出标题正确、取消返回 `{ok:false}`；导入逻辑单测覆盖单模型/父目录批量/同名冲突；用户库在启动时自动创建并进入模型库搜索顺序；设置页六档无横向溢出。
+>
 > 进展（2026-11-15，地图推送）：产出验收新增「提交 ARM 侧」，设置新增「自动推送生成的地图」（默认关）。推送前做资源核验（必需文件 + manifest 的 size/sha256），通过才发 `scene:ready{sceneId,basePath,…}`；投递成功记 `kv.scene_pushes.pushed`，离线记 `pending`，设备 `hello`/每 15 s 重推直到成功。实测：无设备手动推送 → 409 排队；假设备经网关 wss 上线后收到 `scene:ready`，按设备方式（`/orchestrator` 前缀 + token）拉回 manifest 与 8/8 文件且 sha256 全部吻合，状态转 `pushed`；`autoPush` 开关经设置→编排器往返生效；`test:dhvw` 34 项通过；三页六档布局无溢出。未实测：真实固件侧的 Cache Storage 落盘（PC 侧只保证可拉取）。
 >
 > 进展（2026-11-15，可换 Live2D 模型）：设置新增「Live2D 模型」，模型库 = 随包 `resources/live2d/models`（mao_pro、shizuku，+5.1 MB）∪ OLVT 组件 `live2d-models`；选中后本机舞台按 `/model/<id>/…` 重载，模型文件与 `model_dict.json` 条目同步进 OLVT，`conf.yaml` 的 `live2d_model_name` 改写并重启 OLVT。实测：mao_pro↔shizuku 往返切换，舞台与 OLVT 日志均为 `Initializing Live2D: <id>`；非法 id 保存返回明确错误；六档布局审计全绿。

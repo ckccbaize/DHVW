@@ -175,10 +175,11 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 | temperature | 0–2，越界拒绝 |
 | API Key | DPAPI 加密后存 `secrets` 表；IPC 只返回 `hasKey` 布尔值，明文不出主进程，不进日志 |
 | OLVT / TTS 端口 | `0` = 自动分配；固定端口被占用时自动回退到动态分配 |
+| Live2D 模型 | 下拉选模型（标 随包 / 导入 / 组件）；「打开模型文件夹」在资源管理器里打开用户模型库 `%APPDATA%/DigitalHuman/live2d-models`，「从文件夹导入」把选中文件夹里的模型复制进去。要求 `<模型>/runtime/*.model3.json`，文件夹名即模型 id（小写字母/数字/`_`/`-`），同名不覆盖 |
 | 启用 ASR | 关闭后不要求下载 SenseVoice 模型；开启但模型未下载时界面会提示 |
 | 角色名 / 称呼用户 / 人设 | 直接写进 OLVT 的 `character_config`，重启宿主生效 |
-| 语音合成后端目录 | GPT-SoVITS 目录（含 `api_v2.py` 与 `runtime/python.exe`）；留空则保留占位 worker。端口取上面的 TTS 端口 |
-| 参考音色（音频路径 + 文本） | GPT-SoVITS 的 `ref_audio_path` / `prompt_text`，留空则用 TTS 服务默认 |
+| 语音合成后端目录 | GPT-SoVITS 目录（含 `api_v2.py` 与 `runtime/python.exe`）；旁边「选择文件夹」走系统选择框，也可手填。留空则保留占位 worker。端口取上面的 TTS 端口 |
+| 参考音色（音频路径 + 文本） | GPT-SoVITS 的 `ref_audio_path` / `prompt_text`；「选择文件」筛选 wav/mp3/flac/ogg/m4a，也可手填。留空则用 TTS 服务默认 |
 
 实测：保存 → 读回一致；`secrets` 里是 64 字符 base64 密文（非明文）；日志中检索不到密钥；`70000` 端口被拒绝并返回中文错误；端点 `https://codex.mintcat.work` 拉到 3 个对话模型（自动过滤 image 类），选中后 OLVT 直连流式首字 0.98 s。
 
@@ -385,7 +386,7 @@ ASR 模型与既有实验环境一致（`sherpa-onnx-sense-voice-zh-en-ja-ko-yue
 
 - **PC 舞台不做显示态切换**：总观/显现是设备的状态（`state.display`），本机永远显示角色。按钮下发 `display:set {state}`，设备 6 s 内没把 `digest.world.display` 改成目标值就显示「设备未确认：固件可能尚未实现 display:set」，不假装成功；设备不在线时直接报「设备未连接」。
 - 角色舞台资源在 `apps/shell/resources/live2d/`（页面 + pixi + pixi-live2d-display + `live2dcubismcore.min.js` + `models/{mao_pro,shizuku}`），由主进程起一个**只绑 127.0.0.1 的临时 http 服务**提供（`file://` 下模型 JSON 会被跨源检查挡住），路由 `/model/<id>/runtime/<file>.model3.json` 按需解析到模型库。资源约 14.8 MB，打包经 `extraResources` 落在 `resources/live2d`。
-- **换角色模型**在「设置 → Live2D 模型」：模型库 = 随包 `resources/live2d/models` ∪ OLVT 组件的 `live2d-models`（后者可往里丢新模型），下拉里标「随包 / 组件」。保存后：① 本机舞台换成 `?model=/model/<id>/…` 立即重载；② 模型文件按需复制进 OLVT 目录并补 `model_dict.json` 条目；③ 重写 `conf.yaml` 的 `live2d_model_name` 并**重启 OLVT**（conf 只在启动时读）。模型 id 不存在时保存直接报错，不静默回退。
+- **换角色模型**在「设置 → Live2D 模型」：模型库 = 随包 `resources/live2d/models` → 用户导入 `%APPDATA%/DigitalHuman/live2d-models` → OLVT 组件的 `live2d-models`（同 id 先命中者生效），下拉里标「随包 / 导入 / 组件」。用户导入只往数据目录写，不动随包资源与组件目录；导入同名模型会明确拒绝（先删旧目录）。保存后：① 本机舞台换成 `?model=/model/<id>/…` 立即重载；② 模型文件按需复制进 OLVT 目录并补 `model_dict.json` 条目；③ 重写 `conf.yaml` 的 `live2d_model_name` 并**重启 OLVT**（conf 只在启动时读）。模型 id 不存在时保存直接报错，不静默回退。
 - **boost 还不是生产行为**：只做界面态并写入 `config.db`（`boost.enabled`）后随配置下发，世界生产链路尚未消费它。文案里写明，不假装已生效。
 - boost 是唯一带持续动效的控件（太阳黄底 + 斜向速度线扫过 + 脉冲指示点），`prefers-reduced-motion` 下停掉动效。
 - 统计表只显示真实收到的字段：设备离线时档位/心跳显示 `—`，编排器不可达时整表标「不可达」，不做推算。

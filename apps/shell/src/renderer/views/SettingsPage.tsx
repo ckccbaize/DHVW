@@ -42,6 +42,38 @@ export function SettingsPage({
     }
   }
 
+  /** 弹系统选择框；取消就什么都不改，也不报错 */
+  const pick = async (
+    kind: 'dir' | 'file',
+    title: string,
+    apply: (p: string) => void,
+    extra?: { defaultPath?: string; filters?: Array<{ name: string; extensions: string[] }> },
+  ): Promise<void> => {
+    const res = await window.dhvw.pickPath({
+      kind,
+      title,
+      defaultPath: extra?.defaultPath?.trim() || undefined,
+      filters: extra?.filters,
+    })
+    if (res.ok && res.path) apply(res.path)
+  }
+
+  const importLive2d = async (): Promise<void> => {
+    setBusy(true)
+    try {
+      const res = await window.dhvw.importLive2dModels()
+      setLive2dList(res.models)
+      if (res.imported.length > 0) {
+        setLive2dModel(res.imported[0] ?? live2dModel)
+        setMsg({ ok: true, text: `已导入 ${res.imported.join('、')}，保存后生效` })
+      } else if (res.errors.length > 0) {
+        setMsg({ ok: false, text: `导入失败：${res.errors.join('；')}` })
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
   useEffect(() => {
     void refreshLive2d()
     // 只在进入设置页时取一次；换模型后由「刷新模型列表」重取
@@ -233,12 +265,34 @@ export function SettingsPage({
               {!live2dList.some((m) => m.id === live2dModel) && <option value={live2dModel}>{live2dModel}</option>}
               {live2dList.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.id} · {m.source === 'bundled' ? '随包' : '组件'}
+                  {m.id} · {m.source === 'bundled' ? '随包' : m.source === 'user' ? '导入' : '组件'}
                 </option>
               ))}
             </select>
             <button onClick={() => void refreshLive2d()}>刷新模型列表</button>
           </div>
+          <div className="row2 tight">
+            <button
+              onClick={() =>
+                void window.dhvw.openLive2dDir().then((res) => {
+                  setMsg(
+                    res.ok
+                      ? { ok: true, text: `已打开模型库：${res.path}` }
+                      : { ok: false, text: res.error || '打开模型库失败' },
+                  )
+                })
+              }
+            >
+              打开模型文件夹
+            </button>
+            <button disabled={busy} onClick={() => void importLive2d()}>
+              从文件夹导入
+            </button>
+          </div>
+          <p className="hint">
+            模型库 = 随包模型 + 用户导入（&lt;数据目录&gt;/live2d-models）+ 组件自带。导入要求文件夹里有
+            <code>runtime/*.model3.json</code>，文件夹名就是模型 id（小写字母/数字）。
+          </p>
         </div>
         <div className="field">
           <label>人设</label>
@@ -246,11 +300,30 @@ export function SettingsPage({
         </div>
         <div className="field">
           <label>语音合成后端目录（GPT-SoVITS，留空则用内置占位）</label>
-          <input value={ttsDir} onChange={(e) => setTtsDir(e.target.value)} spellCheck={false} placeholder="如 D:\tts\GPT-SoVITS" />
+          <div className="row2 tight">
+            <input value={ttsDir} onChange={(e) => setTtsDir(e.target.value)} spellCheck={false} placeholder="如 D:\tts\GPT-SoVITS" />
+            <button
+              onClick={() => void pick('dir', '选择 GPT-SoVITS 目录', setTtsDir, { defaultPath: ttsDir })}
+            >
+              选择文件夹
+            </button>
+          </div>
         </div>
         <div className="field">
           <label>参考音色（GPT-SoVITS，留空则用服务默认）</label>
-          <input value={refAudio} onChange={(e) => setRefAudio(e.target.value)} spellCheck={false} />
+          <div className="row2 tight">
+            <input value={refAudio} onChange={(e) => setRefAudio(e.target.value)} spellCheck={false} />
+            <button
+              onClick={() =>
+                void pick('file', '选择参考音色音频', setRefAudio, {
+                  defaultPath: refAudio,
+                  filters: [{ name: '音频', extensions: ['wav', 'mp3', 'flac', 'ogg', 'm4a'] }],
+                })
+              }
+            >
+              选择文件
+            </button>
+          </div>
         </div>
         <div className="field">
           <label>参考音色文本</label>
