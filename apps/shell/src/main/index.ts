@@ -784,9 +784,11 @@ async function boot(): Promise<void> {
 
   const live2dRoot = bundledLive2dRoot()
   const olvtRootDir = resolveOlvtDir(config.sidecars.olvt?.cwd || config.olvt.dir)
+  const legacyUserModelsDir = path.join(dataDir, 'live2d-models')
   live2dRoots = [
     { root: path.join(live2dRoot, 'models'), source: 'bundled' as const },
     ...(olvtRootDir ? [{ root: path.join(olvtRootDir, 'live2d-models'), source: 'olvt' as const }] : []),
+    ...(fs.existsSync(legacyUserModelsDir) ? [{ root: legacyUserModelsDir, source: 'olvt' as const }] : []),
   ]
   live2dModel = findModel(live2dRoots, config.live2d.model) ?? findModel(live2dRoots, 'mao_pro')
   if (!live2dModel) {
