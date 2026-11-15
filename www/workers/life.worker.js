@@ -208,6 +208,12 @@ function actDuration(act) {
   return Number.isFinite(d) ? Math.max(1, d) : pickDuration(act);
 }
 
+/** 睡眠必须持续到醒来时间，不能被剧情里的 30 分钟时长切成反复上床。 */
+function sleepDuration() {
+  const untilWake = (wakeAt - clock.minute + DAY_MIN) % DAY_MIN;
+  return Math.max(1, untilWake || actDuration("sleep"));
+}
+
 function pickSpotForAct(act, room) {
   return chooseHotspot(scene.hotspots || [], act, {
     room,
@@ -431,9 +437,11 @@ function planIntent(act, place, reason, opts = {}) {
   const h = chosen.hot;
   const targetAct = chosen.act || act;
   const planned = Number(opts.durationMin);
-  const durationMin = Number.isFinite(planned) && planned > 0
-    ? Math.max(1, Math.min(480, planned))
-    : actDuration(targetAct);
+  const durationMin = targetAct === "sleep"
+    ? sleepDuration()
+    : Number.isFinite(planned) && planned > 0
+      ? Math.max(1, Math.min(480, planned))
+      : actDuration(targetAct);
   const t = { x: h.x, y: h.y, act: targetAct, room: h.room || place || currentRoom, durationMin };
   pending = t;
   lastIntentMinute = nowAbs();
@@ -490,7 +498,7 @@ function requestIntent(reason) {
       y: bedHot.y,
       act: "sleep",
       room: bedHot.room || "bedroom",
-      durationMin: actDuration("sleep"),
+      durationMin: sleepDuration(),
       bed: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1, facing: bed.facing || "S" } : null,
     };
     lastIntentMinute = nowAbs();
@@ -752,6 +760,10 @@ self.onmessage = (e) => {
       scheduleFor(clock.day);
       if (Number.isFinite(snap?.sleepAt)) sleepAt = snap.sleepAt;
       if (Number.isFinite(snap?.wakeAt)) wakeAt = snap.wakeAt;
+      if (phase === "sleep" && activeInteraction?.act === "sleep") {
+        activeInteraction.endsAt = nowAbs() + sleepDuration();
+        busyUntil = activeInteraction.endsAt;
+      }
       appliedBehaviors = new Set(snap?.appliedBehaviors || []);
       if (!Array.isArray(snap?.appliedBehaviors) && plan?.day === clock.day) {
         for (let i = 0; i < (plan.behaviors || []).length; i++) {
@@ -803,7 +815,7 @@ self.onmessage = (e) => {
         stats.sinceResume.rooms += 1;
         event("enter", { room });
       }
-      const durationMin = pending?.durationMin || 10;
+      const durationMin = act === "sleep" ? sleepDuration() : (pending?.durationMin || 10);
       const interactionDef = interactionRegistry?.acts?.[act];
       if (interactionDef) {
         activeInteraction = { act, def: interactionDef, endsAt: nowAbs() + durationMin };
