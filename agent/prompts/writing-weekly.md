@@ -1,6 +1,6 @@
 写一篇角色周记总结，第一人称「我」，150–260 字。
 
-时间：第{{day}}天（{{weekday}}） {{clock}}
+时间：第{{day}}天（第{{week}}周 {{weekday}}） {{clock}}
 地点：{{room}}
 她现在的状态：{{mood}}；{{tone}}
 本周记忆：{{memory}}

@@ -26,7 +26,7 @@ const DEFAULTS = {
   present: { url: "" },
   scene: "home",
   forgeIntervalMs: 45000,
-  llm: { baseUrl: "", apiKey: "", model: "" },
+  llm: { baseUrl: "", apiKey: "", model: "", reasoningEffort: "none" },
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -88,8 +88,12 @@ async function loadConfig() {
         if (res.ok) {
           const data = await res.json();
           if (data?.ok) {
-            auto = { baseUrl: data.baseUrl || "", apiKey: data.apiKey || "", model: data.model || "" };
-            if (String(auto.baseUrl).includes("codex.mintcat.work")) auto.reasoningEffort = "none";
+            auto = {
+              baseUrl: data.baseUrl || "",
+              apiKey: data.apiKey || "",
+              model: data.model || "",
+              reasoningEffort: data.reasoningEffort || "none",
+            };
           }
         }
       } catch {

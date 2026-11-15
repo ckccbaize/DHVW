@@ -293,3 +293,24 @@ test("LocalRuntime：suspend/resume 传给两个 Worker", async () => {
   }
   local.stop();
 });
+
+test("LocalRuntime：setLlmConfig 保留默认 reasoningEffort 并同步给 lifeWorker", async () => {
+  const { local } = makeLocal();
+  await local.start();
+  const life = FakeWorker.instances.find((w) => w.url.includes("life.worker"));
+  const res = await local.setLlmConfig({
+    baseUrl: "https://api.test/v1",
+    apiKey: "sk-1",
+    model: "deepseek-v4.1-flash",
+    timeoutMs: null,
+    maxAttempts: null,
+    retryBaseMs: null,
+  });
+  assert.equal(res.ok, true);
+  const msg = life.last("setLlm");
+  assert.ok(msg, "应同步 setLlm 到 lifeWorker");
+  assert.equal(msg.llm.reasoningEffort, "none");
+  assert.equal(msg.llm.timeoutMs, undefined);
+  assert.equal(msg.llm.maxAttempts, undefined);
+  local.stop();
+});

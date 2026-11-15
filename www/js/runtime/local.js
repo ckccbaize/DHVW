@@ -338,12 +338,18 @@ export function createLocalRuntime({
 
   async function setupBrain() {
     if (!config.llm?.baseUrl || !config.llm?.model) return;
+    const nextReg = createAgentRegistry();
+    try {
+      await nextReg.load();
+    } catch (err) {
+      console.warn("agent registry 加载失败", err);
+      return;
+    }
+    registry = nextReg;
     llm = createLlmClient({
       getProvider: () => config.llm,
       onUsage: () => {},
     });
-    registry = createAgentRegistry();
-    await registry.load();
     localMemory = createLocalMemory({ backend: kvMemoryBackend(backend) });
     await localMemory.init();
     // 清掉历史重复事实，只保留每个文本的第一条
@@ -802,6 +808,7 @@ export function createLocalRuntime({
     }
     const vars = {
       day: ctx.day,
+      week: Math.floor((Math.max(1, Number(ctx.day) || 1) - 1) / 7) + 1,
       weekday: wk.weekdayName,
       clock,
       room: ctx.room,
@@ -1217,8 +1224,9 @@ export function createLocalRuntime({
         void maybePlot(lastTick || { day: 1, minute: 0, phase: "morning", room: scene.start }, true);
         return;
       }
-      if (kind === "write") {
+      if (kind === "write" || kind === "weekly") {
         void generateWriting({
+          ...(kind === "weekly" ? { kind: "weekly" } : {}),
           day: lastTick?.day ?? 1,
           minute: lastTick?.minute ?? 0,
           room: lastTick?.room || scene.start,
@@ -1254,16 +1262,29 @@ export function createLocalRuntime({
     },
     async setLlmConfig(payload = {}) {
       const next = { ...(config.llm || {}) };
-      for (const key of ["baseUrl", "apiKey", "model", "timeoutMs", "maxAttempts", "retryBaseMs", "reasoningEffort"]) {
-        if (payload[key] !== undefined) next[key] = payload[key];
+      for (const key of ["baseUrl", "apiKey", "model", "reasoningEffort"]) {
+        if (payload[key] !== undefined && payload[key] !== null) next[key] = payload[key];
       }
-      if (next.baseUrl && String(next.baseUrl).includes("codex.mintcat.work") && !next.reasoningEffort) {
+      for (const key of ["timeoutMs", "maxAttempts", "retryBaseMs"]) {
+        const n = Number(payload[key]);
+        if (payload[key] !== undefined && payload[key] !== null && Number.isFinite(n) && n > 0) next[key] = n;
+      }
+      if (!next.reasoningEffort && next.reasoningEffort !== false) {
         next.reasoningEffort = "none";
       }
       config.llm = next;
       try {
-        localStorage.setItem("dhvw_llm", JSON.stringify({ baseUrl: next.baseUrl || "", apiKey: next.apiKey || "", model: next.model || "" }));
+        localStorage.setItem(
+          "dhvw_llm",
+          JSON.stringify({
+            baseUrl: next.baseUrl || "",
+            apiKey: next.apiKey || "",
+            model: next.model || "",
+            reasoningEffort: next.reasoningEffort,
+          }),
+        );
       } catch {}
+      postLife({ type: "setLlm", llm: next });
       if (next.baseUrl && next.model && !llm) await setupBrain();
       store.emit("llm_config", { baseUrl: next.baseUrl || "", model: next.model || "", hasKey: !!next.apiKey });
       return { ok: true, baseUrl: next.baseUrl || "", model: next.model || "", hasKey: !!next.apiKey };

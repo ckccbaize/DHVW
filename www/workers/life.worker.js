@@ -354,15 +354,26 @@ async function maybeLlmThought() {
           messages: [
             { role: "user", content: promptText },
           ],
-          max_tokens: 60,
+          max_tokens: 120,
           temperature: 0.8,
-          ...(llmCfg.reasoningEffort ? { reasoning_effort: llmCfg.reasoningEffort } : {}),
+          ...(llmCfg.reasoningEffort !== false ? { reasoning_effort: llmCfg.reasoningEffort || "none" } : {}),
         },
       }),
     });
-    const data = await res.json();
-    const text = data?.choices?.[0]?.message?.content?.trim();
-    if (!text) throw new Error("空文本");
+    const raw = await res.text();
+    if (!res.ok) throw new Error(`LLM HTTP ${res.status}: ${raw.slice(0, 120)}`);
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      throw new Error("LLM 返回不是 JSON");
+    }
+    if (data?.error?.message) throw new Error(`LLM 错误: ${data.error.message}`);
+    const choice = data?.choices?.[0];
+    const text = choice?.message?.content?.trim();
+    if (!text) {
+      throw new Error(choice?.finish_reason === "length" ? "空文本(token耗尽)" : "空文本");
+    }
     emit({ type: "say", text: text.slice(0, 40), ttl: 3200 });
     event("llm_thought", { text });
     emit({
@@ -375,7 +386,7 @@ async function maybeLlmThought() {
     });
   } catch (err) {
     event("llm_failed", { msg: err.message });
-    emit({ type: "llm_call", agent: "thought", ok: false, ms: Date.now() - t0, prompt: "", response: err.message });
+    emit({ type: "llm_call", agent: "thought", ok: false, ms: Date.now() - t0, prompt: promptText, response: err.message });
   } finally {
     llmBusy = false;
   }
@@ -562,7 +573,8 @@ function tick() {
 
   // 剧情机固定日程：到点强制切换行为；睡眠期间、外部场景停留期间不执行
   const wk = weekdayInfo();
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const dNow = new Date();
+  const todayKey = `${dNow.getFullYear()}-${String(dNow.getMonth() + 1).padStart(2, "0")}-${String(dNow.getDate()).padStart(2, "0")}`;
   if (wk.weekday === 7 && clock.minute >= 20 * 60 && clock.minute < 22 * 60 && lastWeeklyDate !== todayKey) {
     lastWeeklyDate = todayKey;
     emit({ type: "write", kind: "weekly", room: currentRoom, act: "write", day: clock.day, minute: clock.minute, ...wk });
@@ -834,6 +846,10 @@ self.onmessage = (e) => {
     case "setSpeed": {
       cfg.timeScale = Math.max(0.5, Math.min(30, Number(msg.timeScale ?? msg.minutesPerSecond) || 1));
       resetAnchor();
+      break;
+    }
+    case "setLlm": {
+      llmCfg = msg.llm || null;
       break;
     }
     case "debug_trigger": {

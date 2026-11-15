@@ -67,3 +67,10 @@ test("list/stats：反映注册内容", async () => {
   const names = r.list().map((s) => s.name).sort();
   assert.deepEqual(names, ["behavior-record", "browse-plan", "doctor", "event-pool", "memory-summarize", "plot-writer", "wake", "wake-character"]);
 });
+
+test("www/agent/registry.json 与 agent/ 源文件保持同步", async () => {
+  const { registry } = await buildRegistry(ROOT);
+  const packed = JSON.parse(await fs.readFile(path.join(ROOT, "www", "agent", "registry.json"), "utf8"));
+  assert.deepEqual(packed.prompts, registry.prompts);
+  assert.deepEqual(packed.skills, registry.skills);
+});

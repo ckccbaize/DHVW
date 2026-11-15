@@ -67,6 +67,7 @@
     <button type="button" data-trigger="thought">立即独白</button>
     <button type="button" data-trigger="memory">立即归纳记忆</button>
     <button type="button" data-trigger="write">立即写作</button>
+    <button type="button" data-trigger="weekly">立即周记</button>
     <button type="button" data-trigger="plot">立即剧情</button>
     <button type="button" data-trigger="night">设为黑夜</button>
     <button type="button" data-trigger="browse">浏览网页</button>
@@ -313,6 +314,7 @@ llmForm.addEventListener("submit", (e) => {
     baseUrl: $("#baseUrl").value.trim(),
     apiKey: $("#apiKey").value.trim(),
     model: $("#model").value.trim(),
+    reasoningEffort: "none",
   };
   localStorage.setItem(LLM_KEY, JSON.stringify(cfg));
   llmMsg.textContent = "已保存，正在重载主页面…";
@@ -340,6 +342,7 @@ $("#btnTest").addEventListener("click", async () => {
     baseUrl: $("#baseUrl").value.trim(),
     apiKey: $("#apiKey").value.trim(),
     model: $("#model").value.trim(),
+    reasoningEffort: "none",
   };
   if (!cfg.baseUrl || !cfg.model) {
     llmMsg.textContent = "baseUrl 和 model 必填";
@@ -353,7 +356,7 @@ $("#btnTest").addEventListener("click", async () => {
       body: JSON.stringify({
         baseUrl: cfg.baseUrl,
         apiKey: cfg.apiKey,
-        body: { model: cfg.model, messages: [{ role: "user", content: "只回复 ok" }], max_tokens: 8, stream: false },
+        body: { model: cfg.model, messages: [{ role: "user", content: "只回复 ok" }], max_tokens: 32, reasoning_effort: "none", stream: false },
       }),
     });
     const text = await res.text();

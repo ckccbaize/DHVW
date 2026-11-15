@@ -55,7 +55,8 @@ export function createLlmClient({
       }
       const content = data?.choices?.[0]?.message?.content;
       if (typeof content !== "string") {
-        throw Object.assign(new Error("LLM 返回缺少 content"), { code: "bad_shape" });
+        const msg = data?.error?.message ? `LLM 返回错误: ${data.error.message}` : "LLM 返回缺少 content";
+        throw Object.assign(new Error(msg), { code: "bad_shape" });
       }
       return { text: content, usage: data.usage || null, model: data.model || provider.model };
     } catch (err) {
@@ -102,7 +103,7 @@ export function createLlmClient({
       stream: false,
     };
     if (json) body.response_format = { type: "json_object" };
-    if (provider.reasoningEffort) body.reasoning_effort = provider.reasoningEffort;
+    if (provider.reasoningEffort !== false) body.reasoning_effort = provider.reasoningEffort || "none";
 
     const attempts = Math.max(1, Number(provider.maxAttempts) || 1);
     let lastErr = null;

@@ -1,11 +1,11 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-15T13:23:54.088Z",
+ "built_at": "2026-11-15T13:30:00.237Z",
  "files": [
   {
    "path": "agent/registry.json",
-   "size": 15406,
-   "sha256": "a66f797aebd4e67f5b52141860b69b6930803e4977348aa8eb14ef5be6181f1e"
+   "size": 16012,
+   "sha256": "80d4f9666ccd9ac454c24607df1bac7f7a660bbbd0510708efeed943f50cd23d"
   },
   {
    "path": "assets/char/ojj_sheet.json",
@@ -779,8 +779,8 @@
   },
   {
    "path": "debug-life.html",
-   "size": 21229,
-   "sha256": "027aa3e6687c2f91f587b1f37e9b39ed6650f28ce1d01b89c59859c6dc3a6b68"
+   "size": 21384,
+   "sha256": "168a269defbd23bd7de085ccc1140b2b74a42587b6584d825799ee2e9331d266"
   },
   {
    "path": "index.html",
@@ -789,8 +789,8 @@
   },
   {
    "path": "js/app.js",
-   "size": 37569,
-   "sha256": "a2c5711105b0a55249d3dae8920c981f307a18fab1643dc1db5c964b072af41c"
+   "size": 37612,
+   "sha256": "2de98ccb4cb432d2ac2448ff22d95580716f93ca608789642a445c5893fd0493"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -934,8 +934,8 @@
   },
   {
    "path": "js/core/llm/client.js",
-   "size": 5268,
-   "sha256": "ee9df4fd9717064e947a9e30d667fd4dfd6fbd4f871dedadee38396005084239"
+   "size": 5380,
+   "sha256": "ff478e45c54a4ff08c9fcd64b9928089acf38ff58df95277b9b6625b47d740f2"
   },
   {
    "path": "js/core/llm/provider.js",
@@ -1069,8 +1069,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 52088,
-   "sha256": "49c1ea8a8c88bd379da34d4e1dd9c2ffc8960df4658a9366667ced6cd54e98aa"
+   "size": 52703,
+   "sha256": "28f104589b93369bf8b6c8b562114043febce8b03cccd482036b6c362fd4ecc6"
   },
   {
    "path": "js/runtime/remote.js",
@@ -1129,8 +1129,8 @@
   },
   {
    "path": "workers/life.worker.js",
-   "size": 30856,
-   "sha256": "7014010259e8abd2630fbb1e4f011be88f81179442e1a9bbff4109cae36bbf9c"
+   "size": 31453,
+   "sha256": "0c4b60a70d309f8b28fb11dbcaf0c1c44118266fcbfbefb830b9b22ea51e0fbe"
   }
  ]
 }
