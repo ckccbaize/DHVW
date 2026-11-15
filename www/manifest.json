@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-15T13:31:35.125Z",
+ "built_at": "2026-11-15T13:42:55.945Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -785,12 +785,12 @@
   {
    "path": "index.html",
    "size": 3185,
-   "sha256": "293f06f9563015b25c3c7d3240c2a9c7e4a17a32f39dd6a6198260fefe672429"
+   "sha256": "9941fb610f57f3d5ac2a6a52e1b9d61f609e54d6864f2de9893cbe41142398a7"
   },
   {
    "path": "js/app.js",
-   "size": 37612,
-   "sha256": "2de98ccb4cb432d2ac2448ff22d95580716f93ca608789642a445c5893fd0493"
+   "size": 37950,
+   "sha256": "3b604736623d01989bc8e8acafe34fdae7e95bc06c024ca5f8fce19080da1e92"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -1121,6 +1121,11 @@
    "path": "observe.html",
    "size": 8232,
    "sha256": "3e57ea8f632e64a60d44cc8671e452ced8ad703cdeeaefcbc75738568d676ec9"
+  },
+  {
+   "path": "preview.html",
+   "size": 6717,
+   "sha256": "34202ee6d9b8280e834587609a57377c0711304ffa54512b0b803ef11f481fce"
   },
   {
    "path": "workers/forge.worker.js",
