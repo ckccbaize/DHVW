@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
-import type { SaveView, StatsView, WorldView } from '../../shared/types'
+import React, { useEffect, useRef, useState } from 'react'
+import type { StatsView, WorldView } from '../../shared/types'
 
 type DeviceDisplay = 'overview' | 'present'
 
@@ -33,61 +33,6 @@ export function HomeView({
   const [note, setNote] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const timer = useRef<number | null>(null)
-  const [saves, setSaves] = useState<SaveView[]>([])
-  const [saveNote, setSaveNote] = useState<string | null>(null)
-  const [saveBusy, setSaveBusy] = useState(false)
-
-  const refreshSaves = useCallback(async (): Promise<void> => {
-    const res = await window.dhvw.saves()
-    if (!res.ok) {
-      setSaveNote(res.error ?? '读取存档失败')
-      return
-    }
-    setSaves(res.saves)
-    setSaveNote(null)
-  }, [])
-
-  useEffect(() => {
-    void refreshSaves()
-  }, [refreshSaves])
-
-  // 编排器/设备晚上线时，首屏请求会失败；设备一上线就重取。
-  useEffect(() => {
-    if (world?.reachable) void refreshSaves()
-  }, [world?.reachable, refreshSaves])
-
-  const backupSave = async (): Promise<void> => {
-    setSaveBusy(true)
-    setSaveNote(null)
-    try {
-      const res = await window.dhvw.saveBackup()
-      if (!res.ok) {
-        setSaveNote(res.error ?? '备份请求未送达')
-        return
-      }
-      setSaveNote(`已请求 ${res.requested ?? 0} 台设备上报存档，稍后刷新`)
-      window.setTimeout(() => void refreshSaves(), 1200)
-    } finally {
-      setSaveBusy(false)
-    }
-  }
-
-  const restoreSave = async (id: string): Promise<void> => {
-    setSaveBusy(true)
-    setSaveNote(null)
-    try {
-      const res = await window.dhvw.saveRestore(id)
-      if (!res.ok) {
-        setSaveNote(res.error ?? '恢复请求未送达')
-        return
-      }
-      setSaveNote(`已下发恢复（${res.sent ?? 0} 台设备），设备会重载存档`)
-      window.setTimeout(() => void refreshSaves(), 2500)
-    } finally {
-      setSaveBusy(false)
-    }
-  }
-
   // 设备回传的显示态与请求一致 → 确认生效
   useEffect(() => {
     if (pending && deviceDisplay === pending) {
@@ -152,44 +97,6 @@ export function HomeView({
           ))}
         </div>
         <p className="display-note">{note ?? '切换的是设备屏幕；本机舞台常驻角色形象。'}</p>
-      </section>
-
-      <section className="panel saves-bar">
-        <div className="stage-head">
-          <h2>存档备份</h2>
-          <span className={`pill ${saves.length ? '' : 'bad'}`}>{saves.length} 份</span>
-        </div>
-        <div className="saves-actions">
-          <button disabled={saveBusy} onClick={() => void backupSave()}>
-            立即备份
-          </button>
-          <button disabled={saveBusy} onClick={() => void refreshSaves()}>
-            刷新
-          </button>
-          <span className="hint">{saveNote ?? '设备上线会自动备份；每 5 分钟也会自动上报一次。'}</span>
-        </div>
-        <div className="saves-list">
-          {saves.length === 0 ? (
-            <span className="hint">还没有备份。设备连接后会自动生成第一份。</span>
-          ) : (
-            saves.map((s) => (
-              <div className="save-row" key={s.id}>
-                <div className="save-main">
-                  <b>
-                    第 {s.day ?? '—'} 天 {fmtMinute(s.minute)}
-                  </b>
-                  <span className="mono">{s.scene ?? '—'}</span>
-                  <span className="hint">
-                    {s.reason} · {fmtTime(s.receivedAt)} · {Math.round(s.bytes / 1024)} KB
-                  </span>
-                </div>
-                <button disabled={saveBusy} onClick={() => void restoreSave(s.id)}>
-                  恢复
-                </button>
-              </div>
-            ))
-          )}
-        </div>
       </section>
 
       <div className="home-grid">
@@ -336,17 +243,6 @@ const MOOD_DIM_LABEL: Record<string, string> = {
   valence: '愉悦',
   social: '社交',
   focus: '专注',
-}
-
-function fmtMinute(minute: number | null): string {
-  if (minute == null) return '—'
-  const h = Math.floor(minute / 60)
-  const m = Math.floor(minute % 60)
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-}
-
-function fmtTime(ms: number): string {
-  return new Date(ms).toLocaleString('zh-CN', { hour12: false })
 }
 
 function fmtCounts(counts: Record<string, number> | undefined): string {

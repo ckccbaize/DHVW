@@ -1058,9 +1058,51 @@ main.page.config {
   color: rgba(26, 26, 46, 0.72);
   margin: 0;
 }
-.saves-bar {
-  flex: 0 0 auto;
-  padding: 12px 16px;
+main.page.settings {
+  overflow-y: auto;
+}
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1120px;
+  padding-bottom: 24px;
+}
+.settings-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.settings-head h2 {
+  margin: 0 0 4px;
+}
+.settings-head .hint {
+  margin: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.settings-section {
+  padding: 14px 16px;
+}
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.section-head h2 {
+  margin: 0;
+}
+.settings-section > .hint {
+  margin: 0 0 8px;
+  padding-top: 0;
+  border-top: 0;
+}
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 .saves-actions {
   display: flex;
@@ -1080,7 +1122,7 @@ main.page.config {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 150px;
+  max-height: 260px;
   overflow: auto;
 }
 .save-row {
