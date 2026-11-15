@@ -78,6 +78,10 @@ html, body {
 }
 
 /* 开关：平涂 + 硬阴影 + 挤压 */
+#switch {
+  z-index: 50;
+}
+
 .switch {
   min-height: var(--touch-min);
   background: var(--color-cel-white);
@@ -287,6 +291,27 @@ body:not(.ui-open) #agentCard { transform: translateY(-8px); }
 
 body:not(.ui-open) .asset-counts,
 body:not(.ui-open) #switch { transform: translateY(8px); }
+
+/* 显现模式：隐藏总观原先按钮与信息浮层，仅保留总观/显现切换开关 */
+body.present-active #hud,
+body.present-active #agentCard,
+body.present-active .asset-counts,
+body.present-active #dock,
+body.present-active #consolePanel,
+body.present-active .perf-overlay {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+body.present-active #switch {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: none;
+  z-index: 50;
+}
+
+body.present-active #switch:hover { transform: translateY(-2px); }
+body.present-active #switch:active { transform: scaleX(1.1) scaleY(0.9) translate(4px, 8px); }
 
 /* ---------- 生活控制台 ---------- */
 

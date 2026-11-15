@@ -360,11 +360,22 @@ async function boot() {
     return url;
   }
 
+  function withArmParam(url) {
+    if (!url) return url;
+    try {
+      const parsed = new URL(url);
+      if (!parsed.searchParams.has("arm")) parsed.searchParams.set("arm", "1");
+      return parsed.href;
+    } catch {
+      return url;
+    }
+  }
+
   function resolvePresentUrl() {
     const explicit = normalizePresentUrl(
       cfg.present?.url || cfg.host?.presentUrl || hostPresentInfo.presentUrl || "",
     );
-    if (explicit) return explicit;
+    if (explicit) return withArmParam(explicit);
     const raw = cfg.host?.wsUrl || cfg.host?.probeUrl || "";
     if (!raw) return null;
     try {
@@ -372,11 +383,11 @@ async function boot() {
       const httpProto = u.protocol === "wss:" || u.protocol === "https:" ? "https:" : "http:";
       if (/\/ws\//.test(u.pathname)) {
         const token = u.searchParams.get("token") || "";
-        const q = token ? `?token=${encodeURIComponent(token)}` : "";
+        const q = token ? `?token=${encodeURIComponent(token)}&arm=1` : "?arm=1";
         return normalizePresentUrl(`${httpProto}//${u.host}/olvt/${q}`);
       }
       if (hostPresentInfo.olvtPort > 0) {
-        return normalizePresentUrl(`${httpProto}//${u.hostname}:${hostPresentInfo.olvtPort}/`);
+        return normalizePresentUrl(`${httpProto}//${u.hostname}:${hostPresentInfo.olvtPort}/?arm=1`);
       }
     } catch {
       return null;
@@ -435,6 +446,7 @@ async function boot() {
       }
 
       transition.setText("正在加载显现面板…");
+      setPresentModeActive(true);
       local.suspend();
       await new Promise((resolve) => {
         let settled = false;
@@ -458,6 +470,7 @@ async function boot() {
       });
       if (presentCancelled) {
         present.close();
+        setPresentModeActive(false);
         local.resume();
         remote.send({ type: "world:resume" });
         await transition.reveal(320);
@@ -488,6 +501,7 @@ async function boot() {
         await transition.cover("正在返回总观…", 320);
       }
       present.close();
+      setPresentModeActive(false);
       store.patch({ display: "overview" });
       displayChangedAt = performance.now();
       presentOpenedAt = 0;
@@ -915,6 +929,13 @@ async function boot() {
   function closeConsole() {
     consolePanel.hidden = true;
   }
+  function setPresentModeActive(active) {
+    document.body.classList.toggle("present-active", Boolean(active));
+    if (active) {
+      setDock(false);
+      closeConsole();
+    }
+  }
 
   function hitOfficeSprite(clientX, clientY) {
     if (activeView !== "outer") return null;
@@ -954,7 +975,8 @@ async function boot() {
   // 触摸招出 UI；鼠标点击不触发任何角色行为
   const stage = $("#stage");
   stage.addEventListener("pointerdown", (e) => {
-    if (e.target.closest("#dock") || e.target.closest("#consolePanel")) return;
+    if (document.body.classList.contains("present-active") || store.state.display === "present") return;
+    if (e.target.closest("#dock") || e.target.closest("#consolePanel") || e.target.closest("#switch")) return;
     // 外层点击小人：总监打开生活控制台；其他 NPC 只唤出 dock。
     const sprite = hitOfficeSprite(e.clientX, e.clientY);
     if (sprite) {
