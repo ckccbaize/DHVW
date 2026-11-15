@@ -139,6 +139,7 @@ export interface WorldView {
     minute: number
     phase: string
     weekdayName?: string
+    date?: string
     display: string
     agendaDone: number
     agendaTotal: number
@@ -159,6 +160,7 @@ export interface StatsView {
     minute: number
     phase: string
     weekdayName?: string
+    date?: string
     agenda: Record<string, number>
     sceneRequests: Record<string, number>
     pcActions: Record<string, number>

@@ -86,6 +86,8 @@ class Orchestrator:
         self.llm: dict = store.get_kv("llm", {}) or {}
         self.tts_ready = bool(store.get_kv("tts_ready", False))
         self.live2d_ready = bool(store.get_kv("live2d_ready", False))
+        self.olvt_port = int(store.get_kv("olvt_port", 0) or 0)
+        self.gateway_port = int(store.get_kv("gateway_port", 0) or 0)
         self.world_running = True
         self.started = time.time()
         self.saves = SaveStore(store)
@@ -407,6 +409,8 @@ class Orchestrator:
                     "t_server": int(time.time() * 1000),
                     "tts": self.tts_ready,
                     "live2d": self.live2d_ready,
+                    "olvt_port": self.olvt_port,
+                    "gateway_port": self.gateway_port,
                     "world_tier": self.tier,
                     "agent": {},
                 },
@@ -589,6 +593,12 @@ class Orchestrator:
         if "live2d" in cfg:
             self.live2d_ready = bool(cfg["live2d"])
             self.store.put_kv("live2d_ready", self.live2d_ready)
+        if "olvtPort" in cfg:
+            self.olvt_port = int(cfg["olvtPort"] or 0)
+            self.store.put_kv("olvt_port", self.olvt_port)
+        if "gatewayPort" in cfg:
+            self.gateway_port = int(cfg["gatewayPort"] or 0)
+            self.store.put_kv("gateway_port", self.gateway_port)
         if "boost" in cfg:
             # 界面层开关：只持久化与回显，不改变生产行为
             self.store.put_kv("boost", bool(cfg["boost"]))
@@ -678,7 +688,17 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
         state = body.get("state") if isinstance(body, dict) else None
         if state not in ("overview", "present"):
             return JSONResponse({"ok": False, "error": "state 必须是 overview 或 present"}, status_code=400)
-        delivered = len(await orch.broadcast("display:set", {"state": state, "t_server": int(time.time() * 1000)}))
+        delivered = len(
+            await orch.broadcast(
+                "display:set",
+                {
+                    "state": state,
+                    "t_server": int(time.time() * 1000),
+                    "olvt_port": orch.olvt_port,
+                    "gateway_port": orch.gateway_port,
+                },
+            )
+        )
         log("info", "下发显示态", state=state, delivered=delivered)
         if delivered == 0:
             return JSONResponse({"ok": False, "delivered": 0, "error": "设备未连接"})
@@ -1076,6 +1096,8 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
                 "t_server": int(time.time() * 1000),
                 "tts": orch.tts_ready,
                 "live2d": orch.live2d_ready,
+                "olvt_port": orch.olvt_port,
+                "gateway_port": orch.gateway_port,
                 "world_tier": orch.tier,
                 "agent": {},
             },

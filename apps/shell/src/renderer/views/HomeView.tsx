@@ -153,6 +153,16 @@ export function HomeView({
               <table className="stats-table">
                 <tbody>
                   <tr>
+                    <th>世界时刻</th>
+                    <td className="mono">
+                      {digest ? fmtWorldClock(digest.day, digest.minute, digest.weekdayName, digest.date) : '—'}
+                    </td>
+                    <th>时段 / 显示</th>
+                    <td className="mono">
+                      {digest ? `${digest.phase || '—'} · ${DISPLAY_TEXT[digest.display as DeviceDisplay] ?? (digest.display || '—')}` : '—'}
+                    </td>
+                  </tr>
+                  <tr>
                     <th>档位</th>
                     <td className="mono">{stats?.device.tier ?? '—'}</td>
                     <th>心跳</th>
@@ -247,6 +257,22 @@ const MOOD_DIM_LABEL: Record<string, string> = {
   valence: '愉悦',
   social: '社交',
   focus: '专注',
+}
+
+function fmtMinute(minute: number | null | undefined): string {
+  if (minute == null || !Number.isFinite(minute)) return '—'
+  const h = Math.floor(minute / 60)
+  const m = Math.floor(minute % 60)
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+function fmtWorldClock(day: string, minute: number, weekdayName?: string, date?: string): string {
+  const parts: string[] = []
+  if (day) parts.push(/^\d+$/.test(day) ? `第 ${day} 天` : day)
+  if (date) parts.push(date.slice(5))
+  if (weekdayName) parts.push(weekdayName)
+  parts.push(fmtMinute(minute))
+  return parts.join(' · ')
 }
 
 function fmtCounts(counts: Record<string, number> | undefined): string {

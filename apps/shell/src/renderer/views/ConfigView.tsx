@@ -170,7 +170,7 @@ export function ConfigView({
                 世界时刻{' '}
                 <b className="mono">
                   {world?.digest
-                    ? `${world.digest.day.slice(5)} ${String(Math.floor(world.digest.minute / 60)).padStart(2, '0')}:${String(world.digest.minute % 60).padStart(2, '0')}`
+                    ? `${/^\d+$/.test(world.digest.day) ? `第 ${world.digest.day} 天` : world.digest.day}${world.digest.date ? ` ${world.digest.date.slice(5)}` : ''}${world.digest.weekdayName ? ` ${world.digest.weekdayName}` : ''} ${String(Math.floor(world.digest.minute / 60)).padStart(2, '0')}:${String(world.digest.minute % 60).padStart(2, '0')}`
                     : '—'}
                 </b>
               </span>

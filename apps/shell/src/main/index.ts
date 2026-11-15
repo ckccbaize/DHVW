@@ -52,6 +52,7 @@ let quitting = false
 
 /** 编排器端口（0 = 还没分配）；设备通道与配置下发都靠它 */
 let orchestratorPort = 0
+let olvtServicePort = 0
 let refreshTimer: NodeJS.Timeout | null = null
 
 /**
@@ -64,6 +65,8 @@ async function pushOrchestratorConfig(): Promise<boolean> {
   const body = {
     tts,
     live2d: true,
+    olvtPort: olvtServicePort,
+    gatewayPort: config.gateway.enabled ? config.gateway.port : 0,
     boost: config.boost.enabled,
     autoPushScene: config.scene.autoPush,
     llm: {
@@ -136,6 +139,7 @@ async function readWorld(): Promise<WorldView> {
             minute: Number(clock.minute ?? 0),
             phase: String(clock.phase ?? ''),
             weekdayName: String(clock.weekdayName ?? ''),
+            date: String(clock.date ?? ''),
             display: String((digestRaw.world as Record<string, unknown> | undefined)?.display ?? ''),
             agendaDone: agenda.filter((a) => a.status === 'done').length,
             agendaTotal: agenda.length,
@@ -189,6 +193,7 @@ async function readStats(): Promise<StatsView> {
             minute: Number(digest.clock?.minute ?? 0),
             phase: String(digest.clock?.phase ?? ''),
             weekdayName: String(digest.clock?.weekdayName ?? ''),
+            date: String(digest.clock?.date ?? ''),
             agenda: (digest.agenda ?? {}) as Record<string, number>,
             sceneRequests: (digest.scene_requests ?? {}) as Record<string, number>,
             pcActions: (digest.pc_actions ?? {}) as Record<string, number>,
@@ -802,6 +807,7 @@ async function boot(): Promise<void> {
   const portOf = (id: string): number => ports[SERVICE_CATALOG.findIndex((s) => s.id === id)] ?? 0
   const olvtDir = olvtRootDir
   const olvtPort = portOf('olvt')
+  olvtServicePort = olvtPort
   if (olvtDir) {
     if (live2dModel) syncOlvtModel(olvtDir, live2dModel)
     const asr = asrModelPaths(config.asr.enabled)

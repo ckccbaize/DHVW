@@ -278,7 +278,22 @@ export class Gateway {
     const header = req.headers['x-dhvw-token']
     if (typeof header === 'string' && header) return header
     const query = url.searchParams.get('token')
-    return query || null
+    if (query) return query
+    const cookie = req.headers.cookie
+    if (typeof cookie === 'string') {
+      const m = /(?:^|;\s*)dhvw_token=([^;]+)/.exec(cookie)
+      if (m?.[1]) return decodeURIComponent(m[1])
+    }
+    const ref = req.headers.referer
+    if (typeof ref === 'string') {
+      try {
+        const refToken = new URL(ref).searchParams.get('token')
+        if (refToken) return refToken
+      } catch {
+        /* 忽略非法 Referer */
+      }
+    }
+    return null
   }
 
   private authorized(req: http.IncomingMessage): Device | null {
@@ -344,13 +359,32 @@ export class Gateway {
       return
     }
 
+    if (route === '/olvt') {
+      const targetLoc = `/olvt/${url.search}`
+      res.writeHead(302, { location: targetLoc, 'cache-control': 'no-store' })
+      res.end()
+      return
+    }
+
+    const OLVT_ROOT_PREFIXES = new Set(['live2d-models', 'bg', 'avatars', 'cache', 'web-tool'])
     const [, targetName, ...rest] = route.split('/')
-    const target = this.opts.targets.find((t) => t.name === targetName)
+    let target = this.opts.targets.find((t) => t.name === targetName)
+    let suffix = '/' + rest.join('/')
+    if (!target && targetName && (OLVT_ROOT_PREFIXES.has(targetName) || (targetName === 'assets' && String(req.headers.referer || '').includes('/olvt')))) {
+      target = this.opts.targets.find((t) => t.name === 'olvt')
+      suffix = route
+    }
     if (!target) {
       this.json(res, 404, { ok: false, error: `未知服务 ${targetName}` })
       return
     }
-    this.forward(req, res, target, '/' + rest.join('/') + url.search.replace(/[?&]token=[^&]*/g, ''))
+    const queryToken = url.searchParams.get('token')
+    const setCookie =
+      target.name === 'olvt' && queryToken
+        ? `dhvw_token=${encodeURIComponent(queryToken)}; Path=/; HttpOnly; SameSite=None; Secure`
+        : undefined
+    const cleanSearch = url.search.replace(/[?&]token=[^&]*/g, '').replace(/^&/, '?')
+    this.forward(req, res, target, suffix + (cleanSearch === '?' ? '' : cleanSearch), setCookie)
   }
 
   private async handlePair(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
@@ -396,6 +430,7 @@ export class Gateway {
     res: http.ServerResponse,
     target: GatewayTarget,
     suffix: string,
+    setCookie?: string,
   ): void {
     const upstream = http.request(
       {
@@ -406,12 +441,15 @@ export class Gateway {
         headers: { ...req.headers, host: `127.0.0.1:${target.port}`, 'x-forwarded-proto': 'https' },
       },
       (up) => {
-        res.writeHead(up.statusCode ?? 502, {
+        const headers: Record<string, string | string[] | undefined> = {
           ...up.headers,
           'access-control-allow-origin': '*',
           'access-control-allow-headers': 'content-type, x-dhvw-token',
           'access-control-allow-methods': 'GET, POST, OPTIONS',
-        })
+        }
+        delete headers['x-frame-options']
+        if (setCookie) headers['set-cookie'] = setCookie
+        res.writeHead(up.statusCode ?? 502, headers)
         up.pipe(res)
       },
     )
