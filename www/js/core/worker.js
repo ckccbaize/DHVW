@@ -879,7 +879,7 @@ function mapPool() {
 
 function deepMemoryText(limit = 12) {
   if (!localMemory) return "暂无";
-  const rank = { L3: 0, L2: 1, L1: 2 };
+  const rank = { L0: 0, L1: 1, L2: 2, L3: 3 };
   return localMemory
     .all()
     .filter((d) => d && d.text)
