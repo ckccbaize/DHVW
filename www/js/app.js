@@ -263,6 +263,10 @@ async function boot() {
   let activity = "active";
   let pendingArrival = null;
   let walkStuck = { px: null, py: null, since: 0 };
+  document.addEventListener("visibilitychange", () => {
+    // 页面挂起期间 rAF 不走，恢复后不能把“没动”误判成卡住并拉黑目标点。
+    walkStuck = { px: null, py: null, since: 0 };
+  });
   let refusedCount = 0;
   let lastEvent = null;
   let lastLocalMotionAt = 0;
@@ -636,8 +640,13 @@ async function boot() {
         break;
       }
       case "state:overview": {
-        if (p.pos_checksum && agent.state === "idle" && performance.now() - lastLocalMotionAt > 5000) {
-          const snapped = applyChecksum(agent, p.pos_checksum.x, p.pos_checksum.y);
+        const checksumScene = p.scene || p.world?.scene || null;
+        const sameScene = !checksumScene || checksumScene === (scene.name || scene.id);
+        const cx = Number(p.pos_checksum?.x);
+        const cy = Number(p.pos_checksum?.y);
+        if (sameScene && Number.isInteger(cx) && Number.isInteger(cy) && isWalkable(scene.grid, cx, cy)
+          && agent.state === "idle" && performance.now() - lastLocalMotionAt > 5000) {
+          const snapped = applyChecksum(agent, cx, cy);
           if (snapped) store.emit("checksum", { snapped: true });
         }
         if (p.work_tier) setTier(p.work_tier);
@@ -1003,7 +1012,7 @@ async function boot() {
       pendingArrival = null;
     }
     // 卡住保护：行走状态但位置长时间不动，取消路径并让 Worker 清 pending
-    if (agent.state === "walk") {
+    if (agent.state === "walk" && document.visibilityState === "visible") {
       const moved = walkStuck.px == null || Math.abs(agent.px - walkStuck.px) + Math.abs(agent.py - walkStuck.py) > 0.01;
       if (moved) walkStuck = { px: agent.px, py: agent.py, since: now };
       else if (now - walkStuck.since > 1500) {

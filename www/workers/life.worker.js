@@ -45,6 +45,7 @@ let interactionRegistry = null;
 let activeInteraction = null;
 let lastArrival = { key: "", minute: -1e9 };
 let badSpots = new Set();
+let sleepRetryAt = -1e9;
 let interactionFlags = {};
 let interactionCooldowns = {};
 let away = null; // { place, until, overnight } 外部场景停留
@@ -478,7 +479,9 @@ function requestIntent(reason) {
   if (phase === "sleep" && reason !== "phase:sleep" && reason !== "debug:sleep") return;
   if (nowAbs() < busyUntil) return;
   if (phase === "sleep") {
-    const bedHot = (scene.hotspots || []).find((h) => h.act === "sleep" && !badSpots.has(`${h.x},${h.y}:${h.act}`));
+    // 床是必需目标：即使曾被临时判坏也要继续尝试，否则只能刷新页面才能恢复。
+    const bedHot = (scene.hotspots || []).find((h) => h.act === "sleep" && !badSpots.has(`${h.x},${h.y}:${h.act}`))
+      || (scene.hotspots || []).find((h) => h.act === "sleep");
     if (!bedHot) return;
     const bed = (scene.props || []).find((p) => p.id === "bed");
     pending = {
@@ -557,6 +560,8 @@ function tick() {
     if (phase === "sleep") {
       pending = null;
       busyUntil = nowAbs();
+      badSpots.clear();
+      sleepRetryAt = nowAbs();
       delete interactionCooldowns.sleep;
       requestIntent("phase:sleep");
     } else if (prev === "sleep") {
@@ -578,6 +583,12 @@ function tick() {
       event("interaction_error", { msg: err.message, stack: String(err.stack || "").slice(0, 300) });
       activeInteraction = null;
     }
+  }
+
+  // 睡眠目标一次失败后继续重试，不能等刷新页面才恢复。
+  if (phase === "sleep" && !away && !pending && !activeInteraction && nowAbs() >= sleepRetryAt) {
+    sleepRetryAt = nowAbs() + 1;
+    requestIntent("phase:sleep");
   }
 
   // 外部场景停留：到点或睡觉前回家
@@ -730,6 +741,7 @@ self.onmessage = (e) => {
       if (phase === "sleep") {
         pending = null;
         busyUntil = nowAbs();
+        sleepRetryAt = nowAbs();
         delete interactionCooldowns.sleep;
         requestIntent("phase:sleep");
       }
@@ -777,6 +789,7 @@ self.onmessage = (e) => {
       }
       event("act", { act, room, durationMin });
       if (act === "sleep" && phase === "sleep") {
+        sleepRetryAt = -1e9;
         const bed = pending?.bed || (scene.props || []).find((p) => p.id === "bed");
         event("sleep", {
           from: "path",
@@ -817,7 +830,9 @@ self.onmessage = (e) => {
       break;
     }
     case "intentFailed": {
-      if (pending) badSpots.add(`${pending.x},${pending.y}:${pending.act}`);
+      // 睡眠目标不拉黑：一次寻路失败（页面挂起、位置纠偏等）不应让角色整晚睡不了。
+      if (pending && pending.act !== "sleep") badSpots.add(`${pending.x},${pending.y}:${pending.act}`);
+      if (pending?.act === "sleep") sleepRetryAt = nowAbs() + 1;
       pending = null;
       break;
     }
