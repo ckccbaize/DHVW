@@ -53,3 +53,11 @@ test("normalizeBehaviors：错地点改到可用房间，无热点动作丢弃",
     { minute: 600, act: "watch", place: "living", why: "看电视" },
   ]);
 });
+test("normalizeBehaviors：保留室内行为时长", () => {
+  const out = normalizeBehaviors(
+    [{ minute: 490, act: "cook", place: "hall", why: "做早饭", durationMin: 35 }],
+    { rooms: new Set(["living", "hall"]), hotspots, fallbackPlace: "living" },
+  );
+  assert.equal(out.length, 1);
+  assert.equal(out[0].durationMin, 35);
+});

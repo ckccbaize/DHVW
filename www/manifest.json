@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-15T14:00:18.300Z",
+ "built_at": "2026-11-15T14:18:05.858Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -764,8 +764,8 @@
   },
   {
    "path": "css/cel.css",
-   "size": 8400,
-   "sha256": "17175ceb0c944ff1fc3f69a67fe32b5e464efab0268cc06a80c4f107794b0575"
+   "size": 9073,
+   "sha256": "ba37d9f1e9515a898dbfc573096013aa2161a89491e5ab30b9d2d0d3b6194f44"
   },
   {
    "path": "css/tokens.css",
@@ -784,13 +784,13 @@
   },
   {
    "path": "index.html",
-   "size": 3185,
-   "sha256": "9941fb610f57f3d5ac2a6a52e1b9d61f609e54d6864f2de9893cbe41142398a7"
+   "size": 3175,
+   "sha256": "2c6b2820b0face09f3902a2610b46b10979a37660751297268254b4f2d3fc714"
   },
   {
    "path": "js/app.js",
-   "size": 37950,
-   "sha256": "3b604736623d01989bc8e8acafe34fdae7e95bc06c024ca5f8fce19080da1e92"
+   "size": 38660,
+   "sha256": "c3c42265602aa00aee300651b22f7dcea7ac65fca135bc721f8b5669c397086e"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -914,8 +914,8 @@
   },
   {
    "path": "js/core/life/plan.js",
-   "size": 3634,
-   "sha256": "af929a7fb19a8c3ce560b16a2c5977ebd34e9863ee01a281aa0ec610914c9d87"
+   "size": 3781,
+   "sha256": "9b8c4e8588428600aaa464e1912db7b1f38d135bc7322450d39189910d5ab506"
   },
   {
    "path": "js/core/lifestore.js",
@@ -1134,8 +1134,8 @@
   },
   {
    "path": "workers/life.worker.js",
-   "size": 31453,
-   "sha256": "0c4b60a70d309f8b28fb11dbcaf0c1c44118266fcbfbefb830b9b22ea51e0fbe"
+   "size": 32484,
+   "sha256": "94fa7f76ec21d3414781905e6d485b3f4d8c61923fbd6a1ffb234e9c637ad52f"
   }
  ]
 }

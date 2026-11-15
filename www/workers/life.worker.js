@@ -394,20 +394,24 @@ async function maybeLlmThought() {
 
 const DEBUG_ACT_PROP = ACT_PROPS;
 
+function canStartIntent() {
+  return !away && !pending && !activeInteraction && nowAbs() >= busyUntil;
+}
+
+/** 计划/漫游共用入口；忙时返回 false，调用方必须保留计划项等下一 tick 重试。 */
 function planIntent(act, place, reason, opts = {}) {
-  if (away) return;
-  if (phase === "sleep" && act !== "sleep") return;
+  if (!canStartIntent()) return false;
+  if (phase === "sleep" && act !== "sleep") return false;
   const homeRooms = new Set((scene.rooms || []).map((r) => r.id));
   if (place && !homeRooms.has(place)) {
     const durationMin = Math.max(10, Math.min(480, Number(opts.durationMin) || 60));
     const overnight = opts.overnight === true;
-    pending = null;
     busyUntil = nowAbs() + durationMin;
     away = { place, until: nowAbs() + durationMin, overnight };
+    lastIntentMinute = nowAbs();
     event("travel", { to: place, durationMin, overnight, reason });
-    return;
+    return true;
   }
-  pending = null;
   busyUntil = nowAbs();
   const room = place || currentRoom;
   const chosen = opts.hotspot
@@ -418,16 +422,32 @@ function planIntent(act, place, reason, opts = {}) {
         blocked: badSpots,
       });
   if (!chosen) {
+    lastIntentMinute = nowAbs();
     event("plan_skipped", { act, place: room, reason: "no_hotspot" });
-    return;
+    return true;
   }
   const h = chosen.hot;
   const targetAct = chosen.act || act;
-  const t = { x: h.x, y: h.y, act: targetAct, room: h.room || place || currentRoom, durationMin: actDuration(targetAct) };
+  const planned = Number(opts.durationMin);
+  const durationMin = Number.isFinite(planned) && planned > 0
+    ? Math.max(1, Math.min(480, planned))
+    : actDuration(targetAct);
+  const t = { x: h.x, y: h.y, act: targetAct, room: h.room || place || currentRoom, durationMin };
   pending = t;
   lastIntentMinute = nowAbs();
   stats.intents += 1;
   emit({ type: "intent", x: t.x, y: t.y, act: t.act, room: t.room, durationMin: t.durationMin, reason });
+  return true;
+}
+
+function hasDuePlan() {
+  if (phase === "sleep" || away || !plan || plan.day !== clock.day) return false;
+  return (plan.behaviors || []).some((b, i) => (
+    !appliedBehaviors.has(i)
+    && b.act
+    && clock.minute >= b.minute
+    && clock.minute - b.minute < 180
+  ));
 }
 
 function debugIntent(act) {
@@ -453,7 +473,8 @@ function debugIntent(act) {
 
 function requestIntent(reason) {
   if (away) return;
-  if (pending) return;
+  if (pending || activeInteraction) return;
+  if (hasDuePlan()) return;
   if (phase === "sleep" && reason !== "phase:sleep" && reason !== "debug:sleep") return;
   if (nowAbs() < busyUntil) return;
   if (phase === "sleep") {
@@ -583,13 +604,22 @@ function tick() {
     for (let i = 0; i < (plan.behaviors || []).length; i++) {
       const b = plan.behaviors[i];
       if (appliedBehaviors.has(i)) continue;
-      if (clock.minute >= b.minute && clock.minute - b.minute < 180 && b.act) {
+      if (!b.act || clock.minute < b.minute) continue;
+      if (clock.minute - b.minute >= 180) {
         appliedBehaviors.add(i);
-        planIntent(b.act, b.place, `plan:${b.time || b.minute}`, {
-          durationMin: b.durationMin,
-          overnight: b.overnight,
-        });
+        event("plan_skipped", { act: b.act, place: b.place, reason: "late", minute: b.minute });
+        continue;
       }
+      if (!canStartIntent()) break;
+      const ok = planIntent(b.act, b.place, `plan:${b.time || b.minute}`, {
+        durationMin: b.durationMin,
+        overnight: b.overnight,
+      });
+      if (ok) {
+        appliedBehaviors.add(i);
+        break;
+      }
+      break;
     }
     if (plan.sudden && !appliedSudden && clock.minute >= plan.sudden.minute && clock.minute - plan.sudden.minute < 120) {
       appliedSudden = true;

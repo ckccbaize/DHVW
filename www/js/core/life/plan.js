@@ -87,10 +87,13 @@ export function normalizeBehaviors(raw, { rooms, hotspots, fallbackPlace, places
         place,
         why: String(b?.why || "").trim(),
       };
-      if (external) {
-        item.durationMin = Math.max(10, Math.min(480, Number(b?.durationMin) || 60));
-        item.overnight = b?.overnight === true;
+      const duration = Number(b?.durationMin);
+      if (Number.isFinite(duration) && duration > 0) {
+        item.durationMin = Math.max(external ? 10 : 1, Math.min(480, duration));
+      } else if (external) {
+        item.durationMin = 60;
       }
+      if (external) item.overnight = b?.overnight === true;
       return item;
     })
     .filter((b) => b && b.minute >= 0);
