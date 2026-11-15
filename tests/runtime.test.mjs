@@ -175,7 +175,13 @@ test("LocalRuntime：start 初始化两个 Worker，tick 更新时钟", async ()
   assert.equal(Array.isArray(forge.last("init").recentPlots), true);
 
   life.emit({ type: "tick", day: 2, minute: 600, phase: "noon", weather: "rain", room: "living" });
-  assert.deepEqual(store.state.clock, { day: 2, minute: 600, offsetMs: 5000, source: "device" });
+  const clock = store.state.clock;
+  assert.equal(clock.day, 2);
+  assert.equal(clock.minute, 600);
+  assert.equal(clock.offsetMs, 5000);
+  assert.equal(clock.source, "device");
+  assert.ok(Number.isInteger(clock.weekday));
+  assert.match(clock.date, /^\d{4}-\d{2}-\d{2}$/);
   assert.equal(store.state.phase, "noon");
   local.stop();
 });
