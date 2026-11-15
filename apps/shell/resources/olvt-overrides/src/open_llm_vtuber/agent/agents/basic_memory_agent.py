@@ -582,6 +582,21 @@ class BasicMemoryAgent(AgentInterface):
                     self._add_message(current_turn_text, "assistant")
                 return
 
+    def _build_dhvw_query(self, user_text: str) -> str:
+        """[DHVW 补丁] 短口语/指代（如“那个呢？”）拼接上一轮上下文，提升向量召回。"""
+        cur = " ".join(user_text.split())
+        if len(cur) > 20 or len(self._memory) < 2:
+            return cur[:120]
+        prev = ""
+        for msg in reversed(self._memory[:-1]):
+            c = msg.get("content")
+            if isinstance(c, str) and c.strip():
+                prev = " ".join(c.split())
+                break
+        if not prev:
+            return cur[:120]
+        return f"{prev[-80:]} {cur}"[:120]
+
     async def _fetch_dhvw_memory_block(self, query: str) -> Optional[str]:
         """[DHVW 补丁] 从编排器向量库拉取本轮相关记忆与近况（ADR-PC-004）。"""
         base = (os.getenv("DHVW_ORCHESTRATOR_URL") or "http://127.0.0.1:8877").rstrip("/")
@@ -640,7 +655,8 @@ class BasicMemoryAgent(AgentInterface):
 
             messages = self._to_messages(input_data)
             user_text = self._to_text_prompt(input_data)
-            mem_block = await self._fetch_dhvw_memory_block(user_text) if user_text else None
+            query_text = self._build_dhvw_query(user_text) if user_text else ""
+            mem_block = await self._fetch_dhvw_memory_block(query_text) if query_text else None
             if mem_block:
                 mem_msg = {"role": "user", "content": mem_block}
                 if messages and messages[-1].get("role") == "user":
