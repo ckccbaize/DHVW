@@ -2,7 +2,7 @@
 // 作息 / 漫游 / 天气 / 模板短句 / 事件流。零网络、零 token。
 // 用 setInterval 驱动（不用 rAF）：息屏后 rAF 会停，tick 不能停（§10.7.5）。
 
-import { createClock, phaseOf } from "../js/core/clock.js";
+import { createClock, phaseOf, weekdayInfo } from "../js/core/clock.js";
 import { pickLine as pickLineCore, tickInterval } from "../js/core/life/lines.js";
 import { weatherAt } from "../js/core/weather.js";
 import { describeMood, moodTone } from "../js/core/mood/describe.js";
@@ -77,6 +77,7 @@ let saidToday = new Map(); // text -> day
 let recentLines = [];
 let stats = { ticks: 0, intents: 0, says: 0, sinceResume: { rooms: 0, says: 0, sleeps: 0 } };
 let lastTs = 0;
+let lastWeeklyDate = "";
 let anchorReal = 0;
 let anchorMinute = 0;
 
@@ -532,6 +533,12 @@ function tick() {
   }
 
   // 剧情机固定日程：到点强制切换行为；睡眠期间、外部场景停留期间不执行
+  const wk = weekdayInfo();
+  const todayKey = new Date().toISOString().slice(0, 10);
+  if (wk.weekday === 7 && clock.minute >= 20 * 60 && clock.minute < 22 * 60 && lastWeeklyDate !== todayKey) {
+    lastWeeklyDate = todayKey;
+    emit({ type: "write", kind: "weekly", room: currentRoom, act: "write", day: clock.day, minute: clock.minute, ...wk });
+  }
   if (!away && phase !== "sleep" && plan && plan.day === clock.day) {
     for (let i = 0; i < (plan.behaviors || []).length; i++) {
       const b = plan.behaviors[i];
@@ -706,7 +713,10 @@ self.onmessage = (e) => {
         stats.sinceResume.sleeps += 1;
       }
       busyUntil = clock.minute + durationMin;
-      if (act === "write") emit({ type: "write", room, act, day: clock.day, minute: clock.minute });
+      if (act === "write") {
+        const wk = weekdayInfo();
+        emit({ type: "write", room, act, day: clock.day, minute: clock.minute, ...wk });
+      }
       recentSpots.push(`${msg.x ?? pending?.x ?? -1},${msg.y ?? pending?.y ?? -1}`);
       if (recentSpots.length > 6) recentSpots.shift();
       pending = null;

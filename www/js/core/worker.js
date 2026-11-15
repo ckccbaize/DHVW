@@ -2,6 +2,7 @@
 // 契约见 docs/CONTRACTS.md §1；状态机见 core/machine/*；日志见 core/log/*。
 
 import { makeMsg, validateMsg, errorMsg, replyMsg } from "./bus.js";
+import { weekdayInfo } from "./clock.js";
 import { createWorldRuntime, GRAPH } from "./machine/world.js";
 import { createLifeRuntime } from "./machine/life.js";
 import { createEventLog, createMemoryBackend } from "./log/events.js";
@@ -611,13 +612,17 @@ function scheduleDigest() {
 async function writeDigest() {
   if (!digestStore) return null;
   const snap = life.snapshot();
+  const nowDate = new Date();
+  const wk = weekdayInfo(nowDate);
   const d = buildDigest({
-    now: Date.now(),
+    now: nowDate.getTime(),
     seq: eventLog ? eventLog.lastSeq : 0,
     clock: {
-      day: new Date().toISOString().slice(0, 10),
+      day: nowDate.toISOString().slice(0, 10),
       minute: snap.minute,
       phase: snap.phase,
+      weekday: wk.weekday,
+      weekdayName: wk.weekdayName,
     },
     world: { display: state.display, conn: host.conn, tier: world.state.tier },
     life: snap,

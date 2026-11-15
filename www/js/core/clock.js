@@ -2,6 +2,13 @@
 // 设备时钟会漂，端侧只追加事件，回连后按 clock_offset 回填 t_corrected（§10.7.6）。
 
 export const MINUTES_PER_DAY = 1440;
+export const WEEKDAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+
+export function weekdayInfo(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date);
+  const weekday = ((d.getDay() + 6) % 7) + 1;
+  return { weekday, weekdayName: WEEKDAY_NAMES[weekday - 1] };
+}
 
 export function createClock({ day = 1, minute = 8 * 60, offsetMs = 0 } = {}) {
   let d = Number.isFinite(Number(day)) ? Number(day) : 1;

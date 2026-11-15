@@ -2,6 +2,7 @@
 // 视图只订阅 LifeStore，切换数据源不重建 UI；PathAgent 由主线程持有，位置不重置。
 
 import { selectEvictions } from "../core/assetstore.js";
+import { weekdayInfo } from "../core/clock.js";
 import { lightFor } from "../core/light.js";
 import { createLlmClient } from "../core/llm/client.js";
 import { createAgentRegistry } from "../core/agent/registry.js";
@@ -667,19 +668,30 @@ export function createLocalRuntime({
 
   async function generateWriting(ctx) {
     if (!llm || !registry) return;
-    const kind = Math.random() < 0.5 ? "diary" : "novel";
+    const kind = ctx.kind === "weekly" ? "weekly" : (Math.random() < 0.5 ? "diary" : "novel");
     const todayPlot = dailyPlots[ctx.day]?.text || dailyPlots[ctx.day + 1]?.text || "";
     const clock = `${String(Math.floor(ctx.minute / 60)).padStart(2, "0")}:${String(Math.floor(ctx.minute % 60)).padStart(2, "0")}`;
+    const wk = ctx.weekdayName ? { weekday: ctx.weekday, weekdayName: ctx.weekdayName } : weekdayInfo();
+    let recentDiaries = "暂无";
+    if (kind === "weekly" && backend) {
+      const prev = ((await backend.getKV("writings")) || [])
+        .filter((w) => w && w.kind === "diary" && w.text)
+        .slice(-7)
+        .map((w) => w.text.slice(0, 80));
+      if (prev.length) recentDiaries = prev.join("；");
+    }
     const vars = {
       day: ctx.day,
+      weekday: wk.weekdayName,
       clock,
       room: ctx.room,
       mood: describeMood(mood),
       tone: moodTone(mood),
-      memory: memoryText(6) || "暂无",
+      memory: memoryText(kind === "weekly" ? 10 : 6) || "暂无",
       plot: todayPlot || "无特别事件",
+      recent_diaries: recentDiaries,
     };
-    const promptName = kind === "diary" ? "writing-diary" : "writing-novel";
+    const promptName = kind === "weekly" ? "writing-weekly" : (kind === "diary" ? "writing-diary" : "writing-novel");
     const t0 = now();
     let prompt = "";
     let text = "";
@@ -690,14 +702,17 @@ export function createLocalRuntime({
         if (attempt > 1) prompt += `\n\n上一稿不合格：${reason}。请重写，严格满足要求。`;
         const res = await llm.complete({
           messages: [{ role: "user", content: prompt }],
-          maxTokens: 500,
+          maxTokens: kind === "weekly" ? 650 : 500,
           temperature: kind === "novel" ? 0.7 : 0.8,
           cls: "work",
           kind: "writing",
         });
         text = String(res.text || "").trim();
         if (!text) { reason = "空文本"; continue; }
-        if (kind === "diary" && !/我/.test(text)) { reason = "日记必须使用第一人称「我」"; continue; }
+        if ((kind === "diary" || kind === "weekly") && !/我/.test(text)) {
+          reason = kind === "weekly" ? "周记必须使用第一人称「我」" : "日记必须使用第一人称「我」";
+          continue;
+        }
         if (kind === "novel" && /她写道|笔尖|笔记本|划掉|继续写|写小说|小说片段/.test(text)) {
           reason = "小说正文不能写写作过程";
           continue;
@@ -712,11 +727,26 @@ export function createLocalRuntime({
         kind,
         text,
         day: ctx.day,
+        weekday: wk.weekday,
+        weekdayName: wk.weekdayName,
         minute: ctx.minute,
         room: ctx.room,
         created_at: now(),
       };
       await appendKv("writings", item, 50);
+      if ((kind === "diary" || kind === "weekly") && localMemory) {
+        const prefix = kind === "weekly" ? `${wk.weekdayName}周记：` : `${wk.weekdayName}日记：`;
+        const excerpt = text.replace(/\s+/g, " ").slice(0, 100);
+        await localMemory.add({
+          id: `writing-${item.id}`,
+          text: `${prefix}${excerpt}`,
+          tier: kind === "weekly" ? "L3" : "L2",
+          t: now(),
+          meta: { source: kind, weekday: wk.weekday },
+        }).catch(() => {});
+        store.patch({ memory: { count: localMemory.count, terms: localMemory.terms } });
+        void maybeMemory(true);
+      }
       await logLlm({ agent: "writing", ok: true, ms: now() - t0, prompt, response: text });
       store.emit("writing", item);
     } catch (err) {
@@ -1215,6 +1245,65 @@ export function createLocalRuntime({
     },
     getSnapshot() {
       return lastSnapshot;
+    },
+    /** 整份设备存档：life/agent + 地点/心情/日程/产出，供 PC 备份。 */
+    async exportSave() {
+      if (!lastSnapshot || !lastAgentPos) return null;
+      const [places, writings, plots, moodNow] = await Promise.all([
+        backend.getKV("places").catch(() => []),
+        backend.getKV("writings").catch(() => []),
+        backend.getKV("plots").catch(() => []),
+        Promise.resolve({ ...mood }),
+      ]);
+      return {
+        v: 1,
+        savedAt: Date.now(),
+        life: lastSnapshot,
+        agent: lastAgentPos,
+        places: Array.isArray(places) ? places : [],
+        writings: Array.isArray(writings) ? writings : [],
+        plots: Array.isArray(plots) ? plots : [],
+        dailyPlots: { ...dailyPlots },
+        mood: moodNow,
+      };
+    },
+    /** PC 下发恢复：先落 IndexedDB + 文件存档，由调用方 reload 页面。 */
+    async importSave(save) {
+      if (!save || typeof save !== "object") throw new Error("存档不是对象");
+      const life = save.life;
+      const agent = save.agent;
+      if (!life || typeof life !== "object" || !Number.isFinite(Number(life.day)) || !Number.isFinite(Number(life.minute))) {
+        throw new Error("存档缺少 life.day/minute");
+      }
+      if (!agent || typeof agent !== "object" || !Number.isFinite(Number(agent.gx)) || !Number.isFinite(Number(agent.gy))) {
+        throw new Error("存档缺少 agent.gx/gy");
+      }
+      const stamp = Date.now();
+      lastSnapshot = { ...life, day: Number(life.day), minute: Number(life.minute), savedAt: stamp };
+      lastAgentPos = { ...agent, savedAt: stamp };
+      await backend.setKV("life_snapshot", lastSnapshot);
+      await backend.setKV("agent_pos", lastAgentPos);
+      await backend.setKV("day", lastSnapshot.day);
+      await backend.setKV("minute", lastSnapshot.minute);
+      if (Array.isArray(save.places)) await backend.setKV("places", save.places);
+      if (Array.isArray(save.writings)) await backend.setKV("writings", save.writings);
+      if (Array.isArray(save.plots)) await backend.setKV("plots", save.plots);
+      if (save.dailyPlots && typeof save.dailyPlots === "object") {
+        dailyPlots = { ...save.dailyPlots };
+        await backend.setKV("daily_plots", dailyPlots);
+      }
+      if (save.mood && typeof save.mood === "object") {
+        mood = { ...mood, ...save.mood };
+        await backend.setKV("mood", mood);
+        store.patch({ mood: { ...mood } });
+      }
+      await saveFileState();
+      return {
+        ok: true,
+        day: lastSnapshot.day,
+        minute: lastSnapshot.minute,
+        scene: lastAgentPos.scene || scene.name || scene.id || "home",
+      };
     },
     setQuota(bytes) {
       quota = bytes;
