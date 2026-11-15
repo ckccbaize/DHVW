@@ -30,12 +30,13 @@ export function createHud({ root, store }) {
 
     cardEl.classList.toggle("offline", !up);
     if (!up) {
+      cardEl.hidden = false;
       cardBody.textContent = "主机未连接";
-    } else if (!state.agentCard) {
-      cardBody.textContent = "未接入";
     } else {
       const a = state.agentCard;
-      cardBody.textContent = `${a.platform || "agent"} · ${a.task || "-"} · ${a.state || "-"}`;
+      const hasAgent = a && (a.platform || a.task || a.state);
+      cardEl.hidden = !hasAgent;
+      if (hasAgent) cardBody.textContent = `${a.platform || "agent"} · ${a.task || "-"} · ${a.state || "-"}`;
     }
 
     const a = state.assets || { scene: 0, plot: 0, bg: 0 };

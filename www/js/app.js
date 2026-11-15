@@ -88,32 +88,66 @@ const SPRITE_PALETTES = [
   { sweater: "#4f8f8a", hair: "#263033" },
 ];
 
-const AGENT_SPRITES = [
-  { id: "plot", label: "剧情" },
-  { id: "memory", label: "记忆" },
-  { id: "writing", label: "写作" },
-  { id: "thought", label: "独白" },
+/** 随包 NPC：固定随机池，办公室工位与总监座各取一位；动作统一坐下。 */
+const NPC_POOL = [
+  { id: "npc-1", name: "阿澄", image: "assets/npc/npc-1.png" },
+  { id: "npc-2", name: "小满", image: "assets/npc/npc-2.png" },
+  { id: "npc-3", name: "林岚", image: "assets/npc/npc-3.png" },
+  { id: "npc-4", name: "周野", image: "assets/npc/npc-4.png" },
+  { id: "npc-5", name: "苏禾", image: "assets/npc/npc-5.png" },
+  { id: "npc-6", name: "陈默", image: "assets/npc/npc-6.png" },
+  { id: "npc-7", name: "顾清", image: "assets/npc/npc-7.png" },
 ];
 
-/** 外层办公室：每个工位（办公桌）配一个精灵，站在对应椅子上。 */
+function npcOrder(seed) {
+  const hash = (text) => {
+    let h = 2166136261;
+    for (const ch of String(text)) h = Math.imul(h ^ ch.codePointAt(0), 16777619);
+    return h >>> 0;
+  };
+  return [...NPC_POOL].sort((a, b) => hash(`${seed}:${a.id}`) - hash(`${seed}:${b.id}`));
+}
+
+function chairForDesk(desk, chairs) {
+  return (
+    chairs.find((c) => c.x === desk.x && c.y === desk.y + 1) ||
+    chairs.find((c) => Math.abs(c.x - desk.x) <= 1 && Math.abs(c.y - desk.y) <= 2) ||
+    desk
+  );
+}
+
+function npcSprite(npc, chair, extra = {}) {
+  return {
+    x: chair.x,
+    y: chair.y,
+    dir: { x: 0, y: -1 },
+    act: "sit",
+    sheet: "assets/npc/npc_sheet.json",
+    image: npc.image,
+    npc: npc.id,
+    label: npc.name,
+    ...extra,
+  };
+}
+
+/** 外层办公室：6 个工位 + 总监座，全部是坐着的随包 NPC。 */
 function buildOfficeSprites(scene) {
   const desks = (scene.props || []).filter((p) => p.id === "desk_modern");
   const chairs = (scene.props || []).filter((p) => p.id === "office_chair");
-  return desks.slice(0, AGENT_SPRITES.length).map((desk, i) => {
-    const chair =
-      chairs.find((c) => c.x === desk.x && c.y === desk.y + 1) ||
-      chairs.find((c) => Math.abs(c.x - desk.x) <= 1 && Math.abs(c.y - desk.y) <= 2) ||
-      desk;
-    const agent = AGENT_SPRITES[i % AGENT_SPRITES.length];
-    return {
-      x: chair.x,
-      y: chair.y,
-      dir: { x: 0, y: 1 },
-      palette: SPRITE_PALETTES[i % SPRITE_PALETTES.length],
-      agent: agent.id,
-      label: agent.label,
-    };
-  });
+  const order = npcOrder(scene.name || scene.id || "office");
+  const sprites = desks.slice(0, 6).map((desk, i) =>
+    npcSprite(order[i % order.length], chairForDesk(desk, chairs)),
+  );
+  const directorDesk = (scene.props || []).find((p) => p.id === "workdesk");
+  if (directorDesk) {
+    sprites.push(
+      npcSprite(order[6], chairForDesk(directorDesk, chairs), {
+        director: true,
+        label: "总监",
+      }),
+    );
+  }
+  return sprites;
 }
 
 async function countScenePackages() {
@@ -706,35 +740,6 @@ async function boot() {
     consolePanel.hidden = true;
   }
 
-  const agentPanel = $("#agentPanel");
-  const agentBody = $("#agentBody");
-  const agentTitle = $("#agentTitle");
-
-  function esc(v) {
-    return String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  }
-
-  async function openAgentPanel(agent, label) {
-    agentPanel.hidden = false;
-    agentTitle.textContent = `${label} · 工作记录`;
-    agentBody.innerHTML = '<div class="muted">读取中…</div>';
-    const [logs, events] = await Promise.all([local.getLlmLog(), local.getEvents(120)]);
-    const rows = logs.filter((r) => r.agent === agent).slice(-30).reverse();
-    const evs = events.filter((e) => String(e.kind || "").includes(agent)).slice(-10).reverse();
-    const parts = [];
-    if (rows.length) {
-      parts.push(rows.map((r) => `<div class="row"><b>${esc(r.agent)}</b> <span class="${r.ok ? "ok" : "bad"}">${r.ok ? "ok" : "fail"}</span> ${r.ms ?? ""}ms<div class="pre">${esc(r.prompt || "")}</div><div class="pre">${esc(r.response || "")}</div></div>`).join(""));
-    }
-    if (evs.length) {
-      parts.push(evs.map((e) => `<div class="row"><b>${esc(e.kind)}</b> ${esc(JSON.stringify(e.payload || {}))}</div>`).join(""));
-    }
-    agentBody.innerHTML = parts.length ? parts.join("") : '<div class="muted">这个 agent 还没有工作记录</div>';
-  }
-
-  function closeAgentPanel() {
-    agentPanel.hidden = true;
-  }
-
   function hitOfficeSprite(clientX, clientY) {
     if (activeView !== "outer") return null;
     const canvas = $("#sceneOuter");
@@ -768,24 +773,17 @@ async function boot() {
   }
   $("#btnViewInner").addEventListener("click", () => setView("inner"));
   $("#btnViewOuter").addEventListener("click", () => setView("outer"));
-  $("#btnConsole").addEventListener("click", openConsole);
   $("#btnCloseConsole").addEventListener("click", closeConsole);
-  $("#btnCloseAgent").addEventListener("click", closeAgentPanel);
-  $("#btnReconnect").addEventListener("click", () => {
-    remote.stop();
-    remote.start();
-    overview.say("正在重连主机…", 1800);
-  });
-  $("#btnCloseDock").addEventListener("click", () => setDock(false));
 
   // 触摸招出 UI；鼠标点击不触发任何角色行为
   const stage = $("#stage");
   stage.addEventListener("pointerdown", (e) => {
-    if (e.target.closest("#dock") || e.target.closest("#consolePanel") || e.target.closest("#agentPanel")) return;
-    // 外层点击小人：立刻打开对应 agent 工作记录
+    if (e.target.closest("#dock") || e.target.closest("#consolePanel")) return;
+    // 外层点击小人：总监打开生活控制台；其他 NPC 只唤出 dock。
     const sprite = hitOfficeSprite(e.clientX, e.clientY);
     if (sprite) {
-      void openAgentPanel(sprite.agent, sprite.label);
+      if (sprite.director) openConsole();
+      else setDock(true);
       return;
     }
     // 其他位置鼠标/触摸只唤出 UI，不移动角色

@@ -32,6 +32,7 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
   let terrain = null;
   let charSheet = null;
   let charImg = null;
+  const spriteAssets = new Map();
   let lightKey = null;
   let lightLayer = null;
   let lightCtx = null;
@@ -82,13 +83,16 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
     return (dir.y || 0) <= 0 ? "N" : "S";
   }
 
-  function drawSheetAgent(agent, now, actName) {
-    const name = agent.state === "walk" ? "walk" : actName && charSheet.animations[actName] ? actName : "idle";
-    const anim = charSheet.animations[name] || charSheet.animations.idle;
+  function drawSheetAgent(agent, now, actName, asset = null) {
+    const sheet = asset?.sheet || charSheet;
+    const img = asset?.img || charImg;
+    if (!sheet || !img) return false;
+    const name = agent.state === "walk" ? "walk" : actName && sheet.animations[actName] ? actName : "idle";
+    const anim = sheet.animations[name] || sheet.animations.idle;
     const frames = anim.frames[dirName(agent.dir)] || anim.frames.S || [0];
     const idx = frames[Math.floor((now / 1000) * anim.fps) % frames.length];
-    const fw = charSheet.frame.w;
-    const fh = charSheet.frame.h;
+    const fw = sheet.frame.w;
+    const fh = sheet.frame.h;
     const sx = (idx % 4) * fw;
     const sy = Math.floor(idx / 4) * fh;
     const k = cell / 24;
@@ -96,14 +100,19 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
     const dh = fh * k;
     const x = agent.px * cell;
     const y = agent.py * cell + cell * 0.25;
-    ctx.drawImage(charImg, sx, sy, fw, fh, x - dw / 2, y - dh, dw, dh);
+    ctx.drawImage(img, sx, sy, fw, fh, x - dw / 2, y - dh, dw, dh);
+    return true;
   }
 
-  function drawAgent(agent, palette = {}, now = performance.now(), actName = null) {
+  function drawAgent(agent, palette = {}, now = performance.now(), actName = null, asset = null) {
     const x = Math.round(agent.px * cell * scale);
     const y = Math.round(agent.py * cell * scale);
     const f = walkFrame(agent);
     const swing = agent.state === "walk" ? [0, 2, 0][f] : 0;
+    if (asset?.sheet && asset?.img) {
+      drawSheetAgent(agent, now, actName || palette.act || null, asset);
+      return;
+    }
     if (charSheet && charImg) {
       drawSheetAgent(agent, now, actName || palette.act || null);
       return;
@@ -283,6 +292,7 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
         sp.palette,
         now,
         sp.act || null,
+        sp.image ? spriteAssets.get(sp.image) : null,
       );
     }
     if (lightLayer) ctx.drawImage(lightLayer, 0, 0);
@@ -310,6 +320,21 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
         charSheet = null;
         charImg = null;
       }
+      await Promise.all(
+        sprites
+          .filter((sp) => sp.sheet && sp.image)
+          .map(async (sp) => {
+            try {
+              const [res, img] = await Promise.all([
+                fetch(sp.sheet, { cache: "no-cache" }),
+                loadImage(sp.image),
+              ]);
+              if (res.ok) spriteAssets.set(sp.image, { sheet: await res.json(), img });
+            } catch {
+              // 缺图时退回主角色图集，不阻塞场景
+            }
+          }),
+      );
       buildLight(store.state.light || "day");
     },
     draw,
