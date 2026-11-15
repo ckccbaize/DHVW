@@ -227,6 +227,11 @@ export function createLocalRuntime({
   let mood = { energy: 0.55, valence: 0.55, social: 0.4, focus: 0.5 };
   let digestSeq = 0;
 
+  function bedView() {
+    const bed = (scene.props || []).find((p) => p.id === "bed");
+    return bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1, facing: bed.facing || "S" } : null;
+  }
+
   const sceneSummary = () => ({
     grid: scene.grid,
     rooms: scene.rooms,
@@ -274,6 +279,9 @@ export function createLocalRuntime({
       case "snapshot": {
         lastSnapshot = msg.snapshot ? { ...msg.snapshot, savedAt: Date.now() } : null;
         if (lastSnapshot) {
+          if (lastSnapshot.interaction?.act === "sleep" || lastSnapshot.phase === "sleep") {
+            store.patch({ sleepView: bedView() });
+          }
           void backend.setKV("life_snapshot", lastSnapshot).catch(() => {});
           scheduleStateSave();
         }
@@ -292,7 +300,7 @@ export function createLocalRuntime({
       case "event": {
         const ev = msg.ev;
         ev.t_corrected = ev.t_local + getOffset();
-        if (ev.kind === "sleep") store.patch({ sleepView: ev.payload?.bed || null });
+        if (ev.kind === "sleep") store.patch({ sleepView: ev.payload?.bed || bedView() });
         if (ev.kind === "wake") store.patch({ sleepView: null });
         persistEvent(ev);
         onEvent(ev);

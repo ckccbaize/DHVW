@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-15T15:35:08.430Z",
+ "built_at": "2026-11-15T15:47:44.208Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -1069,8 +1069,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 54213,
-   "sha256": "026f6f66814a83911f82649aec45d4944fa01819945bf4818544af089987dbad"
+   "size": 54572,
+   "sha256": "0801e12be0547fa7358ed62c1f3bc28604ca36b59537ab75d029c60a14d8d86e"
   },
   {
    "path": "js/runtime/remote.js",
@@ -1084,8 +1084,8 @@
   },
   {
    "path": "js/view/overview.js",
-   "size": 12431,
-   "sha256": "dd7fb7fb3787bdd53b73209fa74e8fdb8d0c12ca46651ba744cc97dc6eb06781"
+   "size": 12531,
+   "sha256": "88d849cf7831a2efcd240f254b2d89f8ba85c7d771b5cf98a9d3d5995b4032c4"
   },
   {
    "path": "js/view/perf-overlay.js",
