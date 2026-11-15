@@ -951,7 +951,7 @@ async function travelToPlace(to, reason = "travel") {
   if (!plan.ok) return plan;
   const dest = places.get(to);
   if (plan.minutes > 0) {
-    life.advance(plan.minutes);
+    life.advance(plan.minutes, { phase: life.snapshot().phase });
     patch({ life: life.snapshot() });
     void sampleMood("plot", `去${dest?.name || to}`);
   }
@@ -1422,7 +1422,7 @@ const handlers = {
     }
     if (p.name === "life_advance") {
       const before = life.snapshot();
-      life.advance(p.args?.minutes ?? 60);
+      life.advance(p.args?.minutes ?? 60, { phase: before.phase });
       const after = life.snapshot();
       if (stateLog && (before.phase !== after.phase || before.band !== after.band)) {
         void stateLog.append({

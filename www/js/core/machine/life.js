@@ -36,7 +36,7 @@ export const MOOD_BASE = Object.freeze({ energy: 0.55, valence: 0.55, social: 0.
 /** 心情写入来源（W33 会用于优先级/限频）。 */
 export const MOOD_SOURCES = Object.freeze(["system", "wake", "plot", "interaction", "user", "doctor"]);
 export const MOOD_DIMENSIONS = Object.keys(MOOD_BASE);
-export const MOOD_DECAY_PER_MIN = 0.004;
+export const MOOD_DECAY_PER_MIN = 0.0015;
 
 /** 动作 → 标签（心情/时段匹配用）。 */
 export const ACT_TAGS = {
@@ -69,11 +69,68 @@ const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
 export function moodBand(mood) {
   const m = { ...MOOD_BASE, ...mood };
-  if (m.energy < 0.3) return "tired";
-  if (m.energy > 0.75 && m.valence > 0.7) return "excited";
-  if (m.valence < 0.35) return "low";
-  if (m.valence > 0.65) return "happy";
+  if (m.energy < 0.35) return "tired";
+  if (m.energy > 0.72 && m.valence > 0.68) return "excited";
+  if (m.valence < 0.38) return "low";
+  if (m.valence > 0.62) return "happy";
   return "calm";
+}
+
+export const ACT_MOOD_DELTAS = Object.freeze({
+  sleep: { energy: 0.06, valence: 0.02, social: -0.02, focus: 0.02 },
+  rest: { energy: 0.04, valence: 0.02, focus: 0.01 },
+  eat: { energy: 0.05, valence: 0.04 },
+  drink: { energy: 0.02, valence: 0.02 },
+  read: { focus: 0.05, energy: -0.01, valence: 0.01 },
+  study: { focus: 0.06, energy: -0.02, valence: 0.01 },
+  write: { focus: 0.04, valence: 0.02, energy: -0.01 },
+  play: { valence: 0.06, energy: -0.02, social: 0.03 },
+  exercise: { energy: -0.04, valence: 0.05, focus: 0.02 },
+  music: { valence: 0.05, focus: -0.01 },
+  clean: { focus: 0.03, valence: 0.02, energy: -0.02 },
+  walk: { valence: 0.04, energy: -0.01, focus: 0.01 },
+  chat: { social: 0.06, valence: 0.04 },
+});
+
+export function moodDeltaForAct(act) {
+  if (!act || typeof act !== "string") return null;
+  const key = act.trim().toLowerCase();
+  if (ACT_MOOD_DELTAS[key]) return ACT_MOOD_DELTAS[key];
+  const tags = ACT_TAGS[key];
+  if (!tags) return null;
+  const delta = {};
+  if (tags.includes("rest")) { delta.energy = 0.04; delta.valence = 0.02; }
+  if (tags.includes("play")) { delta.valence = (delta.valence || 0) + 0.04; delta.social = 0.02; }
+  if (tags.includes("focus")) { delta.focus = 0.04; delta.energy = (delta.energy || 0) - 0.01; }
+  if (tags.includes("social")) { delta.social = (delta.social || 0) + 0.05; delta.valence = (delta.valence || 0) + 0.03; }
+  if (tags.includes("care")) { delta.valence = (delta.valence || 0) + 0.03; delta.energy = (delta.energy || 0) + 0.02; }
+  return Object.keys(delta).length ? delta : null;
+}
+
+export function circadianMoodStep(mood, { phase = "day", weather = "clear", minutes = 1, aloneMinutes = 0 } = {}) {
+  const m = clamp01(Number(minutes) / 60) * 60;
+  if (!(m > 0)) return { ...MOOD_BASE, ...mood };
+  const delta = { energy: 0, valence: 0, social: 0, focus: 0 };
+  if (phase === "night" || phase === "late_night") {
+    delta.energy -= 0.0025 * m;
+    delta.focus -= 0.0015 * m;
+  } else if (phase === "morning") {
+    delta.energy += 0.0012 * m;
+    delta.focus += 0.001 * m;
+  } else if (phase === "evening") {
+    delta.energy -= 0.001 * m;
+  }
+  const w = String(weather || "").toLowerCase();
+  if (w === "rain" || w === "storm" || w === "overcast") {
+    delta.valence -= 0.0012 * m;
+    delta.energy -= 0.0008 * m;
+  } else if (w === "sunny" || w === "clear") {
+    delta.valence += 0.0008 * m;
+  }
+  if (aloneMinutes >= 60) {
+    delta.social -= 0.0015 * m;
+  }
+  return applyMoodEvent(mood, delta);
 }
 
 /** 事件增量（如做饭 +0.15 valence）；越界截断。 */
@@ -163,9 +220,12 @@ export function createLifeRuntime({ minute = 8 * 60, mood = MOOD_BASE } = {}) {
   const recent = [];
   const moodLog = []; // FUTURE(W33)：外部引导的归因记录
 
-  function advance(minutes) {
+  function advance(minutes, ctx = null) {
     const delta = Math.max(0, Number(minutes) || 0);
     moodState = decayMood(moodState, delta);
+    if (ctx && delta > 0) {
+      moodState = circadianMoodStep(moodState, { ...ctx, minutes: delta });
+    }
     m = (m + delta) % 1440;
     return snapshot();
   }

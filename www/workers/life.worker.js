@@ -6,6 +6,7 @@ import { createClock, phaseOf, weekdayInfo } from "../js/core/clock.js";
 import { pickLine as pickLineCore, tickInterval } from "../js/core/life/lines.js";
 import { weatherAt } from "../js/core/weather.js";
 import { describeMood, moodTone } from "../js/core/mood/describe.js";
+import { applyMoodEvent, circadianMoodStep, moodDeltaForAct } from "../js/core/machine/life.js";
 import { pickDuration } from "../js/core/life/acts.js";
 import { ACT_PROPS, chooseHotspot } from "../js/core/life/plan.js";
 import { applyEffects, createInteractionRegistry, resolveInteraction } from "../js/core/interactions.js";
@@ -78,6 +79,8 @@ let recentLines = [];
 let stats = { ticks: 0, intents: 0, says: 0, sinceResume: { rooms: 0, says: 0, sleeps: 0 } };
 let lastTs = 0;
 let lastWeeklyDate = "";
+let moodStepAccum = 0;
+let lastSocialMs = Date.now();
 let anchorReal = 0;
 let anchorMinute = 0;
 
@@ -300,6 +303,9 @@ function finishInteraction() {
   const { act, def } = activeInteraction;
   const out = applyEffects(def.effects || [], interactionState());
   mood = out.state.mood;
+  const actDelta = moodDeltaForAct(act);
+  if (actDelta) mood = applyMoodEvent(mood, actDelta);
+  if (act === "chat") lastSocialMs = Date.now();
   interactionFlags = out.state.flags;
   interactionCooldowns = out.state.cooldowns;
   interactionCooldowns[act] = clock.minute + Math.max(5, Number(def.cooldown_min) || 20);
@@ -485,9 +491,18 @@ function tick() {
   // 用墙钟锚点推进，tick 频率/FPS 不影响时间流速
   const minutesPerSecond = activity === "active" ? cfg.timeScale / 30 : cfg.timeScale / 60;
   const target = anchorMinute + ((Date.now() - anchorReal) / 1000) * minutesPerSecond;
+  const stepMin = Math.max(0, target - clock.minute);
   clock.advance(target - clock.minute);
   anchorMinute = clock.minute;
   anchorReal = Date.now();
+
+  moodStepAccum += stepMin;
+  if (moodStepAccum >= 1) {
+    const aloneMinutes = Math.max(0, (Date.now() - lastSocialMs) / 60000);
+    mood = circadianMoodStep(mood, { phase, weather, minutes: moodStepAccum, aloneMinutes });
+    moodStepAccum = 0;
+    emit({ type: "mood", mood: { ...mood } });
+  }
 
   scheduleFor(clock.day);
   const nextPhase = phaseAt(clock.minute);
