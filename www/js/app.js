@@ -265,6 +265,7 @@ async function boot() {
   let walkStuck = { px: null, py: null, since: 0 };
   let refusedCount = 0;
   let lastEvent = null;
+  let lastLocalMotionAt = 0;
   let pendingEvents = [];
   let batchInFlight = false;
   const bgUrls = new Map();
@@ -283,6 +284,7 @@ async function boot() {
     },
     onEvent: (ev) => {
       lastEvent = ev;
+      if (ev.kind === "interaction_end" || ev.kind === "act" || ev.kind === "enter") lastLocalMotionAt = performance.now();
       if (store.state.conn === "up") void flushEvents();
       if (ev.kind === "travel" && ev.payload?.to) {
         awayPlace = ev.payload.to;
@@ -620,7 +622,7 @@ async function boot() {
         break;
       }
       case "state:overview": {
-        if (p.pos_checksum) {
+        if (p.pos_checksum && agent.state === "idle" && performance.now() - lastLocalMotionAt > 5000) {
           const snapped = applyChecksum(agent, p.pos_checksum.x, p.pos_checksum.y);
           if (snapped) store.emit("checksum", { snapped: true });
         }
@@ -825,6 +827,7 @@ async function boot() {
 
   function handleIntent({ x, y, act, room }) {
     if (awayPlace) return;
+    lastLocalMotionAt = performance.now();
     const path = bfsPath(scene.grid, agent.gx, agent.gy, x, y);
     if (path === null) {
       // 新意图不可达时必须取消旧路径，否则旧路径到达会把房间/动作写错
@@ -972,6 +975,7 @@ async function boot() {
     last = now;
 
     const arrived = step(agent, dt);
+    if (agent.state === "walk" || arrived) lastLocalMotionAt = now;
     if (arrived && pendingArrival) {
       local.arrived(pendingArrival.room || roomAt(agent.gx, agent.gy), pendingArrival.act);
       pendingArrival = null;
