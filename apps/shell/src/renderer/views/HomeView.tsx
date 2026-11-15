@@ -155,7 +155,7 @@ export function HomeView({
                   <tr>
                     <th>世界时刻</th>
                     <td className="mono">
-                      {digest ? fmtWorldClock(digest.day, digest.minute, digest.weekdayName, digest.date) : '—'}
+                      {digest ? fmtWorldClock(digest.day, digest.minute, digest.weekdayName) : '—'}
                     </td>
                     <th>时段 / 显示</th>
                     <td className="mono">
@@ -266,10 +266,17 @@ function fmtMinute(minute: number | null | undefined): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
-function fmtWorldClock(day: string, minute: number, weekdayName?: string, date?: string): string {
+function fmtWorldClock(day: string, minute: number, weekdayName?: string): string {
   const parts: string[] = []
-  if (day) parts.push(/^\d+$/.test(day) ? `第 ${day} 天` : day)
-  if (date) parts.push(date.slice(5))
+  if (day) {
+    if (/^\d+$/.test(day)) {
+      const dayNum = Math.max(1, Number(day))
+      const week = Math.floor((dayNum - 1) / 7) + 1
+      parts.push(`第 ${dayNum} 天 · 第 ${week} 周`)
+    } else {
+      parts.push(day)
+    }
+  }
   if (weekdayName) parts.push(weekdayName)
   parts.push(fmtMinute(minute))
   return parts.join(' · ')

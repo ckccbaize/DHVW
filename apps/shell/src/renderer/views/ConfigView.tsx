@@ -170,7 +170,15 @@ export function ConfigView({
                 世界时刻{' '}
                 <b className="mono">
                   {world?.digest
-                    ? `${/^\d+$/.test(world.digest.day) ? `第 ${world.digest.day} 天` : world.digest.day}${world.digest.date ? ` ${world.digest.date.slice(5)}` : ''}${world.digest.weekdayName ? ` ${world.digest.weekdayName}` : ''} ${String(Math.floor(world.digest.minute / 60)).padStart(2, '0')}:${String(world.digest.minute % 60).padStart(2, '0')}`
+                    ? (() => {
+                        const d = world.digest
+                        const dayNum = /^\d+$/.test(d.day) ? Number(d.day) : null
+                        const week = dayNum ? Math.floor((Math.max(1, dayNum) - 1) / 7) + 1 : null
+                        const dayText = dayNum ? `第 ${dayNum} 天 · 第 ${week} 周` : d.day
+                        const hh = String(Math.floor(d.minute / 60)).padStart(2, '0')
+                        const mm = String(Math.floor(d.minute % 60)).padStart(2, '0')
+                        return `${dayText}${d.weekdayName ? ` ${d.weekdayName}` : ''} ${hh}:${mm}`
+                      })()
                     : '—'}
                 </b>
               </span>
