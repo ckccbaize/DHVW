@@ -409,9 +409,9 @@ function planIntent(act, place, reason, opts = {}) {
     const durationMin = Math.max(10, Math.min(480, Number(opts.durationMin) || 60));
     const overnight = opts.overnight === true;
     busyUntil = nowAbs() + durationMin;
-    away = { place, until: nowAbs() + durationMin, overnight };
+    away = { place, until: nowAbs() + durationMin, overnight, act };
     lastIntentMinute = nowAbs();
-    event("travel", { to: place, durationMin, overnight, reason });
+    event("travel", { to: place, durationMin, overnight, reason, act });
     return true;
   }
   busyUntil = nowAbs();
@@ -770,12 +770,14 @@ self.onmessage = (e) => {
       schedule();
       emit({ type: "ready", day: clock.day, minute: clock.minute, phase, weather });
       emitSnapshot();
-      if (away) event("travel", { to: away.place, durationMin: Math.max(0, away.until - nowAbs()), overnight: away.overnight, reason: "restore" });
+      if (away) event("travel", { to: away.place, durationMin: Math.max(0, away.until - nowAbs()), overnight: away.overnight, reason: "restore", act: away.act || null });
       if (phase !== "sleep") event("wake", { reason: "boot" });
       break;
     }
     case "arrived": {
       if (away) {
+        // 外部场景到达：记录计划动作，但不占用 home 的 busyUntil（away.until 负责停留）。
+        if (msg.act) event("act", { act: msg.act, room: away.place, durationMin: 0, external: true });
         pending = null;
         break;
       }

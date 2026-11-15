@@ -233,6 +233,7 @@ async function boot() {
   const hostPresentInfo = { olvtPort: 0, gatewayPort: 0, presentUrl: "" };
   let overview = createOverview({ canvas: $("#scene"), scene, store });
   let awayPlace = null;
+  let awayAct = null;
   let homePos = null;
   const officeSprites = buildOfficeSprites(outerScene);
   const outerOverview = createOverview({
@@ -292,7 +293,8 @@ async function boot() {
       if (store.state.conn === "up") void flushEvents();
       if (ev.kind === "travel" && ev.payload?.to) {
         awayPlace = ev.payload.to;
-        void enterPlace(awayPlace);
+        awayAct = ev.payload.act || null;
+        void enterPlace(awayPlace, awayAct);
       } else if (ev.kind === "return") {
         void returnHome();
       }
@@ -747,7 +749,7 @@ async function boot() {
           if (added?.added) store.patch({ sceneCount: (store.state.sceneCount || 0) + 1 });
           store.emit("scene_ready", { ...p, cached, placeId: alias || undefined });
           if (awayPlace && (awayPlace === alias || awayPlace === p.placeId || awayPlace === p.name || awayPlace === String(p.sceneId || ""))) {
-            void enterPlace(awayPlace);
+            void enterPlace(awayPlace, awayAct);
           }
         })();
         break;
@@ -783,7 +785,7 @@ async function boot() {
     pendingArrival = null;
   }
 
-  async function enterPlace(name) {
+  async function enterPlace(name, act = null) {
     if (!name || name === (scene.name || scene.id)) return;
     if (!homePos) homePos = { gx: agent.gx, gy: agent.gy, px: agent.px, py: agent.py, dir: { ...agent.dir } };
     try {
@@ -801,6 +803,21 @@ async function boot() {
       pendingArrival = null;
       store.patch({ scene: name });
       if (window.__dhvw) window.__dhvw.scene = scene;
+      // 外部场景也要执行计划里的动作：进门后走到对应热点，而不是只停在出生点。
+      if (act) {
+        const hot = (scene.hotspots || []).find((h) => h.act === act);
+        if (hot) {
+          const path = bfsPath(scene.grid, agent.gx, agent.gy, hot.x, hot.y);
+          if (path && path.length) {
+            moveTo(agent, path, { act });
+            pendingArrival = { room: hot.room || name, act };
+          } else if (path) {
+            agent.state = "act";
+            agent.act = act;
+            agent.actTtl = 2;
+          }
+        }
+      }
     } catch (err) {
       console.warn("[scene] 进入失败", name, err);
       const queued = await local.requestScene(name, "travel").catch(() => ({ ok: false }));
@@ -844,6 +861,7 @@ async function boot() {
       console.warn("[scene] 返回失败", name, err);
     } finally {
       awayPlace = null;
+      awayAct = null;
       homePos = null;
     }
   }
