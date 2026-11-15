@@ -12,11 +12,15 @@ test("weatherAt：状态合法、可复现、温度风力在范围内", () => {
   assert.ok(a.wind >= 0 && a.wind <= 6);
 });
 
-test("weatherAt：一天内会跨多个天气块", () => {
+test("weatherAt：一天内天气不变，换天重新随机", () => {
+  const day = weatherAt(3, 0);
+  assert.deepEqual(weatherAt(3, 12 * 60), day);
+  assert.deepEqual(weatherAt(3, 23 * 60 + 59), day);
+  assert.equal(weatherForDay(3), day.state);
+
   const states = new Set();
-  for (let m = 0; m < 1440; m += 180) states.add(weatherAt(3, m).state);
+  for (let d = 1; d <= 30; d += 1) states.add(weatherAt(d).state);
   assert.ok(states.size >= 2);
-  assert.equal(weatherForDay(3), weatherAt(3, 720).state);
 });
 
 test("lightFor：雾按白天、暴风雨按雨天", () => {

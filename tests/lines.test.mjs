@@ -2,10 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { ACT_LINES, LINES, pickLine, tickInterval, weatherForDay } from "../www/js/core/life/lines.js";
+import { WEATHER_STATES } from "../www/js/core/weather.js";
 
 test("weatherForDay：确定性", () => {
   assert.equal(weatherForDay(1), weatherForDay(1));
-  assert.ok(["clear", "cloudy", "rain", "snow"].includes(weatherForDay(3)));
+  assert.ok(WEATHER_STATES.includes(weatherForDay(3)));
 });
 
 test("tickInterval：息屏 60s，其余 1s", () => {

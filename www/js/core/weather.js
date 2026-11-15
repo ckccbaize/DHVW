@@ -1,9 +1,7 @@
-// 独立天气系统：按游戏时间分块生成，不依赖场景/光照。
-// 每 3 游戏小时一个天气块；同一天内可晴→云→雨→雾变化。
+// 独立天气系统：按游戏日生成，不依赖场景/光照。
+// 一天一种天气；同一天内不变，换天时重新随机（按 day 确定性，刷新不跳变）。
 
 export const WEATHER_STATES = Object.freeze(["clear", "cloudy", "rain", "snow", "fog", "storm"]);
-
-const BLOCK_MIN = 180;
 
 function hash(n) {
   let x = n >>> 0;
@@ -15,10 +13,9 @@ function hash(n) {
   return x >>> 0;
 }
 
-/** 当前天气块：state / temp / wind / block。 */
+/** 当天天气：state / temp / wind / block。minute 仅为兼容旧调用，不参与变化。 */
 export function weatherAt(day = 1, minute = 0) {
-  const block = Math.floor(minute / BLOCK_MIN);
-  const h = hash(day * 100003 + block * 7919);
+  const h = hash(day * 100003 + 7919);
   const r = (h % 1000) / 1000;
   let state;
   if (r < 0.38) state = "clear";
@@ -30,10 +27,10 @@ export function weatherAt(day = 1, minute = 0) {
 
   const temp = Math.round(8 + (hash(h + 1) % 220) / 10); // 8–30℃
   const wind = Math.round((hash(h + 2) % 60) / 10); // 0–6
-  return { state, temp, wind, block };
+  return { state, temp, wind, block: 0 };
 }
 
-/** 兼容旧调用：取当天正午天气。 */
+/** 当天天气状态。 */
 export function weatherForDay(day = 1) {
-  return weatherAt(day, 12 * 60).state;
+  return weatherAt(day).state;
 }

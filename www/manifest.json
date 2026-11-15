@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-15T12:31:04.393Z",
+ "built_at": "2026-11-15T12:43:45.738Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -904,8 +904,8 @@
   },
   {
    "path": "js/core/life/lines.js",
-   "size": 4067,
-   "sha256": "78e6b4802aacc59a09cbca33f1bfed114308cd96230ce89eba81d225e86b1505"
+   "size": 3882,
+   "sha256": "607a4a6ecd97419085f0e6f525541a080532c492376b7c39a6e3dcd02c1a8404"
   },
   {
    "path": "js/core/life/outing.js",
@@ -1054,8 +1054,8 @@
   },
   {
    "path": "js/core/weather.js",
-   "size": 1220,
-   "sha256": "3f5d05d7aa090bac5d1e00a70a4b3170772b2622ed812354077f67338bbe0724"
+   "size": 1176,
+   "sha256": "e9d0b1217cbc5c07d27f4d78cb95ab12e2d1754067c615348a58abf14034804f"
   },
   {
    "path": "js/core/worker.js",
@@ -1129,8 +1129,8 @@
   },
   {
    "path": "workers/life.worker.js",
-   "size": 31102,
-   "sha256": "b65f8fefb9e8b64df9ffc28b856af44ebf957bff6870354a98912d8328eae8c1"
+   "size": 30856,
+   "sha256": "7014010259e8abd2630fbb1e4f011be88f81179442e1a9bbff4109cae36bbf9c"
   }
  ]
 }

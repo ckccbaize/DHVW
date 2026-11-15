@@ -1,6 +1,10 @@
 // 生活短句池（L2）：分桶 + 天气插句 + 24h 去重。
 // 端侧只产短句，不产台词。
 
+import { weatherForDay } from "../weather.js";
+
+export { weatherForDay };
+
 export const LINES = {
   sleep: ["把被子拉到肩上。", "翻了个身，又安静下来。", "夜里醒了一次，很快又睡着。"],
   wake: ["窗帘没拉开，光已经进来了。", "坐起来发了会儿呆。", "把拖鞋踢正，慢慢站起来。"],
@@ -48,16 +52,6 @@ export const ACT_LINES = {
   write: ["写了两行，停笔想了想。", "把纸翻到新的一页。"],
   light: ["开了盏小灯。", "把灯罩转了个方向。"],
 };
-
-/** 同一天同一天气（L3）。 */
-export function weatherForDay(day) {
-  const h = (day * 2654435761) >>> 0;
-  const r = (h % 100) / 100;
-  if (r < 0.55) return "clear";
-  if (r < 0.78) return "cloudy";
-  if (r < 0.93) return "rain";
-  return "snow";
-}
 
 /** 活动度 → tick 间隔（L4）。 */
 export function tickInterval(activity, baseMs = 1000) {

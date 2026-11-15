@@ -179,16 +179,6 @@ function event(kind, payload = {}) {
   });
 }
 
-function weatherForDay(day) {
-  // 确定性：同一天同一天气
-  const h = (day * 2654435761) >>> 0;
-  const r = (h % 100) / 100;
-  if (r < 0.55) return "clear";
-  if (r < 0.78) return "cloudy";
-  if (r < 0.93) return "rain";
-  return "snow";
-}
-
 function pickLine() {
   const pool = [...(LINES[phase] || LINES.afternoon)];
   const w = LINES.weather[weather];
@@ -542,7 +532,7 @@ function tick() {
     }
   }
 
-  // 天气每 3 游戏小时一个块，独立于时段
+  // 天气按游戏日：一天一种，换天时重新随机
   const w = weatherAt(clock.day, clock.minute);
   if (w.state !== weather) {
     weather = w.state;
