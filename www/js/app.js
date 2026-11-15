@@ -363,15 +363,22 @@ async function boot() {
     if (!sceneId || !basePath || typeof caches === "undefined") return false;
     if (!raw) return false;
     let origin = "";
+    let token = "";
     try {
       const u = new URL(raw);
       u.protocol = u.protocol === "wss:" ? "https:" : "http:";
       origin = u.origin;
+      token = u.searchParams.get("token") || "";
     } catch {
       return false;
     }
     const base = new URL(basePath.replace(/\/$/, "") + "/", origin);
-    const manifestRes = await fetch(new URL("manifest.json", base), { cache: "no-store" });
+    const assetUrl = (rel) => {
+      const u = new URL(rel, base);
+      if (token) u.searchParams.set("token", token);
+      return u;
+    };
+    const manifestRes = await fetch(assetUrl("manifest.json"), { cache: "no-store" });
     if (!manifestRes.ok) return false;
     const manifest = await manifestRes.json();
     const files = Array.isArray(manifest?.files) ? manifest.files : [];
@@ -380,7 +387,7 @@ async function boot() {
     for (const file of files) {
       const rel = String(file?.path || "").trim();
       if (!rel || rel.includes("..")) return false;
-      const res = await fetch(new URL(rel, base), { cache: "no-store" });
+      const res = await fetch(assetUrl(rel), { cache: "no-store" });
       if (!res.ok) return false;
       await cache.put(`assets/scenes/${sceneId}/${rel}`, res);
     }
