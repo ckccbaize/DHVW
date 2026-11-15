@@ -166,6 +166,8 @@
           if (!headerBtns[b].getAttribute('title')) {
             headerBtns[b].setAttribute('title', titles[b]);
           }
+          if (b === 1) setAttr(headerBtns[b], 'data-dhvw', 'group-btn');
+          if (b === 2) setAttr(headerBtns[b], 'data-dhvw', 'history-btn');
           if (b === 3) setAttr(headerBtns[b], 'data-dhvw', 'new-chat-btn');
         }
       }

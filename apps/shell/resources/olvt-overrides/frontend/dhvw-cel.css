@@ -312,8 +312,10 @@ html.dhvw-cel [data-dhvw="bottom-tab"] [role="tabpanel"] > div > div:last-child 
   color: var(--color-ink) !important;
 }
 
-/* ARM 嵌入式视口中隐藏 Electron 专属桌面/桌宠模式切换按钮 */
-html.dhvw-arm [data-dhvw="mode-menu"] {
+/* 隐藏与本项目无关的功能：底部摄像头/屏幕/浏览器面板、团队邀请、桌面模式切换 */
+html.dhvw-cel [data-dhvw="bottom-tab"],
+html.dhvw-cel [data-dhvw="group-btn"],
+html.dhvw-cel [data-dhvw="mode-menu"] {
   display: none !important;
 }
 
@@ -707,23 +709,155 @@ html.dhvw-cel .chakra-drawer__content {
   border-radius: 0 !important;
   box-shadow: var(--shadow-hard) !important;
   max-width: min(440px, 94vw) !important;
+  overflow-x: hidden !important;
+}
+
+html.dhvw-cel [data-scope="dialog"][data-part="content"][data-state="open"],
+html.dhvw-cel .chakra-drawer__content[data-state="open"] {
+  translate: 0 0 !important;
+  transform: translate3d(0, 0, 0) !important;
+  animation: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+html.dhvw-cel [data-scope="dialog"] [data-part="body"],
+html.dhvw-cel .chakra-drawer__body {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  padding: 12px 16px !important;
+  background: var(--color-cel-white) !important;
+}
+
+html.dhvw-cel [data-scope="dialog"] [data-part="header"],
+html.dhvw-cel .chakra-drawer__header,
+html.dhvw-cel [data-scope="dialog"] [data-part="footer"],
+html.dhvw-cel .chakra-drawer__footer {
+  background: var(--color-cel-white) !important;
+  border-color: var(--color-ink) !important;
+}
+
+html.dhvw-cel [role="dialog"] [data-scope="tabs"] [role="tablist"] {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
+  width: 100% !important;
+  height: auto !important;
+  border-bottom: var(--line) !important;
+  padding-bottom: 10px !important;
+  margin-bottom: 12px !important;
 }
 
 html.dhvw-cel [role="dialog"] *,
 html.dhvw-cel [data-scope="drawer"] [data-part="content"] * {
-  color: var(--color-ink);
+  color: var(--color-ink) !important;
+}
+
+html.dhvw-cel [role="dialog"] button:not([role="tab"]),
+html.dhvw-cel [data-scope="drawer"] button:not([role="tab"]) {
+  background: var(--color-cel-white) !important;
+  color: var(--color-ink) !important;
+}
+
+html.dhvw-cel [role="dialog"] button:not([role="tab"]):hover,
+html.dhvw-cel [data-scope="drawer"] button:not([role="tab"]):hover {
+  background: var(--color-sunset) !important;
+  color: var(--color-ink) !important;
+}
+
+html.dhvw-cel [data-scope="dialog"] [data-part="footer"] button:last-child,
+html.dhvw-cel [data-scope="dialog"] [data-part="footer"] button:last-child *,
+html.dhvw-cel .chakra-drawer__footer button:last-child,
+html.dhvw-cel .chakra-drawer__footer button:last-child * {
+  background: var(--color-red) !important;
+  color: var(--color-cel-white) !important;
+}
+
+html.dhvw-cel [data-scope="dialog"] [data-part="footer"] button:last-child:hover,
+html.dhvw-cel [data-scope="dialog"] [data-part="footer"] button:last-child:hover *,
+html.dhvw-cel .chakra-drawer__footer button:last-child:hover,
+html.dhvw-cel .chakra-drawer__footer button:last-child:hover * {
+  background: var(--color-red-hover) !important;
+  color: var(--color-cel-white) !important;
+}
+
+/* 修复 Select / Combobox / NumberInput / Input / Switch 暗色背景残留 */
+html.dhvw-cel [data-scope="select"][data-part="root"],
+html.dhvw-cel [data-scope="select"][data-part="control"] {
+  background: transparent !important;
+  border: none !important;
+}
+
+html.dhvw-cel [data-scope="select"][data-part="trigger"] {
+  background: #ffffff !important;
+  color: var(--color-ink) !important;
+  border: var(--line) !important;
+  border-radius: 0 !important;
+  box-shadow: var(--shadow-hard-sm) !important;
+  min-height: 40px !important;
+  padding: 6px 12px !important;
+  font-weight: 700 !important;
+}
+
+html.dhvw-cel [data-scope="select"][data-part="content"],
+html.dhvw-cel [data-scope="menu"][data-part="content"] {
+  background: var(--color-cel-white) !important;
+  color: var(--color-ink) !important;
+  border: var(--line) !important;
+  border-radius: 0 !important;
+  box-shadow: var(--shadow-hard) !important;
+  z-index: 2000 !important;
+}
+
+html.dhvw-cel [data-scope="select"][data-part="item"],
+html.dhvw-cel [data-scope="menu"][data-part="item"] {
+  background: var(--color-cel-white) !important;
+  color: var(--color-ink) !important;
+  border-radius: 0 !important;
+  font-weight: 700 !important;
+}
+
+html.dhvw-cel [data-scope="select"][data-part="item"]:hover,
+html.dhvw-cel [data-scope="select"][data-part="item"][data-highlighted],
+html.dhvw-cel [data-scope="menu"][data-part="item"]:hover,
+html.dhvw-cel [data-scope="menu"][data-part="item"][data-highlighted] {
+  background: var(--color-sunset) !important;
+  color: var(--color-ink) !important;
 }
 
 html.dhvw-cel [role="dialog"] input,
 html.dhvw-cel [role="dialog"] select,
+html.dhvw-cel [role="dialog"] textarea,
 html.dhvw-cel [data-scope="drawer"] input,
 html.dhvw-cel [data-scope="drawer"] select,
+html.dhvw-cel [data-scope="drawer"] textarea,
 html.dhvw-cel [data-dhvw="sidebar-inner"] input,
 html.dhvw-cel [data-dhvw="sidebar-inner"] select {
   background: #ffffff !important;
   color: var(--color-ink) !important;
   border: var(--line) !important;
   border-radius: 0 !important;
+  box-shadow: var(--shadow-hard-sm) !important;
+}
+
+html.dhvw-cel [data-scope="switch"] [data-part="control"] {
+  border: 2px solid var(--color-ink) !important;
+  border-radius: 999px !important;
+  background: #e6e6dc !important;
+}
+
+html.dhvw-cel [data-scope="switch"] [data-part="control"][data-state="checked"] {
+  background: var(--color-grass) !important;
+}
+
+html.dhvw-cel [data-scope="switch"] [data-part="thumb"] {
+  background: var(--color-cel-white) !important;
+  border: 2px solid var(--color-ink) !important;
+}
+
+/* 历史会话列表条目样式 */
+html.dhvw-cel .chakra-drawer__body [class*="css-"] {
+  border-color: var(--color-ink);
 }
 
 html.dhvw-cel [data-scope="toast"] [data-part="root"] {
