@@ -12,6 +12,7 @@ import type {
   SceneOutputView,
   Live2dModelView,
   SceneRequestView,
+  SaveView,
   SettingsView,
   StatsView,
   WorldView,
@@ -73,6 +74,11 @@ const api = {
     ipcRenderer.invoke('dhvw:sceneJobRetry', id),
   sceneDelete: (id: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('dhvw:sceneDelete', id),
+  saves: (): Promise<{ ok: boolean; saves: SaveView[]; error?: string }> => ipcRenderer.invoke('dhvw:saves'),
+  saveBackup: (): Promise<{ ok: boolean; requested?: number; error?: string }> =>
+    ipcRenderer.invoke('dhvw:save-backup'),
+  saveRestore: (id: string): Promise<{ ok: boolean; sent?: number; error?: string }> =>
+    ipcRenderer.invoke('dhvw:save-restore', id),
   setBoost: (enabled: boolean): Promise<{ ok: boolean; settings?: SettingsView }> =>
     ipcRenderer.invoke('dhvw:setBoost', enabled),
   gatewayPair: (): Promise<{ code: string; expiresAt: number } | null> => ipcRenderer.invoke('dhvw:gatewayPair'),

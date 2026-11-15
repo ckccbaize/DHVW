@@ -100,7 +100,7 @@ check('events:ack seq 为本批最大', ack1.payload.seq === 3, `seq=${ack1.payl
 
 send('events:batch', { events, from_seq: 1, batch_id: 'b1' })
 await waitFor((m) => m.type === 'events:ack' && inbox.filter((x) => x.type === 'events:ack').length >= 2)
-const stored = await (await fetch(`${BASE}/dhvw/events?limit=50`)).json()
+const stored = await (await fetch(`${BASE}/dhvw/events?limit=200`)).json()
 check('重复批次不重复入库', stored.filter((e) => e.uuid.startsWith('ev-test-')).length === 3, `rows=${stored.length}`)
 
 // 4) 摘要落地

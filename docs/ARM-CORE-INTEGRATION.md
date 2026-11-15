@@ -81,6 +81,8 @@
 | `llm:config` | `{baseUrl?, apiKey?, model?, timeoutMs?, maxAttempts?, retryBaseMs?}` | 已实现 | 修改设备 LLM 配置，落库生效 |
 | `digest:get` | `{}` | 已实现 | 设备重发 `world:digest` |
 | `mood:get` | `{}` | 已实现 | 回 `mood:state` |
+| `state:export` | `{reason?}` | 已实现 | 请求设备上报整份存档 |
+| `state:restore` | `{id?, save}` | 已实现 | 下发存档；设备写 IDB + `/__state` 后重载 |
 | `scene:ready` | `{id}` | 已实现 | 标记 `sceneRequests` 完成 |
 | `pc:action:ack` | `{id, ok, result?}` | 已实现 | 设备动作回执 |
 
@@ -103,6 +105,8 @@
 | `facts:candidates` | `{facts, events}` | 契约保留 | 设备归纳候选 |
 | `wake:state` | `{mode, next_wake_at, last_outcome}` | 契约保留 | 以 `digest.wake` 为准 |
 | `llm:state` | `{configured, baseUrl, model, maskedKey, stats}` | 契约保留 | 以 `digest`/`llm_config_get` 为准 |
+| `state:save` | `{save, reason}` | 已实现 | 整份存档；PC 落盘 `data/saves/*.json` |
+| `state:restore:ack` | `{id, ok, day?, minute?, scene?, error?}` | 已实现 | 设备确认恢复 |
 
 ---
 
@@ -127,6 +131,7 @@ PC 回 events:ack {seq}    // seq = 本批最大 seq
 
 - 写 kv `digest`；
 - `POST /__digest` → 壳原子写 `data/digest.json`；
+- 设备 `state:save` → PC `data/saves/*.json`（最近 20 份）；`GET /dhvw/saves` / `POST /dhvw/saves/backup` / `POST /dhvw/saves/{id}/restore`；
 - 主机在线时推 `world:digest`。
 
 PC 三种读法：
