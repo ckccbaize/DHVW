@@ -9,6 +9,7 @@ import type {
   LlmProtocol,
   SettingsPatch,
   SceneJobView,
+  SceneOutputView,
   Live2dModelView,
   SceneRequestView,
   SettingsView,
@@ -44,12 +45,18 @@ const api = {
     ipcRenderer.invoke('dhvw:live2d'),
   live2dModels: (): Promise<{ current: string | null; models: Live2dModelView[] }> =>
     ipcRenderer.invoke('dhvw:live2dModels'),
+  armPreview: (): Promise<{ url: string | null; error?: string }> => ipcRenderer.invoke('dhvw:armPreview'),
   setDisplay: (
     state: 'overview' | 'present',
   ): Promise<{ ok: boolean; delivered?: number; state?: string; error?: string }> =>
     ipcRenderer.invoke('dhvw:setDisplay', state),
-  scenes: (): Promise<{ reachable: boolean; jobs: SceneJobView[]; requests: SceneRequestView[]; error?: string }> =>
-    ipcRenderer.invoke('dhvw:scenes'),
+  scenes: (): Promise<{
+    reachable: boolean
+    jobs: SceneJobView[]
+    requests: SceneRequestView[]
+    outputs: SceneOutputView[]
+    error?: string
+  }> => ipcRenderer.invoke('dhvw:scenes'),
   sceneGenerate: (spec: {
     kind?: string
     name?: string
@@ -59,6 +66,10 @@ const api = {
   }): Promise<{ ok: boolean; job?: SceneJobView; error?: string }> => ipcRenderer.invoke('dhvw:sceneGenerate', spec),
   sceneRetry: (id: string): Promise<{ ok: boolean; job?: string; error?: string }> =>
     ipcRenderer.invoke('dhvw:sceneRetry', id),
+  sceneJobRetry: (id: string): Promise<{ ok: boolean; job?: SceneJobView; error?: string }> =>
+    ipcRenderer.invoke('dhvw:sceneJobRetry', id),
+  sceneDelete: (id: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('dhvw:sceneDelete', id),
   setBoost: (enabled: boolean): Promise<{ ok: boolean; settings?: SettingsView }> =>
     ipcRenderer.invoke('dhvw:setBoost', enabled),
   gatewayPair: (): Promise<{ code: string; expiresAt: number } | null> => ipcRenderer.invoke('dhvw:gatewayPair'),

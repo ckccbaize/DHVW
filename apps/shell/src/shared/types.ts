@@ -194,6 +194,16 @@ export interface SceneRequestView {
   ts: number
 }
 
+export interface SceneOutputView {
+  id: string
+  name: string
+  kind?: string
+  grid?: string
+  hotspots?: number
+  acts?: number
+  updatedAt: number
+}
+
 export interface ActionRequest {
   id: string
   action: 'start' | 'stop' | 'restart'

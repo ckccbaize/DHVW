@@ -13,12 +13,14 @@ import {
   modelUrlPath,
   type Live2dModelRef,
 } from './live2d-models'
+import { resolveArmWwwDir, startArmPreviewServer, stopArmPreviewServer } from './arm-preview'
 import type {
   ActionRequest,
   AppSnapshot,
   ServiceDef,
   SettingsPatch,
   SceneJobView,
+  SceneOutputView,
   SceneRequestView,
   SettingsView,
   StatsView,
@@ -224,20 +226,26 @@ async function readScenes(): Promise<{
   reachable: boolean
   jobs: SceneJobView[]
   requests: SceneRequestView[]
+  outputs: SceneOutputView[]
   error?: string
 }> {
-  if (!orchestratorPort) return { reachable: false, jobs: [], requests: [] }
+  if (!orchestratorPort) return { reachable: false, jobs: [], requests: [], outputs: [] }
   try {
     const res = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/scenes`, { signal: AbortSignal.timeout(2000) })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const raw = (await res.json()) as { jobs?: SceneJobView[]; requests?: SceneRequestView[] }
+    const raw = (await res.json()) as {
+      jobs?: SceneJobView[]
+      requests?: SceneRequestView[]
+      outputs?: SceneOutputView[]
+    }
     return {
       reachable: true,
       jobs: Array.isArray(raw.jobs) ? raw.jobs : [],
       requests: Array.isArray(raw.requests) ? raw.requests : [],
+      outputs: Array.isArray(raw.outputs) ? raw.outputs : [],
     }
   } catch (err) {
-    return { reachable: false, jobs: [], requests: [], error: err instanceof Error ? err.message : String(err) }
+    return { reachable: false, jobs: [], requests: [], outputs: [], error: err instanceof Error ? err.message : String(err) }
   }
 }
 
@@ -252,6 +260,41 @@ async function retryScene(id: string): Promise<{ ok: boolean; job?: string; erro
       signal: AbortSignal.timeout(3000),
     })
     return (await res.json()) as { ok: boolean; job?: string; error?: string }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/** 续画/重试失败或超时的场景任务 */
+async function retrySceneJob(id: string): Promise<{ ok: boolean; job?: SceneJobView; error?: string }> {
+  if (!orchestratorPort) return { ok: false, error: '编排器未运行' }
+  try {
+    const res = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/scene/job-retry`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id }),
+      signal: AbortSignal.timeout(3000),
+    })
+    return (await res.json()) as { ok: boolean; job?: SceneJobView; error?: string }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/** 删除已产出的地图目录及任务记录 */
+async function deleteSceneOutput(id: string): Promise<{ ok: boolean; error?: string }> {
+  if (!orchestratorPort) return { ok: false, error: '编排器未运行' }
+  try {
+    const res = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/scenes/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      signal: AbortSignal.timeout(3000),
+    })
+    const text = await res.text()
+    try {
+      return JSON.parse(text) as { ok: boolean; error?: string }
+    } catch {
+      return { ok: false, error: `HTTP ${res.status}: ${text.slice(0, 120)}` }
+    }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
@@ -395,6 +438,10 @@ function registerIpc(): void {
     current: live2dModel?.id ?? null,
     models: listLive2dModels(live2dRoots).map((m) => ({ id: m.id, source: m.source, file: m.file })),
   }))
+  ipcMain.handle('dhvw:armPreview', () => ({
+    url: armPreviewUrl,
+    error: armPreviewUrl ? undefined : 'ARM 预览资源缺失（arm/www/preview.html）',
+  }))
   ipcMain.handle('dhvw:snapshot', () => snapshot())
   ipcMain.handle('dhvw:action', (_e, req: ActionRequest) => {
     if (!supervisor) return { ok: false, error: '宿主未启动' }
@@ -437,6 +484,8 @@ function registerIpc(): void {
   ipcMain.handle('dhvw:scenes', () => readScenes())
   ipcMain.handle('dhvw:sceneGenerate', (_e, spec: Record<string, unknown>) => requestScene(spec))
   ipcMain.handle('dhvw:sceneRetry', (_e, id: string) => retryScene(id))
+  ipcMain.handle('dhvw:sceneJobRetry', (_e, id: string) => retrySceneJob(id))
+  ipcMain.handle('dhvw:sceneDelete', (_e, id: string) => deleteSceneOutput(id))
   ipcMain.handle('dhvw:setBoost', (_e, enabled: boolean) => {
     config = { ...config, boost: { enabled: Boolean(enabled) } }
     saveConfig(config)
@@ -609,6 +658,7 @@ function applyLive2dModel(): void {
 }
 
 let live2dUrl: string | null = null
+let armPreviewUrl: string | null = null
 /** 模型库根：随包资源优先，其次 OLVT 组件的 live2d-models（两者目录结构一致） */
 let live2dRoots: Array<{ root: string; source: Live2dModelRef['source'] }> = []
 let live2dModel: Live2dModelRef | null = null
@@ -645,6 +695,22 @@ async function boot(): Promise<void> {
     root: live2dRoot,
     model: live2dModel?.id,
     models: listLive2dModels(live2dRoots).map((m) => m.id),
+  })
+
+  const armWww = resolveArmWwwDir([
+    process.env.DHVW_ARM_WWW ?? '',
+    path.join(process.resourcesPath, 'arm-www'),
+    path.resolve(app.getAppPath(), '..', '..', '..', 'arm', 'www'),
+  ])
+  if (armWww) {
+    armPreviewUrl = await startArmPreviewServer(armWww, () => orchestratorPort).catch((err) => {
+      log('warn', 'arm-preview', 'ARM 预览服务启动失败', { error: String(err) })
+      return null
+    })
+  }
+  log(armPreviewUrl ? 'info' : 'warn', 'arm-preview', armPreviewUrl ? 'ARM 预览服务就绪' : 'ARM 预览资源缺失', {
+    url: armPreviewUrl ?? undefined,
+    root: armWww ?? undefined,
   })
 
   const dynamic = await allocatePorts(SERVICE_CATALOG.length)
@@ -783,7 +849,10 @@ async function boot(): Promise<void> {
   })
 }
 
-app.on('before-quit', () => stopLive2dServer())
+app.on('before-quit', () => {
+  stopLive2dServer()
+  stopArmPreviewServer()
+})
 
 app.whenReady().then(boot).catch((err) => {
   log('error', 'app', '启动失败', { error: String(err) })

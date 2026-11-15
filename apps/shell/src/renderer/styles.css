@@ -1283,31 +1283,33 @@ main.page.config {
 .agent-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-  grid-template-rows: minmax(0, auto) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 16px;
   height: 100%;
   min-height: 320px;
 }
-/* 左列表单跨满两行；右上设备请求账本、右下场景任务 */
+/* 左列表单；右列垂直堆叠 PC 产出验收、设备请求与场景任务 */
 .agent-form {
   grid-column: 1;
-  grid-row: 1 / span 2;
-}
-.agent-requests {
-  grid-column: 2;
   grid-row: 1;
-  max-height: 40vh;
-}
-.agent-jobs {
-  grid-column: 2;
-  grid-row: 2;
-}
-.agent-form,
-.agent-jobs,
-.agent-requests {
   overflow-y: auto;
   min-height: 0;
 }
+.agent-right {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  overflow-y: auto;
+}
+.agent-outputs,
+.agent-jobs,
+.agent-requests {
+  flex-shrink: 0;
+}
+.agent-outputs h2,
 .agent-jobs h2 {
   display: flex;
   align-items: center;
@@ -1349,6 +1351,42 @@ main.page.config {
   font-size: 11px;
   background: #fff;
 }
+.arm-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(16, 16, 28, 0.72);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.arm-preview-modal {
+  width: min(1040px, 94vw);
+  height: min(720px, 88vh);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.arm-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.arm-preview-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.arm-preview-frame {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: var(--line) solid var(--ink);
+  background: #141218;
+}
 
 @media (max-width: 900px) {
   .home-grid,
@@ -1358,13 +1396,10 @@ main.page.config {
     height: auto;
   }
   .agent-form,
-  .agent-requests,
-  .agent-jobs {
+  .agent-right {
     grid-column: 1;
     grid-row: auto;
-  }
-  .agent-requests {
-    max-height: none;
+    overflow-y: visible;
   }
   .ov-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));

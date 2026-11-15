@@ -12,14 +12,17 @@ import argparse
 import asyncio
 import json
 import os
+import re
+import shutil
 import time
 import uuid
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncIterator
 
 import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from . import APP_ID, service_version
 from . import actions
@@ -455,11 +458,103 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
             return JSONResponse({"ok": False, "delivered": 0, "error": "设备未连接"})
         return JSONResponse({"ok": True, "delivered": delivered, "state": state})
 
+    def _list_scene_outputs(root: Path) -> list[dict[str, object]]:
+        if not root.is_dir():
+            return []
+        items: list[dict[str, object]] = []
+        for entry in root.iterdir():
+            if not entry.is_dir():
+                continue
+            dist_dir = entry / "dist"
+            if not dist_dir.is_dir():
+                continue
+            built_files = sorted(dist_dir.glob("*.built.json"))
+            if not built_files:
+                continue
+            preferred = dist_dir / f"{entry.name}.built.json"
+            built_file = preferred if preferred.is_file() else built_files[0]
+            info: dict[str, object] = {
+                "id": entry.name,
+                "name": entry.name,
+                "updatedAt": int(built_file.stat().st_mtime * 1000),
+            }
+            try:
+                built = json.loads(built_file.read_text(encoding="utf-8"))
+                if isinstance(built, dict):
+                    info["name"] = str(built.get("title") or built.get("name") or entry.name)
+                    if built.get("kind"):
+                        info["kind"] = str(built["kind"])
+                    rows = built.get("intGrid")
+                    if isinstance(rows, list) and rows and isinstance(rows[0], str):
+                        info["grid"] = f"{len(rows[0])}×{len(rows)}"
+                    props = built.get("props")
+                    if isinstance(props, list):
+                        info["hotspots"] = len(props)
+            except Exception:
+                pass
+            inter_file = dist_dir / "interactions.json"
+            if inter_file.is_file():
+                try:
+                    inter = json.loads(inter_file.read_text(encoding="utf-8"))
+                    acts = inter.get("acts") if isinstance(inter, dict) else None
+                    if isinstance(acts, (dict, list)):
+                        info["acts"] = len(acts)
+                except Exception:
+                    pass
+            items.append(info)
+        items.sort(key=lambda x: int(x.get("updatedAt") or 0), reverse=True)
+        return items
+
     @app.get("/dhvw/scenes")
     async def scenes_list() -> JSONResponse:
         return JSONResponse(
-            {"ok": True, "jobs": orch.scenes.list_jobs(), "requests": orch.scenes.list_requests()}
+            {
+                "ok": True,
+                "jobs": orch.scenes.list_jobs(),
+                "requests": orch.scenes.list_requests(),
+                "outputs": _list_scene_outputs(orch.scenes.root),
+            }
         )
+
+    @app.get("/dhvw/scenes/{job_id}/dist/{file_path:path}", response_model=None)
+    async def scene_dist_file(job_id: str, file_path: str) -> FileResponse | JSONResponse:
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", job_id):
+            return JSONResponse({"ok": False, "error": "invalid_job_id"}, status_code=400)
+        dist_root = (orch.scenes.root / job_id / "dist").resolve()
+        if not dist_root.is_dir():
+            return JSONResponse({"ok": False, "error": "scene_not_found"}, status_code=404)
+        target = (dist_root / file_path).resolve()
+        try:
+            target.relative_to(dist_root)
+        except ValueError:
+            return JSONResponse({"ok": False, "error": "forbidden"}, status_code=403)
+        if not target.is_file() and file_path == f"{job_id}.built.json":
+            built_files = sorted(dist_root.glob("*.built.json"))
+            if built_files:
+                target = built_files[0]
+        if not target.is_file():
+            return JSONResponse({"ok": False, "error": "file_not_found"}, status_code=404)
+        return FileResponse(target)
+
+    @app.delete("/dhvw/scenes/{job_id}")
+    async def scene_delete(job_id: str) -> JSONResponse:
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", job_id):
+            return JSONResponse({"ok": False, "error": "invalid_job_id"}, status_code=400)
+        job = orch.scenes.jobs.get(job_id)
+        if job and job.get("state") in ("queued", "running"):
+            return JSONResponse({"ok": False, "error": "任务进行中，不能删除"}, status_code=409)
+        target_dir = (orch.scenes.root / job_id).resolve()
+        try:
+            target_dir.relative_to(orch.scenes.root.resolve())
+        except ValueError:
+            return JSONResponse({"ok": False, "error": "forbidden"}, status_code=403)
+        if target_dir.is_dir():
+            shutil.rmtree(target_dir, ignore_errors=True)
+        if job_id in orch.scenes.jobs:
+            orch.scenes.jobs.pop(job_id, None)
+            orch.scenes._save()
+        log("info", "删除产出地图", job=job_id)
+        return JSONResponse({"ok": True, "id": job_id})
 
     @app.post("/dhvw/scene/retry")
     async def scene_retry(request: Request) -> JSONResponse:
@@ -482,6 +577,22 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
         asyncio.create_task(orch.scenes.run(job))
         log("info", "重试场景请求", request=rid, job=job["id"])
         return JSONResponse({"ok": True, "job": job["id"], "request": rid})
+
+    @app.post("/dhvw/scene/job-retry")
+    async def scene_job_retry(request: Request) -> JSONResponse:
+        """继续/重试失败或超时的场景生成任务，保留原工作目录与 pi 会话历史。"""
+        body = await request.json()
+        jid = str((body or {}).get("id") or "").strip() if isinstance(body, dict) else ""
+        if not jid:
+            return JSONResponse({"ok": False, "error": "缺 id"}, status_code=400)
+        job, reason = orch.scenes.resume(jid)
+        if job is None:
+            return JSONResponse({"ok": False, "error": reason})
+        asyncio.create_task(orch.scenes.run(job))
+        log("info", "续画重试场景任务", job=job["id"])
+        from .scene import public
+
+        return JSONResponse({"ok": True, "job": public(job)})
 
     @app.post("/dhvw/scene")
     async def scene_create(request: Request) -> JSONResponse:

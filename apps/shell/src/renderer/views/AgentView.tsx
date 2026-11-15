@@ -1,12 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import type { SceneJobView, SceneRequestView } from '../../shared/types'
+import type { SceneJobView, SceneOutputView, SceneRequestView } from '../../shared/types'
 
 const KINDS = [
-  { value: 'home', label: '家（室内）' },
-  { value: 'room', label: '房间（室内）' },
-  { value: 'office', label: '办公（室内）' },
-  { value: 'street', label: '街道（室外）' },
-  { value: 'custom', label: '自定义' },
+  { value: 'indoor', label: '室内场景' },
+  { value: 'street', label: '街道场景（室外）' },
 ]
 
 const STATE_TEXT: Record<SceneJobView['state'], string> = {
@@ -21,19 +18,26 @@ const STATE_TEXT: Record<SceneJobView['state'], string> = {
  * 页面只负责收集参数、展示任务与产物；任何失败原因原样显示。
  */
 export function AgentView(): React.ReactElement {
-  const [kind, setKind] = useState('home')
+  const [kind, setKind] = useState('indoor')
   const [name, setName] = useState('')
   const [seed, setSeed] = useState('')
   const [distance, setDistance] = useState('')
   const [note, setNote] = useState('')
   const [jobs, setJobs] = useState<SceneJobView[]>([])
   const [requests, setRequests] = useState<SceneRequestView[]>([])
+  const [outputs, setOutputs] = useState<SceneOutputView[]>([])
   const [retryError, setRetryError] = useState<string | null>(null)
   const [reachable, setReachable] = useState(false)
   const [listError, setListError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [openLog, setOpenLog] = useState<string | null>(null)
+  const [armPreview, setArmPreview] = useState<{ url: string | null; error?: string } | null>(null)
+  const [previewScene, setPreviewScene] = useState<{ id: string; label: string } | null>(null)
+
+  useEffect(() => {
+    void window.dhvw.armPreview().then(setArmPreview)
+  }, [])
 
   const refresh = useCallback(async () => {
     const res = await window.dhvw.scenes()
@@ -41,6 +45,7 @@ export function AgentView(): React.ReactElement {
     setListError(res.error ?? null)
     setJobs(res.jobs)
     setRequests(res.requests ?? [])
+    setOutputs(res.outputs ?? [])
   }, [])
 
   useEffect(() => {
@@ -53,6 +58,24 @@ export function AgentView(): React.ReactElement {
     setRetryError(null)
     const res = await window.dhvw.sceneRetry(id)
     if (!res.ok) setRetryError(`${id}：${res.error ?? '重试失败'}`)
+    await refresh()
+  }
+
+  const retryJob = async (id: string): Promise<void> => {
+    setListError(null)
+    const res = await window.dhvw.sceneJobRetry(id)
+    if (!res.ok) setListError(`${id}：${res.error ?? '续画重试失败'}`)
+    await refresh()
+  }
+
+  const deleteOutput = async (id: string): Promise<void> => {
+    setListError(null)
+    const res = await window.dhvw.sceneDelete(id)
+    if (!res.ok) {
+      setListError(`${id}：${res.error ?? '删除失败'}`)
+      return
+    }
+    if (previewScene?.id === id) setPreviewScene(null)
     await refresh()
   }
 
@@ -132,66 +155,148 @@ export function AgentView(): React.ReactElement {
         </div>
       </section>
 
-      <section className="panel agent-requests">
-        <h2>
-          设备场景请求
-          <span className="pill mono">{requests.length} 条</span>
-        </h2>
-        <p className="hint">设备摘要里的 sceneRequests：每条只受理一次，失败不自动重试。</p>
-        {retryError && <p className="msg bad">{retryError}</p>}
-        {requests.length === 0 && <div className="empty">设备还没有提出场景请求</div>}
-        {requests.map((r) => (
-          <div className={`job ${r.state}`} key={r.id}>
-            <div className="job-head">
-              <span className="job-name mono">{r.id}</span>
-              <span className={`pill ${r.state === 'done' ? 'ok' : r.state === 'failed' ? 'bad' : ''}`}>
-                {STATE_TEXT[r.state] ?? r.state}
-              </span>
-              {r.job && <span className="job-meta mono">作业 {r.job}</span>}
-              <button disabled={r.state === 'running' || r.state === 'queued'} onClick={() => void retry(r.id)}>
-                重试
-              </button>
-            </div>
-            {r.reason && <div className="comp-err">{r.reason}</div>}
-          </div>
-        ))}
-      </section>
-
-      <section className="panel agent-jobs">
-        <h2>
-          场景任务
-          <span className={`pill ${reachable ? 'ok' : 'bad'}`}>{reachable ? `${jobs.length} 条` : '编排器不可达'}</span>
-        </h2>
-        {listError && <div className="hint bad">{listError}</div>}
-        {jobs.length === 0 && <div className="empty">还没有任务</div>}
-        {jobs.map((j) => (
-          <div className={`job ${j.state}`} key={j.id}>
-            <div className="job-head">
-              <span className="job-name">{j.name}</span>
-              <span className={`pill ${j.state === 'done' ? 'ok' : j.state === 'failed' ? 'bad' : ''}`}>
-                {STATE_TEXT[j.state]}
-              </span>
-              <span className="job-meta mono">
-                {j.kind} · {j.seed}
-              </span>
-              <button onClick={() => setOpenLog(openLog === j.id ? null : j.id)}>
-                {openLog === j.id ? '收起' : '日志'}
-              </button>
-            </div>
-            <div className="job-meta mono">
-              {j.stage ?? ''}
-              {j.finishedAt ? ` · ${Math.max(0, Math.round((j.finishedAt - j.startedAt) / 1000))}s` : ''}
-            </div>
-            {j.error && <div className="comp-err">{j.error}</div>}
-            {j.warnings?.map((w) => (
-              <div className="job-warn" key={w}>
-                {w}
+      <div className="agent-right">
+        <section className="panel agent-outputs">
+          <h2>
+            PC 产出地图验收
+            <span className={`pill ${reachable ? 'ok' : 'bad'}`}>{reachable ? `${outputs.length} 张` : '编排器不可达'}</span>
+          </h2>
+          <p className="hint">列出 PC 侧已产出的全部地图包（data/scenes/*/dist），使用 ARM 渲染器（overview.js + scene-loader.js）实测加载与寻路。</p>
+          {listError && <p className="msg bad">{listError}</p>}
+          {outputs.length === 0 && <div className="empty">暂无已产出的 PC 地图</div>}
+          {outputs.map((o) => (
+            <div className="job done" key={o.id}>
+              <div className="job-head">
+                <span className="job-name">{o.name}</span>
+                <span className="pill ok mono">{o.id}</span>
+                <span className="job-meta mono">
+                  {[o.kind, o.grid, o.hotspots != null ? `热点 ${o.hotspots}` : null, o.acts != null ? `动作 ${o.acts}` : null]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </span>
+                <button className="primary" onClick={() => setPreviewScene({ id: o.id, label: o.name })}>
+                  产出验收
+                </button>
+                <button onClick={() => void deleteOutput(o.id)}>删除</button>
               </div>
-            ))}
-            {openLog === j.id && <pre className="job-log">{j.logTail || '…'}</pre>}
+            </div>
+          ))}
+        </section>
+
+        <section className="panel agent-requests">
+          <h2>
+            设备场景请求
+            <span className="pill mono">{requests.length} 条</span>
+          </h2>
+          <p className="hint">设备摘要里的 sceneRequests：每条只受理一次，失败不自动重试。</p>
+          {retryError && <p className="msg bad">{retryError}</p>}
+          {requests.length === 0 && <div className="empty">设备还没有提出场景请求</div>}
+          {requests.map((r) => (
+            <div className={`job ${r.state}`} key={r.id}>
+              <div className="job-head">
+                <span className="job-name mono">{r.id}</span>
+                <span className={`pill ${r.state === 'done' ? 'ok' : r.state === 'failed' ? 'bad' : ''}`}>
+                  {STATE_TEXT[r.state] ?? r.state}
+                </span>
+                {r.job && <span className="job-meta mono">作业 {r.job}</span>}
+                <button disabled={r.state === 'running' || r.state === 'queued'} onClick={() => void retry(r.id)}>
+                  重试
+                </button>
+              </div>
+              {r.reason && <div className="comp-err">{r.reason}</div>}
+            </div>
+          ))}
+        </section>
+
+        <section className="panel agent-jobs">
+          <h2>
+            场景任务
+            <span className={`pill ${reachable ? 'ok' : 'bad'}`}>{reachable ? `${jobs.length} 条` : '编排器不可达'}</span>
+          </h2>
+          {listError && <div className="hint bad">{listError}</div>}
+          {jobs.length === 0 && <div className="empty">还没有任务</div>}
+          {jobs.map((j) => (
+            <div className={`job ${j.state}`} key={j.id}>
+              <div className="job-head">
+                <span className="job-name">{j.name}</span>
+                <span className={`pill ${j.state === 'done' ? 'ok' : j.state === 'failed' ? 'bad' : ''}`}>
+                  {STATE_TEXT[j.state]}
+                </span>
+                <span className="job-meta mono">
+                  {j.kind} · {j.seed}
+                </span>
+                {(j.state === 'done' || outputs.some((o) => o.id === j.id)) && (
+                  <button className="primary" onClick={() => setPreviewScene({ id: j.id, label: j.name })}>
+                    产出验收
+                  </button>
+                )}
+                {j.state === 'failed' && (
+                  <button className="primary" onClick={() => void retryJob(j.id)}>
+                    继续重试
+                  </button>
+                )}
+                <button onClick={() => setOpenLog(openLog === j.id ? null : j.id)}>
+                  {openLog === j.id ? '收起' : '日志'}
+                </button>
+              </div>
+              <div className="job-meta mono">
+                {j.stage ?? ''}
+                {j.finishedAt ? ` · ${Math.max(0, Math.round((j.finishedAt - j.startedAt) / 1000))}s` : ''}
+              </div>
+              {j.error && <div className="comp-err">{j.error}</div>}
+              {j.warnings?.map((w) => (
+                <div className="job-warn" key={w}>
+                  {w}
+                </div>
+              ))}
+              {openLog === j.id && <pre className="job-log">{j.logTail || '…'}</pre>}
+            </div>
+          ))}
+        </section>
+      </div>
+
+      {previewScene && (
+        <div className="arm-preview-backdrop" role="dialog" aria-modal="true" aria-label="ARM 产出验收预览">
+          <div className="panel arm-preview-modal">
+            <div className="arm-preview-head">
+              <h2>
+                产出验收 · {previewScene.label}
+                <span className="pill mono">{previewScene.id}</span>
+              </h2>
+              <div className="actions">
+                {outputs.length > 0 && (
+                  <select
+                    aria-label="切换验收地图"
+                    value={previewScene.id}
+                    onChange={(e) => {
+                      const next = outputs.find((o) => o.id === e.target.value)
+                      if (next) setPreviewScene({ id: next.id, label: next.name })
+                    }}
+                  >
+                    {outputs.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name} ({o.id})
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <button className="primary" onClick={() => setPreviewScene(null)}>
+                  关闭
+                </button>
+              </div>
+            </div>
+            {armPreview?.url ? (
+              <iframe
+                className="arm-preview-frame"
+                src={`${armPreview.url}preview.html?scene=${encodeURIComponent(previewScene.id)}`}
+                title={`ARM 场景预览 ${previewScene.id}`}
+              />
+            ) : (
+              <div className="empty">{armPreview?.error ?? 'ARM 预览服务未就绪'}</div>
+            )}
           </div>
-        ))}
-      </section>
+        </div>
+      )}
     </div>
   )
 }
