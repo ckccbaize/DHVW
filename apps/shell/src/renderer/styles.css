@@ -363,6 +363,33 @@ main {
   min-width: 30px;
 }
 
+.mood-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.mood-band-calm {
+  background: #e9f2f7;
+}
+
+.mood-band-happy {
+  background: #e6f6e6;
+}
+
+.mood-band-excited {
+  background: #fff3d6;
+}
+
+.mood-band-tired {
+  background: #efeaf6;
+}
+
+.mood-band-low {
+  background: #fde8e8;
+}
+
 .world .hint.bad {
   color: #b3242f;
 }

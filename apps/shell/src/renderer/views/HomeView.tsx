@@ -291,10 +291,25 @@ export function HomeView({
                   </tr>
                   <tr>
                     <th>心情</th>
-                    <td className="mono" colSpan={3}>
-                      {mood
-                        ? `${mood.band} · ${mood.dims.map((d) => `${d.key} ${d.value.toFixed(2)}`).join(' / ')}`
-                        : '—'}
+                    <td colSpan={3}>
+                      {mood ? (
+                        <div className="mood-cell">
+                          <span className={`pill mood-band-${mood.band}`}>{MOOD_BAND_LABEL[mood.band] ?? mood.band}</span>
+                          <div className="world-dims">
+                            {mood.dims.map((d) => (
+                              <span key={d.key} className="world-dim">
+                                <span className="k">{MOOD_DIM_LABEL[d.key] ?? d.key}</span>
+                                <span className="bar">
+                                  <span style={{ width: `${Math.round(Math.max(0, Math.min(1, d.value)) * 100)}%` }} />
+                                </span>
+                                <span className="v mono">{Math.round(d.value * 100)}%</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        '—'
+                      )}
                     </td>
                   </tr>
                 </tbody>
@@ -306,6 +321,21 @@ export function HomeView({
       </div>
     </div>
   )
+}
+
+const MOOD_BAND_LABEL: Record<string, string> = {
+  calm: '平静',
+  happy: '开心',
+  excited: '雀跃',
+  tired: '疲惫',
+  low: '低落',
+}
+
+const MOOD_DIM_LABEL: Record<string, string> = {
+  energy: '精力',
+  valence: '愉悦',
+  social: '社交',
+  focus: '专注',
 }
 
 function fmtMinute(minute: number | null): string {
