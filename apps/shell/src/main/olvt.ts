@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { componentDir, COMPONENTS } from './components'
+import { COMPONENTS, resolveComponentDir } from './components'
 import { overridesRoot } from './paths'
 import { renderOlvtConf, writeOlvtConf, type OlvtConfInput } from './olvt-conf'
 import { olvtModelEntry, type Live2dModelRef } from './live2d-models'
@@ -27,7 +27,7 @@ export function isOlvtDir(dir: string): boolean {
 }
 
 export function resolveOlvtDir(overrideDir: string): string {
-  for (const dir of [overrideDir, componentDir(olvtSpec())]) {
+  for (const dir of [overrideDir, resolveComponentDir(olvtSpec())]) {
     if (isOlvtDir(dir)) return dir
   }
   return ''
@@ -102,7 +102,7 @@ export function prepareOlvt(input: PrepareInput): string {
 /** ASR 模型路径（组件未下载时返回空串，conf 里如实留空） */
 export function asrModelPaths(enabled: boolean): { modelPath: string; tokensPath: string } {
   if (!enabled) return { modelPath: '', tokensPath: '' }
-  const dir = componentDir(asrSpec())
+  const dir = resolveComponentDir(asrSpec())
   const model = path.join(dir, 'model.int8.onnx')
   const tokens = path.join(dir, 'tokens.txt')
   if (!fs.existsSync(model) || !fs.existsSync(tokens)) return { modelPath: '', tokensPath: '' }

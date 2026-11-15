@@ -98,6 +98,23 @@ export function componentDir(spec: ComponentSpec): string {
   return path.join(rootDir(), spec.id, spec.version)
 }
 
+/** 解析组件实际所在目录：优先使用受管 components 目录，兼容开发/测试期已预装的 vendor 目录 */
+export function resolveComponentDir(spec: ComponentSpec): string {
+  const primary = componentDir(spec)
+  if (fs.existsSync(path.join(primary, spec.entry))) return primary
+  if (spec.id === 'asr-sensevoice') {
+    const folder = `sherpa-onnx-sense-voice-zh-en-ja-ko-yue-${spec.version}`
+    const candidates = [
+      path.resolve(resourcesRoot(), '../vendor/Open-LLM-VTuber/models', folder),
+      path.join(rootDir(), 'olvt', '1.2.1', 'models', folder),
+    ]
+    for (const dir of candidates) {
+      if (fs.existsSync(path.join(dir, spec.entry))) return dir
+    }
+  }
+  return primary
+}
+
 function ensureWritable(dir: string): void {
   fs.mkdirSync(dir, { recursive: true })
   const probe = path.join(dir, `.write-test-${process.pid}`)
@@ -106,11 +123,11 @@ function ensureWritable(dir: string): void {
 }
 
 function isReady(spec: ComponentSpec): boolean {
-  return fs.existsSync(path.join(componentDir(spec), spec.entry))
+  return fs.existsSync(path.join(resolveComponentDir(spec), spec.entry))
 }
 
 export function componentStatus(spec: ComponentSpec): ComponentStatus {
-  const dir = componentDir(spec)
+  const dir = resolveComponentDir(spec)
   return {
     id: spec.id,
     name: spec.name,
