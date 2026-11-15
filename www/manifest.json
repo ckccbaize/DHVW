@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-15T12:53:15.303Z",
+ "built_at": "2026-11-15T13:06:45.632Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -760,7 +760,7 @@
   {
    "path": "css/app.css",
    "size": 7522,
-   "sha256": "d4c1c580b75e860ec38688c6065e81f0a56ec466498101e2abcef51fcdf2a547"
+   "sha256": "571cb239d4b60c0e776cb6b9582e797265acef4a56494a411a8c6e3440a11d61"
   },
   {
    "path": "css/cel.css",
@@ -789,8 +789,8 @@
   },
   {
    "path": "js/app.js",
-   "size": 34861,
-   "sha256": "3b30560caf000b76956fc8d017ba48a6674db734c256ec0c775f185d107953e7"
+   "size": 37268,
+   "sha256": "02ec70571996a29fa9bd9732cee0d78ddf3600c3081d27dcc5336754bd09d2d8"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -1069,8 +1069,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 46430,
-   "sha256": "3e4684bd5d48703e59171858996119663520ace09c7e6a2b923fa2512331fdeb"
+   "size": 50799,
+   "sha256": "d21b15f0366311c67c9fd0c14000599f232097a25f423ab4c375ad2126081de8"
   },
   {
    "path": "js/runtime/remote.js",
@@ -1079,8 +1079,8 @@
   },
   {
    "path": "js/view/hud.js",
-   "size": 2360,
-   "sha256": "0a4d3d02a03e58b13ca36a9f208341273a736a9419106fbe61eaf51449a183fc"
+   "size": 2697,
+   "sha256": "1ea341c3c7579f256093ec1c23013bac8305c4aa3008017ad494e873b8c57710"
   },
   {
    "path": "js/view/overview.js",
@@ -1094,8 +1094,8 @@
   },
   {
    "path": "js/view/present-host.js",
-   "size": 1298,
-   "sha256": "ded102006e8e76cebd39b775ade0f339d2affe3e96fca801f605c29e1fe544ed"
+   "size": 1570,
+   "sha256": "1fd33667121e692bfaea91074cd0b8bd7e5656a668e4bb4ca2875844e0b999e6"
   },
   {
    "path": "js/view/present.js",
@@ -1114,8 +1114,8 @@
   },
   {
    "path": "js/view/transition.js",
-   "size": 4714,
-   "sha256": "f2613334baa15676c4377eeef6ab90dbcfc9546f199950af159176e228846f39"
+   "size": 4862,
+   "sha256": "3d9a47af30acf62c81c5351e1a35c7af091a2aaf1a4c16e992203a8121da41aa"
   },
   {
    "path": "observe.html",

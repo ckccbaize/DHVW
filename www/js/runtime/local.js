@@ -222,6 +222,7 @@ export function createLocalRuntime({
   let lastSnapshot = null;
   let recentPlots = [];
   let dailyPlots = {};
+  let sceneRequests = [];
   let mood = { energy: 0.55, valence: 0.55, social: 0.4, focus: 0.5 };
   let digestSeq = 0;
 
@@ -434,6 +435,106 @@ export function createLocalRuntime({
     return new Set([...DESTINATIONS.map((d) => d.id), ...custom.map((p) => p.id)]);
   }
 
+  async function allPlaceRecords() {
+    const custom = (await backend.getKV("places")) || [];
+    return [...DESTINATIONS, ...custom];
+  }
+
+  async function addPlaceRecord(place = {}) {
+    const id = String(place.id || "").trim();
+    if (!id) return { ok: false, error: "缺 id" };
+    if (DESTINATIONS.some((p) => p.id === id)) return { ok: true, id, added: false };
+    const custom = (await backend.getKV("places")) || [];
+    if (custom.some((p) => p.id === id)) return { ok: true, id, added: false };
+    custom.push({
+      id,
+      name: String(place.name || id).slice(0, 20),
+      kind: place.kind === "street" ? "street" : "indoor",
+      distance: Math.max(0, Math.min(120, Number(place.distance) || 5)),
+      overnight: place.overnight === true,
+    });
+    await backend.setKV("places", custom);
+    return { ok: true, id, added: true };
+  }
+
+  async function saveSceneRequests() {
+    sceneRequests = sceneRequests.slice(0, 20);
+    await backend.setKV("scene_requests", sceneRequests).catch(() => {});
+  }
+
+  /** 把外部地点排进摘要的 sceneRequests；PC 消费后生成场景包并 scene:ready 推回。 */
+  async function enqueueSceneRequest(placeId, { reason = "plan", day = 0, description = "" } = {}) {
+    const id = String(placeId || "").trim();
+    if (!id) return { ok: false, error: "缺 placeId" };
+    const existing = sceneRequests.find((r) => r.placeId === id && (r.status === "pending" || r.status === "ready"));
+    if (existing) return { ok: true, queued: false, request: existing };
+    const place = (await allPlaceRecords()).find((p) => p.id === id);
+    if (!place) return { ok: false, error: `未知地点 ${id}` };
+    const request = {
+      id: `scene-${id}-${day || now().toString(36)}`,
+      reason,
+      mode: "new",
+      placeId: id,
+      mapSpec: {
+        kind: place.kind === "street" ? "street" : "indoor",
+        name: place.name || id,
+        distance: place.distance,
+        description: String(description || "").slice(0, 200),
+        seed: `${day || 0}-${id}`,
+      },
+      description: String(description || "").slice(0, 200),
+      travel: true,
+      status: "pending",
+      createdAt: now(),
+    };
+    sceneRequests.unshift(request);
+    await saveSceneRequests();
+    store.emit("scene_request", request);
+    return { ok: true, queued: true, request };
+  }
+
+  async function ensureSceneRequests(plan, reason = "plan") {
+    if (!plan) return;
+    const today = lastSnapshot?.day ?? 1;
+    const nowMinute = lastSnapshot?.minute ?? 0;
+    if (Number.isFinite(plan.forDay) && plan.forDay < today) return;
+    const rooms = new Set((scene.rooms || []).map((r) => r.id));
+    const places = await allPlaceRecords();
+    const seen = new Set();
+    for (const b of plan.behaviors || []) {
+      if (!b?.place || rooms.has(b.place) || seen.has(b.place)) continue;
+      if (plan.forDay === today && Number.isFinite(b.minute) && b.minute <= nowMinute) continue;
+      if (!places.some((p) => p.id === b.place)) continue;
+      seen.add(b.place);
+      await enqueueSceneRequest(b.place, {
+        reason,
+        day: plan.forDay || plan.day || 0,
+        description: b.why || plan.text || "",
+      });
+    }
+  }
+
+  async function applySceneReady(p = {}) {
+    const sceneId = String(p.sceneId || p.job || "").trim();
+    const name = String(p.name || "").trim();
+    const req = sceneRequests.find((r) => r.status === "pending" && (
+      (p.placeId && r.placeId === p.placeId) ||
+      (name && r.mapSpec?.name === name)
+    ));
+    if (!req) return null;
+    req.status = "ready";
+    req.sceneId = sceneId;
+    req.readyAt = now();
+    await saveSceneRequests();
+    await addPlaceRecord({
+      id: req.placeId,
+      name: req.mapSpec?.name || req.placeId,
+      kind: req.mapSpec?.kind,
+      distance: req.mapSpec?.distance,
+    });
+    return req;
+  }
+
   async function loadFileState() {
     try {
       const res = await fetch("/__state", { cache: "no-store" });
@@ -587,6 +688,7 @@ export function createLocalRuntime({
       recentPlots.push(text);
       if (recentPlots.length > 20) recentPlots.shift();
       dailyPlots[item.forDay] = item;
+      await ensureSceneRequests(item, "plan");
       await appendKv("plots", item, 50);
       await backend.setKV("daily_plots", dailyPlots).catch(() => {});
       await backend.setKV("last_plot_day", lastPlotDay).catch(() => {});
@@ -928,6 +1030,18 @@ export function createLocalRuntime({
         : null;
       lastPlotDay = (await backend.getKV("last_plot_day")) ?? -1;
       dailyPlots = (await backend.getKV("daily_plots")) || {};
+      sceneRequests = (await backend.getKV("scene_requests")) || [];
+      // 同一地点只保留一条 pending/ready，避免旧计划批量补请求时重复生成。
+      const seenRequests = new Set();
+      sceneRequests = sceneRequests.filter((r) => {
+        if (!r || !r.placeId) return false;
+        if (r.status === "pending" || r.status === "ready") {
+          if (seenRequests.has(r.placeId)) return false;
+          seenRequests.add(r.placeId);
+        }
+        return true;
+      });
+      await backend.setKV("scene_requests", sceneRequests).catch(() => {});
       const storedPlots = (await backend.getKV("plots")) || [];
       const roomSet = new Set((scene.rooms || []).map((r) => r.id));
       const placeSet = await placeIdSet();
@@ -947,6 +1061,7 @@ export function createLocalRuntime({
       };
       for (const p of Object.values(dailyPlots)) fixPlan(p);
       for (const p of storedPlots) fixPlan(p);
+      for (const p of Object.values(dailyPlots)) await ensureSceneRequests(p, "plan");
       await backend.setKV("daily_plots", dailyPlots).catch(() => {});
       await backend.setKV("plots", storedPlots).catch(() => {});
       mood = (await backend.getKV("mood")) || mood;
@@ -1172,21 +1287,16 @@ export function createLocalRuntime({
       return { accepted, merged, rejected };
     },
     async addPlace(place = {}) {
-      const id = String(place.id || "").trim();
-      if (!id) return { ok: false, error: "缺 id" };
-      const custom = (await backend.getKV("places")) || [];
-      const exists = custom.some((p) => p.id === id);
-      if (!exists) {
-        custom.push({
-          id,
-          name: String(place.name || id).slice(0, 20),
-          kind: place.kind === "street" ? "street" : "indoor",
-          distance: Math.max(0, Math.min(120, Number(place.distance) || 5)),
-          overnight: place.overnight === true,
-        });
-        await backend.setKV("places", custom);
-      }
-      return { ok: true, id, added: !exists };
+      return await addPlaceRecord(place);
+    },
+    async requestScene(placeId, reason = "travel", extra = {}) {
+      return await enqueueSceneRequest(placeId, { reason, ...extra });
+    },
+    async markSceneReady(payload = {}) {
+      return await applySceneReady(payload);
+    },
+    async getSceneRequests() {
+      return sceneRequests.map((r) => ({ ...r }));
     },
     async buildDigest(extra = {}) {
       const snap = lastSnapshot || {};
@@ -1215,7 +1325,7 @@ export function createLocalRuntime({
           status: "planned",
           payload: b,
         })),
-        sceneRequests: [],
+        sceneRequests: sceneRequests.filter((r) => r.status === "pending"),
         pcActions: [],
         recentEvents: events.slice(-20),
         budget: null,

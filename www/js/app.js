@@ -226,6 +226,7 @@ async function boot() {
   let presentOpening = false;
   let presentCancelled = false;
   let presentExiting = false;
+  const hostPresentInfo = { olvtPort: 0, gatewayPort: 0, presentUrl: "" };
   let overview = createOverview({ canvas: $("#scene"), scene, store });
   let awayPlace = null;
   let homePos = null;
@@ -353,6 +354,30 @@ async function boot() {
     return url;
   }
 
+  function resolvePresentUrl() {
+    const explicit = normalizePresentUrl(
+      cfg.present?.url || cfg.host?.presentUrl || hostPresentInfo.presentUrl || "",
+    );
+    if (explicit) return explicit;
+    const raw = cfg.host?.wsUrl || cfg.host?.probeUrl || "";
+    if (!raw) return null;
+    try {
+      const u = new URL(raw);
+      const httpProto = u.protocol === "wss:" || u.protocol === "https:" ? "https:" : "http:";
+      if (/\/ws\//.test(u.pathname)) {
+        const token = u.searchParams.get("token") || "";
+        const q = token ? `?token=${encodeURIComponent(token)}` : "";
+        return normalizePresentUrl(`${httpProto}//${u.host}/olvt/${q}`);
+      }
+      if (hostPresentInfo.olvtPort > 0) {
+        return normalizePresentUrl(`${httpProto}//${u.hostname}:${hostPresentInfo.olvtPort}/`);
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+
   async function waitForPresentReady(presentUrl, maxWaitMs = 45000) {
     const start = Date.now();
     let updatedHint = false;
@@ -375,11 +400,11 @@ async function boot() {
     presentOpening = true;
     presentCancelled = false;
     try {
-      const coverPromise = transition.cover("正在唤醒显现服务…", 420);
+      const coverPromise = transition.cover("正在唤醒显现服务…", 520);
       remote.send({ type: "world:stop" });
       remote.send({ type: "present:request", payload: { t: Date.now() } });
 
-      const presentUrl = normalizePresentUrl(cfg.present?.url || cfg.host?.presentUrl || "");
+      const presentUrl = resolvePresentUrl();
       const [tts, bg] = await Promise.all([probeTts(), bestBackground(), coverPromise]);
       if (presentCancelled || store.state.conn !== "up") {
         remote.send({ type: "world:resume" });
@@ -436,7 +461,7 @@ async function boot() {
       displayChangedAt = performance.now();
       presentOpenedAt = displayChangedAt;
       store.emit("state", { display: "present", reason: "open" });
-      await transition.reveal(400);
+      await transition.reveal(460);
     } finally {
       presentOpening = false;
     }
@@ -526,7 +551,7 @@ async function boot() {
     remote.send({ type: "mood:state", payload: local.moodState() });
   }
 
-  async function cacheSceneAssets(p) {
+  async function cacheSceneAssets(p, aliasId = "") {
     const sceneId = String(p.sceneId || p.job || "").trim();
     const raw = cfg.host.wsUrl || cfg.host.probeUrl || "";
     const viaGateway = /\/ws\//.test(raw);
@@ -555,12 +580,15 @@ async function boot() {
     const files = Array.isArray(manifest?.files) ? manifest.files : [];
     if (!files.length) return false;
     const cache = await caches.open("dhvw-scenes-v1");
+    const targets = [...new Set([sceneId, String(aliasId || "").trim()].filter(Boolean))];
     for (const file of files) {
       const rel = String(file?.path || "").trim();
       if (!rel || rel.includes("..")) return false;
       const res = await fetch(assetUrl(rel), { cache: "no-store" });
       if (!res.ok) return false;
-      await cache.put(`assets/scenes/${sceneId}/${rel}`, res);
+      for (let i = 0; i < targets.length; i += 1) {
+        await cache.put(`assets/scenes/${targets[i]}/${rel}`, i === targets.length - 1 ? res : res.clone());
+      }
     }
     return true;
   }
@@ -579,6 +607,9 @@ async function boot() {
         if (Number.isFinite(p.t_server)) clock.setOffsetFromServer(p.t_server);
         if (p.world_tier) setTier(p.world_tier);
         if (p.agent) store.patch({ agentCard: p.agent });
+        if (Number(p.olvt_port) > 0) hostPresentInfo.olvtPort = Number(p.olvt_port);
+        if (Number(p.gateway_port) > 0) hostPresentInfo.gatewayPort = Number(p.gateway_port);
+        if (p.present_url) hostPresentInfo.presentUrl = String(p.present_url);
         break;
       }
       case "state:overview": {
@@ -665,26 +696,34 @@ async function boot() {
         break;
       }
       case "scene:ready": {
-        void cacheSceneAssets(p).catch((err) => {
-          console.warn("[remote] 场景资源缓存失败", p.sceneId || p.job, err);
-          return false;
-        }).then((cached) => {
-          const id = String(p.sceneId || p.job || p.id || "").trim();
+        void (async () => {
+          const req = await local.markSceneReady(p).catch(() => null);
+          const alias = String(req?.placeId || p.placeId || "").trim();
+          const cached = await cacheSceneAssets(p, alias).catch((err) => {
+            console.warn("[remote] 场景资源缓存失败", p.sceneId || p.job, err);
+            return false;
+          });
+          const id = String(alias || p.sceneId || p.job || p.id || "").trim();
           if (!id) return;
-          void local.addPlace({
+          const added = await local.addPlace({
             id,
             name: p.name || id,
             kind: p.kind === "street" ? "street" : "indoor",
             distance: p.distance,
             overnight: p.overnight === true,
-          }).then((added) => {
-            if (added?.added) store.patch({ sceneCount: (store.state.sceneCount || 0) + 1 });
           });
-          store.emit("scene_ready", { ...p, cached });
-        });
+          if (added?.added) store.patch({ sceneCount: (store.state.sceneCount || 0) + 1 });
+          store.emit("scene_ready", { ...p, cached, placeId: alias || undefined });
+          if (awayPlace && (awayPlace === alias || awayPlace === p.placeId || awayPlace === p.name || awayPlace === String(p.sceneId || ""))) {
+            void enterPlace(awayPlace);
+          }
+        })();
         break;
       }
       case "display:set": {
+        if (Number(p.olvt_port) > 0) hostPresentInfo.olvtPort = Number(p.olvt_port);
+        if (Number(p.gateway_port) > 0) hostPresentInfo.gatewayPort = Number(p.gateway_port);
+        if (p.present_url) hostPresentInfo.presentUrl = String(p.present_url);
         if (p.state === "present") void onSwitchRequest(true);
         else if (p.state === "overview") void onSwitchRequest(false);
         break;
@@ -732,9 +771,17 @@ async function boot() {
       if (window.__dhvw) window.__dhvw.scene = scene;
     } catch (err) {
       console.warn("[scene] 进入失败", name, err);
-      awayPlace = null;
-      homePos = null;
-      store.emit("travel_failed", { place: name, error: String(err?.message || err) });
+      const queued = await local.requestScene(name, "travel").catch(() => ({ ok: false }));
+      // 场景还没生成：保留 awayPlace，等 scene:ready 后自动进入；否则回退到总观。
+      if (!queued?.ok || queued.request?.status === "ready") {
+        awayPlace = null;
+        homePos = null;
+      }
+      store.emit("travel_failed", {
+        place: name,
+        error: String(err?.message || err),
+        queued: Boolean(queued?.ok && queued.request?.status !== "ready"),
+      });
     }
   }
 
