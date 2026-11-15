@@ -959,15 +959,19 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
         turns = body.get("turns") if isinstance(body, dict) else None
         if not isinstance(turns, list):
             return JSONResponse({"ok": False, "error": "turns 必须是数组"}, status_code=400)
-        facts, err = await extract_facts_from_turns(orch.llm, turns)
+        facts, mood_delta, err = await extract_facts_from_turns(orch.llm, turns)
         if err:
             return JSONResponse({"ok": False, "reason": err, "extracted": 0, "pushed": 0})
+        mood_pushed = 0
+        if mood_delta:
+            sent = await orch.broadcast("mood:delta", {"source": "user", **mood_delta})
+            mood_pushed = len(sent)
         if not facts:
-            return JSONResponse({"ok": True, "extracted": 0, "accepted": [], "merged": [], "rejected": [], "pushed": 0})
+            return JSONResponse({"ok": True, "extracted": 0, "accepted": [], "merged": [], "rejected": [], "pushed": 0, "mood_pushed": mood_pushed})
         result = store.upsert_facts(facts, src="pc")
         pushed = await orch.push_facts()
-        log("info", "显现记忆抽取", extracted=len(facts), accepted=len(result["accepted"]), pushed=pushed)
-        return JSONResponse({"ok": True, "extracted": len(facts), **result, "pushed": pushed})
+        log("info", "显现记忆抽取", extracted=len(facts), accepted=len(result["accepted"]), pushed=pushed, mood_pushed=mood_pushed)
+        return JSONResponse({"ok": True, "extracted": len(facts), **result, "pushed": pushed, "mood_pushed": mood_pushed})
 
     @app.post("/dhvw/memory/consolidate")
     async def consolidate_events(limit: int = 40) -> JSONResponse:
@@ -989,6 +993,38 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
     async def memory_stats() -> JSONResponse:
         return JSONResponse(store.memory_stats())
 
+    def _describe_mood(mood: dict | None) -> str:
+        if not isinstance(mood, dict) or not mood:
+            return ""
+        band_map = {"calm": "平静", "happy": "开心", "excited": "雀跃", "tired": "疲惫", "low": "低落"}
+        band = str(mood.get("band") or "").lower()
+        dims = mood.get("dims") if isinstance(mood.get("dims"), dict) else {}
+        notes: list[str] = []
+        if band in band_map:
+            notes.append(band_map[band])
+        e = dims.get("energy")
+        v = dims.get("valence")
+        s = dims.get("social")
+        f = dims.get("focus")
+        if isinstance(e, (int, float)):
+            if e < 0.35:
+                notes.append("精力偏低")
+            elif e > 0.72:
+                notes.append("精力充沛")
+        if isinstance(v, (int, float)):
+            if v < 0.38:
+                notes.append("有些低落")
+            elif v > 0.62:
+                notes.append("心情不错")
+        if isinstance(s, (int, float)):
+            if s < 0.3:
+                notes.append("想找人聊聊")
+            elif s > 0.68:
+                notes.append("很想倾诉互动")
+        if isinstance(f, (int, float)) and f > 0.68:
+            notes.append("很专注")
+        return "，".join(notes)
+
     @app.get("/dhvw/memory/context")
     async def memory_context(q: str = "", k: int = 5) -> JSONResponse:
         """供 OLVT 每轮对话前拉取相关向量记忆与设备近况（ADR-PC-004）。"""
@@ -1004,6 +1040,9 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
         parts = [p for p in (weekday_name, clock.get("phase"), ctx.get("place"), ctx.get("weather")) if p]
         if parts:
             lines.append("当前状态：" + " / ".join(str(p) for p in parts))
+        mood_desc = _describe_mood(orch.mood)
+        if mood_desc:
+            lines.append(f"当前心情：{mood_desc}")
         if l0_extra:
             lines.append("核心偏好（L0）：")
             for f in l0_extra:
