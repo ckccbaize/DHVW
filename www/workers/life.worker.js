@@ -41,6 +41,7 @@ let sleepAt = 22 * 60;
 let wakeAt = 8 * 60;
 let appliedBehaviors = new Set();
 let appliedSudden = false;
+let nextPlan = null; // 剧情机在睡前生成的是“明天”的计划，必须等跨天才生效
 let interactionRegistry = null;
 let activeInteraction = null;
 let lastArrival = { key: "", minute: -1e9 };
@@ -552,6 +553,7 @@ function tick() {
     emit({ type: "mood", mood: { ...mood } });
   }
 
+  activateNextPlan();
   scheduleFor(clock.day);
   const nextPhase = phaseAt(clock.minute);
   if (nextPhase !== phase) {
@@ -677,6 +679,7 @@ function snapshotState() {
     activity,
     busyUntil,
     plan,
+    nextPlan,
     sleepAt,
     wakeAt,
     appliedBehaviors: [...appliedBehaviors],
@@ -684,6 +687,20 @@ function snapshotState() {
     interaction: activeInteraction ? { act: activeInteraction.act, endsAt: activeInteraction.endsAt } : null,
     away,
   };
+}
+
+function activateNextPlan() {
+  if (!nextPlan) return;
+  if (nextPlan.day < clock.day) {
+    nextPlan = null;
+    return;
+  }
+  if (nextPlan.day !== clock.day) return;
+  plan = nextPlan;
+  nextPlan = null;
+  appliedBehaviors = new Set();
+  appliedSudden = false;
+  scheduleFor(clock.day);
 }
 
 function schedule() {
@@ -725,7 +742,11 @@ self.onmessage = (e) => {
       activity = snap?.activity || "active";
       busyUntil = Number.isFinite(snap?.busyUntil) ? migrateDeadline(snap.busyUntil) : -1e9;
       clearStaleSleep();
-      if (snap?.plan) plan = snap.plan;
+      plan = snap?.plan && snap.plan.day === clock.day ? snap.plan : null;
+      nextPlan = snap?.nextPlan || (snap?.plan && snap.plan.day !== clock.day ? snap.plan : null);
+      if (nextPlan && nextPlan.day < clock.day) nextPlan = null;
+      if (!plan && nextPlan?.day === clock.day) activateNextPlan();
+      scheduleFor(clock.day);
       if (Number.isFinite(snap?.sleepAt)) sleepAt = snap.sleepAt;
       if (Number.isFinite(snap?.wakeAt)) wakeAt = snap.wakeAt;
       appliedBehaviors = new Set(snap?.appliedBehaviors || []);
@@ -873,10 +894,18 @@ self.onmessage = (e) => {
       break;
     }
     case "setPlan": {
-      plan = msg.plan || null;
-      appliedBehaviors = new Set();
-      appliedSudden = false;
-      if (plan) scheduleFor(plan.day);
+      const incoming = msg.plan || null;
+      if (!incoming || incoming.day < clock.day) {
+        if (!plan || plan.day < clock.day) plan = null;
+      } else if (incoming.day === clock.day) {
+        plan = incoming;
+        if (nextPlan && nextPlan.day <= incoming.day) nextPlan = null;
+        appliedBehaviors = new Set();
+        appliedSudden = false;
+        scheduleFor(clock.day);
+      } else {
+        nextPlan = incoming;
+      }
       emitSnapshot();
       break;
     }

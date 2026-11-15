@@ -1141,7 +1141,7 @@ export function createLocalRuntime({
       });
       postLife({ type: "setMood", mood: { ...mood } });
       const plan = dailyPlots[startDay];
-      if (plan && !lastSnapshot?.plan) {
+      if (plan && lastSnapshot?.plan?.day !== startDay) {
         postLife({
           type: "setPlan",
           plan: {
