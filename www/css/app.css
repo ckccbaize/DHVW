@@ -98,7 +98,8 @@ html, body {
 .agent-card {
   position: absolute;
   top: 56px;
-  left: 18px;
+  right: 18px;
+  left: auto;
   min-width: 180px;
   max-width: 260px;
   padding: 9px 12px;
