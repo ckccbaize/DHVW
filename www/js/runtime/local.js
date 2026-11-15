@@ -534,7 +534,7 @@ export function createLocalRuntime({
   async function applySceneReady(p = {}) {
     const sceneId = String(p.sceneId || p.job || "").trim();
     const name = String(p.name || "").trim();
-    const req = sceneRequests.find((r) => r.status === "pending" && (
+    const req = sceneRequests.find((r) => (
       (p.placeId && r.placeId === p.placeId) ||
       (name && r.mapSpec?.name === name)
     ));
