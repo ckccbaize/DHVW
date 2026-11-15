@@ -154,6 +154,23 @@ class Store:
             for r in rows
         ]
 
+    def events_since(self, since_seq: int = 0, limit: int = 40) -> tuple[list[dict], int]:
+        """按 seq 增量取未归纳的设备事件，排除高频噪声。"""
+        noise = ("debug", "core_ready", "governor:tier", "doctor:action", "wake:silent", "heartbeat")
+        placeholders = ",".join("?" for _ in noise)
+        with self._lock:
+            rows = self._life.execute(
+                f"select uuid, seq, t_local, kind, payload from events"
+                f" where seq > ? and kind not in ({placeholders}) order by seq asc limit ?",
+                (int(since_seq), *noise, int(limit)),
+            ).fetchall()
+        events = [
+            {"uuid": r["uuid"], "seq": r["seq"], "t_local": r["t_local"], "kind": r["kind"], "payload": json.loads(r["payload"] or "{}")}
+            for r in rows
+        ]
+        max_seq = int(rows[-1]["seq"]) if rows else int(since_seq)
+        return events, max_seq
+
     def events_by_kind(self, since_ms: int = 0) -> dict[str, int]:
         with self._lock:
             rows = self._life.execute(

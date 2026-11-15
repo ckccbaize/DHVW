@@ -28,7 +28,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from . import APP_ID, service_version
 from . import actions
-from .memory_extract import extract_facts_from_turns
+from .memory_extract import extract_facts_from_events, extract_facts_from_turns
 from .saves import SaveStore
 from .scene import SceneRunner
 from .store import Store
@@ -968,6 +968,22 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
         pushed = await orch.push_facts()
         log("info", "显现记忆抽取", extracted=len(facts), accepted=len(result["accepted"]), pushed=pushed)
         return JSONResponse({"ok": True, "extracted": len(facts), **result, "pushed": pushed})
+
+    @app.post("/dhvw/memory/consolidate")
+    async def consolidate_events(limit: int = 40) -> JSONResponse:
+        """主机空闲期批量归纳 life.db 未处理设备事件，写入向量库并回流设备。"""
+        since_seq = int(store.get_kv("events_consolidated_seq", 0) or 0)
+        events, max_seq = store.events_since(since_seq, max(3, min(int(limit), 100)))
+        if len(events) < 3:
+            return JSONResponse({"ok": False, "reason": "not_enough_events", "scanned": len(events), "since_seq": since_seq})
+        facts, err = await extract_facts_from_events(orch.llm, events)
+        if err:
+            return JSONResponse({"ok": False, "reason": err, "scanned": len(events), "since_seq": since_seq})
+        result = store.upsert_facts(facts, src="pc") if facts else {"accepted": [], "merged": [], "rejected": []}
+        store.put_kv("events_consolidated_seq", max_seq)
+        pushed = await orch.push_facts() if facts else 0
+        log("info", "事件批量归纳", scanned=len(events), max_seq=max_seq, extracted=len(facts), pushed=pushed)
+        return JSONResponse({"ok": True, "scanned": len(events), "max_seq": max_seq, "extracted": len(facts), **result, "pushed": pushed})
 
     @app.get("/dhvw/memory/stats")
     async def memory_stats() -> JSONResponse:

@@ -106,3 +106,60 @@ async def extract_facts_from_turns(llm_cfg: dict, turns: list[dict]) -> tuple[li
             tier = "L2"
         out.append({"text": text, "tier": tier})
     return out, None
+
+
+EVENT_EXTRACT_PROMPT = """你是生活事件记忆归纳助手。请从下面的角色生活事件流中，归纳出 0–5 条值得长期记住的「事实」。
+要求：
+1. 只输出 JSON：`{"facts":[{"text":"...","tier":"L1|L2"}]}`，不要任何解释。
+2. 每条 text 10–120 字，明确时间/地点/动作/对象；流水账或无意义状态切换不要抽取。
+
+事件列表：
+"""
+
+
+async def extract_facts_from_events(llm_cfg: dict, events: list[dict]) -> tuple[list[dict], str | None]:
+    """从 life.db 设备事件流批量归纳事实。"""
+    base_url = str(llm_cfg.get("baseUrl") or "").strip()
+    model = str(llm_cfg.get("model") or "").strip()
+    api_key = str(llm_cfg.get("apiKey") or "").strip()
+    if not base_url or not model or not api_key:
+        return [], "llm_not_configured"
+    if len(events) < 3:
+        return [], "not_enough_events"
+
+    compact = json.dumps(
+        [{"kind": e.get("kind"), "payload": e.get("payload"), "t": e.get("t_local")} for e in events[-40:]],
+        ensure_ascii=False,
+    )[:3600]
+    body = {
+        "model": model,
+        "messages": [{"role": "user", "content": EVENT_EXTRACT_PROMPT + compact}],
+        "temperature": 0.2,
+        "max_tokens": 450,
+        "reasoning_effort": "none",
+    }
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "User-Agent": BROWSER_UA}
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.post(_chat_url(base_url), headers=headers, json=body)
+            if resp.status_code >= 400:
+                return [], f"http_{resp.status_code}"
+            data = resp.json()
+    except Exception as exc:
+        return [], str(exc)
+
+    choices = data.get("choices") or []
+    raw_text = str(((choices[0] if choices else {}).get("message") or {}).get("content") or "")
+    obj = _extract_json_obj(raw_text)
+    if not obj or not isinstance(obj.get("facts"), list):
+        return [], "invalid_json"
+    out: list[dict] = []
+    for item in obj["facts"][:5]:
+        if not isinstance(item, dict):
+            continue
+        text = " ".join(str(item.get("text") or "").split())
+        if len(text) < 10 or len(text) > 120:
+            continue
+        tier = "L1" if str(item.get("tier") or "").upper() == "L1" else "L2"
+        out.append({"text": text, "tier": tier})
+    return out, None
