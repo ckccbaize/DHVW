@@ -742,8 +742,8 @@ self.onmessage = (e) => {
       break;
     }
     case "sync": {
-      if (Number.isFinite(msg.day) && Number.isFinite(msg.minute)) {
-        clock.set(msg.day, msg.minute);
+      // 主机回显的 clock 可能比端侧旧；只接受向前校准，避免时间倒退。
+      if (clock.setForward(msg.day, msg.minute)) {
         phase = phaseOf(clock.minute);
         resetAnchor();
         emitSnapshot();

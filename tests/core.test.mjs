@@ -176,6 +176,20 @@ test("Clock：跨天推进与时段划分", () => {
   assert.equal(phaseOf(22 * 60 + 30), "night");
 });
 
+test("Clock：外部同步只向前，不接受旧回显", () => {
+  const c = createClock({ day: 2, minute: 600 });
+  assert.equal(c.setForward(2, 599), false);
+  assert.equal(c.setForward(2, 600), false);
+  assert.equal(c.setForward(1, 700), false);
+  assert.equal(c.setForward("2026-11-13", 480), false);
+  assert.equal(c.day, 2);
+  assert.equal(c.minute, 600);
+  assert.equal(c.setForward(2, 601), true);
+  assert.equal(c.setForward(3, 0), true);
+  assert.equal(c.day, 3);
+  assert.equal(c.minute, 0);
+});
+
 test("Clock：主机时间校准偏移", () => {
   const c = createClock();
   const deviceNow = 1_000_000;

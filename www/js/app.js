@@ -412,6 +412,13 @@ async function boot() {
     return true;
   }
 
+  function clockIsForward(c) {
+    if (!c || !Number.isFinite(c.day) || !Number.isFinite(c.minute)) return false;
+    const cur = store.state.clock;
+    if (!cur || !Number.isFinite(cur.day) || !Number.isFinite(cur.minute)) return true;
+    return c.day > cur.day || (c.day === cur.day && c.minute > cur.minute);
+  }
+
   function handleRemoteMessage(msg) {
     const p = msg.payload || {};
     switch (msg.type) {
@@ -427,8 +434,8 @@ async function boot() {
           if (snapped) store.emit("checksum", { snapped: true });
         }
         if (p.work_tier) setTier(p.work_tier);
-        if (p.clock) {
-          clock.set(p.clock.day, p.clock.minute);
+        if (p.clock && clockIsForward(p.clock)) {
+          clock.setForward(p.clock.day, p.clock.minute);
           local.syncClock(p.clock.day, p.clock.minute);
         }
         if (p.agent) store.patch({ agentCard: p.agent });

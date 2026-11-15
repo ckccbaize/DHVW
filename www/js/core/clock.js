@@ -4,8 +4,8 @@
 export const MINUTES_PER_DAY = 1440;
 
 export function createClock({ day = 1, minute = 8 * 60, offsetMs = 0 } = {}) {
-  let d = day;
-  let m = minute;
+  let d = Number.isFinite(Number(day)) ? Number(day) : 1;
+  let m = Number.isFinite(Number(minute)) ? Number(minute) : 8 * 60;
 
   return {
     get day() {
@@ -18,8 +18,21 @@ export function createClock({ day = 1, minute = 8 * 60, offsetMs = 0 } = {}) {
       return offsetMs;
     },
     set(day, minute) {
+      if (!Number.isFinite(day) || !Number.isFinite(minute)) return false;
       d = day;
       m = minute;
+      return true;
+    },
+    /**
+     * 只允许向前校准。主机回显的 clock 可能比端侧旧，
+     * 直接 set 会让时间倒退，所以外部同步一律走这里。
+     */
+    setForward(day, minute) {
+      if (!Number.isFinite(day) || !Number.isFinite(minute)) return false;
+      if (day < d || (day === d && minute <= m)) return false;
+      d = day;
+      m = minute;
+      return true;
     },
     /** 推进分钟（可为小数），自动跨天。 */
     advance(mins) {
