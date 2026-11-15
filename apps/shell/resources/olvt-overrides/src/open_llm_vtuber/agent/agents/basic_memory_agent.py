@@ -1,3 +1,4 @@
+import asyncio
 import os
 from typing import (
     AsyncIterator,
@@ -55,6 +56,7 @@ class BasicMemoryAgent(AgentInterface):
         """Initialize agent with LLM and configuration."""
         super().__init__()
         self._memory = []
+        self._dhvw_extracted_idx = 0
         self._live2d_model = live2d_model
         self._tts_preprocessor_config = tts_preprocessor_config
         self._faster_first_response = faster_first_response
@@ -600,6 +602,22 @@ class BasicMemoryAgent(AgentInterface):
             logger.debug(f"[DHVW] 记忆检索跳过: {exc}")
             return None
 
+    async def _flush_dhvw_facts(self, turns: List[Dict[str, Any]]) -> None:
+        """[DHVW 补丁] 后台将显现对话轮次发给编排器抽取事实并回流设备深层记忆。"""
+        base = (os.getenv("DHVW_ORCHESTRATOR_URL") or "http://127.0.0.1:8877").rstrip("/")
+        try:
+            async with httpx.AsyncClient(timeout=25.0) as client:
+                await client.post(f"{base}/dhvw/memory/extract", json={"turns": turns})
+        except Exception as exc:
+            logger.debug(f"[DHVW] 记忆抽取跳过: {exc}")
+
+    def _schedule_dhvw_extract(self, min_messages: int = 8) -> None:
+        if len(self._memory) - self._dhvw_extracted_idx < min_messages:
+            return
+        turns = self._memory[self._dhvw_extracted_idx :]
+        self._dhvw_extracted_idx = len(self._memory)
+        asyncio.create_task(self._flush_dhvw_facts(turns))
+
     def _chat_function_factory(
         self,
     ) -> Callable[[BatchInput], AsyncIterator[Union[SentenceOutput, Dict[str, Any]]]]:
@@ -688,6 +706,7 @@ class BasicMemoryAgent(AgentInterface):
                         complete_response += text_chunk
                 if complete_response:
                     self._add_message(complete_response, "assistant")
+                    self._schedule_dhvw_extract()
 
         return chat_with_memory
 

@@ -27,6 +27,8 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from . import APP_ID, service_version
 from . import actions
+from .memory_extract import extract_facts_from_turns
+from .saves import SaveStore
 from .scene import SceneRunner
 from .store import Store
 
@@ -52,6 +54,8 @@ KNOWN_INBOUND = {
     "world:resume",
     "wake:state",
     "llm:state",
+    "state:save",
+    "state:restore:ack",
 }
 
 
@@ -83,6 +87,7 @@ class Orchestrator:
         self.live2d_ready = bool(store.get_kv("live2d_ready", False))
         self.world_running = True
         self.started = time.time()
+        self.saves = SaveStore(store)
         self.scenes = SceneRunner(store, store.root, self._push_scene)
         self.scenes.on_done = self.handle_scene_done
         self.scenes.set_llm(self.llm)
@@ -393,6 +398,8 @@ class Orchestrator:
                 await self.send(ws, "llm:config", self.llm_payload(), msg_id)
             await self.send(ws, "digest:get", {})
             await self.send(ws, "mood:get", {})
+            # 设备一上线就请求一份完整存档；PC 侧自动留一份最近备份
+            await self.send(ws, "state:export", {"reason": "connect"})
             # 新连接要能拿到未确认的积压，即使本进程此前已经发过
             self.facts_sent_ids.clear()
             await self.push_facts()
@@ -439,6 +446,20 @@ class Orchestrator:
             elapsed = round((time.perf_counter() - started) * 1000, 1)
             await self.send(ws, "memory:result", {"req_id": payload.get("req_id"), "hits": hits, "semantic": semantic}, msg_id)
             log("info", "记忆检索", req=payload.get("req_id"), hits=len(hits), ms=elapsed, semantic=semantic)
+            return
+
+        if type_ == "state:save":
+            try:
+                meta = self.saves.put(payload.get("save"), str(payload.get("reason") or "auto"))
+            except ValueError as err:
+                await self.send(ws, "error", {"code": "bad_save", "msg": str(err)}, msg_id)
+                return
+            await self.send(ws, "state:saved", meta, msg_id)
+            log("info", "设备存档备份", id=meta["id"], reason=meta["reason"], bytes=meta["bytes"])
+            return
+
+        if type_ == "state:restore:ack":
+            log("info", "设备确认存档恢复", id=payload.get("id"), ok=payload.get("ok"))
             return
 
         if type_ == "world:digest":
@@ -692,6 +713,42 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
         items.sort(key=lambda x: int(x.get("updatedAt") or 0), reverse=True)
         return items
 
+    @app.get("/dhvw/saves")
+    async def saves_list() -> JSONResponse:
+        return JSONResponse({"ok": True, "saves": orch.saves.list()})
+
+    @app.post("/dhvw/saves/backup")
+    async def saves_backup() -> JSONResponse:
+        """让在线设备立刻上报一份存档；设备回 state:save 后自动落盘。"""
+        if not orch.clients:
+            return JSONResponse({"ok": False, "error": "设备未连接"}, status_code=409)
+        ids = await orch.broadcast("state:export", {"reason": "manual"})
+        return JSONResponse({"ok": True, "requested": len(ids)})
+
+    @app.get("/dhvw/saves/{save_id}", response_model=None)
+    async def saves_download(save_id: str) -> FileResponse | JSONResponse:
+        path = orch.saves.path(save_id)
+        if path is None:
+            return JSONResponse({"ok": False, "error": "找不到存档"}, status_code=404)
+        return FileResponse(path, media_type="application/json", filename=f"{save_id}.json")
+
+    @app.post("/dhvw/saves/{save_id}/restore")
+    async def saves_restore(save_id: str) -> JSONResponse:
+        save = orch.saves.read(save_id)
+        if save is None:
+            return JSONResponse({"ok": False, "error": "找不到存档"}, status_code=404)
+        if not orch.clients:
+            return JSONResponse({"ok": False, "error": "设备未连接"}, status_code=409)
+        ids = await orch.broadcast("state:restore", {"id": save_id, "save": save})
+        log("info", "下发存档恢复", id=save_id, sent=len(ids))
+        return JSONResponse({"ok": True, "sent": len(ids)})
+
+    @app.delete("/dhvw/saves/{save_id}")
+    async def saves_delete(save_id: str) -> JSONResponse:
+        if not orch.saves.delete(save_id):
+            return JSONResponse({"ok": False, "error": "找不到存档"}, status_code=404)
+        return JSONResponse({"ok": True})
+
     @app.get("/dhvw/scenes")
     async def scenes_list() -> JSONResponse:
         return JSONResponse(
@@ -876,6 +933,23 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
     async def rebuild_memory() -> JSONResponse:
         """删除并由 mem_meta 正文重建 FTS5 与 vec0 向量索引。"""
         return JSONResponse({"ok": True, **store.rebuild_indexes()})
+
+    @app.post("/dhvw/memory/extract")
+    async def extract_memory(req: Request) -> JSONResponse:
+        """从显现会话轮次抽取事实，写入 memory.db 向量库并回流到设备深层记忆。"""
+        body = await req.json()
+        turns = body.get("turns") if isinstance(body, dict) else None
+        if not isinstance(turns, list):
+            return JSONResponse({"ok": False, "error": "turns 必须是数组"}, status_code=400)
+        facts, err = await extract_facts_from_turns(orch.llm, turns)
+        if err:
+            return JSONResponse({"ok": False, "reason": err, "extracted": 0, "pushed": 0})
+        if not facts:
+            return JSONResponse({"ok": True, "extracted": 0, "accepted": [], "merged": [], "rejected": [], "pushed": 0})
+        result = store.upsert_facts(facts, src="pc")
+        pushed = await orch.push_facts()
+        log("info", "显现记忆抽取", extracted=len(facts), accepted=len(result["accepted"]), pushed=pushed)
+        return JSONResponse({"ok": True, "extracted": len(facts), **result, "pushed": pushed})
 
     @app.get("/dhvw/memory/stats")
     async def memory_stats() -> JSONResponse:
