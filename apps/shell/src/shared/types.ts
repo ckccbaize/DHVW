@@ -138,6 +138,7 @@ export interface WorldView {
     day: string
     minute: number
     phase: string
+    weekdayName?: string
     display: string
     agendaDone: number
     agendaTotal: number
@@ -157,6 +158,7 @@ export interface StatsView {
     day: string
     minute: number
     phase: string
+    weekdayName?: string
     agenda: Record<string, number>
     sceneRequests: Record<string, number>
     pcActions: Record<string, number>
@@ -213,6 +215,19 @@ export interface SceneOutputView {
   acts?: number
   updatedAt: number
   push?: ScenePushState
+}
+
+/** 设备整份存档在 PC 侧的备份索引（data/saves/*.json） */
+export interface SaveView {
+  id: string
+  receivedAt: number
+  reason: string
+  savedAt: number
+  day: number | null
+  minute: number | null
+  scene: string | null
+  bytes: number
+  sha256: string
 }
 
 export interface ActionRequest {

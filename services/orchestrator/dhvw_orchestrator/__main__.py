@@ -18,6 +18,7 @@ import shutil
 import time
 import uuid
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import AsyncIterator
 
@@ -126,14 +127,31 @@ class Orchestrator:
         return sent
 
     # ---------- 状态 ----------
+    @staticmethod
+    def _weekday(clock: dict) -> tuple[int, str]:
+        names = ("周一", "周二", "周三", "周四", "周五", "周六", "周日")
+        wd = clock.get("weekday")
+        wn = clock.get("weekdayName")
+        if isinstance(wd, int) and 1 <= wd <= 7 and isinstance(wn, str) and wn:
+            return wd, wn
+        iso = datetime.now().isoweekday()
+        return iso, names[iso - 1]
+
     def overview(self) -> dict:
         clock = self.digest.get("clock") or {}
         world = self.digest.get("world") or {}
+        wd, wn = self._weekday(clock)
         return {
             "work_tier": self.tier,
             "conn_state": "up" if self.connected else "down",
             "pos_checksum": world.get("pos_checksum") or "n/a",
-            "clock": {"day": clock.get("day", ""), "minute": clock.get("minute", 0), "phase": clock.get("phase", "")},
+            "clock": {
+                "day": clock.get("day", ""),
+                "minute": clock.get("minute", 0),
+                "phase": clock.get("phase", ""),
+                "weekday": wd,
+                "weekdayName": wn,
+            },
             "agent": {},
         }
 
@@ -965,11 +983,11 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
         l0_extra = [f for f in l0 if f["id"] not in hit_ids]
         ctx = store.get_kv("context", {}) or {}
         clock = (orch.digest or {}).get("clock") or {}
+        _, weekday_name = orch._weekday(clock)
         lines: list[str] = []
-        if clock.get("phase") or ctx.get("place") or ctx.get("weather"):
-            parts = [p for p in (clock.get("phase"), ctx.get("place"), ctx.get("weather")) if p]
-            if parts:
-                lines.append("当前状态：" + " / ".join(str(p) for p in parts))
+        parts = [p for p in (weekday_name, clock.get("phase"), ctx.get("place"), ctx.get("weather")) if p]
+        if parts:
+            lines.append("当前状态：" + " / ".join(str(p) for p in parts))
         if l0_extra:
             lines.append("核心偏好（L0）：")
             for f in l0_extra:

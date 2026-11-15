@@ -22,6 +22,7 @@ import type {
   SceneJobView,
   SceneOutputView,
   SceneRequestView,
+  SaveView,
   SettingsView,
   StatsView,
   WorkTier,
@@ -134,6 +135,7 @@ async function readWorld(): Promise<WorldView> {
             day: String(clock.day ?? ''),
             minute: Number(clock.minute ?? 0),
             phase: String(clock.phase ?? ''),
+            weekdayName: String(clock.weekdayName ?? ''),
             display: String((digestRaw.world as Record<string, unknown> | undefined)?.display ?? ''),
             agendaDone: agenda.filter((a) => a.status === 'done').length,
             agendaTotal: agenda.length,
@@ -186,6 +188,7 @@ async function readStats(): Promise<StatsView> {
             day: String(digest.clock?.day ?? ''),
             minute: Number(digest.clock?.minute ?? 0),
             phase: String(digest.clock?.phase ?? ''),
+            weekdayName: String(digest.clock?.weekdayName ?? ''),
             agenda: (digest.agenda ?? {}) as Record<string, number>,
             sceneRequests: (digest.scene_requests ?? {}) as Record<string, number>,
             pcActions: (digest.pc_actions ?? {}) as Record<string, number>,
@@ -275,6 +278,46 @@ async function pushScene(id: string): Promise<{
 }
 
 /** 重提一条设备场景请求（失败后手动重试，避免坏 spec 自动反复烧 token） */
+async function listSaves(): Promise<{ ok: boolean; saves: SaveView[]; error?: string }> {
+  if (!orchestratorPort) return { ok: false, saves: [], error: '编排器未运行' }
+  try {
+    const res = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/saves`, { signal: AbortSignal.timeout(3000) })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const raw = (await res.json()) as { saves?: SaveView[] }
+    return { ok: true, saves: raw.saves ?? [] }
+  } catch (err) {
+    return { ok: false, saves: [], error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+async function backupSave(): Promise<{ ok: boolean; requested?: number; error?: string }> {
+  if (!orchestratorPort) return { ok: false, error: '编排器未运行' }
+  try {
+    const res = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/saves/backup`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(5000),
+    })
+    const raw = (await res.json()) as { ok?: boolean; requested?: number; error?: string }
+    return { ok: raw.ok === true, requested: raw.requested, error: raw.error }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+async function restoreSave(id: string): Promise<{ ok: boolean; sent?: number; error?: string }> {
+  if (!orchestratorPort) return { ok: false, error: '编排器未运行' }
+  try {
+    const res = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/saves/${encodeURIComponent(id)}/restore`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(5000),
+    })
+    const raw = (await res.json()) as { ok?: boolean; sent?: number; error?: string }
+    return { ok: raw.ok === true, sent: raw.sent, error: raw.error }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
 async function retryScene(id: string): Promise<{ ok: boolean; job?: string; error?: string }> {
   if (!orchestratorPort) return { ok: false, error: '编排器未运行' }
   try {
@@ -468,6 +511,9 @@ function registerIpc(): void {
     url: armPreviewUrl,
     error: armPreviewUrl ? undefined : 'ARM 预览资源缺失（arm/www/preview.html）',
   }))
+  ipcMain.handle('dhvw:saves', () => listSaves())
+  ipcMain.handle('dhvw:save-backup', () => backupSave())
+  ipcMain.handle('dhvw:save-restore', (_e, id: string) => restoreSave(id))
   ipcMain.handle('dhvw:snapshot', () => snapshot())
   ipcMain.handle('dhvw:action', (_e, req: ActionRequest) => {
     if (!supervisor) return { ok: false, error: '宿主未启动' }
