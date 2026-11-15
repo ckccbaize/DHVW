@@ -26,6 +26,9 @@ extraResources:
   # 角色舞台：页面 + pixi/live2d 库 + 模型（本机 http 静态服务读取）
   - from: resources/live2d
     to: live2d
+  # 中文句向量模型（bge-small-zh-v1.5 量化 ONNX，运行期零联网）
+  - from: resources/models
+    to: models
   - from: build/icon.png
     to: icon.png
   # 上游 OLVT 未开放 UA / extra_body，随包带两个补丁文件覆盖过去

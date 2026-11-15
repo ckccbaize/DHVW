@@ -15,6 +15,7 @@ for (const [name, ready] of [
   ['fetch-runtime.mjs', path.join(shellDir, 'runtime', 'python.exe')],
   ['fetch-uv.mjs', path.join(shellDir, 'build', 'tools', 'uv.exe')],
   ['fetch-aria2.mjs', path.join(shellDir, 'build', 'tools', 'aria2c.exe')],
+  ['fetch-embed-model.mjs', path.join(shellDir, 'resources', 'models', 'bge-small-zh-v1.5', 'model.onnx')],
 ]) {
   if (fs.existsSync(ready)) continue
   const prep = spawnSync(process.execPath, [path.join(dir, name)], { cwd: shellDir, stdio: 'inherit' })
