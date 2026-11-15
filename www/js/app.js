@@ -79,24 +79,15 @@ async function loadConfig() {
 }
 
 
-const SPRITE_PALETTES = [
-  { sweater: "#5b7fa6", hair: "#2e2a33" },
-  { sweater: "#b06a4f", hair: "#3b2b33" },
-  { sweater: "#6f8f63", hair: "#2a2730" },
-  { sweater: "#8a6a9e", hair: "#332a3a" },
-  { sweater: "#c29a4a", hair: "#3a3028" },
-  { sweater: "#4f8f8a", hair: "#263033" },
-];
-
-/** 随包 NPC：固定随机池，办公室工位与总监座各取一位；动作统一坐下。 */
+/** 随包 NPC：固定随机池，办公室工位与总监座各取一位；使用素材首帧。 */
 const NPC_POOL = [
-  { id: "npc-1", name: "阿澄", image: "assets/npc/npc-1.png" },
-  { id: "npc-2", name: "小满", image: "assets/npc/npc-2.png" },
-  { id: "npc-3", name: "林岚", image: "assets/npc/npc-3.png" },
-  { id: "npc-4", name: "周野", image: "assets/npc/npc-4.png" },
-  { id: "npc-5", name: "苏禾", image: "assets/npc/npc-5.png" },
-  { id: "npc-6", name: "陈默", image: "assets/npc/npc-6.png" },
-  { id: "npc-7", name: "顾清", image: "assets/npc/npc-7.png" },
+  { id: "npc-1", name: "阿澄", image: "assets/npc/people_1.png" },
+  { id: "npc-2", name: "小满", image: "assets/npc/people_2.png" },
+  { id: "npc-3", name: "林岚", image: "assets/npc/people_3.png" },
+  { id: "npc-4", name: "周野", image: "assets/npc/people_4.png" },
+  { id: "npc-5", name: "苏禾", image: "assets/npc/people_5.png" },
+  { id: "npc-6", name: "陈默", image: "assets/npc/people_6.png" },
+  { id: "npc-7", name: "顾清", image: "assets/npc/people_boss.png" },
 ];
 
 function npcOrder(seed) {
@@ -121,7 +112,7 @@ function npcSprite(npc, chair, extra = {}) {
     x: chair.x,
     y: chair.y,
     dir: { x: 0, y: -1 },
-    act: "sit",
+    act: "idle",
     sheet: "assets/npc/npc_sheet.json",
     image: npc.image,
     npc: npc.id,

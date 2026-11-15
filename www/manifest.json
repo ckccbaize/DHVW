@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-15T11:44:36.518Z",
+ "built_at": "2026-11-15T11:50:32.558Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -418,44 +418,49 @@
    "sha256": "8751c869c91bc13ba06dffadaf0c276f662917228f18072b28498b08c1e59ee6"
   },
   {
-   "path": "assets/npc/npc-1.png",
-   "size": 285325,
-   "sha256": "4e30f70abf2f9773c23675ad014f1e003f5e654d37c1706e8c7bbe8cb7980997"
-  },
-  {
-   "path": "assets/npc/npc-2.png",
-   "size": 288570,
-   "sha256": "25b599222c500c692b68a6d91a30d45d958852e1b1f6ad369eb0f3866c68edcc"
-  },
-  {
-   "path": "assets/npc/npc-3.png",
-   "size": 286859,
-   "sha256": "490fc7fa2eb22c4a103b502abb23fe8ca03178a2b67912e2802aa9dcf2814113"
-  },
-  {
-   "path": "assets/npc/npc-4.png",
-   "size": 288676,
-   "sha256": "4408b466f72dcc37e2d3e0ed5d14f7bca415077ec33c6dcf864d6c8550810caa"
-  },
-  {
-   "path": "assets/npc/npc-5.png",
-   "size": 284984,
-   "sha256": "ea9207d5033a99cbc93a638d7afb1cd9414343b9e370ee65928668c045cdd978"
-  },
-  {
-   "path": "assets/npc/npc-6.png",
-   "size": 288237,
-   "sha256": "0b40ad683db66fac980d08579c7e050eff4e37ce74acb350ba1e563cea029c4c"
-  },
-  {
-   "path": "assets/npc/npc-7.png",
-   "size": 288215,
-   "sha256": "8033fc49adf67e586984037994cd892c59106de8103fce564b4c067014150e5f"
+   "path": "assets/npc/ATTRIBUTION.md",
+   "size": 495,
+   "sha256": "52ac49f402601dd6a0898ba59c5f08424ab31a1d1374132d5136514b26bb75c0"
   },
   {
    "path": "assets/npc/npc_sheet.json",
-   "size": 7725,
-   "sha256": "ae926639c980e11f3064b0a15246a44a1d99a860fe77a399a7ac9aa288251ace"
+   "size": 826,
+   "sha256": "5c768694cefd3d0a123950185c1a0bb5da2029ecba142fab8be30ea84746bafb"
+  },
+  {
+   "path": "assets/npc/people_1.png",
+   "size": 2217,
+   "sha256": "c547f03729166b53c0275c4aeef3dd8bbd7782a90cea1ff6a6405ee6e45a9489"
+  },
+  {
+   "path": "assets/npc/people_2.png",
+   "size": 2293,
+   "sha256": "4ff752e8a09788c402c3112097abdede89d00370c4b831352a76a2e4d7734d75"
+  },
+  {
+   "path": "assets/npc/people_3.png",
+   "size": 2042,
+   "sha256": "78471e552f2b687f873315d3be03a8a5492582f35c9b6ddc538d157ca79d0ebb"
+  },
+  {
+   "path": "assets/npc/people_4.png",
+   "size": 2057,
+   "sha256": "47c31ec5f23e488a3360a5d370851cdd344aee36c39923a9361cff6277534015"
+  },
+  {
+   "path": "assets/npc/people_5.png",
+   "size": 2365,
+   "sha256": "8f4c6f4e026ce687f87879964bc9f2133438202dafab1f7945e3d31b1a595bcc"
+  },
+  {
+   "path": "assets/npc/people_6.png",
+   "size": 2084,
+   "sha256": "17472f161dba050c30cfcd6871804e1c33ed7442acadd739a944f3dd45c8c864"
+  },
+  {
+   "path": "assets/npc/people_boss.png",
+   "size": 2865,
+   "sha256": "f452d2f45590bb2e5066db82547a7fc0242d077bdca6275875b75a37b45cfeaa"
   },
   {
    "path": "assets/scenes/cafe/cafe.built.json",
@@ -784,8 +789,8 @@
   },
   {
    "path": "js/app.js",
-   "size": 30840,
-   "sha256": "c969c2cfc877f02d178ea4a09a1f1ad409d3a1c58e637877386ae3facbc183be"
+   "size": 30577,
+   "sha256": "99c3c2127730ce049797868601ad77c0ee8c842dda4e172aa382232dd7ebd0d9"
   },
   {
    "path": "js/core/actions/browse.js",
