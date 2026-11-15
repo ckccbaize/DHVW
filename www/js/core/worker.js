@@ -182,6 +182,15 @@ host.setFactsHandler(async (p) => {
 host.on("digest:get", () => {
   void writeDigest();
 });
+host.on("mood:delta", (p) => {
+  if (!p?.deltas || typeof p.deltas !== "object") return;
+  applyGuidedMood({
+    source: p.source || "user",
+    reason: p.reason || "显现对话",
+    deltas: p.deltas,
+    ttlMs: Number(p.ttlMs) || 0,
+  });
+});
 host.on("pc:action:ack", (p) => {
   const item = pcActions.find((a) => a.id === p.id);
   if (!item) return;
