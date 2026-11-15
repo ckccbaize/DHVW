@@ -3,11 +3,6 @@
 
 import { weekdayInfo } from "../core/clock.js";
 
-function todayMmDd() {
-  const d = new Date();
-  return `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 export function createHud({ root, store }) {
   const tierEl = root.querySelector("#tierBadge");
   const dotEl = root.querySelector("#connDot");
@@ -31,11 +26,12 @@ export function createHud({ root, store }) {
     connEl.textContent = up ? "主机在线" : "主机未连接";
 
     const c = state.clock || {};
+    const day = Math.max(1, Number(c.day) || 1);
+    const week = Number(c.week) || Math.floor((day - 1) / 7) + 1;
     const hh = Math.floor((c.minute || 0) / 60);
     const mm = Math.floor((c.minute || 0) % 60);
-    const mmdd = c.date ? String(c.date).slice(5) : todayMmDd();
     const wk = c.weekdayName || weekdayInfo().weekdayName;
-    clockEl.textContent = `第 ${c.day || 1} 天 · ${mmdd} ${wk} ${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+    clockEl.textContent = `第 ${day} 天 · 第 ${week} 周 ${wk} ${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 
     cardEl.classList.toggle("offline", !up);
     if (!up) {

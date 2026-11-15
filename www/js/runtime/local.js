@@ -244,21 +244,16 @@ export function createLocalRuntime({
     forgeWorker && forgeWorker.postMessage(msg);
   }
 
-  function localDateStr(d = new Date()) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  }
-
   function handleLife(msg) {
     switch (msg.type) {
       case "tick": {
         lastTick = msg;
         stats.ticks += 1;
         const wk = weekdayInfo();
+        const day = Math.max(1, Number(msg.day) || 1);
+        const week = Math.floor((day - 1) / 7) + 1;
         store.patch({
-          clock: { day: msg.day, minute: msg.minute, offsetMs: getOffset(), source: "device", ...wk, date: localDateStr() },
+          clock: { day: msg.day, week, minute: msg.minute, offsetMs: getOffset(), source: "device", ...wk },
           weather: msg.weather,
           phase: msg.phase,
         });
@@ -1321,16 +1316,18 @@ export function createLocalRuntime({
       const custom = (await backend.getKV("places")) || [];
       const wk = weekdayInfo();
       const band = moodBand(mood);
+      const dayNum = Math.max(1, Number(snap.day ?? 1) || 1);
+      const week = Math.floor((dayNum - 1) / 7) + 1;
       return {
         v: 1,
         ts: now(),
         seq: ++digestSeq,
         clock: {
           day: snap.day ?? 1,
+          week,
           minute: Math.round(snap.minute ?? 0),
           phase: snap.phase || "morning",
           ...wk,
-          date: localDateStr(),
         },
         world: {
           tier: store.state.tier,
