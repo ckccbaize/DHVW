@@ -1,5 +1,6 @@
 /* DHVW OLVT DOM semantic tagger & ARM adaptation controller.
-   Works on top of the upstream prebuilt Vite/Chakra frontend without touching React bundle source. */
+   Uses unique structural landmarks (textarea/attach button + #live2d-internal-wrapper)
+   so Sidebar media elements never mis-tag the main stage. */
 (function () {
   var docEl = document.documentElement;
   var params;
@@ -34,6 +35,13 @@
     if (!el || el.nodeType !== 1) return;
     if (el.getAttribute(name) !== value) {
       el.setAttribute(name, value);
+    }
+  }
+
+  function clearStaleAttr(root, selector, attr) {
+    var nodes = root.querySelectorAll(selector);
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].removeAttribute(attr);
     }
   }
 
@@ -76,155 +84,209 @@
     host.appendChild(btn);
   }
 
-  function annotateTree() {
-    var root = document.getElementById('root');
-    if (!root) return;
+  function bindBrokenBgImage(img) {
+    if (!img || img.tagName !== 'IMG') return;
+    if (!img.dataset.dhvwBound) {
+      img.dataset.dhvwBound = '1';
+      img.addEventListener('error', function () {
+        img.setAttribute('data-dhvw-broken', '1');
+      });
+      img.addEventListener('load', function () {
+        img.removeAttribute('data-dhvw-broken');
+      });
+    }
+    if (img.complete && img.naturalWidth === 0) {
+      img.setAttribute('data-dhvw-broken', '1');
+    } else if (img.naturalWidth > 0) {
+      img.removeAttribute('data-dhvw-broken');
+    }
+  }
 
-    /* 1. Background image/video -> bg-container -> main-content -> app-container -> sidebar */
-    var bgMedia = root.querySelector('img[alt="background"], video');
-    if (bgMedia) {
-      if (bgMedia.tagName === 'IMG') {
-        if (!bgMedia.dataset.dhvwBound) {
-          bgMedia.dataset.dhvwBound = '1';
-          bgMedia.addEventListener('error', function () {
-            bgMedia.setAttribute('data-dhvw-broken', '1');
-          });
-          bgMedia.addEventListener('load', function () {
-            bgMedia.removeAttribute('data-dhvw-broken');
-          });
-        }
-        if (bgMedia.complete && bgMedia.naturalWidth === 0) {
-          bgMedia.setAttribute('data-dhvw-broken', '1');
-        } else if (bgMedia.naturalWidth > 0) {
-          bgMedia.removeAttribute('data-dhvw-broken');
+  function findMainContentFromFooter(root) {
+    var attachBtn = root.querySelector('[aria-label="Attach file"]');
+    if (!attachBtn) return null;
+    /* AppContent renders: #root > appContainer > mainContent > footerWrap > ... > attachBtn */
+    var cur = attachBtn;
+    var chain = [];
+    while (cur && cur !== root) {
+      chain.push(cur);
+      cur = cur.parentElement;
+    }
+    /* chain from attachBtn upward ends with [..., footerWrap, mainContent, appContainer] */
+    if (chain.length < 4) return null;
+    var appContainer = chain[chain.length - 1];
+    var mainContent = chain[chain.length - 2];
+    var footerWrap = chain[chain.length - 3];
+    return {
+      attachBtn: attachBtn,
+      appContainer: appContainer,
+      mainContent: mainContent,
+      footerWrap: footerWrap
+    };
+  }
+
+  function annotateSidebar(sidebarOuter) {
+    if (!sidebarOuter) return;
+    setAttr(sidebarOuter, 'data-dhvw', 'sidebar-outer');
+    var sidebarInner = sidebarOuter.firstElementChild;
+    if (!sidebarInner) return;
+    setAttr(sidebarInner, 'data-dhvw', 'sidebar-inner');
+
+    var toggleBtn = sidebarInner.firstElementChild;
+    if (toggleBtn) {
+      setAttr(toggleBtn, 'data-dhvw', 'sidebar-toggle');
+      toggleBtn.setAttribute('title', '展开 / 收起侧边栏');
+      var tf = (toggleBtn.style && toggleBtn.style.transform) || '';
+      var collapsed = tf.indexOf('180deg') !== -1 || sidebarOuter.offsetWidth <= 44;
+      setAttr(sidebarOuter, 'data-dhvw-collapsed', collapsed ? 'true' : 'false');
+      docEl.setAttribute('data-dhvw-sidebar', collapsed ? 'collapsed' : 'open');
+
+      if (isArm && !didAutoCollapseSidebar && !collapsed) {
+        didAutoCollapseSidebar = true;
+        setTimeout(function () {
+          try {
+            var currentTf = (toggleBtn.style && toggleBtn.style.transform) || '';
+            if (currentTf.indexOf('180deg') === -1) {
+              toggleBtn.click();
+            }
+          } catch (e) {}
+        }, 0);
+      }
+    }
+
+    var sidebarContent = toggleBtn ? toggleBtn.nextElementSibling : null;
+    if (sidebarContent && !sidebarContent.getAttribute('role')) {
+      setAttr(sidebarContent, 'data-dhvw', 'sidebar-content');
+      var scChildren = sidebarContent.children;
+      if (scChildren.length >= 1) {
+        setAttr(scChildren[0], 'data-dhvw', 'sidebar-header');
+        var headerBtns = scChildren[0].querySelectorAll('button');
+        var titles = ['系统设置', '群组管理', '历史对话', '新建对话', '显示模式'];
+        for (var b = 0; b < headerBtns.length && b < titles.length; b++) {
+          if (!headerBtns[b].getAttribute('title')) {
+            headerBtns[b].setAttribute('title', titles[b]);
+          }
+          if (b === 3) setAttr(headerBtns[b], 'data-dhvw', 'new-chat-btn');
         }
       }
-      var bgContainer = bgMedia.parentElement;
-      setAttr(bgContainer, 'data-dhvw', 'bg-container');
+      if (scChildren.length >= 2) {
+        setAttr(scChildren[1], 'data-dhvw', 'chat-history-panel');
+      }
+      if (scChildren.length >= 3) {
+        setAttr(scChildren[2], 'data-dhvw', 'bottom-tab');
+      }
+    }
 
-      var mainContent = bgContainer && bgContainer.parentElement;
-      if (mainContent) {
-        setAttr(mainContent, 'data-dhvw', 'main-content');
-        var appContainer = mainContent.parentElement;
-        if (appContainer) {
-          setAttr(appContainer, 'data-dhvw', 'app-container');
-          var live2dStage = appContainer.previousElementSibling;
-          if (live2dStage && live2dStage.querySelector('#canvas, canvas')) {
-            setAttr(live2dStage, 'data-dhvw', 'live2d-stage');
-          }
-        }
-        var sidebarOuter = mainContent.previousElementSibling;
-        if (sidebarOuter) {
-          setAttr(sidebarOuter, 'data-dhvw', 'sidebar-outer');
-          var sidebarInner = sidebarOuter.firstElementChild;
-          if (sidebarInner) {
-            setAttr(sidebarInner, 'data-dhvw', 'sidebar-inner');
-            var toggleBtn = sidebarInner.firstElementChild;
-            if (toggleBtn) {
-              setAttr(toggleBtn, 'data-dhvw', 'sidebar-toggle');
-              var tf = (toggleBtn.style && toggleBtn.style.transform) || '';
-              var collapsed = tf.indexOf('180deg') !== -1 || sidebarOuter.offsetWidth <= 40;
-              setAttr(sidebarOuter, 'data-dhvw-collapsed', collapsed ? 'true' : 'false');
-              docEl.setAttribute('data-dhvw-sidebar', collapsed ? 'collapsed' : 'open');
+    var modeMenuBtn = sidebarInner.querySelector('[aria-label="Mode Menu"]');
+    if (modeMenuBtn) {
+      setAttr(modeMenuBtn, 'data-dhvw', 'mode-menu');
+    }
+  }
 
-              if (isArm && !didAutoCollapseSidebar && !collapsed) {
-                didAutoCollapseSidebar = true;
-                setTimeout(function () {
-                  try {
-                    var currentTf = (toggleBtn.style && toggleBtn.style.transform) || '';
-                    if (currentTf.indexOf('180deg') === -1) {
-                      toggleBtn.click();
-                    }
-                  } catch (e) {}
-                }, 0);
-              }
-            }
-            var modeMenuBtn = sidebarInner.querySelector('[aria-label="Mode Menu"]');
-            if (modeMenuBtn) {
-              setAttr(modeMenuBtn, 'data-dhvw', 'mode-menu');
-            }
-          }
-        }
+  function annotateFooter(footerWrap, attachBtn) {
+    setAttr(footerWrap, 'data-dhvw', 'footer-wrap');
+    setAttr(attachBtn, 'data-dhvw', 'attach-btn');
 
-        /* 2. Children of mainContent: [bgContainer, wsStatusWrap, subtitleWrap, footerWrap] */
-        var children = mainContent.children;
-        for (var i = 0; i < children.length; i++) {
-          var child = children[i];
-          if (child === bgContainer) continue;
-          var ta = child.querySelector('textarea');
-          if (ta) {
-            setAttr(child, 'data-dhvw', 'footer-wrap');
-            var footerCard = child.firstElementChild;
-            if (footerCard) {
-              setAttr(footerCard, 'data-dhvw', 'footer-card');
-              var fToggle = footerCard.firstElementChild;
-              if (fToggle) {
-                setAttr(fToggle, 'data-dhvw', 'footer-toggle');
-                var fTf = (fToggle.style && fToggle.style.transform) || '';
-                var fCollapsed = fTf.indexOf('180deg') !== -1;
-                setAttr(child, 'data-dhvw-collapsed', fCollapsed ? 'true' : 'false');
-                setAttr(footerCard, 'data-dhvw-collapsed', fCollapsed ? 'true' : 'false');
-              }
-              var footerBody = fToggle ? fToggle.nextElementSibling : null;
-              if (footerBody) {
-                setAttr(footerBody, 'data-dhvw', 'footer-body');
-                var footerRow = footerBody.firstElementChild;
-                if (footerRow) {
-                  setAttr(footerRow, 'data-dhvw', 'footer-row');
-                  var leftGroup = footerRow.firstElementChild;
-                  if (leftGroup) {
-                    setAttr(leftGroup, 'data-dhvw', 'footer-actions-col');
-                    var aiStateWrap = leftGroup.firstElementChild;
-                    if (aiStateWrap && aiStateWrap.firstElementChild) {
-                      setAttr(aiStateWrap.firstElementChild, 'data-dhvw', 'ai-state');
-                    }
-                  }
-                }
-              }
+    var footerCard = footerWrap.firstElementChild;
+    if (footerCard) {
+      setAttr(footerCard, 'data-dhvw', 'footer-card');
+      var fToggle = footerCard.firstElementChild;
+      if (fToggle) {
+        setAttr(fToggle, 'data-dhvw', 'footer-toggle');
+        fToggle.setAttribute('title', '收起 / 展开输入栏');
+        var fTf = (fToggle.style && fToggle.style.transform) || '';
+        var fCollapsed = fTf.indexOf('180deg') !== -1;
+        setAttr(footerWrap, 'data-dhvw-collapsed', fCollapsed ? 'true' : 'false');
+        setAttr(footerCard, 'data-dhvw-collapsed', fCollapsed ? 'true' : 'false');
+      }
+      var footerBody = fToggle ? fToggle.nextElementSibling : null;
+      if (footerBody) {
+        setAttr(footerBody, 'data-dhvw', 'footer-body');
+        var footerRow = footerBody.firstElementChild;
+        if (footerRow) {
+          setAttr(footerRow, 'data-dhvw', 'footer-row');
+          var leftGroup = footerRow.firstElementChild;
+          if (leftGroup) {
+            setAttr(leftGroup, 'data-dhvw', 'footer-actions-col');
+            var aiStateWrap = leftGroup.firstElementChild;
+            if (aiStateWrap && aiStateWrap.firstElementChild) {
+              setAttr(aiStateWrap.firstElementChild, 'data-dhvw', 'ai-state');
             }
-            var handBtn = child.querySelector('[aria-label="Raise hand"]');
-            if (handBtn) {
-              setAttr(handBtn, 'data-dhvw', 'hand-btn');
-              if (handBtn.previousElementSibling) {
-                setAttr(handBtn.previousElementSibling, 'data-dhvw', 'mic-btn');
-              }
-            }
-            var attachBtn = child.querySelector('[aria-label="Attach file"]');
-            if (attachBtn) {
-              setAttr(attachBtn, 'data-dhvw', 'attach-btn');
-            }
-            var inputGroup = ta.parentElement && ta.parentElement.parentElement;
-            if (inputGroup) {
-              setAttr(inputGroup, 'data-dhvw', 'input-group');
-            }
-            ensureSendButton(ta);
-            continue;
-          }
-
-          /* WebSocket status wrapper sits near top-left (i === 1) before subtitleWrap */
-          if (i === 1 && !child.getAttribute('data-dhvw')) {
-            setAttr(child, 'data-dhvw', 'ws-status-wrap');
-            if (child.firstElementChild) {
-              setAttr(child.firstElementChild, 'data-dhvw', 'ws-status');
-            }
-            continue;
-          }
-
-          if (i === 2 && !child.getAttribute('data-dhvw')) {
-            setAttr(child, 'data-dhvw', 'subtitle-wrap');
-          }
-          if (child.getAttribute('data-dhvw') === 'subtitle-wrap' && child.firstElementChild) {
-            setAttr(child.firstElementChild, 'data-dhvw', 'subtitle-card');
           }
         }
       }
     }
 
-    var live2dCanvas = document.getElementById('canvas');
-    if (live2dCanvas) {
-      var stageWrap = live2dCanvas.closest('#root > div');
+    var handBtn = footerWrap.querySelector('[aria-label="Raise hand"]');
+    if (handBtn) {
+      setAttr(handBtn, 'data-dhvw', 'hand-btn');
+      handBtn.setAttribute('title', '举手 / 打断');
+      if (handBtn.previousElementSibling) {
+        setAttr(handBtn.previousElementSibling, 'data-dhvw', 'mic-btn');
+        handBtn.previousElementSibling.setAttribute('title', '麦克风开关');
+      }
+    }
+
+    var ta = footerWrap.querySelector('textarea');
+    if (ta) {
+      var inputGroup = ta.parentElement && ta.parentElement.parentElement;
+      if (inputGroup) {
+        setAttr(inputGroup, 'data-dhvw', 'input-group');
+      }
+      ensureSendButton(ta);
+    }
+  }
+
+  function annotateTree() {
+    var root = document.getElementById('root');
+    if (!root) return;
+
+    var live2dWrap = root.querySelector('#live2d-internal-wrapper, #canvas');
+    if (live2dWrap) {
+      var stageWrap = live2dWrap.closest('#root > *');
       if (stageWrap) {
         setAttr(stageWrap, 'data-dhvw', 'live2d-stage');
+      }
+    }
+
+    var found = findMainContentFromFooter(root);
+    if (!found) return;
+
+    var mainContent = found.mainContent;
+    var appContainer = found.appContainer;
+    var footerWrap = found.footerWrap;
+
+    setAttr(appContainer, 'data-dhvw', 'app-container');
+    setAttr(mainContent, 'data-dhvw', 'main-content');
+
+    var sidebarOuter = mainContent.previousElementSibling;
+    annotateSidebar(sidebarOuter);
+
+    var children = mainContent.children;
+    for (var i = 0; i < children.length; i++) {
+      var child = children[i];
+      if (child === footerWrap) {
+        annotateFooter(footerWrap, found.attachBtn);
+        continue;
+      }
+      if (i === 0) {
+        setAttr(child, 'data-dhvw', 'bg-container');
+        var bgImg = child.querySelector('img[alt="background"]');
+        if (bgImg) bindBrokenBgImage(bgImg);
+        continue;
+      }
+      if (i === 1) {
+        setAttr(child, 'data-dhvw', 'ws-status-wrap');
+        if (child.firstElementChild) {
+          setAttr(child.firstElementChild, 'data-dhvw', 'ws-status');
+        }
+        continue;
+      }
+      if (i === 2) {
+        setAttr(child, 'data-dhvw', 'subtitle-wrap');
+        if (child.firstElementChild) {
+          setAttr(child.firstElementChild, 'data-dhvw', 'subtitle-card');
+        }
       }
     }
   }
@@ -239,7 +301,17 @@
     });
   }
 
+  function ensureStylesheetLast() {
+    var head = document.head;
+    if (!head) return;
+    var celLink = head.querySelector('link[href*="dhvw-cel.css"]');
+    if (celLink && head.lastElementChild !== celLink) {
+      head.appendChild(celLink);
+    }
+  }
+
   function startObserver() {
+    ensureStylesheetLast();
     annotateTree();
     var target = document.getElementById('root') || document.body;
     if (!target || typeof MutationObserver === 'undefined') return;

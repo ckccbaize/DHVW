@@ -37,7 +37,7 @@ html.dhvw-cel *::after {
   -webkit-backdrop-filter: none !important;
 }
 
-/* ---------- 布局骨架 ---------- */
+/* ---------- 主布局容器 ---------- */
 html.dhvw-cel [data-dhvw="app-container"] {
   display: flex !important;
   flex-direction: row !important;
@@ -71,11 +71,9 @@ html.dhvw-cel [data-dhvw="bg-container"] {
 }
 
 html.dhvw-cel [data-dhvw="bg-container"] img[data-dhvw-broken="1"] {
-  opacity: 0 !important;
-  pointer-events: none !important;
+  display: none !important;
 }
 
-/* 确保在宽屏/窄屏与 ARM 嵌入下 Live2D 居中铺展且不被压扁 */
 html.dhvw-cel [data-dhvw="live2d-stage"] {
   top: 0 !important;
   height: 100% !important;
@@ -102,7 +100,7 @@ html.dhvw-cel:not(.dhvw-arm)[data-dhvw-sidebar="open"] [data-dhvw="live2d-stage"
   }
 }
 
-/* ---------- 侧边栏（平涂抽屉 + 3px 墨线） ---------- */
+/* ---------- 侧边栏（统一赛璐璐抽屉） ---------- */
 html.dhvw-cel [data-dhvw="sidebar-outer"] {
   position: relative !important;
   height: 100% !important;
@@ -146,18 +144,21 @@ html.dhvw-arm [data-dhvw="sidebar-outer"][data-dhvw-collapsed="false"] {
 
 html.dhvw-cel [data-dhvw="sidebar-inner"] {
   background: var(--color-cel-white) !important;
+  color: var(--color-ink) !important;
   width: 100% !important;
   height: 100% !important;
   transform: none !important;
   transition: none !important;
   padding-right: 34px !important;
+  padding-bottom: 12px !important;
+  overflow: hidden !important;
 }
 
 html.dhvw-cel [data-dhvw="sidebar-outer"][data-dhvw-collapsed="true"] [data-dhvw="sidebar-inner"] {
   padding-right: 0 !important;
 }
 
-/* 侧栏折叠开关把手：清晰的高对比度日落黄竖条 */
+/* 侧栏折叠开关把手：高对比度日落黄竖条 + 粗墨线箭头 */
 html.dhvw-cel [data-dhvw="sidebar-toggle"] {
   position: absolute !important;
   right: 0 !important;
@@ -167,13 +168,17 @@ html.dhvw-cel [data-dhvw="sidebar-toggle"] {
   background: var(--color-sunset) !important;
   color: var(--color-ink) !important;
   border-left: var(--line) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   transition: background var(--ease-cel), color var(--ease-cel) !important;
   z-index: 5 !important;
+  cursor: pointer !important;
 }
 
 html.dhvw-cel [data-dhvw="sidebar-outer"][data-dhvw-collapsed="true"] [data-dhvw="sidebar-toggle"] {
   border-left: none !important;
-  background: var(--color-cel-white) !important;
+  background: var(--color-sunset) !important;
 }
 
 html.dhvw-cel [data-dhvw="sidebar-toggle"]:hover {
@@ -182,18 +187,136 @@ html.dhvw-cel [data-dhvw="sidebar-toggle"]:hover {
 }
 
 html.dhvw-cel [data-dhvw="sidebar-toggle"] svg {
-  width: 20px !important;
-  height: 20px !important;
+  width: 22px !important;
+  height: 22px !important;
+  stroke: currentColor !important;
   stroke-width: 3px !important;
 }
 
-/* ARM 嵌入式视口中隐藏 Electron 专属窗口/桌宠切换菜单 */
+/* 侧栏内部结构：Header + ChatHistory(flex:1) + BottomTab */
+html.dhvw-cel [data-dhvw="sidebar-content"] {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  gap: 10px !important;
+  padding: 0 !important;
+  background: var(--color-cel-white) !important;
+  overflow: hidden !important;
+}
+
+html.dhvw-cel [data-dhvw="sidebar-header"] {
+  background: var(--color-cel-white) !important;
+  border-bottom: var(--line) !important;
+  padding: 10px 12px !important;
+  flex-shrink: 0 !important;
+}
+
+html.dhvw-cel [data-dhvw="sidebar-header"] > div {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  align-items: center !important;
+}
+
+html.dhvw-cel [data-dhvw="sidebar-header"] button {
+  min-width: 40px !important;
+  min-height: 40px !important;
+  padding: 0 10px !important;
+  background: var(--color-cel-white) !important;
+  color: var(--color-ink) !important;
+  border: var(--line) !important;
+  box-shadow: var(--shadow-hard-sm) !important;
+}
+
+html.dhvw-cel [data-dhvw="sidebar-header"] [data-dhvw="new-chat-btn"] {
+  background: var(--color-red) !important;
+  color: var(--color-cel-white) !important;
+}
+
+html.dhvw-cel [data-dhvw="sidebar-header"] button:hover {
+  background: var(--color-sunset) !important;
+  color: var(--color-ink) !important;
+}
+
+html.dhvw-cel [data-dhvw="sidebar-header"] [data-dhvw="new-chat-btn"]:hover {
+  background: var(--color-red-hover) !important;
+  color: var(--color-cel-white) !important;
+}
+
+html.dhvw-cel [data-dhvw="chat-history-panel"] {
+  flex: 1 1 auto !important;
+  min-height: 180px !important;
+  height: auto !important;
+  background: var(--color-cel-white) !important;
+  padding: 0 12px 4px !important;
+  overflow: hidden !important;
+}
+
+html.dhvw-cel [data-dhvw="chat-history-panel"] > div,
+html.dhvw-cel [data-dhvw="chat-history-panel"] .cs-main-container,
+html.dhvw-cel [data-dhvw="chat-history-panel"] .cs-chat-container {
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+}
+
+html.dhvw-cel [data-dhvw="chat-history-panel"] * {
+  color: var(--color-ink);
+}
+
+html.dhvw-cel [data-dhvw="bottom-tab"] {
+  width: 100% !important;
+  padding: 10px 12px 8px !important;
+  border-top: var(--line) !important;
+  background: var(--color-cel-white) !important;
+  flex-shrink: 0 !important;
+}
+
+html.dhvw-cel [data-dhvw="bottom-tab"] [role="tablist"] {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
+  border: none !important;
+}
+
+html.dhvw-cel [data-dhvw="bottom-tab"] [role="tabpanel"] {
+  min-height: 0 !important;
+  padding: 8px 0 0 !important;
+}
+
+html.dhvw-cel [data-dhvw="bottom-tab"] [role="tabpanel"] > div {
+  width: 100% !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+}
+
+/* 修复暗色摄像头/屏幕/浏览器占位框 -> 赛璐璐亮框 */
+html.dhvw-cel [data-dhvw="bottom-tab"] [role="tabpanel"] p,
+html.dhvw-cel [data-dhvw="bottom-tab"] [role="tabpanel"] svg {
+  color: var(--color-ink) !important;
+}
+
+html.dhvw-cel [data-dhvw="bottom-tab"] .chakra-tooltip__trigger,
+html.dhvw-cel [data-dhvw="bottom-tab"] [role="tabpanel"] > div > div:last-child {
+  height: 120px !important;
+  min-height: 120px !important;
+  background: var(--color-cel-white) !important;
+  border: var(--line) !important;
+  border-radius: 0 !important;
+  box-shadow: var(--shadow-hard-sm) !important;
+  color: var(--color-ink) !important;
+}
+
+/* ARM 嵌入式视口中隐藏 Electron 专属桌面/桌宠模式切换按钮 */
 html.dhvw-arm [data-dhvw="mode-menu"] {
   display: none !important;
 }
 
 /* ---------- 状态徽标（999px 唯一圆角胶囊） ---------- */
 html.dhvw-cel [data-dhvw="ws-status-wrap"] {
+  position: absolute !important;
   top: 14px !important;
   left: 14px !important;
   z-index: 20 !important;
@@ -245,16 +368,22 @@ html.dhvw-cel [data-dhvw="ai-state"] span {
   text-transform: uppercase !important;
 }
 
-/* ---------- 字幕气泡 ---------- */
+/* ---------- 字幕对话盒 ---------- */
 html.dhvw-cel [data-dhvw="subtitle-wrap"] {
-  width: min(680px, calc(100% - 28px)) !important;
-  bottom: 126px !important;
+  position: absolute !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: min(680px, calc(100% - 32px)) !important;
+  bottom: 148px !important;
   z-index: 20 !important;
+  display: flex !important;
+  justify-content: center !important;
+  pointer-events: none !important;
   transition: bottom var(--ease-cel) !important;
 }
 
 html.dhvw-cel:has([data-dhvw="footer-wrap"][data-dhvw-collapsed="true"]) [data-dhvw="subtitle-wrap"] {
-  bottom: 84px !important;
+  bottom: 68px !important;
 }
 
 html.dhvw-cel [data-dhvw="subtitle-card"] {
@@ -265,6 +394,7 @@ html.dhvw-cel [data-dhvw="subtitle-card"] {
   box-shadow: var(--shadow-hard) !important;
   padding: 12px 18px !important;
   max-width: 100% !important;
+  pointer-events: auto !important;
 }
 
 html.dhvw-cel [data-dhvw="subtitle-card"] p,
@@ -276,7 +406,7 @@ html.dhvw-cel [data-dhvw="subtitle-card"] span {
   text-shadow: none !important;
 }
 
-/* ---------- 底部交互栏（适配 ARM 开关安全区） ---------- */
+/* ---------- 底部交互栏（适配 ARM 右下角开关安全区） ---------- */
 html.dhvw-cel [data-dhvw="footer-wrap"] {
   position: relative !important;
   width: 100% !important;
@@ -286,6 +416,7 @@ html.dhvw-cel [data-dhvw="footer-wrap"] {
   z-index: 25 !important;
   transition: transform var(--ease-cel) !important;
   overflow: visible !important;
+  flex-shrink: 0 !important;
 }
 
 html.dhvw-cel [data-dhvw="footer-card"] {
@@ -305,15 +436,19 @@ html.dhvw-cel [data-dhvw="footer-card"][data-dhvw-collapsed="true"] {
 }
 
 html.dhvw-cel [data-dhvw="footer-toggle"] {
-  height: 28px !important;
-  width: 96px !important;
-  margin: 0 auto 6px !important;
-  background: var(--color-cel-white) !important;
+  height: 26px !important;
+  width: 88px !important;
+  margin: 0 auto 8px !important;
+  background: var(--color-sunset) !important;
   color: var(--color-ink) !important;
   border: var(--line) !important;
   border-top: none !important;
   border-radius: 0 !important;
   box-shadow: 3px 3px 0 var(--color-ink) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
   transition: background var(--ease-cel), transform var(--ease-cel) !important;
 }
 
@@ -322,17 +457,22 @@ html.dhvw-cel [data-dhvw="footer-card"][data-dhvw-collapsed="true"] [data-dhvw="
 }
 
 html.dhvw-cel [data-dhvw="footer-toggle"]:hover {
-  background: var(--color-sunset) !important;
-  color: var(--color-ink) !important;
+  background: var(--color-red) !important;
+  color: var(--color-cel-white) !important;
+}
+
+html.dhvw-cel [data-dhvw="footer-toggle"] svg {
+  stroke: currentColor !important;
+  stroke-width: 3px !important;
 }
 
 html.dhvw-cel [data-dhvw="footer-body"] {
   padding: 0 14px !important;
 }
 
-/* ARM 模式为右下角 #switch 保留 192px 安全距离，避免任何按钮或输入框被遮挡 */
+/* ARM 模式为右下角 #switch 保留 204px 安全边距，彻底杜绝遮挡 */
 html.dhvw-arm [data-dhvw="footer-body"] {
-  padding-right: 196px !important;
+  padding-right: 204px !important;
 }
 
 html.dhvw-cel [data-dhvw="footer-row"] {
@@ -387,11 +527,6 @@ html.dhvw-cel [data-scope="drawer"] button {
   overflow: hidden;
 }
 
-html.dhvw-cel [data-dhvw="sidebar-inner"] button {
-  background: var(--color-cel-white) !important;
-  color: var(--color-ink) !important;
-}
-
 html.dhvw-cel [data-dhvw="sidebar-inner"] button:hover,
 html.dhvw-cel [data-dhvw="mic-btn"]:hover,
 html.dhvw-cel [data-dhvw="hand-btn"]:hover,
@@ -438,10 +573,11 @@ html.dhvw-cel [data-dhvw="attach-btn"] {
 html.dhvw-cel [data-dhvw="attach-btn"]:hover {
   color: var(--color-red) !important;
   transform: none !important;
+  box-shadow: none !important;
 }
 
 html.dhvw-cel [data-dhvw="input-group"] textarea {
-  background: var(--color-cel-white) !important;
+  background: #ffffff !important;
   color: var(--color-ink) !important;
   border: var(--line) !important;
   border-radius: 0 !important;
@@ -511,7 +647,6 @@ html.dhvw-cel .cs-message-list {
 html.dhvw-cel .cs-chat-container {
   border: var(--line) !important;
   box-shadow: var(--shadow-hard-sm) !important;
-  margin: 0 8px !important;
 }
 
 html.dhvw-cel .cs-message__content {
@@ -549,12 +684,15 @@ html.dhvw-cel [data-scope="tabs"] [role="tab"] {
   background: var(--color-cel-white) !important;
   color: var(--color-ink) !important;
   font-weight: 900 !important;
+  font-size: 13px !important;
+  padding: 5px 8px !important;
 }
 
 html.dhvw-cel [data-scope="tabs"] [role="tab"][aria-selected="true"],
 html.dhvw-cel [data-scope="tabs"] [role="tab"][data-selected] {
   background: var(--color-sunset) !important;
   color: var(--color-ink) !important;
+  box-shadow: var(--shadow-hard-sm) !important;
 }
 
 html.dhvw-cel [role="dialog"],
@@ -636,7 +774,7 @@ html.dhvw-cel [data-scope="toast"] [data-part="root"] {
   }
 
   html.dhvw-cel [data-dhvw="subtitle-wrap"] {
-    bottom: 162px !important;
+    bottom: 178px !important;
   }
 }
 

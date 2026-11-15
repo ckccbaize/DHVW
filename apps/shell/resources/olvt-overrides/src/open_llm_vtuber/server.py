@@ -32,8 +32,9 @@ DHVW_BOOTSTRAP_SCRIPT = """<script>
   } catch (e) {}
 })();
 </script>
-<link rel="stylesheet" href="./dhvw-cel.css" />
 <script src="./dhvw-arm.js" defer></script>"""
+
+DHVW_STYLE_TAG = '<link rel="stylesheet" href="./dhvw-cel.css" />'
 
 
 class CORSStaticFiles(StarletteStaticFiles):
@@ -63,8 +64,10 @@ class FrontendStaticFiles(CORSStaticFiles):
             if os.path.isfile(idx):
                 with open(idx, "r", encoding="utf-8") as f:
                     html = f.read()
-                if "dhvw-cel.css" not in html:
+                if "localStorage.setItem('wsUrl'" not in html:
                     html = html.replace("<head>", "<head>\n" + DHVW_BOOTSTRAP_SCRIPT, 1)
+                if "dhvw-cel.css" not in html:
+                    html = html.replace("</head>", DHVW_STYLE_TAG + "\n</head>", 1)
                 return HTMLResponse(
                     html,
                     headers={
