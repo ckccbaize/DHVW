@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import sqlite3
 import threading
 import time
@@ -31,6 +32,9 @@ def _index_text(text: str) -> str:
 
 def _normalize(text: str) -> str:
     return " ".join(text.split())
+
+
+_UPDATE_CUES = re.compile(r"(改口|不再|换成|改为|其实更|现在更|讨厌了|不喜欢了)")
 
 
 class Store:
@@ -89,12 +93,16 @@ class Store:
               conf real,
               t integer,
               updated_at integer,
-              src text
+              src text,
+              superseded_by text
             );
             create unique index if not exists mem_norm on mem_meta(norm);
             create virtual table if not exists mem_fts using fts5(idx);
             """
         )
+        cols = {r["name"] for r in self._memory.execute("pragma table_info(mem_meta)")}
+        if "superseded_by" not in cols:
+            self._memory.execute("alter table mem_meta add column superseded_by text")
         if self._vec_ready:
             self._memory.execute(f"create virtual table if not exists mem_vec using vec0(embedding float[{DIM}])")
         self._rebuild_fts_if_needed()
@@ -310,13 +318,30 @@ class Store:
                 )
                 rowid = int(cur.lastrowid)
                 self._memory.execute("insert into mem_fts(rowid, idx) values(?,?)", (rowid, _index_text(text)))
-                new_rows.append((rowid, text))
+                supersedes_id = str(fact.get("supersedes") or "").strip()
+                if supersedes_id:
+                    self._memory.execute("update mem_meta set superseded_by=? where id=?", (fact_id, supersedes_id))
+                new_rows.append((rowid, text, fact_id, not bool(supersedes_id)))
                 accepted.append(fact_id)
         if new_rows and self._vec_ready and self.embedder.available:
-            vecs = self.embedder.encode([t for _, t in new_rows])
+            vecs = self.embedder.encode([t for _, t, _, _ in new_rows])
             if len(vecs) == len(new_rows):
                 with self._lock, self._memory:
-                    for (rowid, _), vec in zip(new_rows, vecs):
+                    for (rowid, text, fact_id, auto_super), vec in zip(new_rows, vecs):
+                        if auto_super:
+                            has_cue = bool(_UPDATE_CUES.search(text))
+                            max_dist = 0.72 if has_cue else 0.42
+                            near = self._memory.execute(
+                                "select rowid, distance from mem_vec where embedding match ? order by distance limit 3",
+                                (self._serialize_vec(vec),),
+                            ).fetchall()
+                            for nr in near:
+                                nrowid, dist = int(nr["rowid"]), float(nr["distance"])
+                                if nrowid != rowid and dist <= max_dist:
+                                    self._memory.execute(
+                                        "update mem_meta set superseded_by=? where rowid=? and (superseded_by is null or superseded_by='')",
+                                        (fact_id, nrowid),
+                                    )
                         self._memory.execute(
                             "insert or replace into mem_vec(rowid, embedding) values(?,?)",
                             (rowid, self._serialize_vec(vec)),
@@ -364,7 +389,8 @@ class Store:
                 placeholders = ",".join("?" for _ in all_ids)
                 with self._lock:
                     meta_rows = self._memory.execute(
-                        f"select rowid, id, text, tier, t from mem_meta where rowid in ({placeholders})",
+                        f"select rowid, id, text, tier, t from mem_meta"
+                        f" where rowid in ({placeholders}) and (superseded_by is null or superseded_by='')",
                         all_ids,
                     ).fetchall()
                 now_ms = int(time.time() * 1000)
@@ -417,7 +443,8 @@ class Store:
         """取核心偏好/禁忌（L0）用于显现常驻上下文。"""
         with self._lock:
             rows = self._memory.execute(
-                "select id, text, tier, t from mem_meta where tier='L0' order by updated_at desc limit ?",
+                "select id, text, tier, t from mem_meta"
+                " where tier='L0' and (superseded_by is null or superseded_by='') order by updated_at desc limit ?",
                 (int(limit),),
             ).fetchall()
         return [{"id": r["id"], "text": r["text"], "tier": r["tier"], "ts": int(r["t"] or 0)} for r in rows]
