@@ -586,9 +586,12 @@ async function boot() {
       if (!rel || rel.includes("..")) return false;
       const res = await fetch(assetUrl(rel), { cache: "no-store" });
       if (!res.ok) return false;
+      const aliasBuilt = aliasId && rel.endsWith(".built.json") ? res.clone() : null;
       for (let i = 0; i < targets.length; i += 1) {
         await cache.put(`assets/scenes/${targets[i]}/${rel}`, i === targets.length - 1 ? res : res.clone());
       }
+      // loadScene(placeId) 固定找 <placeId>.built.json；场景包文件名是 job id，需要别名副本。
+      if (aliasBuilt) await cache.put(`assets/scenes/${aliasId}/${aliasId}.built.json`, aliasBuilt);
     }
     return true;
   }

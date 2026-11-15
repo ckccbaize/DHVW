@@ -481,6 +481,7 @@ export function createLocalRuntime({
     if (!place) return { ok: false, error: `未知地点 ${id}` };
     const request = {
       id: `scene-${id}-${day || now().toString(36)}`,
+      day: day || 0,
       reason,
       mode: "new",
       placeId: id,
@@ -1040,7 +1041,13 @@ export function createLocalRuntime({
       lastPlotDay = (await backend.getKV("last_plot_day")) ?? -1;
       dailyPlots = (await backend.getKV("daily_plots")) || {};
       sceneRequests = (await backend.getKV("scene_requests")) || [];
-      // 同一地点只保留一条 pending/ready，避免旧计划批量补请求时重复生成。
+      // 丢掉过去日期的 pending，避免补请求旧计划；同一地点只保留一条 pending/ready。
+      const currentDay = lastSnapshot?.day ?? 1;
+      sceneRequests = sceneRequests.filter((r) => {
+        if (!r || !r.placeId) return false;
+        const day = Number.isFinite(r.day) ? r.day : Number(String(r.id || "").match(/-(\d+)$/)?.[1]);
+        return !(r.status === "pending" && Number.isFinite(day) && day < currentDay);
+      });
       const seenRequests = new Set();
       sceneRequests = sceneRequests.filter((r) => {
         if (!r || !r.placeId) return false;
