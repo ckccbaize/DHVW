@@ -310,7 +310,11 @@ export class Gateway {
 
   private json(res: http.ServerResponse, code: number, body: unknown): void {
     const text = JSON.stringify(body)
-    res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
+    res.writeHead(code, {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
+      'access-control-allow-origin': '*',
+    })
     res.end(text)
   }
 
@@ -402,7 +406,12 @@ export class Gateway {
         headers: { ...req.headers, host: `127.0.0.1:${target.port}`, 'x-forwarded-proto': 'https' },
       },
       (up) => {
-        res.writeHead(up.statusCode ?? 502, up.headers)
+        res.writeHead(up.statusCode ?? 502, {
+          ...up.headers,
+          'access-control-allow-origin': '*',
+          'access-control-allow-headers': 'content-type, x-dhvw-token',
+          'access-control-allow-methods': 'GET, POST, OPTIONS',
+        })
         up.pipe(res)
       },
     )
