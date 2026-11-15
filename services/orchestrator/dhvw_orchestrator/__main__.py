@@ -266,6 +266,8 @@ class Orchestrator:
             "job": job_id,
             "basePath": f"/dhvw/scenes/{job_id}/dist",
             "manifestUrl": f"/dhvw/scenes/{job_id}/dist/manifest.json",
+            "gatewayBasePath": f"/orchestrator/dhvw/scenes/{job_id}/dist",
+            "gatewayManifestUrl": f"/orchestrator/dhvw/scenes/{job_id}/dist/manifest.json",
             "name": meta["name"],
             "kind": meta["kind"],
             "files": len(rels),
