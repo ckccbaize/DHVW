@@ -1,6 +1,13 @@
 // HUD：角标 / 连接点 / 时钟 / Agent 卡 / 端侧产出计数（§10.4）。
 // 角标是"世界档位"唯一可见痕迹；主机不可达时 Agent 卡整卡变灰。
 
+import { weekdayInfo } from "../core/clock.js";
+
+function todayMmDd() {
+  const d = new Date();
+  return `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export function createHud({ root, store }) {
   const tierEl = root.querySelector("#tierBadge");
   const dotEl = root.querySelector("#connDot");
@@ -26,7 +33,9 @@ export function createHud({ root, store }) {
     const c = state.clock || {};
     const hh = Math.floor((c.minute || 0) / 60);
     const mm = Math.floor((c.minute || 0) % 60);
-    clockEl.textContent = `第 ${c.day || 1} 天 ${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+    const mmdd = c.date ? String(c.date).slice(5) : todayMmDd();
+    const wk = c.weekdayName || weekdayInfo().weekdayName;
+    clockEl.textContent = `第 ${c.day || 1} 天 · ${mmdd} ${wk} ${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 
     cardEl.classList.toggle("offline", !up);
     if (!up) {

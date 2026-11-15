@@ -6,6 +6,7 @@ export function normalizePresentUrl(raw) {
   try {
     const u = new URL(String(raw));
     if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    if (u.search) return u.href;
     return u.href.replace(/\/+$/, "");
   } catch {
     return null;
@@ -13,17 +14,23 @@ export function normalizePresentUrl(raw) {
 }
 
 export async function probePresent(url, { fetchImpl = globalThis.fetch, timeoutMs = 2000 } = {}) {
-  const base = normalizePresentUrl(url);
-  if (!base) return { ok: false, reason: "bad_url" };
-  const origin = new URL(base).origin;
-  const candidates = [`${base}/health`, `${origin}/health`];
+  const normalized = normalizePresentUrl(url);
+  if (!normalized) return { ok: false, reason: "bad_url" };
+  const parsed = new URL(normalized);
+  const pathClean = parsed.pathname.replace(/\/+$/, "");
+  const search = parsed.search || "";
+  const candidates = [
+    `${parsed.origin}${pathClean}/health${search}`,
+    `${parsed.origin}${pathClean}/${search}`,
+    `${parsed.origin}/health${search}`,
+  ];
   let last = { ok: false, reason: "unreachable" };
-  for (const url of candidates) {
+  for (const target of [...new Set(candidates)]) {
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), timeoutMs);
     try {
-      const res = await fetchImpl(url, { signal: ac.signal, cache: "no-store" });
-      if (res && res.ok) return { ok: true, status: res.status, url };
+      const res = await fetchImpl(target, { signal: ac.signal, cache: "no-store" });
+      if (res && res.ok) return { ok: true, status: res.status, url: target };
       last = { ok: false, status: res ? res.status : 0 };
     } catch (err) {
       last = { ok: false, reason: err?.name === "AbortError" ? "timeout" : "unreachable" };

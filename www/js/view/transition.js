@@ -1,7 +1,7 @@
 // 数码方块换场过渡（总观 ⇄ 显现）：在 PC 启动/加载 OLVT 期间覆盖屏幕并在就绪后消散。
 
-const PALETTE = ["#0b0f18", "#101624", "#151d2e", "#0e131e"];
-const EDGE_COLOR = "#4fd1c5";
+const PALETTE = ["#0d1526", "#132038", "#182b49", "#101b30"];
+const EDGE_COLOR = "#6fffe9";
 
 function hashCell(x, y) {
   let h = (x * 374761393 + y * 668265263) >>> 0;
@@ -50,23 +50,29 @@ export function createBlockTransition({ root, canvas, label }) {
 
   function draw(now, p) {
     ctx.clearRect(0, 0, width, height);
-    const band = 0.1;
+    if (p > 0.02) {
+      ctx.fillStyle = "rgba(7, 10, 18, 0.35)";
+      ctx.fillRect(0, 0, width, height);
+    }
+    const band = 0.14;
+    const gap = 2;
+    const sz = blockSize - gap;
     for (let i = 0; i < cells.length; i++) {
       const c = cells[i];
       if (p < c.t) continue;
       const isEdge = p < 1 && p - c.t < band;
       if (isEdge) {
         ctx.fillStyle = EDGE_COLOR;
-        ctx.globalAlpha = 0.85;
+        ctx.globalAlpha = 0.92;
       } else if (mode === "hold") {
-        const pulse = Math.sin(now * 0.005 + c.phase);
-        ctx.fillStyle = pulse > 0.92 ? "#1e2c44" : c.color;
+        const pulse = Math.sin(now * 0.006 + c.phase);
+        ctx.fillStyle = pulse > 0.85 ? "#294870" : c.color;
         ctx.globalAlpha = 1;
       } else {
         ctx.fillStyle = c.color;
         ctx.globalAlpha = 1;
       }
-      ctx.fillRect(c.x, c.y, blockSize + 0.5, blockSize + 0.5);
+      ctx.fillRect(c.x + 1, c.y + 1, sz, sz);
     }
     ctx.globalAlpha = 1;
   }

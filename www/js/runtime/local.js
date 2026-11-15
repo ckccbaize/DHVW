@@ -11,6 +11,7 @@ import { createMemoryPipeline } from "../core/memory/pipeline.js";
 import { extractJson } from "../core/agent/json.js";
 import { describeMood, moodTone } from "../core/mood/describe.js";
 import { buildMoodView } from "../core/mood.js";
+import { moodBand } from "../core/machine/life.js";
 import { DESTINATIONS } from "../core/life/outing.js";
 import { createBrowsePlanner } from "../core/actions/browse.js";
 import { normalizeBehaviors, roomForAct, createActRoomMap } from "../core/life/plan.js";
@@ -243,13 +244,21 @@ export function createLocalRuntime({
     forgeWorker && forgeWorker.postMessage(msg);
   }
 
+  function localDateStr(d = new Date()) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
   function handleLife(msg) {
     switch (msg.type) {
       case "tick": {
         lastTick = msg;
         stats.ticks += 1;
+        const wk = weekdayInfo();
         store.patch({
-          clock: { day: msg.day, minute: msg.minute, offsetMs: getOffset(), source: "device" },
+          clock: { day: msg.day, minute: msg.minute, offsetMs: getOffset(), source: "device", ...wk, date: localDateStr() },
           weather: msg.weather,
           phase: msg.phase,
         });
@@ -301,7 +310,7 @@ export function createLocalRuntime({
       case "mood": {
         mood = { ...mood, ...(msg.mood || {}) };
         backend.setKV("mood", mood).catch(() => {});
-        store.patch({ mood: { ...mood } });
+        store.patch({ mood: { ...mood }, band: moodBand(mood) });
         break;
       }
       case "llm_call": {
@@ -1303,11 +1312,19 @@ export function createLocalRuntime({
       const events = await backend.oldestEvents(20).catch(() => []);
       const plan = dailyPlots[snap.day] || null;
       const custom = (await backend.getKV("places")) || [];
+      const wk = weekdayInfo();
+      const band = moodBand(mood);
       return {
         v: 1,
         ts: now(),
         seq: ++digestSeq,
-        clock: { day: snap.day ?? 1, minute: Math.round(snap.minute ?? 0), phase: snap.phase || "morning" },
+        clock: {
+          day: snap.day ?? 1,
+          minute: Math.round(snap.minute ?? 0),
+          phase: snap.phase || "morning",
+          ...wk,
+          date: localDateStr(),
+        },
         world: {
           tier: store.state.tier,
           conn: store.state.conn,
@@ -1336,7 +1353,7 @@ export function createLocalRuntime({
           now: now(),
           minute: Math.round(snap.minute ?? 0),
           mood,
-          band: store.state.band || "calm",
+          band,
           series: [],
           moodLog: [],
         }),
@@ -1349,7 +1366,7 @@ export function createLocalRuntime({
         now: now(),
         minute: Math.round(snap.minute ?? 0),
         mood,
-        band: store.state.band || "calm",
+        band: moodBand(mood),
         series: [],
         moodLog: [],
       });
