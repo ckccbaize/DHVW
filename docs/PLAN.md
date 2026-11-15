@@ -244,7 +244,7 @@ PC 端“完成”= 下列全部成立，缺一不算：
 ## 11. 记忆与向量待办（TODO）
 
 - [x] **显现会话 → 事实抽取回写闭环**：在 `present:end` 或每 8–10 轮对话后，抽取 `L0/L1/L2` 事实调用 `POST /dhvw/facts` 落入 `memory.db`，并经 `memory:facts` 回流到 ARM 设备深层记忆（`localMemory`）。
-- [ ] **检索相关性阈值与 L0 常驻**：对 `search_hybrid` 低于阈值（如 `score < 0.35`）的结果过滤，避免“你好/嗯嗯”等闲聊硬塞无关记忆；单独保留 `L0` 核心偏好/禁忌常驻摘要（并修复 ARM 侧 `deepMemoryText()` 排序未包含 `L0` 的问题）。
+- [x] **检索相关性阈值与 L0 常驻**：对 `search_hybrid` 低于阈值（如 `score < 0.35`）的结果过滤，避免“你好/嗯嗯”等闲聊硬塞无关记忆；单独保留 `L0` 核心偏好/禁忌常驻摘要（并修复 ARM 侧 `deepMemoryText()` 排序未包含 `L0` 的问题）。
 - [ ] **短口语指代改写**：OLVT 调用 `/dhvw/memory/context` 时拼接最近 1 轮上下文（≤120 字）作为查询 `q`，提升“那个/上次说的”等指代召回。
 - [ ] **模型随包分发**：将量化版 `bge-small-zh-v1.5`（约 24.5 MB）同步进 `PC/apps/shell/resources/models/bge-small-zh-v1.5` 并写入 `electron-builder.yml` `extraResources`。
 - [ ] **可优化与新增模式探索**：

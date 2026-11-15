@@ -341,7 +341,7 @@ class Store:
                 return {int(r["rowid"]): 1.0 / (1.0 + abs(float(r["rank"]))) for r in rows}
         return {}
 
-    def search_hybrid(self, text: str, k: int = 8) -> tuple[list[dict], bool]:
+    def search_hybrid(self, text: str, k: int = 8, min_score: float = 0.0) -> tuple[list[dict], bool]:
         """三路融合检索（0.5×向量 + 0.3×FTS5 + 0.2×时间衰减）；无向量模型时降级纯 FTS5。"""
         query = _normalize(text)
         if not query:
@@ -375,6 +375,8 @@ class Store:
                     age_days = max(0.0, (now_ms - ts_ms) / 86_400_000.0) if ts_ms > 0 else 0.0
                     decay = 0.5 ** (age_days / 30.0)
                     score = 0.5 * vec_scores.get(rowid, 0.0) + 0.3 * fts_scores.get(rowid, 0.0) + 0.2 * decay
+                    if min_score > 0.0 and score < min_score:
+                        continue
                     scored.append(
                         (
                             score,
@@ -410,6 +412,15 @@ class Store:
     def search(self, text: str, k: int = 8) -> list[dict]:
         hits, _ = self.search_hybrid(text, k)
         return hits
+
+    def get_l0_facts(self, limit: int = 3) -> list[dict]:
+        """取核心偏好/禁忌（L0）用于显现常驻上下文。"""
+        with self._lock:
+            rows = self._memory.execute(
+                "select id, text, tier, t from mem_meta where tier='L0' order by updated_at desc limit ?",
+                (int(limit),),
+            ).fetchall()
+        return [{"id": r["id"], "text": r["text"], "tier": r["tier"], "ts": int(r["t"] or 0)} for r in rows]
 
     def memory_stats(self) -> dict:
         with self._lock:
