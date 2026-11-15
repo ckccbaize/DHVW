@@ -137,7 +137,7 @@
       setAttr(toggleBtn, 'data-dhvw', 'sidebar-toggle');
       toggleBtn.setAttribute('title', '展开 / 收起侧边栏');
       var tf = (toggleBtn.style && toggleBtn.style.transform) || '';
-      var collapsed = tf.indexOf('180deg') !== -1 || sidebarOuter.offsetWidth <= 44;
+      var collapsed = tf.indexOf('180deg') !== -1;
       setAttr(sidebarOuter, 'data-dhvw-collapsed', collapsed ? 'true' : 'false');
       docEl.setAttribute('data-dhvw-sidebar', collapsed ? 'collapsed' : 'open');
 

@@ -84,8 +84,8 @@ html.dhvw-cel [data-dhvw="live2d-stage"] {
 
 html.dhvw-cel[data-dhvw-sidebar="collapsed"] [data-dhvw="live2d-stage"],
 html.dhvw-arm [data-dhvw="live2d-stage"] {
-  left: 34px !important;
-  width: calc(100% - 34px) !important;
+  left: 37px !important;
+  width: calc(100% - 37px) !important;
 }
 
 html.dhvw-cel:not(.dhvw-arm)[data-dhvw-sidebar="open"] [data-dhvw="live2d-stage"] {
@@ -95,8 +95,8 @@ html.dhvw-cel:not(.dhvw-arm)[data-dhvw-sidebar="open"] [data-dhvw="live2d-stage"
 
 @media (max-width: 960px) {
   html.dhvw-cel [data-dhvw="live2d-stage"] {
-    left: 34px !important;
-    width: calc(100% - 34px) !important;
+    left: 37px !important;
+    width: calc(100% - 37px) !important;
   }
 }
 
@@ -114,9 +114,17 @@ html.dhvw-cel [data-dhvw="sidebar-outer"] {
 }
 
 html.dhvw-cel [data-dhvw="sidebar-outer"][data-dhvw-collapsed="true"] {
-  width: 34px !important;
-  min-width: 34px !important;
-  flex-basis: 34px !important;
+  width: 37px !important;
+  min-width: 37px !important;
+  flex-basis: 37px !important;
+}
+
+html.dhvw-cel [data-dhvw="sidebar-outer"][data-dhvw-collapsed="true"] [data-dhvw="sidebar-toggle"] {
+  width: 100% !important;
+  left: 0 !important;
+  right: 0 !important;
+  border-left: none !important;
+  background: var(--color-sunset) !important;
 }
 
 html.dhvw-cel [data-dhvw="sidebar-outer"][data-dhvw-collapsed="false"] {
@@ -174,11 +182,6 @@ html.dhvw-cel [data-dhvw="sidebar-toggle"] {
   transition: background var(--ease-cel), color var(--ease-cel) !important;
   z-index: 5 !important;
   cursor: pointer !important;
-}
-
-html.dhvw-cel [data-dhvw="sidebar-outer"][data-dhvw-collapsed="true"] [data-dhvw="sidebar-toggle"] {
-  border-left: none !important;
-  background: var(--color-sunset) !important;
 }
 
 html.dhvw-cel [data-dhvw="sidebar-toggle"]:hover {
