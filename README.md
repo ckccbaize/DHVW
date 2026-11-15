@@ -241,7 +241,7 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 
 ```bash
 cd apps/shell
-npm run test:dhvw          # 直连 8877 的假设备，33 项断言
+npm run test:dhvw          # 直连 8877 的假设备，34 项断言
 npm run test:dhvw -- --wss # 同一套断言走网关 wss://127.0.0.1:8443/ws/orchestrator?token=…
 ```
 
@@ -258,6 +258,12 @@ npm run test:dhvw -- --wss # 同一套断言走网关 wss://127.0.0.1:8443/ws/or
 3. agent 写 `<id>.map.json` 并跑 `paint_home.py` → `pack_scene.py` → `validate_scene.py`；编排器随后**自己再跑一次** `validate_scene.py` 作为收包闸门，通过才发 `scene:ready {id,job,path,name}` 给设备——`id` 是设备那条 `sceneRequests` 的 id（PC 直接提交的任务用作业 id 兜底）。
 4. 判定只看闸门：agent 进程退出码非 0 但产物齐全且校验通过时，任务标「已完成（有告警）」，告警原样显示在 Agent 页。
 5. 幂等与重试：设备每 5 s 重发摘要，同一条 `sceneRequests` 只受理一次（账本落 `kv.scene_requests`，重启仍在）；失败**不自动重试**（避免坏 spec 反复烧 token），要重试走 `POST /dhvw/scene/retry {id}`，它按当前摘要里的 `mapSpec` 重提一条。
+6. **推送到设备**分两种节奏，由「设置 → 自动推送生成的地图」决定：
+   - 关（默认）：产出后停在 Agent 页「PC 产出地图验收」，点「提交 ARM 侧」才发 `scene:ready`。
+   - 开：收包闸门通过即自动推送。
+   两条路径共用同一套核验：必需文件齐全 + `manifest.json` 里每个文件存在且 `size`/`sha256` 对得上，不过就 400 并原样给原因。
+   载荷 `scene:ready {sceneId, job, basePath:"/dhvw/scenes/<id>/dist", manifestUrl, name, kind, distance?, files}`；设备按 `basePath`（走网关时自动加 `/orchestrator` 前缀并带 token）把 `manifest.json` 与全部文件拉进 Cache Storage。
+   投递成功才记「已推送」（`kv.scene_pushes`）；设备离线记 `pending`，设备每次 `hello` 与每 15 s 的连接检查会重推，直到投递成功。产出列表每项带 `push{state,attempts,lastError}`，Agent 页显示 已推送 / 待重试 / 核验失败。
 
 前置条件（缺任一都在提交时显式失败，不产占位包）：
 

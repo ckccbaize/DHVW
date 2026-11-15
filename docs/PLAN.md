@@ -87,6 +87,8 @@ PC 端“完成”= 下列全部成立，缺一不算：
 | PCM7 | 桥接与接管 | BRIDGE / DESK | PCM4 | Stub 契约稳定；接管零冲突 |
 | PCM8 | 硬化 | SUP / OBS 收口 | 全部 | 72 h 长稳、冷启动、断网恢复达标 |
 
+> 进展（2026-11-15，地图推送）：产出验收新增「提交 ARM 侧」，设置新增「自动推送生成的地图」（默认关）。推送前做资源核验（必需文件 + manifest 的 size/sha256），通过才发 `scene:ready{sceneId,basePath,…}`；投递成功记 `kv.scene_pushes.pushed`，离线记 `pending`，设备 `hello`/每 15 s 重推直到成功。实测：无设备手动推送 → 409 排队；假设备经网关 wss 上线后收到 `scene:ready`，按设备方式（`/orchestrator` 前缀 + token）拉回 manifest 与 8/8 文件且 sha256 全部吻合，状态转 `pushed`；`autoPush` 开关经设置→编排器往返生效；`test:dhvw` 34 项通过；三页六档布局无溢出。未实测：真实固件侧的 Cache Storage 落盘（PC 侧只保证可拉取）。
+>
 > 进展（2026-11-15，可换 Live2D 模型）：设置新增「Live2D 模型」，模型库 = 随包 `resources/live2d/models`（mao_pro、shizuku，+5.1 MB）∪ OLVT 组件 `live2d-models`；选中后本机舞台按 `/model/<id>/…` 重载，模型文件与 `model_dict.json` 条目同步进 OLVT，`conf.yaml` 的 `live2d_model_name` 改写并重启 OLVT。实测：mao_pro↔shizuku 往返切换，舞台与 OLVT 日志均为 `Initializing Live2D: <id>`；非法 id 保存返回明确错误；六档布局审计全绿。
 >
 > 进展（2026-11-13，设备场景请求闭环）：`world:digest` 里的 `sceneRequests`（`pending` + `mapSpec`）现在由编排器自动受理成场景作业，账本落 `kv.scene_requests` 做幂等（设备每 5 s 重发不重复生成），通过闸门后发 `scene:ready {id}`，`id` 用设备请求 id；失败不自动重试，`POST /dhvw/scene/retry {id}` 手动重提。`GET /dhvw/scenes` 增 `requests` 账本；`pc:action` 的 `map.generate` 从「未接线」改为转场景作业。实测：缺 `mapSpec` 的请求只受理一次并显式失败；`/dhvw/scene/retry` 能重提被中断的请求；编排器重启时账本与作业一起翻成 failed（不再显示「生成中」）。
@@ -123,7 +125,11 @@ PC 端“完成”= 下列全部成立，缺一不算：
 | GET | `/health` | 局域网 | `{ok,service,version,pid,uptime,device:{connected,id,tier},digest_ts,memory}` |
 | GET | `/dhvw/digest` | 127.0.0.1 | 最近一次 `world:digest` 原文；`digest_ts` 同时落 `data/digest.json` |
 | GET | `/dhvw/mood` | 127.0.0.1 | 最近一次 `mood:state` |
-| GET | `/dhvw/scenes` | 127.0.0.1 | 场景任务表 + 设备 `sceneRequests` 请求账本（`requests[{id,state,job,reason}]`） |
+| GET | `/dhvw/scenes` | 127.0.0.1 | 场景任务表 + 设备 `sceneRequests` 账本 + 产出表（`outputs[{id,name,push{state,attempts,lastError}}]`）+ `autoPush` |
+| POST | `/dhvw/scenes/<id>/push` | 127.0.0.1 | 核验并推送一条产出（`scene:ready`）；核验失败 400，设备离线 409 且排队重试 |
+| GET | `/dhvw/scenes/<id>/dist/<path>` | 127.0.0.1 | 产出文件直出（设备缓存场景包用） |
+| DELETE | `/dhvw/scenes/<id>` | 127.0.0.1 | 删除产出目录与任务记录（运行中 409） |
+| POST | `/dhvw/scene/job-retry` | 127.0.0.1 | 在原工作目录续画失败/超时的任务 |
 | POST | `/dhvw/scene` | 127.0.0.1 | 直接提交一个场景作业 `{kind,name,seed,distance,note}` |
 | POST | `/dhvw/scene/retry` | 127.0.0.1 | `{id}` 重提一条设备场景请求（按当前摘要的 `mapSpec`） |
 | POST | `/dhvw/display` | 127.0.0.1 | 设备显示态二切，广播 `display:set {state,t_server}`，返回 `{delivered}` |
@@ -145,7 +151,7 @@ PC 端“完成”= 下列全部成立，缺一不算：
 - `present:request` → `present:grant` / `present:deny{reason}`（`tts_ready=false` 时拒绝）。
 - `present:begin` / `present:end` → 切 `tier` 为 `host` / `idle`。
 
-设备侧下行（服务端主动）：`hello`、`digest:get`、`mood:get`、`llm:config`、`tier`、`memory:facts`（增量，游标存 `kv.facts_since`，设备 `facts:ack` 后才推进）、`state:overview`（每 5 s，含 `clock{day,minute,phase}` 与 `work_tier`）。
+设备侧下行（服务端主动）：`hello`、`digest:get`、`mood:get`、`llm:config`、`tier`、`memory:facts`（增量，游标存 `kv.facts_since`，设备 `facts:ack` 后才推进）、`state:overview`（每 5 s，含 `clock{day,minute,phase}` 与 `work_tier`）、`display:set`（显示态二切）、`scene:ready`（`{sceneId,job,basePath,manifestUrl,name,kind,distance?,files}`；离线排队，设备上线后重试直到投递成功）。
 
 ### 5.2 OLVT 内部端点（本仓库补丁）
 

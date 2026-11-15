@@ -8,7 +8,7 @@
                      ─► pi -p --skill docs/MAP-SCENE-DESIGN.md（HOME 隔离，写入 models.json）
                      ─► agent 写 <id>.map.json 并跑 paint_home / pack_scene / validate_scene
                      ─► 编排器自己再跑一次 validate_scene.py 作为收包闸门
-                     ─► 通过则向设备发 scene:ready {id}（id 是设备的 sceneRequests 条目 id）
+                     ─► 通过后交给编排器决定是否推送（手动 / 自动，见 Orchestrator.push_scene）
 任何一步缺失（pi 不在、缺 PIL、缺工具链、LLM 未配置）都显式失败，不产占位包。
 """
 
@@ -133,6 +133,8 @@ class SceneRunner:
         self.root.mkdir(parents=True, exist_ok=True)
         self.home = Path(data_dir) / "agent-home"
         self.push = push
+        # 作业完成回调：推不推给设备由编排器按设置决定，runner 不直接发 scene:ready
+        self.on_done: Callable[[dict[str, Any]], Awaitable[None]] | None = None
         self.llm: dict[str, Any] = {}
         self.jobs: dict[str, dict[str, Any]] = {}
         # 设备的 sceneRequests 条目 -> 作业映射。设备每个 digest 会重复报同一条 pending，
@@ -418,19 +420,8 @@ class SceneRunner:
             job["warnings"] = warnings or None
             self._save()
             self.mark_request(job.get("request") or "", "done", job=job_id)
-            # 设备的 sceneRequests 以它自己的 id 为准；纯 PC 提交的任务用作业 id 兜底
-            await self.push(
-                "scene:ready",
-                {
-                    "id": job.get("request") or job_id,
-                    "job": job_id,
-                    "sceneId": job_id,
-                    "path": str(workdir),
-                    "name": job["name"],
-                    "basePath": f"/dhvw/scenes/{job_id}/dist",
-                    "manifestUrl": f"/dhvw/scenes/{job_id}/dist/manifest.json",
-                },
-            )
+            if self.on_done:
+                await self.on_done(job)
         except Exception as err:  # 任何失败都如实记录，不留占位
             import traceback
 

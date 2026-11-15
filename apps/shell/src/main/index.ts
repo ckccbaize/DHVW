@@ -64,6 +64,7 @@ async function pushOrchestratorConfig(): Promise<boolean> {
     tts,
     live2d: true,
     boost: config.boost.enabled,
+    autoPushScene: config.scene.autoPush,
     llm: {
       baseUrl: config.llm.baseUrl,
       model: config.llm.model || undefined,
@@ -227,6 +228,7 @@ async function readScenes(): Promise<{
   jobs: SceneJobView[]
   requests: SceneRequestView[]
   outputs: SceneOutputView[]
+  autoPush?: boolean
   error?: string
 }> {
   if (!orchestratorPort) return { reachable: false, jobs: [], requests: [], outputs: [] }
@@ -237,15 +239,38 @@ async function readScenes(): Promise<{
       jobs?: SceneJobView[]
       requests?: SceneRequestView[]
       outputs?: SceneOutputView[]
+      autoPush?: boolean
     }
     return {
       reachable: true,
       jobs: Array.isArray(raw.jobs) ? raw.jobs : [],
       requests: Array.isArray(raw.requests) ? raw.requests : [],
       outputs: Array.isArray(raw.outputs) ? raw.outputs : [],
+      autoPush: raw.autoPush === true,
     }
   } catch (err) {
     return { reachable: false, jobs: [], requests: [], outputs: [], error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/** 手动把一条产出推给设备；核验失败/设备离线都原样带原因回来 */
+async function pushScene(id: string): Promise<{
+  ok: boolean
+  job?: string
+  state?: string
+  sent?: number
+  error?: string
+}> {
+  if (!orchestratorPort) return { ok: false, error: '编排器未运行' }
+  try {
+    const res = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/scenes/${encodeURIComponent(id)}/push`, {
+      method: 'POST',
+      // 核验要读整个产出包（含 sha256），给足时间
+      signal: AbortSignal.timeout(20_000),
+    })
+    return (await res.json()) as { ok: boolean; job?: string; state?: string; sent?: number; error?: string }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
 }
 
@@ -362,6 +387,7 @@ function settingsView(): SettingsView {
     ports: { ...config.ports },
     asr: { ...config.asr, ready: Boolean(asrModelPaths(config.asr.enabled).modelPath) },
     live2d: { model: live2dModel?.id ?? config.live2d.model },
+    scene: { ...config.scene },
     olvt: { ...config.olvt },
     tts: { ...config.tts },
     gateway: { ...config.gateway },
@@ -484,6 +510,7 @@ function registerIpc(): void {
   ipcMain.handle('dhvw:scenes', () => readScenes())
   ipcMain.handle('dhvw:sceneGenerate', (_e, spec: Record<string, unknown>) => requestScene(spec))
   ipcMain.handle('dhvw:sceneRetry', (_e, id: string) => retryScene(id))
+  ipcMain.handle('dhvw:scenePush', (_e, id: string) => pushScene(id))
   ipcMain.handle('dhvw:sceneJobRetry', (_e, id: string) => retrySceneJob(id))
   ipcMain.handle('dhvw:sceneDelete', (_e, id: string) => deleteSceneOutput(id))
   ipcMain.handle('dhvw:setBoost', (_e, enabled: boolean) => {
@@ -528,6 +555,7 @@ function registerIpc(): void {
     }
     if (patch.asr?.enabled !== undefined) next.asr.enabled = Boolean(patch.asr.enabled)
     let live2dChanged = false
+    if (patch.scene?.autoPush !== undefined) next.scene.autoPush = Boolean(patch.scene.autoPush)
     if (patch.live2d?.model !== undefined) {
       const want = String(patch.live2d.model).trim()
       const ref = findModel(live2dRoots, want)

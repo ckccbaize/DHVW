@@ -13,6 +13,15 @@ const STATE_TEXT: Record<SceneJobView['state'], string> = {
   failed: '失败',
 }
 
+/** 产出包的推送状态文案：没推过 = 未推送；推过但设备不在线 = 待重试 */
+function pushStateOf(output: SceneOutputView): { text: string; cls: string } {
+  const state = output.push?.state
+  if (state === 'pushed') return { text: '已推送', cls: 'ok' }
+  if (state === 'pending') return { text: '待重试', cls: 'bad' }
+  if (state === 'failed') return { text: '核验失败', cls: 'bad' }
+  return { text: '未推送', cls: '' }
+}
+
 /**
  * Agent 页：把「你自己设计的地图」交给场景任务（编排器拉起 agent + 地图 skill）。
  * 页面只负责收集参数、展示任务与产物；任何失败原因原样显示。
@@ -26,6 +35,9 @@ export function AgentView(): React.ReactElement {
   const [jobs, setJobs] = useState<SceneJobView[]>([])
   const [requests, setRequests] = useState<SceneRequestView[]>([])
   const [outputs, setOutputs] = useState<SceneOutputView[]>([])
+  const [autoPush, setAutoPush] = useState(false)
+  const [pushBusy, setPushBusy] = useState<string | null>(null)
+  const [pushMsg, setPushMsg] = useState<{ ok: boolean; text: string; id: string } | null>(null)
   const [retryError, setRetryError] = useState<string | null>(null)
   const [reachable, setReachable] = useState(false)
   const [listError, setListError] = useState<string | null>(null)
@@ -46,6 +58,13 @@ export function AgentView(): React.ReactElement {
     setJobs(res.jobs)
     setRequests(res.requests ?? [])
     setOutputs(res.outputs ?? [])
+    setAutoPush(res.autoPush === true)
+    // 失败提示可能被后来的自动重试追上：该产出已推出去了就不再留着旧的错误文案
+    setPushMsg((prev) => {
+      if (!prev || prev.ok) return prev
+      const now = (res.outputs ?? []).find((o) => o.id === prev.id)
+      return now?.push?.state === 'pushed' ? { ok: true, text: `${prev.id} 已推送到设备`, id: prev.id } : prev
+    })
   }, [])
 
   useEffect(() => {
@@ -66,6 +85,21 @@ export function AgentView(): React.ReactElement {
     const res = await window.dhvw.sceneJobRetry(id)
     if (!res.ok) setListError(`${id}：${res.error ?? '续画重试失败'}`)
     await refresh()
+  }
+
+  const pushScene = async (id: string): Promise<void> => {
+    setPushBusy(id)
+    setPushMsg(null)
+    try {
+      const res = await window.dhvw.scenePush(id)
+      if (res.ok) setPushMsg({ ok: true, text: `${id} 已推送到设备`, id })
+      else if (res.state === 'pending')
+        setPushMsg({ ok: false, text: `${id}：${res.error ?? '设备未连接，已排队重试'}`, id })
+      else setPushMsg({ ok: false, text: `${id}：${res.error ?? '推送失败'}`, id })
+      await refresh()
+    } finally {
+      setPushBusy(null)
+    }
   }
 
   const deleteOutput = async (id: string): Promise<void> => {
@@ -161,7 +195,12 @@ export function AgentView(): React.ReactElement {
             PC 产出地图验收
             <span className={`pill ${reachable ? 'ok' : 'bad'}`}>{reachable ? `${outputs.length} 张` : '编排器不可达'}</span>
           </h2>
-          <p className="hint">列出 PC 侧已产出的全部地图包（data/scenes/*/dist），使用 ARM 渲染器（overview.js + scene-loader.js）实测加载与寻路。</p>
+          <p className="hint">
+            列出 PC 侧已产出的全部地图包（data/scenes/*/dist），使用 ARM 渲染器（overview.js + scene-loader.js）实测加载与寻路。
+            {autoPush
+              ? '自动推送已开启：核验通过后直接提交给设备。'
+              : '自动推送已关闭：核验通过后需在这里点「提交 ARM 侧」。'}
+          </p>
           {listError && <p className="msg bad">{listError}</p>}
           {outputs.length === 0 && <div className="empty">暂无已产出的 PC 地图</div>}
           {outputs.map((o) => (
@@ -174,13 +213,20 @@ export function AgentView(): React.ReactElement {
                     .filter(Boolean)
                     .join(' · ')}
                 </span>
+                <span className={`pill ${pushStateOf(o).cls}`}>{pushStateOf(o).text}</span>
+                {o.push?.attempts ? <span className="job-meta mono">尝试 {o.push.attempts}</span> : null}
                 <button className="primary" onClick={() => setPreviewScene({ id: o.id, label: o.name })}>
                   产出验收
                 </button>
+                <button disabled={pushBusy === o.id} onClick={() => void pushScene(o.id)}>
+                  {pushBusy === o.id ? '提交中…' : o.push?.state === 'pushed' ? '重新提交 ARM 侧' : '提交 ARM 侧'}
+                </button>
                 <button onClick={() => void deleteOutput(o.id)}>删除</button>
               </div>
+              {o.push?.lastError ? <div className="comp-err">{o.push.lastError}</div> : null}
             </div>
           ))}
+          {pushMsg && <p className={`msg ${pushMsg.ok ? 'ok' : 'bad'}`}>{pushMsg.text}</p>}
         </section>
 
         <section className="panel agent-requests">

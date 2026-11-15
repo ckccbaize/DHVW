@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -83,7 +84,13 @@ class Orchestrator:
         self.world_running = True
         self.started = time.time()
         self.scenes = SceneRunner(store, store.root, self._push_scene)
+        self.scenes.on_done = self.handle_scene_done
         self.scenes.set_llm(self.llm)
+        # 地图推送到设备：auto_push_scene 关时只生成、由人在产出验收里手动提交。
+        # scene_pushes 记每条产出的推送状态，未推成功的在设备上线后重试。
+        self.auto_push_scene = bool(store.get_kv("auto_push_scene", False))
+        self.scene_pushes: dict[str, dict] = store.get_kv("scene_pushes", {}) or {}
+        self._last_push_flush = 0.0
         # memory:facts 回流：msg_id -> 本次下发的最大 updated_at，设备 ack 后才推进游标
         self.facts_pending: dict[str, int] = {}
         self.facts_sent_ids: set[str] = set()
@@ -167,6 +174,170 @@ class Orchestrator:
             log("info", "受理设备场景请求", request=rid, job=job["id"], kind=job["kind"])
             asyncio.create_task(self.scenes.run(job))
 
+    # ---------- 地图推送到设备 ----------
+    def _save_pushes(self) -> None:
+        # 只留最近 200 条，避免账本无限长
+        if len(self.scene_pushes) > 200:
+            keep = sorted(self.scene_pushes.items(), key=lambda kv: kv[1].get("ts", 0), reverse=True)[:200]
+            self.scene_pushes = dict(keep)
+        self.store.put_kv("scene_pushes", self.scene_pushes)
+
+    def push_state(self, job_id: str) -> dict:
+        return dict(self.scene_pushes.get(job_id) or {})
+
+    def _scene_meta(self, job_id: str) -> dict:
+        """推送载荷里给设备用的名称/类型/距离；拿不到就不编。"""
+        job = self.scenes.jobs.get(job_id) or {}
+        dist = self.scenes.root / job_id / "dist"
+        name = str(job.get("name") or job_id)
+        title = ""
+        for cand in (dist / f"{job_id}.built.json", *sorted(dist.glob("*.built.json"))[:1], dist / "scene.json"):
+            if not cand.is_file():
+                continue
+            try:
+                data = json.loads(cand.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if isinstance(data, dict) and (data.get("title") or data.get("name")):
+                title = str(data.get("title") or data.get("name"))
+                break
+        if title:
+            name = title
+        kind = str(job.get("kind") or "")
+        if kind not in ("street", "indoor"):
+            kind = "street" if job_id.startswith(("street-", "outdoor-", "city-")) else "indoor"
+        meta: dict = {"name": name, "kind": kind}
+        distance = job.get("distance")
+        if isinstance(distance, (int, float)):
+            meta["distance"] = distance
+        return meta
+
+    def verify_scene_package(self, job_id: str) -> tuple[bool, str, list[str]]:
+        """资源核验：必需文件齐全 + manifest 里每个文件在盘上且大小/校验和对得上。"""
+        from .scene import REQUIRED
+
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", job_id):
+            return False, "invalid_job_id", []
+        workdir = self.scenes.root / job_id
+        dist = workdir / "dist"
+        if not dist.is_dir():
+            return False, "没有产出目录（还没有生成或已被删除）", []
+        # REQUIRED 里带 dist/ 前缀（与 scene.py 的收包闸门同源）
+        missing = [f for f in REQUIRED if not (workdir / f).is_file()]
+        if missing:
+            return False, "缺件：" + "、".join(missing), []
+        manifest_file = dist / "manifest.json"
+        try:
+            manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+        except Exception as err:
+            return False, f"manifest.json 读不动：{err}", []
+        files = manifest.get("files") if isinstance(manifest, dict) else None
+        if not isinstance(files, list) or not files:
+            return False, "manifest.json 没有文件清单", []
+        rels: list[str] = []
+        for item in files:
+            rel = str((item or {}).get("path") or "").strip()
+            if not rel or ".." in rel:
+                return False, f"manifest 里有非法路径：{rel or '(空)'}", []
+            target = dist / rel
+            if not target.is_file():
+                return False, f"清单里的文件不存在：{rel}", []
+            want_size = item.get("size")
+            if isinstance(want_size, int) and target.stat().st_size != want_size:
+                return False, f"文件大小与清单不符：{rel}", []
+            want_hash = str(item.get("sha256") or "").strip().lower()
+            if want_hash:
+                digest = hashlib.sha256(target.read_bytes()).hexdigest()
+                if digest != want_hash:
+                    return False, f"文件校验和不符：{rel}", []
+            rels.append(rel)
+        if "manifest.json" not in rels:
+            rels.append("manifest.json")
+        return True, "", rels
+
+    async def push_scene(self, job_id: str, reason: str) -> dict:
+        """把一条产出推给设备（scene:ready）。投递成功才记 pushed，离线保持 pending 等重试。"""
+        ok, err, rels = await asyncio.to_thread(self.verify_scene_package, job_id)
+        if not ok:
+            return {"ok": False, "job": job_id, "error": err, "state": "failed"}
+        meta = self._scene_meta(job_id)
+        payload = {
+            "sceneId": job_id,
+            "job": job_id,
+            "basePath": f"/dhvw/scenes/{job_id}/dist",
+            "manifestUrl": f"/dhvw/scenes/{job_id}/dist/manifest.json",
+            "name": meta["name"],
+            "kind": meta["kind"],
+            "files": len(rels),
+            "t_server": int(time.time() * 1000),
+        }
+        if "distance" in meta:
+            payload["distance"] = meta["distance"]
+        sent = len(await self.broadcast("scene:ready", payload))
+        prev = self.scene_pushes.get(job_id) or {}
+        entry = {
+            **prev,
+            "state": "pushed" if sent else "pending",
+            "reason": reason,
+            "attempts": int(prev.get("attempts", 0)) + 1,
+            "updatedAt": int(time.time() * 1000),
+            "lastError": None if sent else "设备未连接",
+            "sent": sent,
+            "payload": payload,
+        }
+        self.scene_pushes[job_id] = entry
+        self._save_pushes()
+        log(
+            "info" if sent else "warn",
+            "地图推送",
+            job=job_id,
+            reason=reason,
+            sent=sent,
+            attempt=entry["attempts"],
+        )
+        if not sent:
+            return {"ok": False, "job": job_id, "error": "设备未连接，已排队等设备上线重试", "state": "pending"}
+        return {"ok": True, "job": job_id, "state": "pushed", "sent": sent}
+
+    async def handle_scene_done(self, job: dict) -> None:
+        """闸门通过后的分叉：自动推送开就直接发，关就等人在产出验收里提交。"""
+        job_id = str(job.get("id") or "")
+        if not job_id:
+            return
+        prev = self.scene_pushes.get(job_id) or {}
+        if prev.get("state") != "pushed":
+            self.scene_pushes[job_id] = {
+                **prev,
+                "state": "unpushed",
+                "reason": "auto" if self.auto_push_scene else "manual-required",
+                "updatedAt": int(time.time() * 1000),
+                "attempts": int(prev.get("attempts", 0)),
+                "lastError": prev.get("lastError"),
+            }
+            self._save_pushes()
+        if self.auto_push_scene:
+            await self.push_scene(job_id, "auto")
+        else:
+            log("info", "地图已产出，等待手动提交", job=job_id)
+
+    async def flush_scene_pushes(self, force: bool = False) -> int:
+        """把所有 pending 的推送重发一次；设备每上线/每 15 s 调用一次。"""
+        if not self.clients:
+            return 0
+        now = time.time()
+        if not force and now - self._last_push_flush < 15:
+            return 0
+        self._last_push_flush = now
+        pending = [jid for jid, st in self.scene_pushes.items() if st.get("state") == "pending"]
+        sent = 0
+        for job_id in pending:
+            res = await self.push_scene(job_id, "retry")
+            if res.get("ok"):
+                sent += 1
+        if pending:
+            log("info", "地图推送重试", pending=len(pending), sent=sent)
+        return sent
+
     async def set_tier(self, value: str) -> None:
         if value == self.tier:
             return
@@ -223,6 +394,8 @@ class Orchestrator:
             # 新连接要能拿到未确认的积压，即使本进程此前已经发过
             self.facts_sent_ids.clear()
             await self.push_facts()
+            # 离线期间没推成功的地图，设备一上线就补推
+            await self.flush_scene_pushes(force=True)
             return
 
         # 心跳与其余消息都算「设备活着」
@@ -378,6 +551,11 @@ class Orchestrator:
         if "boost" in cfg:
             # 界面层开关：只持久化与回显，不改变生产行为
             self.store.put_kv("boost", bool(cfg["boost"]))
+        if "autoPushScene" in cfg:
+            # 地图自动推送：关 = 必须人工在产出验收里提交；开 = 闸门通过即推
+            self.auto_push_scene = bool(cfg["autoPushScene"])
+            self.store.put_kv("auto_push_scene", self.auto_push_scene)
+            log("info", "地图自动推送", enabled=self.auto_push_scene)
         llm = cfg.get("llm")
         if isinstance(llm, dict) and llm.get("baseUrl"):
             merged = {**self.llm, **{k: v for k, v in llm.items() if v is not None}}
@@ -386,7 +564,13 @@ class Orchestrator:
             self.scenes.set_llm(self.llm)
             await self.broadcast("llm:config", self.llm_payload())
             log("info", "下发 LLM 配置", baseUrl=merged.get("baseUrl"), model=merged.get("model"))
-        return {"ok": True, "tts": self.tts_ready, "live2d": self.live2d_ready, "llm": bool(self.llm.get("model"))}
+        return {
+            "ok": True,
+            "tts": self.tts_ready,
+            "live2d": self.live2d_ready,
+            "llm": bool(self.llm.get("model")),
+            "autoPushScene": self.auto_push_scene,
+        }
 
     async def overview_loop(self) -> None:
         while True:
@@ -403,6 +587,7 @@ class Orchestrator:
                     # 30 s 一次兜底：PC 侧新写的事实即使没走端点也能尽快回流
                     if int(time.time() - self.started) % 30 < OVERVIEW_INTERVAL:
                         await self.push_facts()
+                    await self.flush_scene_pushes()
             except Exception as err:  # 循环不能死
                 log("error", "状态循环异常", error=str(err))
 
@@ -512,9 +697,23 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
                 "ok": True,
                 "jobs": orch.scenes.list_jobs(),
                 "requests": orch.scenes.list_requests(),
-                "outputs": _list_scene_outputs(orch.scenes.root),
+                "outputs": [
+                    {**item, "push": orch.push_state(str(item["id"]))}
+                    for item in _list_scene_outputs(orch.scenes.root)
+                ],
+                "autoPush": orch.auto_push_scene,
             }
         )
+
+    @app.post("/dhvw/scenes/{job_id}/push")
+    async def scene_push(job_id: str) -> JSONResponse:
+        """手动把一条产出推给设备（产出验收里的「提交 ARM 侧」）。"""
+        res = await orch.push_scene(job_id, "manual")
+        if res.get("ok"):
+            return JSONResponse(res)
+        # 核验失败是 400；设备离线是 409（已排队，等上线重试）
+        code = 400 if res.get("state") == "failed" else 409
+        return JSONResponse(res, status_code=code)
 
     @app.get("/dhvw/scenes/{job_id}/dist/{file_path:path}", response_model=None)
     async def scene_dist_file(job_id: str, file_path: str) -> FileResponse | JSONResponse:

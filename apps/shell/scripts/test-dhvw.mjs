@@ -271,7 +271,13 @@ const retryMissing = await (await fetch(`${BASE}/dhvw/scene/retry`, {
 })).json()
 check('重试不存在的请求明确失败', retryMissing.ok === false && Boolean(retryMissing.error), JSON.stringify(retryMissing))
 
+// 12) 地图推送：不存在的产出必须明确失败；场景表要暴露自动推送开关
+const pushMissing = await fetch(`${BASE}/dhvw/scenes/nope-1/push`, { method: 'POST' })
+const pushBody = await pushMissing.json()
+check('推送不存在的产出明确失败', pushMissing.status === 400 && pushBody.ok === false && Boolean(pushBody.error), JSON.stringify(pushBody))
+
 const scenes = await (await fetch(`${BASE}/dhvw/scenes`)).json()
+check('场景表暴露自动推送开关', typeof scenes.autoPush === 'boolean', JSON.stringify({ autoPush: scenes.autoPush }))
 check('场景任务表可读', scenes.ok === true && Array.isArray(scenes.jobs))
 
 ws.close()

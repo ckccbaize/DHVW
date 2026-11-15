@@ -77,6 +77,7 @@ export interface SettingsView {
   asr: { enabled: boolean; ready: boolean }
   /** Live2D 模型 id：PC 舞台与 OLVT 共用（模型库见 resources/live2d/models 与组件的 live2d-models） */
   live2d: { model: string }
+  scene: { autoPush: boolean }
   olvt: { characterName: string; humanName: string; personaPrompt: string }
   tts: { backendDir: string; refAudioPath: string; refText: string; refLang: string; textLang: string }
   gateway: { enabled: boolean; port: number }
@@ -87,6 +88,7 @@ export interface SettingsPatch {
   ports?: Partial<{ olvt: number; tts: number }>
   asr?: Partial<{ enabled: boolean }>
   live2d?: Partial<{ model: string }>
+  scene?: Partial<{ autoPush: boolean }>
   olvt?: Partial<{ characterName: string; humanName: string; personaPrompt: string }>
   tts?: Partial<{ backendDir: string; refAudioPath: string; refText: string; refLang: string; textLang: string }>
   gateway?: Partial<{ enabled: boolean; port: number }>
@@ -194,6 +196,14 @@ export interface SceneRequestView {
   ts: number
 }
 
+export interface ScenePushState {
+  state?: 'pushed' | 'pending' | 'unpushed' | 'failed'
+  attempts?: number
+  updatedAt?: number
+  lastError?: string | null
+  reason?: string
+}
+
 export interface SceneOutputView {
   id: string
   name: string
@@ -202,6 +212,7 @@ export interface SceneOutputView {
   hotspots?: number
   acts?: number
   updatedAt: number
+  push?: ScenePushState
 }
 
 export interface ActionRequest {

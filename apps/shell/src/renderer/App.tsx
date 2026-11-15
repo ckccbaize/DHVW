@@ -42,6 +42,7 @@ function SettingsDialog({
   const [ttsPort, setTtsPort] = useState(String(value.ports.tts))
   const [asr, setAsr] = useState(value.asr.enabled)
   const [live2dModel, setLive2dModel] = useState(value.live2d.model)
+  const [autoPushScene, setAutoPushScene] = useState(value.scene.autoPush)
   const [live2dList, setLive2dList] = useState<Live2dModelView[]>([])
   const [charName, setCharName] = useState(value.olvt.characterName)
   const [humanName, setHumanName] = useState(value.olvt.humanName)
@@ -111,6 +112,7 @@ function SettingsDialog({
         ports: { olvt: Number(olvtPort), tts: Number(ttsPort) },
         asr: { enabled: asr },
         live2d: { model: live2dModel },
+        scene: { autoPush: autoPushScene },
         olvt: { characterName: charName, humanName, personaPrompt: persona },
         tts: { backendDir: ttsDir, refAudioPath: refAudio, refText },
       })
@@ -271,6 +273,15 @@ function SettingsDialog({
           <input type="checkbox" checked={asr} onChange={(e) => setAsr(e.target.checked)} />
           启用语音识别（ASR）{!value.asr.ready && asr ? '（模型未下载，需在组件面板安装）' : ''}
         </label>
+        <label className="switch">
+          <input type="checkbox" checked={autoPushScene} onChange={(e) => setAutoPushScene(e.target.checked)} />
+          自动推送生成的地图到设备
+        </label>
+        <p className="hint">
+          {autoPushScene
+            ? '开：核验通过即推送；设备离线时排队，上线后自动重试直到成功。'
+            : '关：生成后必须在 Agent 页「产出验收」里手动点「提交 ARM 侧」。'}
+        </p>
         {msg && <p className={`msg ${msg.ok ? 'ok' : 'bad'}`}>{msg.text}</p>}
         <div className="actions dialog-actions">
           <button className="primary" disabled={busy} onClick={() => void save()}>

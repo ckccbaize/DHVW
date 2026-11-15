@@ -55,6 +55,7 @@ const api = {
     jobs: SceneJobView[]
     requests: SceneRequestView[]
     outputs: SceneOutputView[]
+    autoPush?: boolean
     error?: string
   }> => ipcRenderer.invoke('dhvw:scenes'),
   sceneGenerate: (spec: {
@@ -66,6 +67,8 @@ const api = {
   }): Promise<{ ok: boolean; job?: SceneJobView; error?: string }> => ipcRenderer.invoke('dhvw:sceneGenerate', spec),
   sceneRetry: (id: string): Promise<{ ok: boolean; job?: string; error?: string }> =>
     ipcRenderer.invoke('dhvw:sceneRetry', id),
+  scenePush: (id: string): Promise<{ ok: boolean; state?: string; error?: string }> =>
+    ipcRenderer.invoke('dhvw:scenePush', id),
   sceneJobRetry: (id: string): Promise<{ ok: boolean; job?: SceneJobView; error?: string }> =>
     ipcRenderer.invoke('dhvw:sceneJobRetry', id),
   sceneDelete: (id: string): Promise<{ ok: boolean; error?: string }> =>

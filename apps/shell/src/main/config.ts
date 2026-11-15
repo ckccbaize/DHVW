@@ -23,6 +23,8 @@ export interface ShellConfig {
   componentUrls: Record<string, string[]>
   /** 角色形象：PC 舞台与 OLVT 共用同一个 Live2D 模型（模型 id，见 live2d-models.ts） */
   live2d: { model: string }
+  /** 地图推送：false = 生成后必须在产出验收里手动「提交 ARM 侧」；true = 核验通过即自动推 */
+  scene: { autoPush: boolean }
   /** 世界模式增强：目前只是界面层开关（不改变生产行为），持久化以便后续接线 */
   boost: { enabled: boolean }
   /** 组件依赖安装使用的 PyPI 镜像 */
@@ -47,6 +49,7 @@ const DEFAULTS: ShellConfig = {
   gateway: { enabled: true, port: 8443 },
   sidecars: {},
   live2d: { model: 'mao_pro' },
+  scene: { autoPush: false },
   boost: { enabled: false },
   componentUrls: {},
   pipIndex: 'https://mirrors.aliyun.com/pypi/simple',
@@ -98,6 +101,7 @@ export function loadConfig(): ShellConfig {
       tts: { ...DEFAULTS.tts, ...raw.tts },
       gateway: { ...DEFAULTS.gateway, ...raw.gateway },
       live2d: { ...DEFAULTS.live2d, ...raw.live2d },
+      scene: { ...DEFAULTS.scene, ...raw.scene },
       boost: { ...DEFAULTS.boost, ...raw.boost },
       sidecars: { ...DEFAULTS.sidecars, ...raw.sidecars },
       componentUrls: { ...DEFAULTS.componentUrls, ...raw.componentUrls },
