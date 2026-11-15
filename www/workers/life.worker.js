@@ -74,14 +74,26 @@ function phaseAt(minute) {
   const p = phaseOf(minute);
   return p === "sleep" ? "wake" : p;
 }
+const DAY_MIN = 24 * 60;
+/** 所有截止时间统一用“绝对游戏分钟”，避免 22:00 开始、跨过午夜的交互把 busyUntil 卡死。 */
+function nowAbs() {
+  return clock.day * DAY_MIN + clock.minute;
+}
+function migrateDeadline(v) {
+  if (!Number.isFinite(v)) return v;
+  const now = nowAbs();
+  // 旧快照存的是当天分钟数；明显早于当前绝对时间的值视为过期。
+  return v < now - DAY_MIN ? now - 1 : v;
+}
 /** 睡眠交互跨午夜时 endsAt 仍是分钟数；醒来后必须清掉，否则 busyUntil 会锁住一整天。 */
 function clearStaleSleep() {
+  const now = nowAbs();
   if (phase !== "sleep" && activeInteraction?.act === "sleep") {
     activeInteraction = null;
-    busyUntil = Math.min(busyUntil, clock.minute);
+    busyUntil = Math.min(busyUntil, now);
   }
-  if (phase !== "sleep" && busyUntil > clock.minute + 480) {
-    busyUntil = clock.minute;
+  if (phase !== "sleep" && busyUntil > now + 480) {
+    busyUntil = now;
   }
 }
 
@@ -228,7 +240,7 @@ function pickTarget() {
   // 35% 概率去别的房间，避免一直在同一角落
   const roam = inRoom.length > 0 && Math.random() < 0.35;
   const allBase = roam ? scene.hotspots || [] : inRoom.length ? inRoom : scene.hotspots || [];
-  const base = allBase.filter((h) => !badSpots.has(`${h.x},${h.y}:${h.act}`) && (h.act === "sleep" || clock.minute >= (interactionCooldowns[h.act] || 0)));
+  const base = allBase.filter((h) => !badSpots.has(`${h.x},${h.y}:${h.act}`) && (h.act === "sleep" || nowAbs() >= (interactionCooldowns[h.act] || 0)));
   if (!base.length) return null;
   // 优先当前时段动作，其次同房间任意热点
   const preferred = roam ? [] : base.filter((h) => h.act === PHASE_ACT[phase]);
@@ -290,7 +302,7 @@ function pickInteraction() {
   if (!interactionRegistry?.ok) return null;
   const candidates = [];
   for (const [act, def] of Object.entries(interactionRegistry.acts)) {
-    if (clock.minute < (interactionCooldowns[act] || 0)) continue;
+    if (nowAbs() < (interactionCooldowns[act] || 0)) continue;
     const hot = (scene.hotspots || []).find((h) => h.act === act && !badSpots.has(`${h.x},${h.y}:${h.act}`));
     if (!hot) continue;
     const chosen = resolveInteraction({
@@ -319,7 +331,7 @@ function finishInteraction() {
   if (act === "chat") lastSocialMs = Date.now();
   interactionFlags = out.state.flags;
   interactionCooldowns = out.state.cooldowns;
-  interactionCooldowns[act] = clock.minute + Math.max(5, Number(def.cooldown_min) || 20);
+  interactionCooldowns[act] = nowAbs() + Math.max(5, Number(def.cooldown_min) || 20);
   emit({ type: "mood", mood: { ...mood } });
   for (const e of out.events) {
     if (e.kind === "say") emit({ type: "say", text: e.text, ttl: e.ttl });
@@ -327,16 +339,16 @@ function finishInteraction() {
   }
   event("interaction_end", { act });
   activeInteraction = null;
-  lastIntentMinute = -1e9;
-  busyUntil = clock.minute;
+  lastIntentMinute = nowAbs();
+  busyUntil = nowAbs();
   requestIntent("interaction:end");
 }
 
 async function maybeLlmThought() {
   if (!llmCfg?.baseUrl || !llmCfg?.model || llmBusy) return;
   if (phase === "sleep") return;
-  if (clock.minute - lastLlmMinute < cfg.thoughtMin) return;
-  lastLlmMinute = clock.minute;
+  if (nowAbs() - lastLlmMinute < cfg.thoughtMin) return;
+  lastLlmMinute = nowAbs();
   llmBusy = true;
   const t0 = Date.now();
   const promptText = `她在${currentRoom || "家里"}，${phase}，天气${weather}。她现在${describeMood(mood)}。${moodTone(mood)}。她记得：${memoryText || "暂无"}。${plan && plan.day === clock.day ? `今天的方向：${plan.text}。` : ""}写一句 20 字内的独白，不要台词，不要解释。`;
@@ -389,13 +401,13 @@ function planIntent(act, place, reason, opts = {}) {
     const durationMin = Math.max(10, Math.min(480, Number(opts.durationMin) || 60));
     const overnight = opts.overnight === true;
     pending = null;
-    busyUntil = clock.minute + durationMin;
-    away = { place, until: clock.minute + durationMin, overnight };
+    busyUntil = nowAbs() + durationMin;
+    away = { place, until: nowAbs() + durationMin, overnight };
     event("travel", { to: place, durationMin, overnight, reason });
     return;
   }
   pending = null;
-  busyUntil = clock.minute;
+  busyUntil = nowAbs();
   const room = place || currentRoom;
   const chosen = opts.hotspot
     ? { hot: opts.hotspot, act: opts.hotspot.act || act }
@@ -412,7 +424,7 @@ function planIntent(act, place, reason, opts = {}) {
   const targetAct = chosen.act || act;
   const t = { x: h.x, y: h.y, act: targetAct, room: h.room || place || currentRoom, durationMin: actDuration(targetAct) };
   pending = t;
-  lastIntentMinute = clock.minute;
+  lastIntentMinute = nowAbs();
   stats.intents += 1;
   emit({ type: "intent", x: t.x, y: t.y, act: t.act, room: t.room, durationMin: t.durationMin, reason });
 }
@@ -420,7 +432,7 @@ function planIntent(act, place, reason, opts = {}) {
 function debugIntent(act) {
   if (phase === "sleep" && act !== "sleep") return;
   pending = null;
-  busyUntil = clock.minute;
+  busyUntil = nowAbs();
   const chosen = chooseHotspot(scene.hotspots || [], act, {
     props: actProps(act),
     blocked: badSpots,
@@ -433,7 +445,7 @@ function debugIntent(act) {
   const targetAct = chosen.act || act;
   const t = { x: target.x, y: target.y, act: targetAct, room: target.room || currentRoom, durationMin: actDuration(targetAct) };
   pending = t;
-  lastIntentMinute = clock.minute;
+  lastIntentMinute = nowAbs();
   stats.intents += 1;
   emit({ type: "intent", x: t.x, y: t.y, act: t.act, room: t.room, durationMin: t.durationMin, reason: "debug" });
 }
@@ -442,7 +454,7 @@ function requestIntent(reason) {
   if (away) return;
   if (pending) return;
   if (phase === "sleep" && reason !== "phase:sleep" && reason !== "debug:sleep") return;
-  if (clock.minute < busyUntil) return;
+  if (nowAbs() < busyUntil) return;
   if (phase === "sleep") {
     const bedHot = (scene.hotspots || []).find((h) => h.act === "sleep" && !badSpots.has(`${h.x},${h.y}:${h.act}`));
     if (!bedHot) return;
@@ -455,7 +467,7 @@ function requestIntent(reason) {
       durationMin: actDuration("sleep"),
       bed: bed ? { x: bed.x, y: bed.y, w: bed.w || 1, h: bed.h || 1, facing: bed.facing || "S" } : null,
     };
-    lastIntentMinute = clock.minute;
+    lastIntentMinute = nowAbs();
     stats.intents += 1;
     emit({
       type: "intent",
@@ -472,7 +484,7 @@ function requestIntent(reason) {
   const target = pickTarget();
   if (!target) return;
   pending = target;
-  lastIntentMinute = clock.minute;
+  lastIntentMinute = nowAbs();
   stats.intents += 1;
   emit({
     type: "intent",
@@ -522,7 +534,7 @@ function tick() {
     phase = nextPhase;
     if (phase === "sleep") {
       pending = null;
-      busyUntil = clock.minute;
+      busyUntil = nowAbs();
       delete interactionCooldowns.sleep;
       requestIntent("phase:sleep");
     } else if (prev === "sleep") {
@@ -537,7 +549,7 @@ function tick() {
     event("weather", { weather, temp: w.temp, wind: w.wind, block: w.block });
   }
 
-  if (activeInteraction && clock.minute >= activeInteraction.endsAt) {
+  if (activeInteraction && nowAbs() >= activeInteraction.endsAt) {
     try {
       finishInteraction();
     } catch (err) {
@@ -549,10 +561,10 @@ function tick() {
   // 外部场景停留：到点或睡觉前回家
   if (away) {
     const forceHome = phase === "sleep" && !away.overnight;
-    if (forceHome || clock.minute >= away.until) {
+    if (forceHome || nowAbs() >= away.until) {
       const from = away.place;
       away = null;
-      busyUntil = clock.minute;
+      busyUntil = nowAbs();
       event("return", { from, reason: forceHome ? "sleep" : "stay_end" });
       requestIntent(forceHome ? "phase:sleep" : "return");
     }
@@ -585,7 +597,7 @@ function tick() {
   }
 
   // 漫游：活跃档每 10 游戏分钟换一次目标；息屏档不漫游
-  if (!away && !activeInteraction && phase !== "sleep" && activity !== "asleep" && clock.minute - lastIntentMinute >= cfg.roamMin) {
+  if (!away && !activeInteraction && phase !== "sleep" && activity !== "asleep" && nowAbs() - lastIntentMinute >= cfg.roamMin) {
     const chosen = pickInteraction();
     if (chosen) planIntent(chosen.act, chosen.hot.room, `interaction:${chosen.act}`);
     else requestIntent("roam");
@@ -600,11 +612,11 @@ function tick() {
     weather,
     room: currentRoom,
     activity,
-    busyUntil,
+    busyUntil: busyUntil % DAY_MIN,
     sleepAt,
     wakeAt,
-    interaction: activeInteraction ? { act: activeInteraction.act, endsAt: activeInteraction.endsAt } : null,
-    away: away ? { place: away.place, until: away.until, overnight: away.overnight } : null,
+    interaction: activeInteraction ? { act: activeInteraction.act, endsAt: activeInteraction.endsAt % DAY_MIN } : null,
+    away: away ? { place: away.place, until: away.until % DAY_MIN, overnight: away.overnight } : null,
   });
   if (stats.ticks % 2 === 0) emitSnapshot();
 }
@@ -653,9 +665,10 @@ self.onmessage = (e) => {
       llmCfg = msg.llm || null;
       interactionRegistry = scene?.interactions ? createInteractionRegistry(scene.interactions) : null;
       activeInteraction = null;
-      if (snap?.interaction?.act && Number.isFinite(snap.interaction.endsAt) && snap.interaction.endsAt > clock.minute) {
+      const restoredEndsAt = migrateDeadline(snap?.interaction?.endsAt);
+      if (snap?.interaction?.act && Number.isFinite(restoredEndsAt) && restoredEndsAt > nowAbs()) {
         const def = interactionRegistry?.acts?.[snap.interaction.act];
-        if (def) activeInteraction = { act: snap.interaction.act, def, endsAt: snap.interaction.endsAt };
+        if (def) activeInteraction = { act: snap.interaction.act, def, endsAt: restoredEndsAt };
       }
       interactionFlags = {};
       interactionCooldowns = {};
@@ -667,7 +680,7 @@ self.onmessage = (e) => {
       if (phase === "sleep" && phaseAt(clock.minute) !== "sleep") phase = phaseAt(clock.minute);
       currentRoom = snap?.room || PHASE_ROOM[phase] || "living";
       activity = snap?.activity || "active";
-      busyUntil = Number.isFinite(snap?.busyUntil) ? snap.busyUntil : -1e9;
+      busyUntil = Number.isFinite(snap?.busyUntil) ? migrateDeadline(snap.busyUntil) : -1e9;
       clearStaleSleep();
       if (snap?.plan) plan = snap.plan;
       if (Number.isFinite(snap?.sleepAt)) sleepAt = snap.sleepAt;
@@ -679,12 +692,12 @@ self.onmessage = (e) => {
         }
       }
       appliedSudden = !!snap?.appliedSudden;
-      away = snap?.away || null;
+      away = snap?.away ? { ...snap.away, until: migrateDeadline(snap.away.until) } : null;
       pending = null;
-      lastLlmMinute = clock.minute;
+      lastLlmMinute = nowAbs();
       if (phase === "sleep") {
         pending = null;
-        busyUntil = clock.minute;
+        busyUntil = nowAbs();
         delete interactionCooldowns.sleep;
         requestIntent("phase:sleep");
       }
@@ -692,7 +705,7 @@ self.onmessage = (e) => {
       schedule();
       emit({ type: "ready", day: clock.day, minute: clock.minute, phase, weather });
       emitSnapshot();
-      if (away) event("travel", { to: away.place, durationMin: Math.max(0, away.until - clock.minute), overnight: away.overnight, reason: "restore" });
+      if (away) event("travel", { to: away.place, durationMin: Math.max(0, away.until - nowAbs()), overnight: away.overnight, reason: "restore" });
       if (phase !== "sleep") event("wake", { reason: "boot" });
       break;
     }
@@ -709,11 +722,11 @@ self.onmessage = (e) => {
       }
       const room = msg.room || pending?.room || currentRoom;
       const arrivalKey = `${room}:${act || ""}`;
-      if (lastArrival.key === arrivalKey && clock.minute - lastArrival.minute < 1) {
+      if (lastArrival.key === arrivalKey && nowAbs() - lastArrival.minute < 1) {
         pending = null;
         break;
       }
-      lastArrival = { key: arrivalKey, minute: clock.minute };
+      lastArrival = { key: arrivalKey, minute: nowAbs() };
       const changed = room !== currentRoom;
       currentRoom = room;
       if (changed) {
@@ -723,7 +736,7 @@ self.onmessage = (e) => {
       const durationMin = pending?.durationMin || 10;
       const interactionDef = interactionRegistry?.acts?.[act];
       if (interactionDef) {
-        activeInteraction = { act, def: interactionDef, endsAt: clock.minute + durationMin };
+        activeInteraction = { act, def: interactionDef, endsAt: nowAbs() + durationMin };
         event("interaction_start", { act });
       }
       if (act) {
@@ -741,7 +754,7 @@ self.onmessage = (e) => {
         });
         stats.sinceResume.sleeps += 1;
       }
-      busyUntil = clock.minute + durationMin;
+      busyUntil = nowAbs() + durationMin;
       if (act === "write") {
         const wk = weekdayInfo();
         emit({ type: "write", room, act, day: clock.day, minute: clock.minute, ...wk });
@@ -843,19 +856,19 @@ self.onmessage = (e) => {
         clock.set(clock.day, 23 * 60);
         phase = "sleep";
         pending = null;
-        busyUntil = clock.minute;
+        busyUntil = nowAbs();
         requestIntent("debug:sleep");
       } else if (kind === "wake") {
         clock.set(clock.day, 7 * 60);
         phase = "wake";
         pending = null;
-        busyUntil = clock.minute;
+        busyUntil = nowAbs();
         requestIntent("debug:wake");
       } else if (kind === "night") {
         clock.set(clock.day, 23 * 60);
         phase = "sleep";
         pending = null;
-        busyUntil = clock.minute;
+        busyUntil = nowAbs();
         requestIntent("debug:sleep");
       } else if (kind === "act" && msg.act) {
         debugIntent(msg.act);
