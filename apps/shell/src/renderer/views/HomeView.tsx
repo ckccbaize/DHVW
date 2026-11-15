@@ -57,15 +57,19 @@ export function HomeView({
         return
       }
       setPending(state)
-      setNote(`已下发「${DISPLAY_TEXT[state]}」，等待设备确认…`)
+      setNote(
+        state === 'present'
+          ? `已下发「${DISPLAY_TEXT[state]}」，等待服务就绪与设备换场确认…`
+          : `已下发「${DISPLAY_TEXT[state]}」，等待设备确认…`,
+      )
       if (timer.current) window.clearTimeout(timer.current)
-      // 设备当前固件可能还不认 display:set，超时后如实说明，不假装成功
+      // 显现切换需等待 OLVT 就绪 + 设备数码方块换场与 iframe 加载，超时放宽到 45s
       timer.current = window.setTimeout(() => {
         setPending((p) => {
-          if (p) setNote('设备未确认：固件可能尚未实现 display:set')
+          if (p) setNote('设备未确认：服务启动超时或固件尚未实现 display:set')
           return null
         })
-      }, 6000)
+      }, state === 'present' ? 45000 : 8000)
     } finally {
       setSending(false)
     }
