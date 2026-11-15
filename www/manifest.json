@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-15T10:52:18.305Z",
+ "built_at": "2026-11-15T11:08:34.912Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -744,8 +744,8 @@
   },
   {
    "path": "js/app.js",
-   "size": 30171,
-   "sha256": "46ce0392bde41f0e23303d7cb4e282f8cbf93cbfef566de136c83a4e5f39aa7c"
+   "size": 31485,
+   "sha256": "2090cfb1ecce1a35f4eee8a4096e56eda1cd61cfef97269a154b4218c4e09cd6"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -1014,8 +1014,8 @@
   },
   {
    "path": "js/core/worker.js",
-   "size": 72309,
-   "sha256": "d30f904aa2474dffb7e4940439da346c1b4982125fcac28d8d28d1580038ab95"
+   "size": 72316,
+   "sha256": "ce24ffa7381a1e6a0af62ce5ddaa4de8528e1a4a93c32436a8284c7638722942"
   },
   {
    "path": "js/forge/grammar.js",
@@ -1024,8 +1024,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 42203,
-   "sha256": "1ded614d2fa2a3a6af10d524c8e035adb93195dd24cab586040d06fae4f1f90f"
+   "size": 44883,
+   "sha256": "21299b5109409b4e0b280409941f234f3dae493f71576e617a8bc395284d458b"
   },
   {
    "path": "js/runtime/remote.js",

@@ -453,6 +453,28 @@ async function boot() {
         if (present.isOpen) present.say(p.text);
         break;
       }
+      case "state:export": {
+        void local.exportSave().then((save) => {
+          if (!save) return;
+          remote.send({ type: "state:save", payload: { save, reason: p.reason || "request" } });
+        }).catch((err) => console.warn("[state] 导出失败", err));
+        break;
+      }
+      case "state:restore": {
+        if (!p.save) break;
+        void local.importSave(p.save).then((res) => {
+          remote.send({ type: "state:restore:ack", payload: { id: p.id || "", ...res } });
+          setTimeout(() => {
+            const url = new URL(location.href);
+            if (res.scene && res.scene !== (scene.name || scene.id)) url.searchParams.set("scene", res.scene);
+            location.replace(url.toString());
+          }, 250);
+        }).catch((err) => {
+          remote.send({ type: "state:restore:ack", payload: { id: p.id || "", ok: false, error: err.message } });
+          console.warn("[state] 恢复失败", err);
+        });
+        break;
+      }
       case "tier": {
         setTier(p.value);
         break;
@@ -850,6 +872,13 @@ async function boot() {
     void sendDigest();
     sendMood();
   }, 5000);
+  // 每 5 分钟把整份存档交给 PC 留一份；PC 上线时还会主动 state:export。
+  setInterval(() => {
+    if (store.state.conn !== "up") return;
+    void local.exportSave().then((save) => {
+      if (save) remote.send({ type: "state:save", payload: { save, reason: "auto" } });
+    }).catch(() => {});
+  }, 300000);
 
   store.patch({ light: lightFor("morning", "clear") });
   store.on("tick", (t) => {

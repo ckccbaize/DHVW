@@ -111,6 +111,8 @@
 | `llm:config` | `{baseUrl?, apiKey?, model?, timeoutMs?, maxAttempts?, retryBaseMs?}` | **PC 直接修改设备 LLM 服务商配置**（落库生效） |
 | `digest:get` | `{}` | 请求设备重发 `world:digest` |
 | `mood:get` | `{}` | 请求当前心情可视化载荷（回 `mood:state`） |
+| `state:export` | `{reason?}` | 请求设备上报整份存档；设备回 `state:save` |
+| `state:restore` | `{id?, save}` | 下发存档；设备写 IDB + `/__state` 后重载页面 |
 | `scene:ready` | `{id}` | PC 已完成某条 `sceneRequests` 的地图生成 |
 | `pc:action:ack` | `{id, ok, result?}` | PC 执行完设备下发的 `pc:action` |
 
@@ -129,6 +131,8 @@
 | `facts:candidates` | `{facts, events}` | 设备归纳候选 |
 | `wake:state` | `{mode, next_wake_at, last_outcome}` | 设备档唤醒状态 |
 | `llm:state` | `{configured, baseUrl, model, maskedKey, stats}` | 设备 LLM 配置与调用统计（不含明文 key） |
+| `state:save` | `{save, reason}` | 整份存档（life/agent/places/mood/dailyPlots/writings/plots）；PC 落盘备份 |
+| `state:restore:ack` | `{id, ok, day?, minute?, scene?, error?}` | 设备确认存档恢复 |
 | `world:digest` | `{digest}` | 统一世界摘要（状态/日程/场景请求/PC 动作） |
 | `mood:state` | `{v,ts,minute,band,dims,series,sources}` | 心情 4 维当前值 + 最近序列 + 来源分布（≤5s 节流） |
 | `pc:action` | `{id, action, args}` | 设备请求 PC 执行白名单动作 |
@@ -140,6 +144,7 @@
 - 写 kv `digest`；
 - `POST /__digest` → 壳原子写 `data/digest.json`（PC 可 `GET /__digest` 读取）；
 - `POST /__state` → 壳原子写 `data/state.json`，保存 `{savedAt, life, agent}`；`GET /__state` 在浏览器会话/IndexedDB 丢失后恢复；
+- PC 侧 `state:save` 备份到 `data/saves/*.json`，保留最近 20 份；`GET /dhvw/saves`、`POST /dhvw/saves/backup`、`POST /dhvw/saves/{id}/restore`；
 - 主机在线时推 `world:digest`。
 
 ```json

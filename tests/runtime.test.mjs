@@ -180,6 +180,30 @@ test("LocalRuntime：start 初始化两个 Worker，tick 更新时钟", async ()
   local.stop();
 });
 
+test("LocalRuntime：存档导出/导入", async () => {
+  const { local } = makeLocal();
+  await local.start();
+  const life = FakeWorker.instances.find((w) => w.url.includes("life.worker"));
+  life.emit({
+    type: "snapshot",
+    snapshot: { day: 2, minute: 600, phase: "noon", room: "living", activity: "active", busyUntil: 600 },
+  });
+  await local.persistAgentPos({ scene: "home", gx: 1, gy: 1, px: 1.5, py: 1.5, dir: { x: 1, y: 0 }, room: "living" });
+  const save = await local.exportSave();
+  assert.equal(save.life.day, 2);
+  assert.equal(save.agent.gx, 1);
+  const res = await local.importSave({
+    ...save,
+    life: { ...save.life, day: 3, minute: 700 },
+    agent: { ...save.agent, gx: 2, gy: 2 },
+  });
+  assert.equal(res.ok, true);
+  assert.equal(res.day, 3);
+  assert.equal(local.getSnapshot().day, 3);
+  assert.equal((await local.getAgentPos()).gx, 2);
+  local.stop();
+});
+
 test("LocalRuntime：intent/say 转发，事件补 t_corrected 并入缓冲", async () => {
   const { local, seen } = makeLocal();
   await local.start();
