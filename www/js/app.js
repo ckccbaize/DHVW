@@ -357,9 +357,10 @@ async function boot() {
 
   async function cacheSceneAssets(p) {
     const sceneId = String(p.sceneId || p.job || "").trim();
-    const basePath = String(p.basePath || "").trim();
-    if (!sceneId || !basePath || typeof caches === "undefined") return false;
     const raw = cfg.host.wsUrl || cfg.host.probeUrl || "";
+    const viaGateway = /\/ws\//.test(raw);
+    const basePath = String((viaGateway && p.gatewayBasePath) || p.basePath || "").trim();
+    if (!sceneId || !basePath || typeof caches === "undefined") return false;
     if (!raw) return false;
     let origin = "";
     try {
