@@ -461,6 +461,17 @@ export function createLocalRuntime({
     return { ok: true, id, added: true };
   }
 
+  async function hasLocalScene(placeId) {
+    const id = String(placeId || "").trim();
+    if (!id || typeof fetch !== "function") return false;
+    try {
+      const res = await fetch(`assets/scenes/${encodeURIComponent(id)}/${encodeURIComponent(id)}.built.json`, { cache: "no-store" });
+      return !!res?.ok;
+    } catch {
+      return false;
+    }
+  }
+
   async function saveSceneRequests() {
     sceneRequests = sceneRequests.slice(0, 20);
     await backend.setKV("scene_requests", sceneRequests).catch(() => {});
@@ -470,6 +481,7 @@ export function createLocalRuntime({
   async function enqueueSceneRequest(placeId, { reason = "plan", day = 0, description = "" } = {}) {
     const id = String(placeId || "").trim();
     if (!id) return { ok: false, error: "缺 placeId" };
+    if (await hasLocalScene(id)) return { ok: true, queued: false, local: true };
     const existing = sceneRequests.find((r) => r.placeId === id && (r.status === "pending" || r.status === "ready"));
     if (existing) return { ok: true, queued: false, request: existing };
     const place = (await allPlaceRecords()).find((p) => p.id === id);
@@ -1038,20 +1050,20 @@ export function createLocalRuntime({
       sceneRequests = (await backend.getKV("scene_requests")) || [];
       // 丢掉过去日期的 pending，避免补请求旧计划；同一地点只保留一条 pending/ready。
       const currentDay = lastSnapshot?.day ?? 1;
-      sceneRequests = sceneRequests.filter((r) => {
-        if (!r || !r.placeId) return false;
-        const day = Number.isFinite(r.day) ? r.day : Number(String(r.id || "").match(/-(\d+)$/)?.[1]);
-        return !(r.status === "pending" && Number.isFinite(day) && day < currentDay);
-      });
       const seenRequests = new Set();
-      sceneRequests = sceneRequests.filter((r) => {
-        if (!r || !r.placeId) return false;
+      const keptRequests = [];
+      for (const r of sceneRequests) {
+        if (!r || !r.placeId) continue;
+        const day = Number.isFinite(r.day) ? r.day : Number(String(r.id || "").match(/-(\d+)$/)?.[1]);
+        if (r.status === "pending" && Number.isFinite(day) && day < currentDay) continue;
+        if (r.status === "pending" && await hasLocalScene(r.placeId)) continue;
         if (r.status === "pending" || r.status === "ready") {
-          if (seenRequests.has(r.placeId)) return false;
+          if (seenRequests.has(r.placeId)) continue;
           seenRequests.add(r.placeId);
         }
-        return true;
-      });
+        keptRequests.push(r);
+      }
+      sceneRequests = keptRequests;
       await backend.setKV("scene_requests", sceneRequests).catch(() => {});
       const storedPlots = (await backend.getKV("plots")) || [];
       const roomSet = new Set((scene.rooms || []).map((r) => r.id));

@@ -181,7 +181,7 @@ test("LocalRuntime：start 初始化两个 Worker，tick 更新时钟", async ()
   assert.equal(clock.offsetMs, 5000);
   assert.equal(clock.source, "device");
   assert.ok(Number.isInteger(clock.weekday));
-  assert.match(clock.date, /^\d{4}-\d{2}-\d{2}$/);
+  assert.ok(Number.isInteger(clock.week));
   assert.equal(store.state.phase, "noon");
   local.stop();
 });
