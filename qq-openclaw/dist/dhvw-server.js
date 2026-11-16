@@ -106,17 +106,20 @@ function attachWsClient(req, socket, onMessage, onClose) {
 function parseArgs(argv) {
   let configPath = "/etc/dhvw/qqbot.json";
   let stateDir = "";
+  let shellUrl = "";
   let followBoost = false;
   for (let i = 2; i < argv.length; i++) {
     if ((argv[i] === "-config" || argv[i] === "--config") && argv[i + 1]) {
       configPath = argv[++i];
     } else if ((argv[i] === "-stateDir" || argv[i] === "--stateDir") && argv[i + 1]) {
       stateDir = argv[++i];
+    } else if ((argv[i] === "-shellUrl" || argv[i] === "--shellUrl") && argv[i + 1]) {
+      shellUrl = argv[++i];
     } else if (argv[i] === "-followBoost" || argv[i] === "--followBoost") {
       followBoost = true;
     }
   }
-  return { configPath, stateDir, followBoost };
+  return { configPath, stateDir, shellUrl, followBoost };
 }
 
 function isLoopbackAddr(addr) {
@@ -541,6 +544,7 @@ if (import.meta.url === `file://${path.resolve(process.argv[1] || "")}` || proce
   }
   if (args.followBoost) raw.followBoost = true;
   if (args.stateDir) raw.stateDir = args.stateDir;
+  if (args.shellUrl) raw.shellUrl = args.shellUrl;
   if (!raw.enabled && !raw.followBoost) {
     console.log("[qq-openclaw] enabled=false 且未开启 followBoost，正常退出");
     process.exit(0);

@@ -47,8 +47,11 @@ export function createStickerStore({
   dir,
   enabled = true,
   autoCollect = true,
+  autoFetch = true,
   eagerness = 2,
   maxStickers = 200,
+  shellUrl = "http://127.0.0.1:8080",
+  fetchImpl = globalThis.fetch,
   now = () => Date.now(),
   log,
 } = {}) {
@@ -58,6 +61,9 @@ export function createStickerStore({
   const indexFile = path.join(dir, "index.json");
   let items = loadIndex();
   let turnsSinceSticker = 10;
+  let lastWebFetchAt = 0;
+  let lastWebAttemptAt = 0;
+  let webFetchInFlight = null;
 
   function loadIndex() {
     try {
@@ -254,7 +260,87 @@ export function createStickerStore({
     },
 
     stats() {
-      return { count: items.length, eagerness, autoCollect };
+      return { count: items.length, eagerness, autoCollect, autoFetch };
+    },
+
+    /**
+     * 联网按心情与上下文关键词自动搜索并扩充表情包库（走壳 /__image/search，安全格式校验+哈希去重）。
+     */
+    async searchAndCollect({
+      mood = {},
+      queryHint = "",
+      limit = 2,
+      cooldownMs = 20 * 60_000,
+      force = false,
+    } = {}) {
+      if (!enabled || !autoFetch || items.length >= maxStickers) {
+        return { ok: false, added: 0, reason: "disabled_or_full" };
+      }
+      if (webFetchInFlight) return webFetchInFlight;
+      const t = now();
+      if (!force && t - lastWebAttemptAt < 60_000) {
+        return { ok: false, added: 0, reason: "attempt_throttled" };
+      }
+      if (!force && items.length >= 6 && t - lastWebFetchAt < cooldownMs) {
+        return { ok: false, added: 0, reason: "cooldown" };
+      }
+      lastWebAttemptAt = t;
+
+      const cleanHint = String(queryHint || "")
+        .replace(/\[QQ表情:([^\]]+)\]/g, " $1 ")
+        .replace(/[^\u4e00-\u9fa5A-Za-z0-9\s]/g, " ")
+        .trim()
+        .slice(0, 12);
+      const band = String(mood?.band || "calm").toLowerCase();
+      const cues = MOOD_KEYWORDS[band] || MOOD_KEYWORDS.calm;
+      const emotion = cleanHint || cues[Math.floor(Math.random() * Math.min(3, cues.length))] || "日常";
+      const searchQ = `${emotion} 可爱 表情包`.trim().slice(0, 40);
+
+      webFetchInFlight = (async () => {
+        try {
+          const base = String(shellUrl || "http://127.0.0.1:8080").replace(/\/+$/, "");
+          const res = await fetchImpl(`${base}/__image/search?q=${encodeURIComponent(searchQ)}&n=6`, {
+            signal: AbortSignal.timeout?.(4000),
+          });
+          if (!res.ok) return { ok: false, added: 0, reason: `search_http_${res.status}` };
+          const data = await res.json();
+          const list = Array.isArray(data?.items) ? data.items : [];
+          let added = 0;
+          for (const candidate of list) {
+            if (added >= limit || items.length >= maxStickers) break;
+            const urls = [candidate?.thumb, candidate?.url].filter((u) => typeof u === "string" && /^https?:\/\//i.test(u));
+            for (const targetUrl of urls) {
+              try {
+                const imgRes = await fetchImpl(targetUrl, { signal: AbortSignal.timeout?.(3500) });
+                if (!imgRes.ok) continue;
+                const ct = String(imgRes.headers.get("content-type") || "").toLowerCase();
+                if (!ct.startsWith("image/") || ct.includes("svg")) continue;
+                const buf = Buffer.from(await imgRes.arrayBuffer());
+                if (buf.byteLength < 1024 || buf.byteLength > 2 * 1024 * 1024) continue;
+                const ext = mimeToExt(ct, targetUrl);
+                const reg = registerBuffer(buf, ext, {
+                  emotion,
+                  desc: `${emotion} 表情包`,
+                  tags: [emotion, ...cues.slice(0, 3)],
+                  source: "web_search",
+                });
+                if (reg?.created) {
+                  added += 1;
+                  log?.info?.(`[sticker-store] 联网扩充表情包 id=${reg.item.id} query=${searchQ}`);
+                  break;
+                }
+              } catch {}
+            }
+          }
+          if (added > 0) lastWebFetchAt = now();
+          return { ok: added > 0, added, query: searchQ, count: items.length };
+        } catch (err) {
+          return { ok: false, added: 0, reason: String(err?.message || err) };
+        } finally {
+          webFetchInFlight = null;
+        }
+      })();
+      return webFetchInFlight;
     },
   };
 }

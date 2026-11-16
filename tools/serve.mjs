@@ -6,10 +6,12 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { createNetProxy } from "./net-proxy.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "www");
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || "127.0.0.1";
+const netProxy = createNetProxy();
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -128,9 +130,11 @@ async function ensureQqStarted() {
   if (await qqAlive()) return true;
   if (!qqChild && fs.existsSync(QQ_SERVER_JS)) {
     fs.mkdirSync(QQ_STATE_DIR, { recursive: true });
-    qqChild = spawn(process.execPath, [QQ_SERVER_JS, "-followBoost", "-stateDir", QQ_STATE_DIR], {
-      stdio: "inherit",
-    });
+    qqChild = spawn(
+      process.execPath,
+      [QQ_SERVER_JS, "-followBoost", "-stateDir", QQ_STATE_DIR, "-shellUrl", `http://127.0.0.1:${PORT}`],
+      { stdio: "inherit" },
+    );
     qqChild.on("exit", () => {
       qqChild = null;
     });
@@ -202,6 +206,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
       return void res.end(JSON.stringify({ ok: true, server: "node-dev", root: ROOT }));
     }
+    if (await netProxy.handle(req, res, urlPath)) return;
     const r = resolve(urlPath);
     if (!r) return void res.writeHead(404).end("not found");
 

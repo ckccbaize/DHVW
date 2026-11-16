@@ -193,6 +193,7 @@ export function createLocalRuntime({
   idbFactory = globalThis.indexedDB,
   now = () => Date.now(),
   forgeIntervalMs = 45000,
+  browseIntervalMs = 75 * 60_000,
 } = {}) {
   let backend = null;
   let lifeWorker = null;
@@ -220,6 +221,9 @@ export function createLocalRuntime({
   let lastPlotDay = -1;
   let plotBusy = false;
   let memoryBusy = false;
+  let browseBusy = false;
+  let lastBrowseAt = 0;
+  let startedAtMs = 0;
   let lastSnapshot = null;
   let recentPlots = [];
   let dailyPlots = {};
@@ -273,6 +277,7 @@ export function createLocalRuntime({
           void backend.setKV("last_memory_day", msg.day).catch(() => {});
           void maybeMemory(true);
         }
+        void maybeAutoBrowse(msg);
         maybeForge(msg);
         break;
       }
@@ -777,41 +782,89 @@ export function createLocalRuntime({
     postLife({ type: "setMood", mood: { ...mood } });
   }
 
+  function maybeAutoBrowse(tick) {
+    if (suspended || browseBusy || !llm || !registry) return;
+    if (tick?.phase === "sleep") return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+    const t = now();
+    // 启动后等 25 秒让场景/日计划稳定再考虑主动上网，之后按 browseIntervalMs 周期触发
+    if (startedAtMs && t - startedAtMs < 25_000) return;
+    if (lastBrowseAt && t - lastBrowseAt < browseIntervalMs) return;
+    lastBrowseAt = t;
+    void backend.setKV("last_browse_at", t).catch(() => {});
+    return maybeBrowse();
+  }
+
   async function maybeBrowse() {
-    if (!llm || !registry) return;
+    if (!llm || !registry || browseBusy) return null;
+    browseBusy = true;
     const t0 = now();
-    const planner = createBrowsePlanner({ llm, registry });
-    const plan = await planner.plan({ threads: memoryText(6).split("\n").filter(Boolean), recent: [], mood });
-    if (!plan.ok) {
-      await logLlm({ agent: "browse", ok: false, ms: now() - t0, response: plan.reason });
-      return;
-    }
-    let result = null;
-    const query = plan.query || plan.topic || plan.url || "";
-    if (query) {
-      const res = await fetch(`/__search?q=${encodeURIComponent(query)}&n=5`, { cache: "no-store" });
-      result = res.ok ? await res.json() : { error: `http_${res.status}` };
-      const first = result?.results?.find((r) => r.url);
-      if (first) {
-        try {
-          const page = await fetch(`/__fetch?url=${encodeURIComponent(first.url)}`, { cache: "no-store" });
-          if (page.ok) {
-            const data = await page.json();
-            result.page = { url: first.url, title: data.title || first.title || "", text: String(data.text || "").slice(0, 1200) };
-          }
-        } catch {}
+    lastBrowseAt = t0;
+    void backend.setKV("last_browse_at", t0).catch(() => {});
+    try {
+      const planner = createBrowsePlanner({ llm, registry });
+      const prevLogs = ((await backend.getKV("browse_log").catch(() => [])) || []).slice(-3);
+      const recent = prevLogs.map((b) => ({
+        url: b?.result?.page?.url || b?.plan?.url || "",
+        topic: b?.plan?.query || b?.plan?.topic || "",
+      }));
+      const plan = await planner.plan({ threads: memoryText(6).split("\n").filter(Boolean), recent, mood });
+      if (!plan.ok) {
+        await logLlm({ agent: "browse", ok: false, ms: now() - t0, response: plan.reason });
+        return null;
       }
+      let result = null;
+      const query = plan.query || plan.topic || "";
+      if (plan.mode === "url" && plan.url) {
+        const page = await fetch(`/__fetch?url=${encodeURIComponent(plan.url)}`, { cache: "no-store" });
+        if (page.ok) {
+          const data = await page.json();
+          result = { results: [], page: { url: plan.url, title: data.title || "", text: String(data.text || "").slice(0, 1200) } };
+        } else {
+          result = { error: `fetch_http_${page.status}` };
+        }
+      } else if (query) {
+        const res = await fetch(`/__search?q=${encodeURIComponent(query)}&n=5`, { cache: "no-store" });
+        result = res.ok ? await res.json() : { error: `http_${res.status}` };
+        const first = result?.results?.find((r) => r.url);
+        if (first) {
+          try {
+            const page = await fetch(`/__fetch?url=${encodeURIComponent(first.url)}`, { cache: "no-store" });
+            if (page.ok) {
+              const data = await page.json();
+              result.page = { url: first.url, title: data.title || first.title || "", text: String(data.text || "").slice(0, 1200) };
+            }
+          } catch {}
+        }
+      }
+      const item = { id: `browse-${now()}`, plan, result, created_at: now() };
+      await appendKv("browse_log", item, 20);
+      if (localMemory && (result?.page?.title || result?.results?.[0]?.title)) {
+        const headline = result?.page?.title || result?.results?.[0]?.title || query;
+        const snippet = (result?.page?.text || result?.results?.[0]?.snippet || "").slice(0, 90);
+        await localMemory.add({
+          id: item.id,
+          text: `上网逛到了「${headline}」${snippet ? `：${snippet}` : ""}`.slice(0, 160),
+          tier: "L2",
+          t: now(),
+          meta: { source: "browse" },
+        }).catch(() => {});
+      }
+      await logLlm({
+        agent: "browse",
+        ok: true,
+        ms: now() - t0,
+        prompt: plan.query || plan.url || plan.topic,
+        response: plan.raw || JSON.stringify(result?.page || result?.results?.slice(0, 3) || result || {}),
+      });
+      store.emit("browse", item);
+      return item;
+    } catch (err) {
+      await logLlm({ agent: "browse", ok: false, ms: now() - t0, response: String(err?.message || err) });
+      return null;
+    } finally {
+      browseBusy = false;
     }
-    const item = { id: `browse-${now()}`, plan, result, created_at: now() };
-    await appendKv("browse_log", item, 20);
-    await logLlm({
-      agent: "browse",
-      ok: true,
-      ms: now() - t0,
-      prompt: plan.query || plan.url || plan.topic,
-      response: plan.raw || JSON.stringify(result?.page || result?.results?.slice(0, 3) || result || {}),
-    });
-    store.emit("browse", item);
   }
 
   async function generateWriting(ctx) {
@@ -1075,6 +1128,8 @@ export function createLocalRuntime({
         ? (useSnapshot ? lastSnapshot : { ...lastSnapshot, day: startDay, minute: startMinute })
         : null;
       lastPlotDay = (await backend.getKV("last_plot_day")) ?? -1;
+      lastBrowseAt = Number(await backend.getKV("last_browse_at").catch(() => 0)) || 0;
+      startedAtMs = now();
       dailyPlots = (await backend.getKV("daily_plots")) || {};
       // 刷新时如果剧情调用还在进行，不能立刻再发一次；保留 2 分钟占位，超时后再补。
       try {

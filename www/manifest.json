@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-16T14:43:10.028Z",
+ "built_at": "2026-11-16T15:04:44.220Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -1069,8 +1069,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 56722,
-   "sha256": "abeab01a459d9d93932a2f5f0e89ca5ee6fc0e955ffa57844607dbf6ddc07c6a"
+   "size": 59212,
+   "sha256": "9421b85d3cef7db66d7fda18c97b96a2367d0f225e4bf70719f801d9a14cedad"
   },
   {
    "path": "js/runtime/qq-bridge.js",

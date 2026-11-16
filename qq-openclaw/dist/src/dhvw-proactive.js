@@ -144,6 +144,12 @@ export function createProactiveRunner({
       busy = true;
       try {
         const mem = await queryMemory(decision.seed, 5, { band: world.band, dims: world.mood });
+        if (runtime.stickerStore?.enabled && runtime.stickerStore.stats?.().count < 12) {
+          await Promise.race([
+            runtime.stickerStore.searchAndCollect({ mood: { band: world.band, dims: world.mood }, queryHint: decision.seed, limit: 2 }),
+            new Promise((r) => setTimeout(r, 2000)),
+          ]);
+        }
         const stickerCandidates = runtime.stickerStore?.canSendThisTurn({ proactive: true })
           ? runtime.stickerStore.selectCandidates({ query: decision.seed, mood: { band: world.band, dims: world.mood }, limit: 6 })
           : [];

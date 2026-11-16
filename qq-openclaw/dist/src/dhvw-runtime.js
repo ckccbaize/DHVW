@@ -78,8 +78,11 @@ export function createDhvwRuntime({
     dir: stickerCfg.dir || path.join(stateDir, "stickers"),
     enabled: stickerCfg.enabled !== false,
     autoCollect: stickerCfg.autoCollect !== false,
+    autoFetch: stickerCfg.autoFetch !== false,
     eagerness: stickerCfg.eagerness ?? 2,
     maxStickers: stickerCfg.maxStickers ?? 200,
+    shellUrl,
+    fetchImpl,
     now,
     log,
   });
@@ -380,18 +383,60 @@ export function createDhvwRuntime({
             if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
 
             const tMemStart = now();
-            const mem = await queryMemory(userText, 6, { band: world.band, dims: world.mood });
+            const QUICK_SEARCH_RE = /(?:查一下|搜一下|帮我查|什么梗|是什么意思|热搜|新闻|最新|查查)/;
+            const quickSearchPromise = QUICK_SEARCH_RE.test(userText)
+              ? Promise.race([
+                  (async () => {
+                    try {
+                      let hits = [];
+                      if (typeof searchWeb === "function") {
+                        hits = await searchWeb(userText.slice(0, 50));
+                      } else {
+                        const r = await fetchImpl(`${shellUrl.replace(/\/+$/, "")}/__search?q=${encodeURIComponent(userText.slice(0, 50))}&n=3`);
+                        if (r.ok) {
+                          const d = await r.json();
+                          hits = Array.isArray(d?.results) ? d.results : [];
+                        }
+                      }
+                      return (hits || [])
+                        .slice(0, 3)
+                        .map((h) => `- ${h?.title || ""}${h?.snippet ? `：${String(h.snippet).slice(0, 80)}` : ""}`)
+                        .filter((s) => s.length > 2)
+                        .join("\n");
+                    } catch {
+                      return "";
+                    }
+                  })(),
+                  new Promise((r) => setTimeout(() => r(""), 2200)),
+                ])
+              : Promise.resolve("");
+
+            const [mem, quickSearchText] = await Promise.all([
+              queryMemory(userText, 6, { band: world.band, dims: world.mood }),
+              quickSearchPromise,
+            ]);
             log?.info?.(
               `[dhvw-runtime] memory query semantic=${Boolean(mem?.semantic)} hits=${mem?.hits?.length || 0} l0=${mem?.l0?.length || 0} cost=${now() - tMemStart}ms`
             );
             const inboundMedia = Array.isArray(ctx.media) ? ctx.media.filter((m) => m?.path) : [];
             const canSticker = stickerStore.canSendThisTurn();
+            if (stickerStore.enabled) {
+              if (stickerStore.stats().count < 6) {
+                await Promise.race([
+                  stickerStore.searchAndCollect({ mood: { band: world.band, dims: world.mood }, queryHint: userText, limit: 2 }),
+                  new Promise((r) => setTimeout(r, 2200)),
+                ]);
+              } else {
+                void stickerStore.searchAndCollect({ mood: { band: world.band, dims: world.mood }, queryHint: userText, limit: 1 });
+              }
+            }
             const stickerCandidates = canSticker
               ? stickerStore.selectCandidates({ query: userText, mood: { band: world.band, dims: world.mood }, limit: 8 })
               : [];
             const stickerHintBlock = stickerCandidates.length
               ? `可用表情包库（情绪合适时可在 sticker_id 填入下列 id 之一，不想发留空）：\n${stickerStore.formatPromptBlock(stickerCandidates)}`
               : "";
+            const searchHintBlock = quickSearchText ? `联网搜索参考：\n${quickSearchText}` : "";
             const collectHint = inboundMedia.length && stickerStore.autoCollect
               ? "若对方发来的图片是适合日常斗图的表情包，请在 collect_sticker 中填 save:true 及 emotion/desc/tags 进行收藏。"
               : "";
@@ -402,6 +447,7 @@ export function createDhvwRuntime({
               `当前心情：${world.band || "calm"} (${JSON.stringify(world.mood || {})})`,
               `长期记忆与偏好：\n${formatMemoryBlock(mem)}`,
               `熟人习惯与黑话：${formatSlangBlock()}`,
+              ...(searchHintBlock ? [searchHintBlock] : []),
               ...(stickerHintBlock ? [stickerHintBlock] : []),
               `最近对话：\n${recentHistoryText}`,
               `对方刚发来：\n${ctx.BodyForAgent || ctx.Body}`,

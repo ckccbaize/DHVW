@@ -828,4 +828,66 @@ describe("图片表情包采集（偷图）与语境挑图发送 (sticker-store 
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
+
+  it("表情包联网自动扩库 (searchAndCollect) 与聊天显式查资料主动触发 /__search", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dhvw-autofetch-"));
+    const BIG_FAKE_PNG = Buffer.concat([TINY_PNG, Buffer.alloc(1200, 1)]);
+    const prompts = [];
+
+    const fetchImpl = async (url, init = {}) => {
+      if (url.includes("/__image/search")) {
+        return new Response(
+          JSON.stringify({
+            source: "bing",
+            items: [{ url: "https://cdn.example.com/sleepy.png", thumb: "https://cdn.example.com/sleepy_t.png" }],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url === "https://cdn.example.com/sleepy_t.png") {
+        return new Response(BIG_FAKE_PNG, { status: 200, headers: { "content-type": "image/png" } });
+      }
+      if (url.includes("/__search")) {
+        return new Response(
+          JSON.stringify({ ok: true, results: [{ title: "今日热词百科", snippet: "早八人指的是早上八点要出门的打工人" }] }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith("/chat/completions")) {
+        const body = JSON.parse(init.body);
+        prompts.push(body.messages[0].content);
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: JSON.stringify({ reply_mode: "reply", parts: ["早八人辛苦啦"], bubble: "聊热词" }) } }],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response("not found", { status: 404 });
+    };
+
+    const rt = createDhvwRuntime({
+      stateDir: tmpDir,
+      mediaDir: path.join(tmpDir, "media"),
+      shellUrl: "http://127.0.0.1:18080",
+      partDelayMs: 0,
+      getLlmConfig: () => ({ baseUrl: "http://llm.local/v1", model: "test-m", apiKey: "k" }),
+      getWorldState: () => ({ band: "tired", mood: { energy: 0.3 } }),
+      fetchImpl,
+    });
+
+    assert.equal(rt.stickerStore.stats().count, 0);
+    await rt.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+      ctx: { CommandSource: "qq", RawBody: "帮我查一下早八人是什么意思", Body: "帮我查一下早八人是什么意思", BodyForAgent: "帮我查一下早八人是什么意思" },
+      dispatcherOptions: { deliver: async () => {} },
+    });
+
+    assert.equal(prompts.length, 1);
+    assert.ok(prompts[0].includes("联网搜索参考"));
+    assert.ok(prompts[0].includes("今日热词百科"));
+    assert.ok(prompts[0].includes("可用表情包库"));
+    assert.equal(rt.stickerStore.stats().count, 1);
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
 });
