@@ -890,4 +890,124 @@ describe("图片表情包采集（偷图）与语境挑图发送 (sticker-store 
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
+
+  it("QQ 自唤醒支持 idle_checkin、柔化夜聊静默、传递 isWakeup:true 及持久状态", async () => {
+    const lateChatAt = new Date(2026, 10, 16, 23, 40, 0).getTime();
+    // 23:40 且 40 分钟前还在聊，不应硬锁 quiet_hours，应走 idle_checkin
+    const lateDecision = evaluateProactiveTrigger({
+      now: lateChatAt,
+      lastInboundAt: lateChatAt - 40 * 60_000,
+      lastProactiveAt: lateChatAt - 50 * 60_000,
+    });
+    assert.equal(lateDecision.shouldTrigger, true);
+    assert.equal(lateDecision.kind, "idle_checkin");
+
+    // 23:40 且超过 90 分钟没人聊，进入静默
+    const lateIdle = evaluateProactiveTrigger({
+      now: lateChatAt,
+      lastInboundAt: lateChatAt - 100 * 60_000,
+    });
+    assert.equal(lateIdle.shouldTrigger, false);
+    assert.equal(lateIdle.reason, "quiet_hours");
+
+    // 03:00 无论如何进入深度静默
+    const deepNight = new Date(2026, 10, 17, 3, 0, 0).getTime();
+    assert.equal(evaluateProactiveTrigger({ now: deepNight, lastInboundAt: deepNight - 10 * 60_000 }).reason, "quiet_hours");
+
+    // 验证 createProactiveRunner 会传 isWakeup: true 且持久化状态
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dhvw-proactive-wakeup-"));
+    const sendCalls = [];
+    const rt = createDhvwRuntime({
+      stateDir: tmpDir,
+      mediaDir: path.join(tmpDir, "m"),
+      sticker: { enabled: false },
+      getLlmConfig: () => ({ baseUrl: "http://llm.local/v1", model: "test-m", apiKey: "k" }),
+      fetchImpl: async () =>
+        new Response(
+          JSON.stringify({
+            choices: [{ message: { content: JSON.stringify({ speak: true, parts: ["刚听了一首老歌"], bubble: "主动冒泡" }) } }],
+          }),
+          { status: 200 },
+        ),
+    });
+    const noon = new Date(2026, 10, 17, 14, 0, 0).getTime();
+    const runner = createProactiveRunner({
+      getClient: () => ({
+        async sendPrivateMessage(uid, msg, opts) {
+          sendCalls.push({ uid, msg, opts });
+          return { message_id: "w-1" };
+        },
+      }),
+      getAccount: () => ({ ownerOpenId: "OWNER", proactiveDailyMax: 6, partDelayMs: 0 }),
+      runtime: rt,
+      getWorldState: () => ({ phase: "afternoon", weather: "clear", display: "overview", mood: { valence: 0.5, social: 0.4 }, band: "calm" }),
+      now: () => noon,
+      log: { info: () => {} },
+    });
+    const r = await runner.tick();
+    assert.equal(r.ok, true);
+    assert.equal(r.trigger, "idle_checkin");
+    assert.equal(sendCalls[0].opts.proactive, true);
+    assert.equal(sendCalls[0].opts.isWakeup, true);
+    assert.equal(fs.existsSync(path.join(tmpDir, "proactive-state.json")), true);
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("过滤字典百科黑话污染、去重线头，并在“聊点别的/你猜”时切换话题且不再提旧梗", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dhvw-topic-shift-"));
+    fs.writeFileSync(
+      path.join(tmpDir, "slang.json"),
+      JSON.stringify([
+        { term: "大狗大狗", meaning: "大（汉语文字）_百度百科 多音字" },
+        "早茶之约",
+      ]),
+      "utf8",
+    );
+    const prompts = [];
+    const rt = createDhvwRuntime({
+      stateDir: tmpDir,
+      mediaDir: path.join(tmpDir, "m"),
+      partDelayMs: 0,
+      sticker: { enabled: false },
+      getLlmConfig: () => ({ baseUrl: "http://llm.local/v1", model: "test-m", apiKey: "k" }),
+      searchWeb: async () => [{ title: "大（汉语文字）_百度百科", snippet: "康熙字典 笔顺 部首" }],
+      fetchImpl: async (_url, init) => {
+        const body = JSON.parse(init.body);
+        prompts.push(body.messages[0].content);
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: JSON.stringify({ reply_mode: "reply", parts: ["聊聊最近看的那部电影吧"], bubble: "换个新话题", unknown_term: "测试词" }) } }],
+          }),
+          { status: 200 },
+        );
+      },
+    });
+
+    // 线头相似度去重
+    rt.addThread("咖啡厅早茶之约待兑现");
+    rt.addThread("咖啡厅早茶之约待兑现，对方已答应请客");
+    assert.equal(rt.getThreads().length, 1);
+
+    // 1. 普通回合也不注入百度百科字典垃圾
+    await rt.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+      ctx: { CommandSource: "qq", RawBody: "聊点别的呗", Body: "聊点别的呗", BodyForAgent: "聊点别的呗" },
+      dispatcherOptions: { deliver: async () => {} },
+    });
+    // 2. 紧接着回“你猜”，依然保留话题切换指令，屏蔽黑话并禁止沿用旧话题
+    await rt.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+      ctx: { CommandSource: "qq", RawBody: "你猜", Body: "你猜", BodyForAgent: "你猜" },
+      dispatcherOptions: { deliver: async () => {} },
+    });
+
+    assert.equal(prompts.length, 2);
+    assert.ok(!prompts[0].includes("百度百科"));
+    assert.ok(!prompts[0].includes("熟人习惯与黑话"));
+    assert.ok(prompts[0].includes("话题切换指令"));
+    assert.ok(!prompts[1].includes("早茶之约"));
+    assert.ok(!prompts[1].includes("熟人习惯与黑话"));
+    assert.ok(prompts[1].includes("话题切换指令"));
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
 });

@@ -2,26 +2,37 @@
  * 心情指数 + 世界事件驱动的主动发起引擎，复用 openclaw-snowluma 的 outbound.js 发送管道。
  * 优先复用 60 分钟被动回复窗口；超窗走合规主动额度，若平台拒绝则自动降级为仅总观气泡。
  */
+import fs from "node:fs";
+import path from "node:path";
 import { markdownToText } from "./markdown-text.js";
 import { sendMedia, sendText } from "./outbound.js";
 
 const QUIET_START_MIN = 23 * 60;
+const QUIET_DEEP_START_MIN = 2 * 60;
 const QUIET_END_MIN = 7 * 60 + 30;
+const LATE_ACTIVE_GRACE_MS = 90 * 60_000;
 const WEATHER_CUE = new Set(["rain", "snow", "storm"]);
-const EVENT_CUE = new Set(["writing", "travel", "return", "browse", "bg_ready"]);
+const EVENT_CUE = new Set(["writing", "travel", "travel:arrive", "return", "browse", "bg_ready"]);
 
-function isQuietHour(ts) {
+function isQuietHour(ts, lastInboundAt = 0) {
   const d = new Date(ts);
   const m = d.getHours() * 60 + d.getMinutes();
-  return m >= QUIET_START_MIN || m < QUIET_END_MIN;
+  // 02:00 ~ 07:30 强制夜间静默；23:00 ~ 02:00 若过去 90 分钟刚有过活跃夜聊，允许继续自然陪伴，否则入睡静默
+  if (m >= QUIET_DEEP_START_MIN && m < QUIET_END_MIN) return true;
+  if (m >= QUIET_START_MIN || m < QUIET_DEEP_START_MIN) {
+    if (lastInboundAt > 0 && ts - lastInboundAt <= LATE_ACTIVE_GRACE_MS) return false;
+    return true;
+  }
+  return false;
 }
 
-export function dynamicCooldownMs({ mood = {}, band = "calm" } = {}) {
+export function dynamicCooldownMs({ mood = {}, band = "calm", baseCooldownMin = 40 } = {}) {
   const social = Number(mood.social ?? 0.4);
   const valence = Number(mood.valence ?? 0.55);
-  if (band === "tired") return 150 * 60_000;
-  if (social >= 0.65 || valence <= 0.33 || band === "excited") return 45 * 60_000;
-  return 90 * 60_000;
+  const baseMs = Math.max(5, Number(baseCooldownMin) || 40) * 60_000;
+  if (band === "tired") return Math.round(baseMs * 1.85);
+  if (social >= 0.65 || valence <= 0.33 || band === "excited") return Math.round(baseMs * 0.625);
+  return baseMs;
 }
 
 export function evaluateProactiveTrigger({
@@ -34,16 +45,21 @@ export function evaluateProactiveTrigger({
   lastProactiveAt = 0,
   todayCount = 0,
   dailyCap = 6,
+  cooldownMin = 40,
+  idleCheckinMin = 35,
   recentEvents = [],
   threads = [],
   lastWeatherShared = "",
   sharedEventIds = [],
+  force = false,
 } = {}) {
-  if (phase === "sleep" || isQuietHour(now)) return { shouldTrigger: false, reason: "quiet_hours" };
-  if (todayCount >= dailyCap) return { shouldTrigger: false, reason: "daily_cap" };
-  if (lastInboundAt > 0 && now - lastInboundAt < 5 * 60_000) return { shouldTrigger: false, reason: "recent_inbound" };
-  if (lastProactiveAt > 0 && now - lastProactiveAt < dynamicCooldownMs({ mood, band })) {
-    return { shouldTrigger: false, reason: "cooldown" };
+  if (!force) {
+    if (phase === "sleep" || isQuietHour(now, lastInboundAt)) return { shouldTrigger: false, reason: "quiet_hours" };
+    if (todayCount >= dailyCap) return { shouldTrigger: false, reason: "daily_cap" };
+    if (lastInboundAt > 0 && now - lastInboundAt < 5 * 60_000) return { shouldTrigger: false, reason: "recent_inbound" };
+    if (lastProactiveAt > 0 && now - lastProactiveAt < dynamicCooldownMs({ mood, band, baseCooldownMin: cooldownMin })) {
+      return { shouldTrigger: false, reason: "cooldown" };
+    }
   }
 
   const shared = new Set(sharedEventIds || []);
@@ -75,6 +91,16 @@ export function evaluateProactiveTrigger({
   if (due) {
     return { shouldTrigger: true, kind: "thread_resurface", threadId: due.id, reason: "聊过的话题线头重浮", seed: due.text };
   }
+
+  const idleThresholdMs = Math.max(5, Number(idleCheckinMin) || 35) * 60_000;
+  if (force || lastInboundAt === 0 || now - lastInboundAt >= idleThresholdMs) {
+    return {
+      shouldTrigger: true,
+      kind: "idle_checkin",
+      reason: force ? "手动触发一次自唤醒" : "有一阵子没聊了，自然冒泡找对方聊聊",
+      seed: "换个轻松的新鲜话题打个招呼、分享当下小日常或随口问句近况",
+    };
+  }
   return { shouldTrigger: false, reason: "no_trigger" };
 }
 
@@ -89,32 +115,77 @@ export function createProactiveRunner({
   now = () => Date.now(),
   log,
 } = {}) {
-  let lastProactiveAt = 0;
-  let lastInboundAt = 0;
-  let dayKey = "";
-  let todayCount = 0;
-  let lastWeatherShared = "";
-  const sharedEventIds = [];
+  const stateFile = runtime?.stateDir ? path.join(runtime.stateDir, "proactive-state.json") : "";
+  const persisted = (() => {
+    try {
+      if (stateFile && fs.existsSync(stateFile)) return JSON.parse(fs.readFileSync(stateFile, "utf8"));
+    } catch {}
+    return {};
+  })();
+
+  let lastProactiveAt = Number(persisted.lastProactiveAt) || 0;
+  let lastInboundAt = Number(persisted.lastInboundAt) || 0;
+  let dayKey = String(persisted.dayKey || "");
+  let todayCount = Number(persisted.todayCount) || 0;
+  let lastWeatherShared = String(persisted.lastWeatherShared || "");
+  const sharedEventIds = Array.isArray(persisted.sharedEventIds) ? persisted.sharedEventIds.slice(-30) : [];
   const recentEvents = [];
   let busy = false;
+  let lastDecision = persisted.lastDecision || null;
+  let lastLoggedReason = "";
+
+  function saveState() {
+    if (!stateFile) return;
+    try {
+      fs.writeFileSync(
+        stateFile,
+        JSON.stringify(
+          {
+            lastProactiveAt,
+            lastInboundAt,
+            dayKey,
+            todayCount,
+            lastWeatherShared,
+            sharedEventIds: sharedEventIds.slice(-30),
+            lastDecision,
+          },
+          null,
+          2,
+        ),
+        "utf8",
+      );
+    } catch {}
+  }
 
   return {
     recordInbound() {
       lastInboundAt = now();
+      saveState();
     },
     recordWorldEvent(ev) {
       if (!ev?.kind) return;
       recentEvents.push({ id: ev.id || `${ev.kind}-${now().toString(36)}`, kind: ev.kind, summary: ev.summary || "", ts: ev.ts || now() });
       if (recentEvents.length > 20) recentEvents.shift();
     },
-    async tick() {
+    getStatus() {
+      return {
+        lastProactiveAt,
+        lastInboundAt,
+        dayKey,
+        todayCount,
+        lastDecision,
+      };
+    },
+    async tick({ force = false } = {}) {
       if (busy) return { ok: false, reason: "busy" };
       const client = getClient?.();
       const account = getAccount?.();
       const openId = account?.ownerOpenId;
       if (!client || !openId) return { ok: false, reason: "no_owner_client" };
       const world = getWorldState() || {};
-      if (world.display === "present" || world.present === true) return { ok: false, reason: "present" };
+      if (!force && (world.display === "present" || world.present === true)) {
+        return { ok: false, reason: "present" };
+      }
 
       const ts = now();
       const dk = new Date(ts).toISOString().slice(0, 10);
@@ -134,12 +205,22 @@ export function createProactiveRunner({
         lastProactiveAt,
         todayCount,
         dailyCap: account.proactiveDailyMax ?? 6,
+        cooldownMin: account.proactiveCooldownMin ?? 40,
         recentEvents,
         threads: runtime.getThreads(),
         lastWeatherShared,
         sharedEventIds,
+        force,
       });
-      if (!decision.shouldTrigger) return { ok: false, reason: decision.reason };
+      if (!decision.shouldTrigger) {
+        lastDecision = { ok: false, reason: decision.reason, ts };
+        if (decision.reason !== lastLoggedReason) {
+          lastLoggedReason = decision.reason;
+          log?.info?.(`[dhvw-proactive] 暂不触发: ${decision.reason}`);
+        }
+        return { ok: false, reason: decision.reason };
+      }
+      lastLoggedReason = "";
 
       busy = true;
       try {
@@ -160,15 +241,15 @@ export function createProactiveRunner({
           ? runtime.formatWorldNote(world, { forceWeather: decision.kind === "weather_shift" })
           : `当前状态：${world.phase || "日常"}，${world.place || "小屋"}`;
         const prompt = [
-          "你住在虚拟仓里，突然想在 QQ 上主动给对方发句消息。",
+          "你住在虚拟仓里，现在想起对方了，打算主动在 QQ 上发一句消息。",
           `触发原因：${decision.kind} - ${decision.reason} (${decision.seed})`,
           worldNote,
           `当前心情：${world.band || "calm"}`,
           `记忆：\n${runtime.formatMemoryBlock(mem)}`,
           ...(stickerHint ? [stickerHint] : []),
-          `最近对话：\n${runtime.getHistoryText(8)}`,
+          `最近对话：\n${runtime.getHistoryText(6)}`,
           '严格输出 JSON：{"speak":true,"parts":["主动第一句","可选补充短句"],"sticker_id":"可选表情包id","bubble":"总观气泡(<=18字)","send_edge_bg":false,"thread":"可选新线头"}',
-          "要求：自然口语短句，除触发原因本身是 weather_shift 外，不要硬扯天气或重复“刚醒”套话。",
+          "要求：自然口语短句；如果最近对话里刚刚反复聊过同一个梗或约定，这次必须主动换个新鲜话题（别继续死咬旧梗），除 weather_shift 外不要硬扯天气或刚醒套话。",
         ].join("\n\n");
 
         const raw = await runtime.callLlm({ messages: [{ role: "user", content: prompt }], json: true, maxTokens: 500, temperature: 0.85 });
@@ -188,6 +269,7 @@ export function createProactiveRunner({
 
         const to = `snowluma:private:${openId}`;
         let sentOk = false;
+        let sendError = "";
         try {
           const delayMs = account.partDelayMs ?? 400;
           for (let i = 0; i < parts.length; i++) {
@@ -197,20 +279,21 @@ export function createProactiveRunner({
               to,
               text: parts[i],
               proactive: true,
-              isWakeup: false,
+              isWakeup: true,
             });
           }
           if (parsed.send_edge_bg === true) {
             const img = await requestEdgeMedia().catch(() => "");
-            if (img) await sendMedia({ client, to, mediaPath: img, proactive: true, isWakeup: false });
+            if (img) await sendMedia({ client, to, mediaPath: img, proactive: true, isWakeup: true });
           } else if (chosenSticker) {
             if (parts.length && delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
-            await sendMedia({ client, to, mediaPath: chosenSticker.path, proactive: true, isWakeup: false });
+            await sendMedia({ client, to, mediaPath: chosenSticker.path, proactive: true, isWakeup: true });
             runtime.stickerStore.markUsed(chosenSticker.id);
           }
           sentOk = true;
         } catch (err) {
-          log?.info?.(`[dhvw-proactive] QQ 发送受限，降级为仅总观气泡: ${err.message}`);
+          sendError = String(err?.message || err);
+          log?.info?.(`[dhvw-proactive] QQ 发送受限，降级为仅总观气泡: ${sendError}`);
         }
 
         lastProactiveAt = ts;
@@ -224,11 +307,15 @@ export function createProactiveRunner({
           if (histText) runtime.appendAssistantTurn(histText);
         }
 
+        lastDecision = { ok: true, kind: decision.kind, sentOk, sendError, ts };
+        saveState();
+        log?.info?.(`[dhvw-proactive] 触发自唤醒 kind=${decision.kind} sentOk=${sentOk} parts=${parts.length}`);
+
         emitFeedback({
           bubble: String(parsed.bubble || parts[0] || "[发了表情包]").slice(0, 20),
-          event: { kind: "qq:proactive", payload: { trigger: decision.kind, sentOk, parts, stickerId: chosenSticker?.id } },
+          event: { kind: "qq:proactive", payload: { trigger: decision.kind, sentOk, sendError, parts, stickerId: chosenSticker?.id } },
         });
-        return { ok: true, trigger: decision.kind, sentOk, parts, stickerId: chosenSticker?.id };
+        return { ok: true, trigger: decision.kind, sentOk, sendError, parts, stickerId: chosenSticker?.id };
       } finally {
         busy = false;
       }

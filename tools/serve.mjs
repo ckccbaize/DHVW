@@ -168,7 +168,7 @@ const server = http.createServer(async (req, res) => {
   try {
     const earlyPath = decodeURIComponent((req.url || "/").split("?")[0]);
     if (earlyPath === "/__llm/chat/completions") return void (await proxyLlm(req, res));
-    if (earlyPath === "/__qq/health" || earlyPath === "/__qq/config" || earlyPath === "/__qq/rebind" || earlyPath === "/__qq/boost") {
+    if (earlyPath === "/__qq/health" || earlyPath === "/__qq/config" || earlyPath === "/__qq/rebind" || earlyPath === "/__qq/boost" || earlyPath === "/__qq/proactive/trigger") {
       try {
         const body = req.method === "POST" ? await readBody(req, 65536) : undefined;
         if (earlyPath === "/__qq/boost" && req.method === "POST") {

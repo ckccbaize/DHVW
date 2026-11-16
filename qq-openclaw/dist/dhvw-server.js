@@ -260,7 +260,7 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
         sandbox: effCfg.sandbox !== false,
         ownerOpenId: effCfg.ownerOpenId || "",
         allowOpenIds: effCfg.allowOpenIds || [],
-        proactiveCooldownMin: effCfg.proactiveCooldownMin ?? 90,
+        proactiveCooldownMin: effCfg.proactiveCooldownMin ?? 40,
         proactiveDailyMax: effCfg.proactiveDailyMax ?? 6,
         partDelayMs: effCfg.partDelayMs ?? 450,
         receive: {
@@ -308,6 +308,7 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
       ownerOpenIdMasked: maskStr(account.ownerOpenId),
       awaitingActivation: Boolean(account.appId && account.clientSecret && !account.ownerOpenId),
       stickers: runtime.stickerStore?.stats?.() || { count: 0 },
+      proactive: proactive.getStatus?.() || null,
       window: liveClient?.ledger?.snapshot(account.ownerOpenId) || { active: false, remainingSeq: 0, expiresAt: 0 },
     };
   }
@@ -456,6 +457,13 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
       const st = await triggerRebind();
       res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
       res.end(JSON.stringify(st));
+      return;
+    }
+    if (cleanUrl === "/__qq/proactive/trigger" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const r = await proactive.tick({ force: body?.force !== false });
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+      res.end(JSON.stringify({ ...r, proactive: proactive.getStatus?.() || null }));
       return;
     }
     res.writeHead(404).end();

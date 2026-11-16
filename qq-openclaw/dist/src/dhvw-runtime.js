@@ -187,6 +187,34 @@ export function createDhvwRuntime({
     return content;
   }
 
+  const DICT_JUNK_RE = /百度百科|汉典|笔顺|部首|汉语文字|多音字|书证|康熙字典/;
+  const TOPIC_SHIFT_RE = /(聊点?别的|换个话题|换个聊|别聊这?个|说点别的|聊聊别的|换个梗|别提了|不想聊这)/;
+  const SHORT_BOUNCE_RE = /^(?:你猜|随便|都可以|都行|你定|你说呢|你挑|换一个)[!！?？。~]*$/;
+
+  function cleanSnippetText(raw = "") {
+    return String(raw || "")
+      .replace(/&#(\d+);/g, (_m, n) => String.fromCharCode(Number(n) || 32))
+      .replace(/&(amp|lt|gt|quot|apos|nbsp);/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function bigramSet(str = "") {
+    const s = String(str || "").replace(/\s+/g, "");
+    const set = new Set();
+    for (let i = 0; i < s.length - 1; i++) set.add(s.slice(i, i + 2));
+    return set;
+  }
+
+  function isSimilarThread(a, b) {
+    const sa = bigramSet(a);
+    const sb = bigramSet(b);
+    if (!sa.size || !sb.size) return false;
+    let inter = 0;
+    for (const g of sa) if (sb.has(g)) inter += 1;
+    return inter / Math.min(sa.size, sb.size) >= 0.45;
+  }
+
   async function researchSlang(term) {
     const clean = String(term || "").trim().slice(0, 24);
     if (!clean) return;
@@ -202,17 +230,16 @@ export function createDhvwRuntime({
           results = Array.isArray(data?.results) ? data.results : [];
         }
       }
-      const snippet = results
-        .slice(0, 3)
-        .map((r) => `${r.title || ""} ${r.snippet || ""}`.trim())
-        .join(" | ")
-        .slice(0, 240);
+      const useful = results
+        .map((r) => cleanSnippetText(`${r.title || ""} ${r.snippet || ""}`))
+        .filter((s) => s && !DICT_JUNK_RE.test(s));
+      const snippet = useful.slice(0, 2).join(" | ").slice(0, 90);
       if (!snippet) return;
       slang.push({ term: clean, meaning: snippet, learnedAt: now() });
-      if (slang.length > 30) slang = slang.slice(-30);
+      if (slang.length > 20) slang = slang.slice(-20);
       saveJsonSafe(slangFile, slang);
       emitFeedback({
-        facts: [{ text: `学到网络用语「${clean}」的意思：${snippet.slice(0, 90)}`, tier: "L2", conf: 0.78 }],
+        facts: [{ text: `学到网络用语「${clean}」的意思：${snippet.slice(0, 70)}`, tier: "L2", conf: 0.78 }],
       });
     } catch {}
   }
@@ -231,8 +258,14 @@ export function createDhvwRuntime({
   }
 
   function formatSlangBlock() {
-    if (!slang.length) return "暂无";
-    return slang.slice(-12).map((s) => (typeof s === "string" ? s : `${s.term}(${s.meaning})`)).join("；");
+    const cleanItems = slang
+      .filter((s) => {
+        const txt = typeof s === "string" ? s : `${s?.term || ""} ${s?.meaning || ""}`;
+        return txt.trim() && !DICT_JUNK_RE.test(txt);
+      })
+      .slice(-3)
+      .map((s) => (typeof s === "string" ? s.slice(0, 24) : `${s.term}(${String(s.meaning || "").slice(0, 36)})`));
+    return cleanItems.length ? `${cleanItems.join("；")}（仅作背景了解，禁止每轮硬套）` : "暂无";
   }
 
   async function buildMultimodalTurnMessages(promptText, ctx) {
@@ -264,9 +297,7 @@ export function createDhvwRuntime({
     if (!parsed || parsed.skip) return "SKIP";
     const facts = Array.isArray(parsed.facts) ? parsed.facts.filter((f) => f?.text) : [];
     if (typeof parsed.thread === "string" && parsed.thread.trim()) {
-      threads.push({ id: `th-${now().toString(36)}`, text: parsed.thread.trim().slice(0, 80), resurfaceAt: now() + 3 * 3600_000, closed: false });
-      if (threads.length > 5) threads = threads.slice(-5);
-      saveJsonSafe(threadsFile, threads);
+      runtime.addThread(parsed.thread.trim());
     }
     if (facts.length) {
       log?.info?.(`[dhvw-runtime] digest extracted facts=${facts.length}: ${facts.map((f) => f.text).join(" | ")}`);
@@ -289,9 +320,16 @@ export function createDhvwRuntime({
       }
     },
     addThread: (text) => {
-      if (!text) return;
-      threads.push({ id: `th-${now().toString(36)}`, text: String(text).slice(0, 80), resurfaceAt: now() + 4 * 3600_000, closed: false });
-      if (threads.length > 5) threads = threads.slice(-5);
+      const clean = String(text || "").trim().slice(0, 80);
+      if (!clean) return;
+      const existing = threads.find((t) => t && !t.closed && isSimilarThread(t.text, clean));
+      if (existing) {
+        existing.text = clean;
+        existing.resurfaceAt = now() + 3 * 3600_000;
+      } else {
+        threads.push({ id: `th-${now().toString(36)}`, text: clean, resurfaceAt: now() + 3 * 3600_000, closed: false });
+        if (threads.length > 5) threads = threads.slice(-5);
+      }
       saveJsonSafe(threadsFile, threads);
     },
     getHistoryText: (limit = 10) => {
@@ -376,7 +414,17 @@ export function createDhvwRuntime({
               return;
             }
             const userText = String(ctx.RawBody || ctx.Body || "").trim();
-            const recentHistoryText = runtime.getHistoryText(8);
+            const recentUsers = chatHistory.filter((m) => m?.role === "user").slice(-2);
+            const isTopicShift =
+              TOPIC_SHIFT_RE.test(userText) ||
+              (SHORT_BOUNCE_RE.test(userText) && recentUsers.some((m) => TOPIC_SHIFT_RE.test(String(m?.text || ""))));
+            if (isTopicShift) {
+              for (const t of threads) {
+                if (t && !t.closed) t.resurfaceAt = Math.max(t.resurfaceAt || 0, now() + 4 * 3600_000);
+              }
+              saveJsonSafe(threadsFile, threads);
+            }
+            const recentHistoryText = isTopicShift ? "（对方要求翻篇开启新话题，禁止延续旧话题）" : runtime.getHistoryText(8);
             const worldNote = formatWorldNote(world, { userText, nowMs: now() });
             chatHistory.push({ role: "user", text: userText, ts: now() });
             pendingTurns.push({ role: "user", text: userText, ts: now() });
@@ -441,20 +489,25 @@ export function createDhvwRuntime({
               ? "若对方发来的图片是适合日常斗图的表情包，请在 collect_sticker 中填 save:true 及 emotion/desc/tags 进行收藏。"
               : "";
 
+            const topicShiftHint = isTopicShift
+              ? "【重要·话题切换指令】对方要求聊点别的（或让你自己起一个新话题）。本轮严禁再提刚才聊过的任何旧词、外号、承诺或约定（例如早茶/咖啡厅/旧称呼），立刻彻底翻篇，主动抛出一个全新且具体的轻松日常话题（比如音乐、美食、趣事、脑洞问题或记忆里的其他爱好），不要反问“你想聊啥”。"
+              : "";
+
             const prompt = [
               "你住在用户的移动虚拟仓里，正在用 QQ 单聊和对方发消息。",
               worldNote,
               `当前心情：${world.band || "calm"} (${JSON.stringify(world.mood || {})})`,
               `长期记忆与偏好：\n${formatMemoryBlock(mem)}`,
-              `熟人习惯与黑话：${formatSlangBlock()}`,
+              ...(!isTopicShift ? [`熟人习惯与黑话：${formatSlangBlock()}`] : []),
+              ...(topicShiftHint ? [topicShiftHint] : []),
               ...(searchHintBlock ? [searchHintBlock] : []),
               ...(stickerHintBlock ? [stickerHintBlock] : []),
               `最近对话：\n${recentHistoryText}`,
               `对方刚发来：\n${ctx.BodyForAgent || ctx.Body}`,
               "",
               "请以真人口吻回复，严格输出 JSON（不要解释、不要 markdown 代码块）：",
-              '{"reply_mode":"reply|short|skip","parts":["短句1","可选短句2"],"sticker_id":"可选表情包id","sticker_only":false,"collect_sticker":{"save":false,"emotion":"","desc":"","tags":[]},"tone":"warm|playful|sleepy|needy|curious","bubble":"总观气泡(<=18字)","mood_delta":{"valence":0.05,"social":-0.06},"slang_note":"可选口癖/梗","unknown_term":"可选想查意思的新词黑话","memory_fact":"可选一句话记住的新事实","action":"可选轻动作如rest/read","send_edge_bg":false}',
-              `要求：1. parts 1~3 条口语短句，优先顺着对方刚发来的内容和长期记忆自然接话，严禁重复描写天气/时间或“刚醒”套话；2. 严禁列表编号与客服套话；3. 若对方发了 [QQ表情:xxx] 或简称如 /睡，请按对应情绪自然互动，不要误读成别的字；4. 可用表情包时自然选用，只想用一张表情包接话可设 sticker_only=true；5. 若只是简单道别/敷衍可设 reply_mode=skip。${collectHint}`,
+              '{"reply_mode":"reply|short|skip","parts":["短句1","可选短句2"],"sticker_id":"可选表情包id","sticker_only":false,"collect_sticker":{"save":false,"emotion":"","desc":"","tags":[]},"tone":"warm|playful|sleepy|needy|curious","bubble":"总观气泡(<=18字)","mood_delta":{"valence":0.05,"social":-0.06},"slang_note":"可选口癖/梗","unknown_term":"可选想查意思的新词黑话","memory_fact":"可选一句话记住的新事实","thread":"可选后续可再聊的新线头","action":"可选轻动作如rest/read","send_edge_bg":false}',
+              `要求：1. parts 1~3 条口语短句，优先顺着对方刚发来的内容和长期记忆自然接话，严禁重复描写天气/时间或“刚醒”套话；2. 严禁死咬同一个梗/称呼/约定连续超过 2 轮，对方说“聊点别的”或只回短句时立即干脆翻篇开启新话题；3. 严禁列表编号与客服套话；4. 若对方发了 [QQ表情:xxx] 或简称如 /睡，请按对应情绪自然互动；5. 可用表情包时自然选用，只想用一张表情包接话可设 sticker_only=true；6. 若只是简单道别/敷衍可设 reply_mode=skip。${collectHint}`,
             ].join("\n");
 
             const messages = await buildMultimodalTurnMessages(prompt, ctx);
@@ -537,12 +590,15 @@ export function createDhvwRuntime({
               log?.info?.(`[dhvw-runtime] turn facts=${facts.length}: ${facts.map((f) => f.text).join(" | ")}`);
             }
             if (typeof parsed?.slang_note === "string" && parsed.slang_note.trim()) {
-              const note = parsed.slang_note.trim().slice(0, 60);
-              if (!slang.some((s) => (typeof s === "string" ? s === note : s?.term === note))) {
+              const note = parsed.slang_note.trim().slice(0, 40);
+              if (!DICT_JUNK_RE.test(note) && !slang.some((s) => (typeof s === "string" ? s === note : s?.term === note))) {
                 slang.push(note);
-                if (slang.length > 30) slang = slang.slice(-30);
+                if (slang.length > 20) slang = slang.slice(-20);
                 saveJsonSafe(slangFile, slang);
               }
+            }
+            if (typeof parsed?.thread === "string" && parsed.thread.trim()) {
+              runtime.addThread(parsed.thread.trim());
             }
             if (typeof parsed?.unknown_term === "string" && parsed.unknown_term.trim()) {
               void researchSlang(parsed.unknown_term);

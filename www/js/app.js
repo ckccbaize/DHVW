@@ -1324,7 +1324,7 @@ async function boot() {
           }
         });
         store.on("event", (ev) => {
-          if (qqActive && (ev.kind === "travel" || ev.kind === "return")) {
+          if (qqActive && (ev.kind === "travel" || ev.kind === "travel:arrive" || ev.kind === "return")) {
             qqBridge?.send({ type: "qq:world:event", payload: { id: ev.uuid, kind: ev.kind, summary: ev.payload?.to ? `去了${ev.payload.to}` : "刚回到家里", ts: ev.t_local } });
           }
         });
