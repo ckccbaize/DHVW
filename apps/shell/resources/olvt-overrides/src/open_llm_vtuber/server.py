@@ -36,28 +36,106 @@ DHVW_BOOTSTRAP_SCRIPT = """<script>
     localStorage.removeItem('micOn');
 
     var trackedCtx = [];
+    var hasGesture = false;
+    var syncSuspendedFlag = function () {
+      var anySusp = false;
+      for (var i = trackedCtx.length - 1; i >= 0; i--) {
+        var c = trackedCtx[i];
+        if (!c || c.state === 'closed') {
+          trackedCtx.splice(i, 1);
+          continue;
+        }
+        if (c.state === 'suspended') anySusp = true;
+      }
+      if (document.documentElement) {
+        if (anySusp) document.documentElement.setAttribute('data-dhvw-mic-suspended', '1');
+        else document.documentElement.removeAttribute('data-dhvw-mic-suspended');
+        var mb = document.querySelector('[data-dhvw="mic-btn"]');
+        if (mb) mb.setAttribute('title', anySusp ? '点击激活麦克风（等待浏览器解锁音频）' : '麦克风开关');
+      }
+      return anySusp;
+    };
+    var tryResume = function (c) {
+      if (c && c.state === 'suspended' && typeof c.resume === 'function') {
+        try { c.resume().then(syncSuspendedFlag).catch(function () {}); } catch (e) {}
+      }
+    };
+    var resumeAll = function () {
+      hasGesture = true;
+      for (var i = 0; i < trackedCtx.length; i++) tryResume(trackedCtx[i]);
+      syncSuspendedFlag();
+    };
     var NativeAC = window.AudioContext || window.webkitAudioContext;
     if (NativeAC) {
       var WrappedAC = function () {
         var ctx = arguments.length ? new NativeAC(arguments[0]) : new NativeAC();
         trackedCtx.push(ctx);
+        if (typeof ctx.addEventListener === 'function') {
+          ctx.addEventListener('statechange', function () {
+            if (hasGesture && ctx.state === 'suspended') tryResume(ctx);
+            syncSuspendedFlag();
+          });
+        }
+        tryResume(ctx);
+        syncSuspendedFlag();
         return ctx;
       };
       WrappedAC.prototype = NativeAC.prototype;
       if (Object.setPrototypeOf) Object.setPrototypeOf(WrappedAC, NativeAC);
       window.AudioContext = WrappedAC;
       if (window.webkitAudioContext) window.webkitAudioContext = WrappedAC;
-      var resumeAll = function () {
-        for (var i = 0; i < trackedCtx.length; i++) {
-          var c = trackedCtx[i];
-          if (c && c.state === 'suspended' && typeof c.resume === 'function') {
-            try { c.resume().catch(function () {}); } catch (e) {}
+      var pendingUnlockClick = false;
+      var resumeFromGesture = function (ev) {
+        var wasSusp = syncSuspendedFlag();
+        var micBtn = ev && ev.target && ev.target.closest ? ev.target.closest('[data-dhvw="mic-btn"]') : null;
+        if (wasSusp && micBtn && localStorage.getItem('micOn') === 'true') {
+          pendingUnlockClick = true;
+          setTimeout(function () { pendingUnlockClick = false; }, 400);
+        }
+        resumeAll();
+      };
+      ['pointerdown', 'touchstart', 'keydown'].forEach(function (ev) {
+        window.addEventListener(ev, resumeFromGesture, { capture: true, passive: true });
+      });
+      window.addEventListener('click', function (ev) {
+        var wasSusp = syncSuspendedFlag();
+        resumeAll();
+        var micBtn = ev.target && ev.target.closest ? ev.target.closest('[data-dhvw="mic-btn"]') : null;
+        if ((wasSusp || pendingUnlockClick) && micBtn && localStorage.getItem('micOn') === 'true') {
+          pendingUnlockClick = false;
+          ev.stopPropagation();
+          ev.preventDefault();
+          return;
+        }
+        pendingUnlockClick = false;
+      }, { capture: true });
+    }
+    if (underGateway) {
+      try {
+        var tok = new URLSearchParams(location.search).get('token');
+        if (tok) {
+          var appendToken = function (u) {
+            if (typeof u !== 'string') return u;
+            if ((u.indexOf('./libs/') === 0 || u.indexOf('/olvt/libs/') === 0 || u.indexOf('/libs/') === 0) && u.indexOf('token=') === -1) {
+              return u + (u.indexOf('?') === -1 ? '?' : '&') + 'token=' + encodeURIComponent(tok);
+            }
+            return u;
+          };
+          if (window.AudioWorklet && window.AudioWorklet.prototype && window.AudioWorklet.prototype.addModule) {
+            var origAdd = window.AudioWorklet.prototype.addModule;
+            window.AudioWorklet.prototype.addModule = function (u, opts) {
+              return origAdd.call(this, appendToken(u), opts);
+            };
+          }
+          if (window.fetch) {
+            var origFetch = window.fetch;
+            window.fetch = function (input, init) {
+              if (typeof input === 'string') input = appendToken(input);
+              return origFetch.call(this, input, init);
+            };
           }
         }
-      };
-      ['pointerdown', 'click', 'touchstart', 'keydown'].forEach(function (ev) {
-        window.addEventListener(ev, resumeAll, { capture: true, passive: true });
-      });
+      } catch (e) {}
     }
   } catch (e) {}
 })();
@@ -103,6 +181,12 @@ def _patch_olvt_main_bundle(rel_path: str) -> bytes | None:
     text = text.replace(
         "run(){const o=()=>{if(s_instance!=null){",
         "run(){if(this._running)return;this._running=!0;const o=()=>{if(s_instance!=null){",
+        1,
+    )
+    # 4. Ensure MicVAD.start() resumes its AudioContext if suspended after async getUserMedia
+    text = text.replace(
+        "this.start=()=>{this.audioNodeVAD.start(),this.listening=!0}",
+        "this.start=()=>{this.audioContext&&this.audioContext.state===\"suspended\"&&this.audioContext.resume().catch(()=>{}),this.audioNodeVAD.start(),this.listening=!0}",
         1,
     )
     data = text.encode("utf-8")

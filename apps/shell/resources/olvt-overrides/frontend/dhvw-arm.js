@@ -225,7 +225,10 @@
       handBtn.setAttribute('title', '举手 / 打断');
       if (handBtn.previousElementSibling) {
         setAttr(handBtn.previousElementSibling, 'data-dhvw', 'mic-btn');
-        handBtn.previousElementSibling.setAttribute('title', '麦克风开关');
+        var micTitle = docEl.getAttribute('data-dhvw-mic-suspended') === '1'
+          ? '点击激活麦克风（等待浏览器解锁音频）'
+          : '麦克风开关';
+        handBtn.previousElementSibling.setAttribute('title', micTitle);
       }
     }
 
