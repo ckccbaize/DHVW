@@ -351,3 +351,31 @@ curl -s http://127.0.0.1:8080/__health
 | 交叉编译 | `sh shell/build.sh` | 通过：`dhvw-shell-linux-arm64` 5.7MB、`-armv7` 6.0MB（CGO 关闭） |
 
 **未验证（真机待测）**：A4 内存、A10 切换耗时、A13 8h 长稳与息屏功耗、A16 真机 tick P95 与烘焙耗时、1080p 实际观感（当前 20×15 场景在 16:9 屏上左右留黑边，属资源比例而非渲染问题）。
+
+---
+
+## 15. 可选扩展：4–8GB 设备的 QQ 官方 Bot 互动融合（v0.2）
+
+> 适用对象：4–8GB 内存版设备；**默认关闭（`config.json: qqBot.enabled=false` 且 `/etc/dhvw/qqbot.json: enabled=false`）**，关闭时完全退回轻量基线、0 额外进程与内存开销。
+
+### 15.1 基于 `openclaw-snowluma` 直接魔改与合规入口（Node.js 22.14+/24 ESM）
+
+* **复用成功架构而非闭门造车**：在 `arm/qq-openclaw/` 直接基于 `openclaw-snowluma@0.9.0` 源码魔改，保留其经过验证的双计时器消息聚合防抖（`aggregator.js`：800ms debounce + 3000ms maxWindow + 历史缓冲与消化）、Magic-Byte 图像嗅探与 SSRF 校验（`image.js`）、Markdown 拍平（`markdown-text.js`）、多段发送调度（`dispatch.js` / `outbound.js`）与自发消息追踪（`gateway.js`），零第三方 npm 运行时依赖（直接使用 Node 24 原生 `fetch` 与 `WebSocket`）。
+* **合规取代**：删除 `@snowluma/sdk`（NTQQ 个人号注入协议），在 `src/qq-official-client.js` 中替换为 **QQ 开放平台官方 Bot APIv2**（`AppID + ClientSecret` 换取 `access_token`，WebSocket Gateway `intents = 1 << 25`）。
+* **一期范围**：仅开放 **单聊（`C2C_MESSAGE_CREATE`）+ 多模态（入站图片经魔数校验与视觉输入 / 附件元信息；出站纯文本 `msg_type=0` + `/v2/users/{openid}/files` 上传拿 `file_info` 发 `msg_type=7`）**；支持 `ownerOpenId` / `allowOpenIds` 白名单与 `MsgDedupRing(500)` 去重。
+* **进程与凭证边界**：以可选 systemd 单元 `dhvw-qqbot.service` 运行 `node /opt/dhvw/qq-openclaw/dist/dhvw-server.js -config /etc/dhvw/qqbot.json`（`MemoryMax=512M`），仅监听回环桥接 `ws://127.0.0.1:8088/qq/ws` 与 `GET /__qq/health`；`appId`/`clientSecret` 存放在 `/etc/dhvw/qqbot.json`（`0640 root:dhvw`），不写进前端静态 `www/config.json`。`dhvw-shell` 保持只读静态壳定位，仅将 `/__llm/chat/completions` 请求体上限由 1MB 放宽至 8MB 以容纳多模态图片。
+
+### 15.2 “活人味”与世界融合机制
+
+1. **真实对话流水线**：复用 `dispatch.js` + `aggregator.js`，按 `user_openid` 合并碎消息、维护跨轮历史摘要，由 `dhvw-runtime.js` 注入实时 `clock/phase`、`weather`、`place/room`、`agent.act`、心情四维与 `band`、PC/本地回忆与黑话笔记。
+2. **自然决策与拟真节奏**：支持 `reply_mode: "reply" | "short" | "skip"`（适时少打扰或简短回应）、Markdown 拍平（`markdownToText()`）、1–3 段拆句间隔发送（同一 `msg_id` 递增 `msg_seq`），以及遇到陌生网络热词时经 `dhvw-shell` `/__search` 自动检索习得。
+3. **图片表情包库（偷图 + 情绪挑图发送，`sticker-store.js`）**：支持从入站图片结合同轮视觉理解自动去重“偷图”并打上情绪/含义标签（或直放图包目录 `<stateDir>/stickers/` 扫描建库）；在对话与主动发起时按情绪与语境筛出候选表情包供模型选择 `sticker_id`（支持文+图混发或 `sticker_only` 纯表情斗图，受 `eagerness` 积极度门控防刷屏），经 `QQOfficialClient.uploadC2CImage` 读取本地文件转 base64 上传并以 `msg_type=7` 发送。
+3. **心情指数与生活事件驱动的多样化主动发起（`dhvw-proactive.js`）**：
+   * 触发器涵盖 `mood_lonely`（社交欲高）、`mood_low`（低愉悦求安慰）、`mood_excited`（兴奋分享）、`weather_shift`（雨/雪/雷暴）、`world_event`（写完日记周记 / 上网浏览 / 出门或回家 / `bg_ready` 新画作可附图）、`thread_resurface`（隔段时间重提未完线头）。
+   * 优先复用 60 分钟被动单聊窗口（`msg_id` + 递增 `msg_seq <= 4`）；超窗时仅在 `proactive` 允许且未达冷却/日上限时发合规主动消息，被平台拒绝则通过 `qq:world:feedback` 降级为屏显总观气泡。
+4. **互动反哺**：每次单聊/消化会回推 `qq:world:feedback`，在前端更新心情四维、弹总观气泡、触发角色微动作、写入 `eventLog` 并在有新事实时回流记忆库。
+
+### 15.3 PC 向量记忆库（`memory.db`）整合
+
+* **在线优先语义 + 离线降级**：QQ 对话与主动发起前统一经 `qq:memory:query` 向前端 `qq-adapter` 查询记忆；PC 在线时发 `memory:query`（携带 `mood` 与 `include_l0: true`）走 `vec0 + FTS5 + Ebbinghaus + _mood_boost` 混合检索并附带 L0 核心事实；主机离线或超时（350ms）自动降级为设备 `localMemory` bigram 检索与本地 L0 缓存。
+* **对话事实回流**：单聊消化器（digest）与对话即时抽取的 L0/L1/L2 候选事实通过 `qq:world:feedback` 写入设备 `localMemory`，主机在线时再经 `facts:candidates` 推回 PC 向量化落库，实现“显现 / 总观 / QQ”三端共享同一人格与记忆。

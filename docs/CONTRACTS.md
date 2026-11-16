@@ -105,7 +105,7 @@
 | `present:begin` / `present:end` | `{session_id}` | 显现会话边界（设备据此静音/接收记忆） |
 | `life:event` | `{cycle_id, outcome, fact, content, share, residue, next_wake, occurred_at}` | 生活流（WakeTrace 协议） |
 | `memory:facts` | `{since, facts, summary}` | 显现后记忆回流 |
-| `memory:result` | `{req_id, hits, semantic}` | 检索结果（`req_id` 原样带回） |
+| `memory:result` | `{req_id, hits, semantic, l0?}` | 检索结果（`req_id` 原样带回；`l0` 可选返回核心设定事实） |
 | `facts:ack` | `{accepted, merged, rejected}` | 候选事实回执 |
 | `events:ack` | `{seq}` | **确认已收到该 seq 及之前的事件**；设备据此推进同步游标 |
 | `llm:config` | `{baseUrl?, apiKey?, model?, timeoutMs?, maxAttempts?, retryBaseMs?}` | **PC 直接修改设备 LLM 服务商配置**（落库生效） |
@@ -127,7 +127,8 @@
 | `events:batch` | `{events:[...]}` | 回流，≤200/批 |
 | `assets:manifest` | `{assets:[...]}` | `tier:edge` 清单 |
 | `memory:push` | `{since, facts, events, mood, phase, weather, place}` | 显现前推记忆 |
-| `memory:query` | `{req_id, text, k}` | 语义检索代理（`req_id` 必填，用于结果关联） |
+| `memory:query` | `{req_id, text, k, mood?, include_l0?}` | 语义检索代理（`req_id` 必填，用于结果关联；可选带 `mood` 与 `include_l0`） |
+| `memory:result` | `{req_id, hits, semantic, l0?}` | 检索结果（`req_id` 原样带回；`l0` 可选返回核心设定事实） |
 | `facts:candidates` | `{facts, events}` | 设备归纳候选 |
 | `wake:state` | `{mode, next_wake_at, last_outcome}` | 设备档唤醒状态 |
 | `llm:state` | `{configured, baseUrl, model, maskedKey, stats}` | 设备 LLM 配置与调用统计（不含明文 key） |
@@ -193,3 +194,28 @@
 - `v` 从 1 开始；新增字段不升版本（向后兼容），删除/改语义必须升版本；
 - 设备与 PC 各自声明 `proto`；不匹配时 PC 优先降级到旧字段；
 - 契约变更流程：改本文档 → 改两端 → 加一条测试。
+
+---
+
+## 6. 可选本地 QQ Bot 桥接（`127.0.0.1:8088/qq/ws`）
+
+> 仅在 `www/config.json: qqBot.enabled === true` 且 `qq-openclaw` 服务启用时生效；沿用 §0 统一信封 `{v:1, id, type, ts, replyTo?, payload}`。
+
+### 6.1 服务进程（`qq-openclaw`） → 浏览器前端
+
+| type | payload | 说明 |
+|---|---|---|
+| `qq:status` | `{connected, sandbox}` | QQ Bot Gateway 连线状态（连接建立/就绪推送） |
+| `qq:memory:query` | `{text, k?, mood?}` | 请求前端检索记忆；前端以 `qq:reply`（`replyTo=id`）返回 `{semantic, l0, hits}`（PC 在线走 `memory:query`，离线降级 `localMemory`） |
+| `qq:media:edge` | `{}` | 主动分享画作或日常瞬间时请求端侧最新风景图；前端以 `qq:reply`（`replyTo=id`）返回 `{dataUrl}` |
+| `qq:world:feedback` | `{moodDelta?, bubble?, action?, event?, facts?}` | 单聊回复/主动消息/消化完成后向 ARM 世界回灌心情变化、气泡、动作、事件与候选事实（写入 `localMemory` 并在线推送 PC `facts:candidates`） |
+
+### 6.2 浏览器前端 → 服务进程（`qq-openclaw`）
+
+| type | payload | 说明 |
+|---|---|---|
+| `qq:world:state` | `{day, minute, phase, weather, place, room?, act, mood, band, present, recentNote?}` | 定时或建连时同步的 DHVW 世界/心情快照 |
+| `qq:llm:config` | `{baseUrl, apiKey, model, reasoningEffort?}` | 从设备配置下发的 LLM 连接信息（由服务走 `dhvw-shell` `/__llm/chat/completions` 或直连） |
+| `qq:world:event` | `{id?, kind, summary, ts?}` | 生活事件流（`writing` / `browse` / `bg_ready` / `travel` / `return`），供主动发起评估 |
+| `qq:boost:state` | `{enabled}` | 同步 PC 端 `BOOST` 开关 / 端侧配置激活状态，控制 `qq-openclaw`（`followBoost: true`）实时上线或休眠 |
+| `qq:reply` | `{...}` | 对 `qq:memory:query` 或 `qq:media:edge` 的应答信封（必须带原请求 `replyTo`） |

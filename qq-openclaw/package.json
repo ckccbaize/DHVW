@@ -1,0 +1,16 @@
+{
+  "name": "openclaw-snowluma-dhvw",
+  "displayName": "OpenClaw SnowLuma (DHVW ARM Edition)",
+  "version": "0.9.0-dhvw.1",
+  "description": "Adapted openclaw-snowluma with compliant QQ Bot APIv2 entry, DHVW ARM world/mood/proactive integration, and PC vector memory bridge.",
+  "type": "module",
+  "main": "dist/dhvw-server.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "node ./dist/dhvw-server.js",
+    "test": "node --test ./tests/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=22.14.0"
+  }
+}

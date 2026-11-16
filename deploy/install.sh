@@ -32,6 +32,18 @@ install -m 0755 "$HERE/kiosk.sh" /opt/dhvw/kiosk.sh
 
 install -m 0644 "$HERE/systemd/dhvw-shell.service" /etc/systemd/system/dhvw-shell.service
 install -m 0644 "$HERE/systemd/dhvw-kiosk.service" /etc/systemd/system/dhvw-kiosk.service
+install -m 0644 "$HERE/systemd/dhvw-qqbot.service" /etc/systemd/system/dhvw-qqbot.service
+
+if [ -f "$ROOT/qq-openclaw/dist/dhvw-server.js" ]; then
+  rm -rf /opt/dhvw/qq-openclaw
+  cp -a "$ROOT/qq-openclaw" /opt/dhvw/qq-openclaw
+  chown -R root:root /opt/dhvw/qq-openclaw
+  chmod -R a+rX /opt/dhvw/qq-openclaw
+  install -d /etc/dhvw
+  if [ ! -f /etc/dhvw/qqbot.json ]; then
+    install -m 0640 -o root -g dhvw "$HERE/qqbot.example.json" /etc/dhvw/qqbot.json
+  fi
+fi
 
 install -d /etc/systemd/logind.conf.d
 install -m 0644 "$HERE/logind/99-dhvw-nosleep.conf" /etc/systemd/logind.conf.d/99-dhvw-nosleep.conf

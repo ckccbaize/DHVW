@@ -545,13 +545,22 @@ export function createLocalRuntime({
     }
   }
 
-  async function applySceneReady(p = {}) {
+  function findSceneRequest(p = {}) {
     const sceneId = String(p.sceneId || p.job || "").trim();
     const name = String(p.name || "").trim();
-    const req = sceneRequests.find((r) => (
-      (p.placeId && r.placeId === p.placeId) ||
-      (name && r.mapSpec?.name === name)
-    ));
+    return sceneRequests.find((r) => {
+      if (p.requestId && r.id === p.requestId) return true;
+      if (p.placeId && r.placeId === p.placeId) return true;
+      if (sceneId && (r.sceneId === sceneId || r.id === sceneId)) return true;
+      if (sceneId && r.placeId && (sceneId === r.placeId || sceneId.endsWith(`-${r.placeId}`) || sceneId.includes(`-${r.placeId}-`))) return true;
+      if (name && (r.mapSpec?.name === name || r.placeId === name)) return true;
+      return false;
+    }) || null;
+  }
+
+  async function applySceneReady(p = {}) {
+    const sceneId = String(p.sceneId || p.job || "").trim();
+    const req = findSceneRequest(p);
     if (!req) return null;
     req.status = "ready";
     req.sceneId = sceneId;
@@ -1374,6 +1383,9 @@ export function createLocalRuntime({
     async requestScene(placeId, reason = "travel", extra = {}) {
       return await enqueueSceneRequest(placeId, { reason, ...extra });
     },
+    async findSceneRequest(payload = {}) {
+      return findSceneRequest(payload);
+    },
     async markSceneReady(payload = {}) {
       return await applySceneReady(payload);
     },
@@ -1511,6 +1523,46 @@ export function createLocalRuntime({
     setQuota(bytes) {
       quota = bytes;
       enforceQuota();
+    },
+    getBrainHandles() {
+      return { llm, registry, localMemory, backend };
+    },
+    applyMoodDelta(deltas = {}) {
+      for (const k of ["energy", "valence", "social", "focus"]) {
+        if (!Number.isFinite(Number(deltas[k]))) continue;
+        mood[k] = Math.max(0, Math.min(1, Number(mood[k] ?? 0.5) + Number(deltas[k])));
+      }
+      if (backend) void backend.setKV("mood", mood).catch(() => {});
+      postLife({ type: "setMood", mood: { ...mood } });
+      store.patch({ mood: { ...mood }, band: moodBand(mood) });
+      return { ...mood };
+    },
+    async recordExternalEvent(kind, payload = {}) {
+      const ev = {
+        uuid: `ext-${now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+        src: "device",
+        t_local: now(),
+        t_corrected: now() + getOffset(),
+        kind,
+        payload,
+      };
+      await persistEvent(ev);
+      return ev;
+    },
+    triggerAct(act) {
+      if (act) postLife({ type: "debug_trigger", kind: "act", act });
+    },
+    async getLatestBgDataUrl() {
+      const bg = assets.filter((a) => a.kind === "bg").sort((a, b) => (b.created_at || 0) - (a.created_at || 0))[0];
+      if (!bg || !backend) return "";
+      const blob = await backend.getBlob(bg.id);
+      if (!blob || typeof FileReader === "undefined") return "";
+      return await new Promise((resolve) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(typeof fr.result === "string" ? fr.result : "");
+        fr.onerror = () => resolve("");
+        fr.readAsDataURL(blob);
+      });
     },
   };
 }

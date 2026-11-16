@@ -1,0 +1,28 @@
+[Unit]
+Description=DHVW optional QQ Bot interactive service (openclaw-snowluma modified, APIv2 C2C + multimodal)
+Documentation=https://github.com/../arm/docs/DEVICE-DESIGN.md
+After=network-online.target dhvw-shell.service
+Wants=network-online.target
+ConditionPathExists=/etc/dhvw/qqbot.json
+
+[Service]
+Type=simple
+User=dhvw
+ExecStart=/usr/bin/node /opt/dhvw/qq-openclaw/dist/dhvw-server.js -config /etc/dhvw/qqbot.json
+Restart=on-failure
+RestartSec=5
+MemoryMax=512M
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+StateDirectory=dhvw/qq-openclaw
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+ReadOnlyPaths=/opt/dhvw/qq-openclaw /etc/dhvw/qqbot.json
+ReadWritePaths=/var/lib/dhvw/qq-openclaw /tmp
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

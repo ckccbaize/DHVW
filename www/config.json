@@ -26,5 +26,10 @@
     "baseUrl": "",
     "apiKey": "",
     "model": ""
+  },
+  "qqBot": {
+    "enabled": false,
+    "bridgeWsUrl": "ws://127.0.0.1:8088/qq/ws",
+    "proactive": true
   }
 }

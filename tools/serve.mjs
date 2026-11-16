@@ -77,7 +77,7 @@ async function proxyLlm(req, res) {
   }
   let wrapper;
   try {
-    wrapper = JSON.parse(await readBody(req));
+    wrapper = JSON.parse(await readBody(req, 8 << 20));
   } catch (err) {
     return void res.writeHead(err.code === "too_large" ? 413 : 400).end("bad body");
   }

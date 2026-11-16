@@ -9,6 +9,8 @@ import { lightFor } from "./core/light.js";
 import { pickAsset } from "./core/assetstore.js";
 import { createRemoteRuntime } from "./runtime/remote.js";
 import { createLocalRuntime } from "./runtime/local.js";
+import { createRemoteMemory } from "./core/memory/remote.js";
+import { createQqBridge, createQqWorldAdapter } from "./runtime/qq-bridge.js";
 import { createOverview } from "./view/overview.js";
 import { createPresent } from "./view/present.js";
 import { createHud } from "./view/hud.js";
@@ -27,6 +29,7 @@ const DEFAULTS = {
   scene: "home",
   forgeIntervalMs: 45000,
   llm: { baseUrl: "", apiKey: "", model: "", reasoningEffort: "none" },
+  qqBot: { enabled: false, bridgeWsUrl: "ws://127.0.0.1:8088/qq/ws", proactive: true },
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -108,6 +111,7 @@ async function loadConfig() {
       display: { ...DEFAULTS.display, ...(raw.display || {}) },
       present: { ...DEFAULTS.present, ...(raw.present || {}) },
       llm: { ...DEFAULTS.llm, ...(raw.llm || {}), ...(auto || {}), ...(saved || {}) },
+      qqBot: { ...DEFAULTS.qqBot, ...(raw.qqBot || {}) },
       scene: raw.scene || DEFAULTS.scene,
     };
   } catch {
@@ -335,6 +339,11 @@ async function boot() {
     onMessage: (msg) => handleRemoteMessage(msg),
     onConn: (next, info) => handleConn(next, info),
     log: (m) => console.info("[remote]", m),
+  });
+
+  const remoteMemory = createRemoteMemory({
+    send: (m) => remote.send(m),
+    timeoutMs: 350,
   });
 
   // ---------- 显示态 ----------
@@ -651,6 +660,9 @@ async function boot() {
     return c.day > cur.day || (c.day === cur.day && c.minute > cur.minute);
   }
 
+  let setQqBotBoost = () => {};
+  let pendingRemoteBoost = null;
+
   function handleRemoteMessage(msg) {
     const p = msg.payload || {};
     switch (msg.type) {
@@ -661,6 +673,10 @@ async function boot() {
         if (Number(p.olvt_port) > 0) hostPresentInfo.olvtPort = Number(p.olvt_port);
         if (Number(p.gateway_port) > 0) hostPresentInfo.gatewayPort = Number(p.gateway_port);
         if (p.present_url) hostPresentInfo.presentUrl = String(p.present_url);
+        if (typeof p.boost === "boolean") {
+          pendingRemoteBoost = p.boost;
+          void setQqBotBoost(p.boost, { persist: true });
+        }
         break;
       }
       case "state:overview": {
@@ -728,6 +744,12 @@ async function boot() {
         void local.setLlmConfig(p);
         break;
       }
+      case "boost:config": {
+        const enabled = Boolean(p.enabled);
+        pendingRemoteBoost = enabled;
+        void setQqBotBoost(enabled, { persist: true });
+        break;
+      }
       case "digest:get": {
         void sendDigest();
         break;
@@ -751,15 +773,25 @@ async function boot() {
         });
         break;
       }
+      case "memory:result": {
+        remoteMemory.handle(p);
+        break;
+      }
       case "scene:ready": {
         void (async () => {
-          const req = await local.markSceneReady(p).catch(() => null);
+          const req = await local.findSceneRequest(p).catch(() => null);
           const alias = String(req?.placeId || p.placeId || "").trim();
           const cached = await cacheSceneAssets(p, alias).catch((err) => {
             console.warn("[remote] 场景资源缓存失败", p.sceneId || p.job, err);
             return false;
           });
-          const id = String(alias || p.sceneId || p.job || p.id || "").trim();
+          if (!cached) {
+            // 资源没落进 Cache Storage 就不能把请求标成 ready，否则会出现“已推送但没场景”。
+            store.emit("scene_ready_failed", { ...p, placeId: alias || undefined, reason: "cache_failed" });
+            return;
+          }
+          const ready = await local.markSceneReady(p).catch(() => null);
+          const id = String(ready?.placeId || alias || p.sceneId || p.job || p.id || "").trim();
           if (!id) return;
           const added = await local.addPlace({
             id,
@@ -769,8 +801,8 @@ async function boot() {
             overnight: p.overnight === true,
           });
           if (added?.added) store.patch({ sceneCount: (store.state.sceneCount || 0) + 1 });
-          store.emit("scene_ready", { ...p, cached, placeId: alias || undefined });
-          if (awayPlace && (awayPlace === alias || awayPlace === p.placeId || awayPlace === p.name || awayPlace === String(p.sceneId || ""))) {
+          store.emit("scene_ready", { ...p, cached, placeId: id });
+          if (awayPlace && (awayPlace === id || awayPlace === p.placeId || awayPlace === p.name || awayPlace === String(p.sceneId || ""))) {
             void enterPlace(awayPlace, awayAct);
           }
         })();
@@ -1155,6 +1187,181 @@ async function boot() {
     if (store.state.conn === "up") void flushEvents();
   }, 60000);
 
+  // 可选开启：QQ 单聊多模态互动融合（支持 config.json qqBot.enabled 或 PC Boost 模式联动开启，关闭零开销）
+  const qqGuideModal = document.querySelector("#qqGuideModal");
+  const qqBoostPill = document.querySelector("#qqBoostPill");
+  const qqGuideStatus = document.querySelector("#qqGuideStatus");
+  const openQqGuide = () => {
+    if (!qqGuideModal) return;
+    if (qqGuideStatus) {
+      const st = store.state.qqStatus;
+      qqGuideStatus.textContent = st?.connected
+        ? "状态：QQ Bot 已在线"
+        : store.state.boost || cfg.qqBot?.enabled
+          ? "状态：Boost 已激活，等待本地 qq-openclaw 连接"
+          : "状态：未开启 Boost";
+    }
+    qqGuideModal.hidden = false;
+  };
+  document.querySelector("#qqGuideClose")?.addEventListener("click", () => {
+    if (qqGuideModal) qqGuideModal.hidden = true;
+  });
+  qqGuideModal?.addEventListener("click", (e) => {
+    if (e.target === qqGuideModal) qqGuideModal.hidden = true;
+  });
+  document.querySelector("#qqGuideCopy")?.addEventListener("click", () => {
+    const txt = document.querySelector("#qqGuideSample")?.textContent || "";
+    void navigator.clipboard?.writeText(txt);
+    const btn = document.querySelector("#qqGuideCopy");
+    if (btn) {
+      btn.textContent = "已复制";
+      setTimeout(() => { btn.textContent = "复制 JSON 模板"; }, 1600);
+    }
+  });
+  qqBoostPill?.addEventListener("click", openQqGuide);
+
+  {
+    const staticQqEnabled = cfg.qqBot?.enabled === true;
+    const qqAdapter = createQqWorldAdapter({
+      remoteMemory,
+      getBrain: () => local.getBrainHandles(),
+      ingestFacts: (facts) => local.ingestFacts(facts),
+      isHostUp: () => store.state.conn === "up",
+      sendToHost: (m) => remote.send(m),
+      applyMoodDelta: (d) => local.applyMoodDelta(d),
+      onBubble: (text, ttl) => overview.say(text, ttl),
+      onAction: (act) => local.triggerAct(act),
+      onEvent: (kind, payload) => local.recordExternalEvent(kind, payload),
+      getEdgeMedia: () => local.getLatestBgDataUrl(),
+      isSleeping: () => store.state.phase === "sleep",
+    });
+
+    let qqBridge = null;
+    let qqSyncTimer = null;
+    let qqEventsWired = false;
+    let qqActive = false;
+
+    const pushWorldState = () => {
+      if (!qqBridge) return;
+      qqBridge.send({
+        type: "qq:world:state",
+        payload: {
+          day: store.state.clock?.day || 1,
+          minute: store.state.clock?.minute || 480,
+          phase: store.state.phase || "morning",
+          weather: store.state.weather || "clear",
+          place: awayPlace || scene.name || scene.id || "home",
+          room: roomAt(agent.gx, agent.gy) || "",
+          act: agent.act || agent.state || "idle",
+          mood: store.state.mood || {},
+          band: store.state.band || "calm",
+          display: store.state.display || "overview",
+          present: store.state.display === "present",
+          recentNote: lastEvent?.payload?.text || lastEvent?.kind || "",
+        },
+      });
+    };
+    const pushLlmConfig = () => {
+      if (!qqBridge || !cfg.llm) return;
+      qqBridge.send({
+        type: "qq:llm:config",
+        payload: {
+          baseUrl: cfg.llm.baseUrl || "",
+          apiKey: cfg.llm.apiKey || "",
+          model: cfg.llm.model || "",
+          reasoningEffort: cfg.llm.reasoningEffort,
+        },
+      });
+    };
+    const updateHudPill = () => {
+      if (!qqBoostPill) return;
+      qqBoostPill.hidden = !qqActive;
+      const connected = !!store.state.qqStatus?.connected;
+      qqBoostPill.classList.toggle("live", connected);
+      qqBoostPill.textContent = connected ? "BOOST · QQ在线" : "BOOST · QQ待连";
+    };
+
+    const ensureQqStarted = () => {
+      if (qqActive) return;
+      qqActive = true;
+      if (!qqBridge) {
+        qqBridge = createQqBridge({
+          url: cfg.qqBot?.bridgeWsUrl || "ws://127.0.0.1:8088/qq/ws",
+          onOpen: () => {
+            qqBridge.send({ type: "qq:boost:state", payload: { enabled: true } });
+            pushLlmConfig();
+            pushWorldState();
+          },
+          onStatus: (st) => {
+            store.patch({ qqStatus: st });
+            updateHudPill();
+          },
+          onMemoryQuery: (q) => qqAdapter.handleMemoryQuery(q),
+          onEdgeMedia: () => qqAdapter.handleEdgeMedia(),
+          onFeedback: (fb) => qqAdapter.handleFeedback(fb),
+        });
+      }
+      qqBridge.start();
+      qqBridge.send({ type: "qq:boost:state", payload: { enabled: true } });
+      if (!qqEventsWired) {
+        qqEventsWired = true;
+        store.on("llm_config", () => pushLlmConfig());
+        store.on("writing", (w) => {
+          if (qqActive) qqBridge?.send({ type: "qq:world:event", payload: { id: w.id, kind: "writing", summary: `写完了一篇${w.kind === "weekly" ? "周记" : w.kind === "diary" ? "日记" : "随笔"}`, ts: w.created_at } });
+        });
+        store.on("browse", (b) => {
+          if (qqActive) qqBridge?.send({ type: "qq:world:event", payload: { id: b.id, kind: "browse", summary: b.result?.page?.title || b.plan?.query || "上网逛了一会儿", ts: b.created_at } });
+        });
+        store.on("asset", (a) => {
+          if (qqActive && a.kind === "bg") {
+            qqBridge?.send({ type: "qq:world:event", payload: { id: a.id, kind: "bg_ready", summary: "画了一张新的风景小图", ts: a.created_at } });
+          }
+        });
+        store.on("event", (ev) => {
+          if (qqActive && (ev.kind === "travel" || ev.kind === "return")) {
+            qqBridge?.send({ type: "qq:world:event", payload: { id: ev.uuid, kind: ev.kind, summary: ev.payload?.to ? `去了${ev.payload.to}` : "刚回到家里", ts: ev.t_local } });
+          }
+        });
+      }
+      if (!qqSyncTimer) qqSyncTimer = setInterval(pushWorldState, 15_000);
+      updateHudPill();
+    };
+
+    const stopQq = () => {
+      if (!qqActive) return;
+      qqActive = false;
+      if (qqSyncTimer) {
+        clearInterval(qqSyncTimer);
+        qqSyncTimer = null;
+      }
+      if (qqBridge) {
+        qqBridge.send({ type: "qq:boost:state", payload: { enabled: false } });
+        qqBridge.stop();
+      }
+      store.patch({ qqStatus: { connected: false } });
+      updateHudPill();
+    };
+
+    setQqBotBoost = async (enabled, { persist = false } = {}) => {
+      const next = Boolean(enabled);
+      store.patch({ boost: next });
+      try { localStorage.setItem("dhvw_boost", next ? "1" : "0"); } catch {}
+      if (persist) {
+        const kv = local.getBrainHandles().backend;
+        await kv?.setKV?.("qq_boost_enabled", next).catch(() => {});
+      }
+      if (next || staticQqEnabled) ensureQqStarted();
+      else stopQq();
+    };
+
+    void (async () => {
+      const kv = local.getBrainHandles().backend;
+      const savedBoost = await kv?.getKV?.("qq_boost_enabled").catch(() => undefined);
+      const initial = pendingRemoteBoost !== null ? pendingRemoteBoost : (savedBoost === true || staticQqEnabled);
+      await setQqBotBoost(initial);
+    })();
+  }
+
   requestAnimationFrame(frame);
 
   // 调试页保存 LLM 配置后，主页面自动重载
@@ -1170,6 +1377,8 @@ async function boot() {
         }
       }
       else if (e.data?.type === "speed") local.setSpeed(e.data.value);
+      else if (e.data?.type === "boost") void setQqBotBoost(Boolean(e.data.enabled), { persist: true });
+      else if (e.data?.type === "qq-guide") openQqGuide();
     };
   } catch {}
 

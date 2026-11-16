@@ -6,15 +6,16 @@ export function createRemoteMemory({ send, timeoutMs = 200, now = () => Date.now
   const pending = new Map();
   let stats = { queries: 0, ok: 0, timeouts: 0, failed: 0, lastMs: 0 };
 
-  function query(text, k = 5) {
+  function query(text, k = 5, opts = {}) {
     return new Promise((resolve, reject) => {
       const req_id = `mq-${now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
       const t0 = now();
+      const waitMs = Number.isFinite(opts?.timeoutMs) && opts.timeoutMs > 0 ? opts.timeoutMs : timeoutMs;
       const timer = setTimeout(() => {
         pending.delete(req_id);
         stats.timeouts += 1;
         reject(Object.assign(new Error("memory:query timeout"), { code: "timeout" }));
-      }, timeoutMs);
+      }, waitMs);
 
       pending.set(req_id, {
         timer,
@@ -26,9 +27,13 @@ export function createRemoteMemory({ send, timeoutMs = 200, now = () => Date.now
       });
       stats.queries += 1;
 
+      const payload = { req_id, text, k };
+      if (opts?.mood && typeof opts.mood === "object") payload.mood = opts.mood;
+      if (opts?.includeL0) payload.include_l0 = true;
+
       let ok = false;
       try {
-        ok = send({ type: "memory:query", payload: { req_id, text, k } });
+        ok = send({ type: "memory:query", payload });
       } catch {
         ok = false;
       }

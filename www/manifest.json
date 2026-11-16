@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-15T16:13:00.588Z",
+ "built_at": "2026-11-16T12:44:42.684Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -754,13 +754,13 @@
   },
   {
    "path": "config.json",
-   "size": 497,
-   "sha256": "dade2434d53d66967d1427eb138dfeb04c1fc3bcb3536d98b6458d4ffada9b5d"
+   "size": 607,
+   "sha256": "161e37aad327fdbd97832d61a0f0018c10225a40f08af3e41e15d5c1deae4814"
   },
   {
    "path": "css/app.css",
-   "size": 7522,
-   "sha256": "571cb239d4b60c0e776cb6b9582e797265acef4a56494a411a8c6e3440a11d61"
+   "size": 9154,
+   "sha256": "89f204ab853cbb56adf3010eccaf0a7affac264646bec6b67bd909537a73b9e4"
   },
   {
    "path": "css/cel.css",
@@ -779,18 +779,18 @@
   },
   {
    "path": "debug-life.html",
-   "size": 21384,
-   "sha256": "168a269defbd23bd7de085ccc1140b2b74a42587b6584d825799ee2e9331d266"
+   "size": 24956,
+   "sha256": "95bd2af71a329a20cb17cfeee37c1d4354489447aed9b602f5d58de3f40211a7"
   },
   {
    "path": "index.html",
-   "size": 3175,
-   "sha256": "2c6b2820b0face09f3902a2610b46b10979a37660751297268254b4f2d3fc714"
+   "size": 5154,
+   "sha256": "9a5b1a0cd017961b5bd35188c6719370471ec04110060a3cb9c5b3b60fa946b7"
   },
   {
    "path": "js/app.js",
-   "size": 41394,
-   "sha256": "3b9be67003836c07a728de4b4eed23e60be532dc9c460e3c72e69ec641876234"
+   "size": 49819,
+   "sha256": "c619faf01d88bdafbe899d8e19c639f5537c67ad12a7d8ca93d40eb11228393c"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -979,8 +979,8 @@
   },
   {
    "path": "js/core/memory/remote.js",
-   "size": 1920,
-   "sha256": "d57916089deb13e517e7a89a9549422f83d20f5d1630bb207521f204b0102b8b"
+   "size": 2192,
+   "sha256": "d71a979106561fea2eb8494f7e5111e598e9cf88747d006919eb5d73f42f7085"
   },
   {
    "path": "js/core/mood.js",
@@ -1069,8 +1069,13 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 54572,
-   "sha256": "0801e12be0547fa7358ed62c1f3bc28604ca36b59537ab75d029c60a14d8d86e"
+   "size": 56722,
+   "sha256": "abeab01a459d9d93932a2f5f0e89ca5ee6fc0e955ffa57844607dbf6ddc07c6a"
+  },
+  {
+   "path": "js/runtime/qq-bridge.js",
+   "size": 7391,
+   "sha256": "ba50f2b4e2068899636fc00bcdd705c1555891490203d86029988711fd808c0b"
   },
   {
    "path": "js/runtime/remote.js",

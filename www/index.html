@@ -20,6 +20,7 @@
       <div class="hud-left">
         <span id="tierBadge" class="tier idle"></span>
         <span class="conn"><i id="connDot" class="dot off"></i><span id="connText">主机未连接</span></span>
+        <button id="qqBoostPill" class="qq-boost-pill" type="button" hidden title="查看 QQ Bot 连接说明">BOOST · QQ</button>
       </div>
       <div class="hud-right">
         <span id="clock">第 1 天 08:00</span>
@@ -76,6 +77,37 @@
   </div>
 
   <div id="bootError" hidden></div>
+
+  <div id="qqGuideModal" class="qq-modal" hidden role="dialog" aria-modal="true" aria-labelledby="qqGuideTitle">
+    <div class="qq-modal-card">
+      <div class="qq-modal-head">
+        <strong id="qqGuideTitle">QQ 官方 Bot 登录与链接指引</strong>
+        <button id="qqGuideClose" class="dock-btn" type="button">关闭</button>
+      </div>
+      <p class="qq-modal-lead">遵循 QQ 开放平台规范，不扫码登录个人号，而是接入官方 Bot APIv2（单聊 + 图片多模态 + 表情包）。</p>
+      <ol class="qq-modal-steps">
+        <li>登录 QQ 开放平台 <code>https://q.qq.com</code> 创建机器人应用，在「开发管理」复制 <b>AppID</b> 与 <b>ClientSecret</b>。</li>
+        <li>在「能力配置」开通<b>单聊（C2C）消息</b>，并在「沙箱配置」添加你的 QQ 号（<code>"sandbox": true</code>）。</li>
+        <li>给测试机器人私聊发一条消息，从日志获取你的单聊 <code>user_openid</code>，填入 <code>ownerOpenId</code> 白名单。</li>
+        <li>配置设备端 <code>/etc/dhvw/qqbot.json</code>（设 <code>"followBoost": true</code> 或 <code>"enabled": true</code>）并执行 <code>sudo systemctl enable --now dhvw-qqbot.service</code>。</li>
+      </ol>
+      <pre class="qq-modal-pre" id="qqGuideSample">{
+  "enabled": false,
+  "followBoost": true,
+  "appId": "你的AppID",
+  "clientSecret": "你的ClientSecret",
+  "sandbox": true,
+  "ownerOpenId": "你的单聊user_openid",
+  "listenAddr": "127.0.0.1:8088",
+  "shellUrl": "http://127.0.0.1:8080",
+  "stateDir": "/var/lib/dhvw/qq-openclaw"
+}</pre>
+      <div class="qq-modal-foot">
+        <span id="qqGuideStatus" class="qq-modal-status">状态：待检测</span>
+        <button id="qqGuideCopy" class="dock-btn" type="button">复制 JSON 模板</button>
+      </div>
+    </div>
+  </div>
 </div>
 <script type="module" src="js/app.js"></script>
 </body>
