@@ -21,5 +21,15 @@ export function applyNetworkHardening(): void {
 /** 必须在 app ready 之后调用。 */
 export function hardenSessionSetup(): void {
   session.defaultSession.setSpellCheckerEnabled(false)
-  session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
+  session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => {
+    if (permission === 'media') {
+      const url = wc.getURL()
+      const allowed =
+        /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/.test(url) ||
+        /^https:\/\/[^/]+:8443(\/|$)/.test(url)
+      callback(allowed)
+      return
+    }
+    callback(false)
+  })
 }

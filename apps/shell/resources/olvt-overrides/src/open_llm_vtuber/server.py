@@ -29,6 +29,32 @@ DHVW_BOOTSTRAP_SCRIPT = """<script>
       : (proto + '//' + location.host + '/client-ws');
     localStorage.setItem('wsUrl', JSON.stringify(ws));
     localStorage.setItem('baseUrl', JSON.stringify(base));
+    localStorage.removeItem('micOn');
+
+    var trackedCtx = [];
+    var NativeAC = window.AudioContext || window.webkitAudioContext;
+    if (NativeAC) {
+      var WrappedAC = function () {
+        var ctx = arguments.length ? new NativeAC(arguments[0]) : new NativeAC();
+        trackedCtx.push(ctx);
+        return ctx;
+      };
+      WrappedAC.prototype = NativeAC.prototype;
+      if (Object.setPrototypeOf) Object.setPrototypeOf(WrappedAC, NativeAC);
+      window.AudioContext = WrappedAC;
+      if (window.webkitAudioContext) window.webkitAudioContext = WrappedAC;
+      var resumeAll = function () {
+        for (var i = 0; i < trackedCtx.length; i++) {
+          var c = trackedCtx[i];
+          if (c && c.state === 'suspended' && typeof c.resume === 'function') {
+            try { c.resume().catch(function () {}); } catch (e) {}
+          }
+        }
+      };
+      ['pointerdown', 'click', 'touchstart', 'keydown'].forEach(function (ev) {
+        window.addEventListener(ev, resumeAll, { capture: true, passive: true });
+      });
+    }
   } catch (e) {}
 })();
 </script>
