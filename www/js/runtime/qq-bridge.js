@@ -45,6 +45,17 @@ export function createQqWorldAdapter({
   isSleeping = () => false,
   now = () => Date.now(),
 } = {}) {
+  const pendingPcFacts = [];
+
+  function enqueuePendingFacts(facts) {
+    for (const f of facts) {
+      pendingPcFacts.push(f);
+    }
+    if (pendingPcFacts.length > 100) {
+      pendingPcFacts.splice(0, pendingPcFacts.length - 100);
+    }
+  }
+
   function queryLocalFallback(text, k = 4) {
     const { localMemory } = getBrain() || {};
     if (!localMemory) return { semantic: false, l0: [], hits: [] };
@@ -70,7 +81,7 @@ export function createQqWorldAdapter({
 
       if (text && isHostUp() && remoteMemory?.query) {
         try {
-          const res = await remoteMemory.query(text, k, { mood, includeL0: true, timeoutMs: 350 });
+          const res = await remoteMemory.query(text, k, { mood, includeL0: true, timeoutMs: 1500 });
           if (res && (res.semantic || (Array.isArray(res.hits) && res.hits.length) || (Array.isArray(res.l0) && res.l0.length))) {
             return {
               semantic: !!res.semantic,
@@ -101,17 +112,32 @@ export function createQqWorldAdapter({
       }
       const facts = normalizeCandidateFacts(fb.facts, now);
       let factsAccepted = 0;
+      let pushedToPc = false;
       if (facts.length) {
         if (typeof ingestFacts === "function") {
           const r = await ingestFacts(facts).catch(() => null);
           factsAccepted = Array.isArray(r?.accepted) ? r.accepted.length : facts.length;
         }
         if (isHostUp()) {
-          sendToHost({ type: "facts:candidates", payload: { facts, source: "qq" } });
+          pushedToPc = sendToHost({ type: "facts:candidates", payload: { facts, source: "qq" } }) !== false;
+        }
+        if (!pushedToPc) {
+          enqueuePendingFacts(facts);
         }
       }
-      return { factsAccepted, pushedToPc: facts.length > 0 && isHostUp() };
+      return { factsAccepted, pushedToPc, queuedForPc: pendingPcFacts.length };
     },
+
+    flushPendingFacts() {
+      if (!pendingPcFacts.length || !isHostUp()) return 0;
+      const batch = pendingPcFacts.slice();
+      const ok = sendToHost({ type: "facts:candidates", payload: { facts: batch, source: "qq" } }) !== false;
+      if (!ok) return 0;
+      pendingPcFacts.length = 0;
+      return batch.length;
+    },
+
+    pendingFactsCount: () => pendingPcFacts.length,
 
     async handleEdgeMedia() {
       const dataUrl = await getEdgeMedia().catch(() => "");

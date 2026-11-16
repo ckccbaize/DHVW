@@ -1295,6 +1295,7 @@ async function boot() {
             qqBridge.send({ type: "qq:boost:state", payload: { enabled: true } });
             pushLlmConfig();
             pushWorldState();
+            qqAdapter.flushPendingFacts();
           },
           onStatus: handleQqStatus,
           onMemoryQuery: (q) => qqAdapter.handleMemoryQuery(q),
@@ -1304,9 +1305,13 @@ async function boot() {
       }
       qqBridge.start();
       qqBridge.send({ type: "qq:boost:state", payload: { enabled: true } });
+      qqAdapter.flushPendingFacts();
       if (!qqEventsWired) {
         qqEventsWired = true;
         store.on("llm_config", () => pushLlmConfig());
+        store.on("state", (ev) => {
+          if (ev?.conn === "up") qqAdapter.flushPendingFacts();
+        });
         store.on("writing", (w) => {
           if (qqActive) qqBridge?.send({ type: "qq:world:event", payload: { id: w.id, kind: "writing", summary: `写完了一篇${w.kind === "weekly" ? "周记" : w.kind === "diary" ? "日记" : "随笔"}`, ts: w.created_at } });
         });

@@ -20,6 +20,53 @@ const INTENT_GROUP_AND_C2C = 1 << 25;
 const C2C_PASSIVE_TTL_MS = 60 * 60_000;
 const C2C_PASSIVE_MAX = 4;
 
+const QQ_FACE_NAMES = {
+  "0": "惊讶", "1": "撇嘴", "2": "色", "3": "发呆", "4": "得意", "5": "流泪",
+  "6": "害羞", "7": "闭嘴", "8": "睡", "9": "大哭", "10": "尴尬",
+  "11": "发怒", "12": "调皮", "13": "呲牙", "14": "微笑", "15": "难过",
+  "18": "抓狂", "19": "吐", "20": "偷笑", "21": "可爱", "22": "白眼",
+  "23": "傲慢", "25": "困", "26": "惊恐", "27": "流汗", "28": "憨笑",
+  "29": "悠闲", "30": "奋斗", "31": "咒骂", "32": "疑问", "33": "嘘",
+  "34": "晕", "36": "衰", "38": "敲打", "39": "再见", "49": "拥抱",
+  "66": "爱心", "74": "太阳", "75": "月亮", "76": "赞", "77": "踩",
+  "78": "握手", "79": "胜利", "99": "鼓掌", "100": "糗大了", "101": "坏笑",
+  "104": "委屈", "105": "快哭了", "106": "阴险", "107": "亲亲", "109": "可怜",
+  "146": "爆筋", "175": "卖萌", "179": "doge", "182": "笑哭",
+  "277": "汪汪", "285": "摸鱼", "319": "比心",
+};
+const QQ_FACE_SHORTCUTS = new Set([...Object.values(QQ_FACE_NAMES), "晚安", "哈哈", "抱抱", "贴贴", "无语", "翻白眼", "玫瑰"]);
+
+function decodeQqFaceExtText(extB64) {
+  if (!extB64) return "";
+  try {
+    const parsed = JSON.parse(Buffer.from(String(extB64), "base64").toString("utf8"));
+    return String(parsed?.text || "").replace(/^\/+/, "").trim();
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * 将 QQ 官方消息里的内置表情标签（<faceType=...> / <emoji:ID>）与系统表情口令（如 /睡）
+ * 规整为可读的 [QQ表情:睡]，避免被当成斜杠命令或漏解析成杂音。
+ */
+export function normalizeQqInboundContent(raw) {
+  if (typeof raw !== "string") return "";
+  let out = raw.trim();
+  if (!out) return "";
+  out = out.replace(/<faceType=[^>]*>/gi, (tag) => {
+    const idMatch = /faceId="?(\d+)"?/i.exec(tag);
+    const extMatch = /ext="([^"]+)"/i.exec(tag);
+    const label = decodeQqFaceExtText(extMatch?.[1]) || (idMatch?.[1] && QQ_FACE_NAMES[idMatch[1]]) || (idMatch?.[1] ? `#${idMatch[1]}` : "表情");
+    return `[QQ表情:${label}]`;
+  });
+  out = out.replace(/<emoji:(\d+)>/gi, (_m, id) => `[QQ表情:${QQ_FACE_NAMES[id] || `#${id}`}]`);
+  out = out.replace(/(^|\s)\/([^\s/]{1,12})(?=\s|$)/g, (m, lead, name) =>
+    QQ_FACE_SHORTCUTS.has(name) ? `${lead}[QQ表情:${name}]` : m
+  );
+  return out.trim();
+}
+
 export class MsgDedupRing {
   constructor(capacity = 500) {
     this.cap = Math.max(10, capacity);
@@ -323,7 +370,7 @@ export class QQOfficialClient extends EventEmitter {
     const msgId = String(d.id || "").trim();
     if (this.dedup.seenOrAdd(msgId)) return;
     const openId = String(d.author?.user_openid || d.author?.union_openid || "").trim();
-    const text = typeof d.content === "string" ? d.content.trim() : "";
+    const text = normalizeQqInboundContent(typeof d.content === "string" ? d.content : "");
     this.#tryPairFirst(openId);
     if (!this.isAllowedOpenId(openId)) {
       this.log?.info?.(`[qq-official] 忽略非白名单单聊 openId=${openId}`);

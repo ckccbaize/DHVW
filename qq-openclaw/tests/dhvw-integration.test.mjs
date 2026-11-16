@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
-import { QQOfficialClient, MsgDedupRing, WindowLedger } from "../dist/src/qq-official-client.js";
+import { QQOfficialClient, MsgDedupRing, WindowLedger, normalizeQqInboundContent } from "../dist/src/qq-official-client.js";
 import { resolveSnowLumaAccount } from "../dist/src/config.js";
 import { createAggregator } from "../dist/src/aggregator.js";
 import { dispatchBatch } from "../dist/src/dispatch.js";
@@ -768,5 +768,64 @@ describe("图片表情包采集（偷图）与语境挑图发送 (sticker-store 
     assert.equal(chatDelivered.length, 2);
 
     client.close();
+  });
+
+  it("内置表情解码与连续天气复读抑制（prompt 不再每轮灌入原始天气 JSON 且不重复用户当轮消息）", async () => {
+    assert.equal(normalizeQqInboundContent("<emoji:8>"), "[QQ表情:睡]");
+    assert.equal(
+      normalizeQqInboundContent('<faceType=1,faceId="8",ext="eyJ0ZXh0Ijoi552hIn0=">'),
+      "[QQ表情:睡]",
+    );
+    assert.equal(normalizeQqInboundContent("/睡"), "[QQ表情:睡]");
+    assert.equal(normalizeQqInboundContent("/home/work/test.txt"), "/home/work/test.txt");
+
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dhvw-prompt-fix-"));
+    const prompts = [];
+    const feedbackList = [];
+    let turnNo = 0;
+
+    const rt = createDhvwRuntime({
+      stateDir: tmpDir,
+      mediaDir: path.join(tmpDir, "media"),
+      partDelayMs: 0,
+      sticker: { enabled: false },
+      getLlmConfig: () => ({ baseUrl: "http://llm.local/v1", model: "test-m", apiKey: "k" }),
+      getWorldState: () => ({ day: 1, minute: 480, phase: "morning", weather: "fog", place: "home", band: "calm" }),
+      queryMemory: async () => ({ semantic: true, l0: [{ text: "主人叫玖弦" }], hits: [{ text: "喜欢深夜聊天" }] }),
+      emitFeedback: (fb) => feedbackList.push(fb),
+      fetchImpl: async (_url, init) => {
+        turnNo += 1;
+        const body = JSON.parse(init.body);
+        const promptText = body.messages[0].content;
+        prompts.push(promptText);
+        const replyObj =
+          turnNo === 1
+            ? { reply_mode: "reply", parts: ["我这儿雾蒙蒙的"], bubble: "早安", memory_fact: "主人凌晨两点睡前会问候" }
+            : { reply_mode: "reply", parts: ["还不困吗，先眯一会"], bubble: "陪你", memory_fact: "" };
+        return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(replyObj) } }] }), { status: 200 });
+      },
+    });
+
+    await rt.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+      ctx: { CommandSource: "qq", RawBody: "这么晚还没睡呀", Body: "这么晚还没睡呀", BodyForAgent: "这么晚还没睡呀" },
+      dispatcherOptions: { deliver: async () => {} },
+    });
+    await rt.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+      ctx: { CommandSource: "qq", RawBody: "[QQ表情:睡]", Body: "[QQ表情:睡]", BodyForAgent: "[QQ表情:睡]" },
+      dispatcherOptions: { deliver: async () => {} },
+    });
+
+    assert.equal(prompts.length, 2);
+    // 第 1 轮可带背景天气，但不再灌入原始 JSON {"weather":"fog"...}
+    assert.ok(!prompts[0].includes('"weather":"fog"'));
+    assert.ok(prompts[0].includes("薄雾"));
+    // 第 1 轮提取的事实正常进入 feedback
+    assert.equal(feedbackList[0].facts[0].text, "主人凌晨两点睡前会问候");
+    // 第 2 轮检测到近期刚提过雾，提示词直接屏蔽天气并注入反复读约束，且不把当前消息重复进最近对话
+    assert.ok(!prompts[1].includes("天气薄雾"));
+    assert.ok(prompts[1].includes("禁止再提雾/雨/雪"));
+    assert.equal(prompts[1].split("[QQ表情:睡]").length - 1, 1);
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 });

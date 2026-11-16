@@ -91,7 +91,54 @@ export function createDhvwRuntime({
   let slang = loadJsonSafe(slangFile, []);
   let chatHistory = loadJsonSafe(historyFile, []);
   let threads = loadJsonSafe(threadsFile, []);
+  let lastWeatherMentionedAt = 0;
   const pendingTurns = [];
+
+  const WEATHER_MENTION_RE = /雾|蒙蒙|下雨|小雨|大雨|下雪|暴风|多云|阴天|晴天|天刚蒙亮|刚醒/;
+  const USER_ASKED_WEATHER_RE = /雾|晴|雨|雪|风|天气|冷不冷|热吗|外面|那边|天亮|早上|早安/;
+  const PHASE_LABELS = {
+    morning: "早晨",
+    noon: "午间",
+    afternoon: "下午",
+    evening: "傍晚",
+    night: "夜里",
+    sleep: "休息时段",
+  };
+  const WEATHER_LABELS = {
+    clear: "晴朗",
+    fog: "薄雾",
+    rain: "小雨",
+    snow: "飘雪",
+    cloudy: "多云",
+    wind: "微风",
+  };
+  const PLACE_LABELS = {
+    home: "小屋里",
+    garden: "院子里",
+    study: "书桌旁",
+    kitchen: "厨房附近",
+  };
+
+  function formatClockHHMM(ts) {
+    const d = new Date(ts);
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+
+  function formatWorldNote(world = {}, { userText = "", nowMs = now(), forceWeather = false } = {}) {
+    const phase = PHASE_LABELS[world.phase] || world.phase || "日常";
+    const place = world.room || PLACE_LABELS[world.place] || world.place || "小屋";
+    const act = world.act && world.act !== "idle" ? `，正在${world.act}` : "";
+    const recentHasWeather = chatHistory.slice(-4).some((m) => WEATHER_MENTION_RE.test(String(m?.text || "")));
+    const userAskedWeather = USER_ASKED_WEATHER_RE.test(String(userText || ""));
+    const allowWeather =
+      forceWeather ||
+      userAskedWeather ||
+      (!recentHasWeather && nowMs - lastWeatherMentionedAt > 30 * 60_000);
+    const weatherText = allowWeather
+      ? `·天气${WEATHER_LABELS[world.weather] || world.weather || "晴朗"}（若不聊天气可完全不提，禁止生硬播报或“刚醒”套话）`
+      : "（近期已提过环境，本轮禁止再提雾/雨/雪/天亮或刚醒，直接接对方的话题）";
+    return `现实时间 ${formatClockHHMM(nowMs)}；虚拟仓背景：${phase}·在${place}${act}${weatherText}`;
+  }
 
   function loadJsonSafe(file, fallback) {
     try {
@@ -218,7 +265,10 @@ export function createDhvwRuntime({
       if (threads.length > 5) threads = threads.slice(-5);
       saveJsonSafe(threadsFile, threads);
     }
-    if (facts.length) emitFeedback({ facts });
+    if (facts.length) {
+      log?.info?.(`[dhvw-runtime] digest extracted facts=${facts.length}: ${facts.map((f) => f.text).join(" | ")}`);
+      emitFeedback({ facts });
+    }
     return "SKIP"; // digest 总结默认沉淀进记忆，不打扰单聊用户
   }
 
@@ -226,6 +276,7 @@ export function createDhvwRuntime({
     mediaDir,
     stateDir,
     stickerStore,
+    formatWorldNote,
     getThreads: () => threads.slice(),
     closeThread: (id) => {
       const t = threads.find((x) => x.id === id);
@@ -322,11 +373,17 @@ export function createDhvwRuntime({
               return;
             }
             const userText = String(ctx.RawBody || ctx.Body || "").trim();
+            const recentHistoryText = runtime.getHistoryText(8);
+            const worldNote = formatWorldNote(world, { userText, nowMs: now() });
             chatHistory.push({ role: "user", text: userText, ts: now() });
             pendingTurns.push({ role: "user", text: userText, ts: now() });
             if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
 
+            const tMemStart = now();
             const mem = await queryMemory(userText, 6, { band: world.band, dims: world.mood });
+            log?.info?.(
+              `[dhvw-runtime] memory query semantic=${Boolean(mem?.semantic)} hits=${mem?.hits?.length || 0} l0=${mem?.l0?.length || 0} cost=${now() - tMemStart}ms`
+            );
             const inboundMedia = Array.isArray(ctx.media) ? ctx.media.filter((m) => m?.path) : [];
             const canSticker = stickerStore.canSendThisTurn();
             const stickerCandidates = canSticker
@@ -341,17 +398,17 @@ export function createDhvwRuntime({
 
             const prompt = [
               "你住在用户的移动虚拟仓里，正在用 QQ 单聊和对方发消息。",
-              `当前世界状态：${JSON.stringify({ day: world.day || 1, minute: world.minute || 480, phase: world.phase || "morning", weather: world.weather || "clear", place: world.place || "home", room: world.room || "", act: world.act || "idle" })}`,
-              `当前心情：${JSON.stringify(world.mood || {})} (band=${world.band || "calm"})`,
+              worldNote,
+              `当前心情：${world.band || "calm"} (${JSON.stringify(world.mood || {})})`,
               `长期记忆与偏好：\n${formatMemoryBlock(mem)}`,
               `熟人习惯与黑话：${formatSlangBlock()}`,
               ...(stickerHintBlock ? [stickerHintBlock] : []),
-              `最近对话：\n${runtime.getHistoryText(10)}`,
-              `对方刚发来（含上下文）：\n${ctx.BodyForAgent || ctx.Body}`,
+              `最近对话：\n${recentHistoryText}`,
+              `对方刚发来：\n${ctx.BodyForAgent || ctx.Body}`,
               "",
               "请以真人口吻回复，严格输出 JSON（不要解释、不要 markdown 代码块）：",
               '{"reply_mode":"reply|short|skip","parts":["短句1","可选短句2"],"sticker_id":"可选表情包id","sticker_only":false,"collect_sticker":{"save":false,"emotion":"","desc":"","tags":[]},"tone":"warm|playful|sleepy|needy|curious","bubble":"总观气泡(<=18字)","mood_delta":{"valence":0.05,"social":-0.06},"slang_note":"可选口癖/梗","unknown_term":"可选想查意思的新词黑话","memory_fact":"可选一句话记住的新事实","action":"可选轻动作如rest/read","send_edge_bg":false}',
-              `要求：1. parts 1~3 条口语短句，严禁列表编号与客服套话；2. 可用表情包时自然配合语境选用，若只想用一张表情包接话可设 sticker_only=true；3. 若对方只是简单道别/敷衍，可设 reply_mode=skip（仅更新 bubble 与心情）。${collectHint}`,
+              `要求：1. parts 1~3 条口语短句，优先顺着对方刚发来的内容和长期记忆自然接话，严禁重复描写天气/时间或“刚醒”套话；2. 严禁列表编号与客服套话；3. 若对方发了 [QQ表情:xxx] 或简称如 /睡，请按对应情绪自然互动，不要误读成别的字；4. 可用表情包时自然选用，只想用一张表情包接话可设 sticker_only=true；5. 若只是简单道别/敷衍可设 reply_mode=skip。${collectHint}`,
             ].join("\n");
 
             const messages = await buildMultimodalTurnMessages(prompt, ctx);
@@ -407,6 +464,7 @@ export function createDhvwRuntime({
               if (joined) {
                 chatHistory.push({ role: "assistant", text: joined, ts: now() });
                 pendingTurns.push({ role: "assistant", text: joined, ts: now() });
+                if (WEATHER_MENTION_RE.test(joined)) lastWeatherMentionedAt = now();
                 if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
               }
             } else {
@@ -428,6 +486,9 @@ export function createDhvwRuntime({
             const facts = [];
             if (typeof parsed?.memory_fact === "string" && parsed.memory_fact.trim()) {
               facts.push({ text: parsed.memory_fact.trim().slice(0, 120), tier: "L2", conf: 0.82 });
+            }
+            if (facts.length) {
+              log?.info?.(`[dhvw-runtime] turn facts=${facts.length}: ${facts.map((f) => f.text).join(" | ")}`);
             }
             if (typeof parsed?.slang_note === "string" && parsed.slang_note.trim()) {
               const note = parsed.slang_note.trim().slice(0, 60);

@@ -150,14 +150,19 @@ export function createProactiveRunner({
         const stickerHint = stickerCandidates.length
           ? `可用表情包库（情绪合适可在 sticker_id 填入下列 id 之一）：\n${runtime.stickerStore.formatPromptBlock(stickerCandidates)}`
           : "";
+        const worldNote = typeof runtime.formatWorldNote === "function"
+          ? runtime.formatWorldNote(world, { forceWeather: decision.kind === "weather_shift" })
+          : `当前状态：${world.phase || "日常"}，${world.place || "小屋"}`;
         const prompt = [
           "你住在虚拟仓里，突然想在 QQ 上主动给对方发句消息。",
           `触发原因：${decision.kind} - ${decision.reason} (${decision.seed})`,
-          `当前世界：${JSON.stringify({ phase: world.phase, weather: world.weather, place: world.place, act: world.act, mood: world.mood, band: world.band })}`,
+          worldNote,
+          `当前心情：${world.band || "calm"}`,
           `记忆：\n${runtime.formatMemoryBlock(mem)}`,
           ...(stickerHint ? [stickerHint] : []),
           `最近对话：\n${runtime.getHistoryText(8)}`,
           '严格输出 JSON：{"speak":true,"parts":["主动第一句","可选补充短句"],"sticker_id":"可选表情包id","bubble":"总观气泡(<=18字)","send_edge_bg":false,"thread":"可选新线头"}',
+          "要求：自然口语短句，除触发原因本身是 weather_shift 外，不要硬扯天气或重复“刚醒”套话。",
         ].join("\n\n");
 
         const raw = await runtime.callLlm({ messages: [{ role: "user", content: prompt }], json: true, maxTokens: 500, temperature: 0.85 });

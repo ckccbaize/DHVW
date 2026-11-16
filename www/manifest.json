@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-16T14:21:20.771Z",
+ "built_at": "2026-11-16T14:43:10.028Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -789,8 +789,8 @@
   },
   {
    "path": "js/app.js",
-   "size": 51000,
-   "sha256": "ca58c36e8ce9eb8ceca3ade3bd1d84c92fec84b7a66ba26af6c65b9783421c28"
+   "size": 51192,
+   "sha256": "b090a5f9c6a1e4b6b9ee485a4b2a029151d9effbe1d48017c55753e7b971b967"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -1074,8 +1074,8 @@
   },
   {
    "path": "js/runtime/qq-bridge.js",
-   "size": 7391,
-   "sha256": "ba50f2b4e2068899636fc00bcdd705c1555891490203d86029988711fd808c0b"
+   "size": 8155,
+   "sha256": "6d4eda15b9c3486385fb86f7324ad650c6a921a1643bd0604507a6d473b6bb97"
   },
   {
    "path": "js/runtime/remote.js",

@@ -220,7 +220,7 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
     getLlmConfig: () => llmConfig,
     getWorldState: () => worldState,
     queryMemory: async (text, k, mood) => {
-      const res = await requestFromBrowser("qq:memory:query", { text, k, mood }, 600);
+      const res = await requestFromBrowser("qq:memory:query", { text, k, mood }, 2200);
       return res || { semantic: false, l0: [], hits: [] };
     },
     requestEdgeMedia: async () => {
@@ -237,7 +237,7 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
     runtime,
     getWorldState: () => worldState,
     queryMemory: async (text, k, mood) => {
-      const res = await requestFromBrowser("qq:memory:query", { text, k, mood }, 600);
+      const res = await requestFromBrowser("qq:memory:query", { text, k, mood }, 2200);
       return res || { semantic: false, l0: [], hits: [] };
     },
     requestEdgeMedia: async () => {

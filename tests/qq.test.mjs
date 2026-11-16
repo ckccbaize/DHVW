@@ -113,6 +113,50 @@ describe("ARM 浏览器侧 QQ Bridge 与 PC 记忆/心情适配 (qq-bridge.js)",
     assert.equal(bubbles.length, 1);
   });
 
+  it("PC 离线时 QQ 新事实先入本地并在重连后 flush 到 PC，且远端检索给予充足超时预算", async () => {
+    const queryOpts = [];
+    const hostMsgs = [];
+    let hostUp = false;
+
+    const adapter = createQqWorldAdapter({
+      remoteMemory: {
+        async query(text, k, opts) {
+          queryOpts.push(opts);
+          return { semantic: true, l0: [{ text: "主人养了一只橘猫" }], hits: [{ text: `命中:${text}`, score: 0.91 }] };
+        },
+      },
+      ingestFacts: async (facts) => ({ accepted: facts }),
+      isHostUp: () => hostUp,
+      sendToHost: (msg) => {
+        hostMsgs.push(msg);
+        return true;
+      },
+    });
+
+    // 离线写入：先落本地并进入 pending 队列，不丢 PC 事实同步
+    const fbRes = await adapter.handleFeedback({
+      facts: [{ text: "主人喜欢深夜喝热牛奶", tier: "L2", conf: 0.88 }],
+    });
+    assert.equal(fbRes.factsAccepted, 1);
+    assert.equal(fbRes.pushedToPc, false);
+    assert.equal(fbRes.queuedForPc, 1);
+    assert.equal(hostMsgs.length, 0);
+
+    // PC 重连后自动冲刷待同步事实 & 远端检索超时 >= 1200ms
+    hostUp = true;
+    const flushed = adapter.flushPendingFacts();
+    assert.equal(flushed, 1);
+    assert.equal(adapter.pendingFactsCount(), 0);
+    assert.equal(hostMsgs[0].type, "facts:candidates");
+    assert.equal(hostMsgs[0].payload.facts[0].text, "主人喜欢深夜喝热牛奶");
+
+    const mem = await adapter.handleMemoryQuery({ text: "喝什么", k: 6 });
+    assert.equal(mem.semantic, true);
+    assert.equal(mem.l0[0].text, "主人养了一只橘猫");
+    assert.equal(mem.hits[0].text, "命中:喝什么");
+    assert.ok(queryOpts[0].timeoutMs >= 1200);
+  });
+
   it("createQqBridge 应正确分发 qq:memory:query、qq:media:edge、qq:world:feedback 并以 replyTo 回包", async () => {
     const sent = [];
     class MockWs {
