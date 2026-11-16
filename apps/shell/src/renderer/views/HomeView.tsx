@@ -15,6 +15,7 @@ export function HomeView({
   live2d,
   boost,
   onBoost,
+  onOpenQqGuide,
   busy,
 }: {
   world: WorldView | null
@@ -22,6 +23,7 @@ export function HomeView({
   live2d: { url: string | null; model: string | null; error?: string } | null
   boost: boolean
   onBoost: (next: boolean) => void
+  onOpenQqGuide: () => void
   busy: boolean
 }): React.ReactElement {
   const live2dReady = Boolean(live2d?.url)
@@ -126,19 +128,27 @@ export function HomeView({
         <div className="col home-col">
           <section className={`panel boost ${boost ? 'on' : ''}`}>
             <div className="boost-lines" aria-hidden="true" />
-            <h2>世界模式增强</h2>
+            <h2>
+              世界模式增强 · ARM QQ Bot
+              <span className={`pill ${boost ? 'ok' : ''}`}>{boost ? '已联动' : '未开启'}</span>
+            </h2>
             <p className="boost-desc">
-              让她连续生产（剧情 / 场景 / 背景），显存与预算按主机档放宽。当前只是界面开关，生产链路尚未接线。
+              开启后会向 ARM 设备下发激活信号，联动启用官方 QQ Bot 单聊多模态、表情包斗图、心情/事件主动搭话与 PC 向量记忆库检索。
             </p>
-            <button
-              className={`boost-btn ${boost ? 'on' : ''}`}
-              disabled={busy}
-              aria-pressed={boost}
-              onClick={() => onBoost(!boost)}
-            >
-              <span className="boost-dot" aria-hidden="true" />
-              {boost ? 'BOOST ON' : 'BOOST OFF'}
-            </button>
+            <div className="boost-actions">
+              <button
+                className={`boost-btn ${boost ? 'on' : ''}`}
+                disabled={busy}
+                aria-pressed={boost}
+                onClick={() => onBoost(!boost)}
+              >
+                <span className="boost-dot" aria-hidden="true" />
+                {boost ? 'BOOST ON' : 'BOOST OFF'}
+              </button>
+              <button type="button" className="boost-guide-btn" onClick={onOpenQqGuide}>
+                QQ 登录 / 链接说明
+              </button>
+            </div>
           </section>
 
           <section className="panel stats">

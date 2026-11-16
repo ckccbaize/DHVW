@@ -13,6 +13,7 @@ import { HomeView } from './views/HomeView'
 import { AgentView } from './views/AgentView'
 import { ConfigView } from './views/ConfigView'
 import { SettingsPage } from './views/SettingsPage'
+import { QqBotGuideDialog } from './components/QqBotGuideDialog'
 
 // 窗口 API 直接复用预加载层的导出类型，避免两处手写签名漂移
 declare global {
@@ -131,6 +132,7 @@ export default function App(): React.ReactElement {
   const [showGateway, setShowGateway] = useState(false)
   const [settings, setSettings] = useState<SettingsView | null>(null)
   const [boostBusy, setBoostBusy] = useState(false)
+  const [showQqGuide, setShowQqGuide] = useState(false)
   const [live2d, setLive2d] = useState<{ url: string | null; model: string | null; error?: string } | null>(null)
 
   const refresh = useCallback(async () => setSnap(await window.dhvw.snapshot()), [])
@@ -187,6 +189,13 @@ export default function App(): React.ReactElement {
     try {
       const res = await window.dhvw.setBoost(next)
       if (res.settings) setSettings(res.settings)
+      if (next) {
+        let dismissed = false
+        try {
+          dismissed = localStorage.getItem('dhvw.qqBotGuide.dismissed') === '1'
+        } catch {}
+        if (!dismissed) setShowQqGuide(true)
+      }
     } finally {
       setBoostBusy(false)
     }
@@ -241,6 +250,12 @@ export default function App(): React.ReactElement {
       </header>
 
       {showGateway && <GatewayDialog status={gateway} onChange={setGateway} onClose={() => setShowGateway(false)} />}
+      {showQqGuide && (
+        <QqBotGuideDialog
+          boost={settings?.boost?.enabled ?? false}
+          onClose={() => setShowQqGuide(false)}
+        />
+      )}
 
       <main className={`page ${tab}`}>
         {tab === 'home' && (
@@ -250,6 +265,7 @@ export default function App(): React.ReactElement {
             live2d={live2d}
             boost={settings?.boost?.enabled ?? false}
             onBoost={(next) => void setBoost(next)}
+            onOpenQqGuide={() => setShowQqGuide(true)}
             busy={boostBusy}
           />
         )}

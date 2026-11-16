@@ -26,6 +26,7 @@ from typing import AsyncIterator
 
 import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 from . import APP_ID, service_version
@@ -100,6 +101,7 @@ class Orchestrator:
         self.live2d_ready = bool(store.get_kv("live2d_ready", False))
         self.olvt_port = int(store.get_kv("olvt_port", 0) or 0)
         self.gateway_port = int(store.get_kv("gateway_port", 0) or 0)
+        self.boost = bool(store.get_kv("boost", False))
         self.world_running = True
         self.started = time.time()
         self.saves = SaveStore(store)
@@ -428,11 +430,13 @@ class Orchestrator:
                     "live2d": self.live2d_ready,
                     "olvt_port": self.olvt_port,
                     "gateway_port": self.gateway_port,
+                    "boost": self.boost,
                     "world_tier": self.tier,
                     "agent": {},
                 },
                 msg_id,
             )
+            await self.send(ws, "boost:config", {"enabled": self.boost}, msg_id)
             if self.llm.get("baseUrl") and self.llm.get("model"):
                 await self.send(ws, "llm:config", self.llm_payload(), msg_id)
             await self.push_proactive(force=True)
@@ -630,8 +634,10 @@ class Orchestrator:
             self.gateway_port = int(cfg["gatewayPort"] or 0)
             self.store.put_kv("gateway_port", self.gateway_port)
         if "boost" in cfg:
-            # 界面层开关：只持久化与回显，不改变生产行为
-            self.store.put_kv("boost", bool(cfg["boost"]))
+            self.boost = bool(cfg["boost"])
+            self.store.put_kv("boost", self.boost)
+            await self.broadcast("boost:config", {"enabled": self.boost})
+            log("info", "世界模式增强(Boost/ARM Bot)", enabled=self.boost)
         if "autoPushScene" in cfg:
             # 地图自动推送：关 = 必须人工在产出验收里提交；开 = 闸门通过即推
             self.auto_push_scene = bool(cfg["autoPushScene"])
@@ -656,6 +662,7 @@ class Orchestrator:
             "tts": self.tts_ready,
             "live2d": self.live2d_ready,
             "llm": bool(self.llm.get("model")),
+            "boost": self.boost,
             "autoPushScene": self.auto_push_scene,
             "proactive": {"display": self.display_state, **self.proactive_payload()},
         }
@@ -771,6 +778,13 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
             task.cancel()
 
     app = FastAPI(lifespan=lifespan)
+    # 设备页面在 8080，场景包在 8877；直连时浏览器需要 CORS 才能拉资源。
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_headers=["*"],
+    )
 
     @app.get("/health")
     async def health() -> dict:

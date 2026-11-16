@@ -1391,6 +1391,84 @@ main.page.settings {
   }
 }
 
+.boost-actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.boost-guide-btn {
+  align-self: stretch;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 7px 10px;
+  background: var(--cel-white);
+}
+
+.qq-guide-dialog h2 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.qq-guide-steps {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.qq-cmd-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.qq-cmd-row .gw-url {
+  flex: 1;
+}
+
+.qq-code-pre {
+  margin: 0;
+  padding: 10px 12px;
+  border: var(--line) solid var(--ink);
+  background: #1a1a2e;
+  color: #f8f5ea;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-x: auto;
+}
+
+.mini-btn {
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 800;
+  margin-left: 8px;
+}
+
+.qq-guide-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.qq-dismiss-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 /* ARM 状态机统计表 */
 .stats {
   min-height: 0;
