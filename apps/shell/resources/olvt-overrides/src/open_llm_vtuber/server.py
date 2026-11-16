@@ -8,15 +8,19 @@ Open-LLM-VTuber Server (DHVW override)
 
 import os
 import shutil
+from contextlib import asynccontextmanager
+from uuid import uuid4
 
-from fastapi import FastAPI
+from fastapi import FastAPI, APIRouter, Request, WebSocket, WebSocketDisconnect
 from starlette.middleware.cors import CORSMiddleware
-from starlette.responses import HTMLResponse, Response
+from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.staticfiles import StaticFiles as StarletteStaticFiles
 
-from .routes import init_client_ws_route, init_webtool_routes, init_proxy_route
+from .routes import init_webtool_routes, init_proxy_route
 from .service_context import ServiceContext
+from .websocket_handler import WebSocketHandler
 from .config_manager.utils import Config
+from .proactive import ProactiveScheduler
 
 DHVW_BOOTSTRAP_SCRIPT = """<script>
 (function () {
@@ -172,7 +176,9 @@ class WebSocketServer:
     """API server for Open-LLM-VTuber."""
 
     def __init__(self, config: Config, default_context_cache: ServiceContext = None):
-        self.app = FastAPI(title="Open-LLM-VTuber Server")
+        # lifespan 里启动调度器：run_server 先 asyncio.run(initialize()) 再 uvicorn.run，
+        # 只有 uvicorn 自己的事件循环能承载常驻任务，且在 0.115+ 都不依赖已废弃的 startup 钩子。
+        self.app = FastAPI(title="Open-LLM-VTuber Server", lifespan=self._lifespan)
         self.config = config
         self.default_context_cache = default_context_cache or ServiceContext()
 
@@ -188,9 +194,12 @@ class WebSocketServer:
         async def health() -> dict:
             return {"ok": True, "service": "olvt"}
 
-        self.app.include_router(
-            init_client_ws_route(default_context_cache=self.default_context_cache),
-        )
+        # 自己持有 WebSocketHandler：主动说话调度器需要看到连接与上下文
+        self.ws_handler = WebSocketHandler(self.default_context_cache)
+        self.proactive = ProactiveScheduler(self.ws_handler)
+        self._install_activity_hook()
+        self.app.include_router(self._client_ws_router())
+        self._install_proactive_routes()
         self.app.include_router(
             init_webtool_routes(default_context_cache=self.default_context_cache),
         )
@@ -212,6 +221,68 @@ class WebSocketServer:
         self.app.mount("/avatars", AvatarStaticFiles(directory="avatars"), name="avatars")
         self.app.mount("/web-tool", CORSStaticFiles(directory="web_tool", html=True), name="web_tool")
         self.app.mount("/", FrontendStaticFiles(directory="frontend", html=True), name="frontend")
+
+    @asynccontextmanager
+    async def _lifespan(self, _app: FastAPI):
+        self.proactive.start()
+        yield
+
+    def _install_activity_hook(self) -> None:
+        """任何客户端消息都算“有人在场”：主动说话据此复位节奏。"""
+        if getattr(WebSocketHandler, "_dhvw_activity_hooked", False):
+            return
+        WebSocketHandler._dhvw_activity_hooked = True
+        scheduler = self.proactive
+        original = WebSocketHandler._route_message
+
+        async def route_with_activity(self, websocket, client_uid, data):
+            try:
+                scheduler.note_activity(client_uid)
+            except Exception:
+                pass
+            return await original(self, websocket, client_uid, data)
+
+        WebSocketHandler._route_message = route_with_activity
+
+    def _client_ws_router(self) -> APIRouter:
+        """等价于上游 init_client_ws_route，但 handler 归实例所有。"""
+        router = APIRouter()
+        ws_handler = self.ws_handler
+
+        @router.websocket("/client-ws")
+        async def websocket_endpoint(websocket: WebSocket):
+            await websocket.accept()
+            client_uid = str(uuid4())
+            try:
+                await ws_handler.handle_new_connection(websocket, client_uid)
+                await ws_handler.handle_websocket_communication(websocket, client_uid)
+            except WebSocketDisconnect:
+                await ws_handler.handle_disconnect(client_uid)
+            except Exception:
+                await ws_handler.handle_disconnect(client_uid)
+                raise
+
+        return router
+
+    def _install_proactive_routes(self) -> None:
+        scheduler = self.proactive
+
+        @self.app.get("/proactive/state")
+        async def proactive_state() -> JSONResponse:
+            return JSONResponse(scheduler.state())
+
+        @self.app.post("/proactive/config")
+        async def proactive_config(request: Request) -> JSONResponse:
+            body = await request.json()
+            if isinstance(body, dict) and "config" in body and isinstance(body["config"], dict):
+                body = body["config"]
+            scheduler.configure(body if isinstance(body, dict) else {})
+            return JSONResponse(scheduler.state())
+
+        @self.app.post("/proactive/speak")
+        async def proactive_speak() -> JSONResponse:
+            """调试用：跳过节奏直接说一次（仍受 enabled / 静默时段约束）。"""
+            return JSONResponse(await scheduler.speak_now())
 
     async def initialize(self):
         await self.default_context_cache.load_from_config(self.config)

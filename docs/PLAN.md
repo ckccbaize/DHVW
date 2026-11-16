@@ -143,11 +143,12 @@ PC 端“完成”= 下列全部成立，缺一不算：
 | POST | `/dhvw/scene/job-retry` | 127.0.0.1 | 在原工作目录续画失败/超时的任务 |
 | POST | `/dhvw/scene` | 127.0.0.1 | 直接提交一个场景作业 `{kind,name,seed,distance,note}` |
 | POST | `/dhvw/scene/retry` | 127.0.0.1 | `{id}` 重提一条设备场景请求（按当前摘要的 `mapSpec`） |
-| POST | `/dhvw/display` | 127.0.0.1 | 设备显示态二切，广播 `display:set {state,t_server}`，返回 `{delivered}` |
+| POST | `/dhvw/display` | 127.0.0.1 | 设备显示态二切，广播 `display:set {state,t_server}`，返回 `{delivered}`；同时刷新 OLVT 主动说话门控 |
+| GET | `/dhvw/proactive` | 127.0.0.1 | 主动说话现状：`display`、下发内容 `payload`、`push` 结果、OLVT 自报 `olvt{enabled,clients,gap,unanswered,dailyCount,lastSpokeSecondsAgo,reason}` |
 | GET | `/dhvw/events?limit=` | 127.0.0.1 | 最近事件（按插入倒序），验收与 GUI 用 |
 | GET | `/dhvw/actions` | 127.0.0.1 | 动作执行记录（`pc:action` 的 ok/reason/耗时） |
 | POST | `/dhvw/facts` | 127.0.0.1 | PC 侧写入事实（`src=pc`），随即按增量回流设备；返回 `{ok,accepted,merged,rejected,pushed}` |
-| POST | `/dhvw/config` | 127.0.0.1 | 外壳回环下发 `{tts,live2d,llm:{baseUrl,model,apiKey}}`；`llm` 变更即时以 `llm:config` 推给设备 |
+| POST | `/dhvw/config` | 127.0.0.1 | 外壳回环下发 `{tts,live2d,llm:{baseUrl,model,apiKey},proactive:{enabled,idleSeconds,gapSeconds,maxGapSeconds,dailyMax,quietStart,quietEnd}}`；`llm` 变更即时以 `llm:config` 推给设备，`proactive` 变更即时下发给 OLVT |
 
 设备侧上行（服务端处理）：
 
@@ -168,7 +169,11 @@ PC 端“完成”= 下列全部成立，缺一不算：
 
 | 方法 | 路径 | 绑定 | 说明 |
 |---|---|---|---|
-| POST | `/dhvw/proactive` | 127.0.0.1 | `{text, client_uid?}`；缺省投递到唯一在线连接；有活跃对话时拒绝 |
+| GET | `/proactive/state` | 127.0.0.1 | 主动说话自报：`{config,clients,enabled,gap,unanswered,dailyCount,lastActivityAge,lastSpokeSecondsAgo,spokenTotal,reason,error}` |
+| POST | `/proactive/config` | 127.0.0.1 | 编排器下发的门控与节奏（`{enabled,idleSeconds,gapSeconds,maxGapSeconds,dailyMax,quietStart,quietEnd,context}`）；字段级校验，非法值保持原样 |
+| POST | `/proactive/speak` | 127.0.0.1 | 调试用：跳过节奏立刻说一次（仍受 `enabled`、静默时段、每日上限约束）；返回 `{ok,client,gap,reason}` |
+
+`ai-speak-signal` 那条前端路径仍然保留，但触发权在 OLVT 服务端：编排器只下发“能不能说 + 节奏 + 当前世界上下文”，具体投递给哪条 `client-ws` 由服务端决定（见 ADR-PC-028）。
 
 ### 5.3 与设备侧的边界
 

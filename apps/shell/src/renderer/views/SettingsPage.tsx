@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import type { Live2dModelView, LlmProtocol, SettingsView } from '../../shared/types'
+import type { Live2dModelView, LlmProtocol, ProactiveStateView, SettingsView } from '../../shared/types'
 import { SaveBackupPanel } from './SaveBackupPanel'
 
 /** 独立设置页：按模型 / 角色语音 / 运行 / 存档分类。 */
@@ -22,6 +22,8 @@ export function SettingsPage({
   const [asr, setAsr] = useState(value.asr.enabled)
   const [live2dModel, setLive2dModel] = useState(value.live2d.model)
   const [autoPushScene, setAutoPushScene] = useState(value.scene.autoPush)
+  const [proactive, setProactive] = useState(value.proactive)
+  const [proactiveState, setProactiveState] = useState<ProactiveStateView | null>(null)
   const [live2dList, setLive2dList] = useState<Live2dModelView[]>([])
   const [charName, setCharName] = useState(value.olvt.characterName)
   const [humanName, setHumanName] = useState(value.olvt.humanName)
@@ -57,6 +59,21 @@ export function SettingsPage({
     })
     if (res.ok && res.path) apply(res.path)
   }
+
+  useEffect(() => {
+    let alive = true
+    const load = (): void => {
+      void window.dhvw.proactiveState().then((res) => {
+        if (alive) setProactiveState(res)
+      })
+    }
+    load()
+    const timer = window.setInterval(load, 5000)
+    return () => {
+      alive = false
+      window.clearInterval(timer)
+    }
+  }, [])
 
   useEffect(() => {
     void refreshLive2d()
@@ -108,6 +125,7 @@ export function SettingsPage({
         asr: { enabled: asr },
         live2d: { model: live2dModel },
         scene: { autoPush: autoPushScene },
+        proactive,
         olvt: { characterName: charName, humanName, personaPrompt: persona },
         tts: { backendDir: ttsDir, refAudioPath: refAudio, refText },
       })
@@ -318,6 +336,79 @@ export function SettingsPage({
 
       <section className="panel settings-section">
         <div className="section-head">
+          <h2>显现时主动说话（仅 OLVT）</h2>
+        </div>
+        <label className="switch">
+          <input
+            type="checkbox"
+            checked={proactive.enabled}
+            onChange={(e) => setProactive({ ...proactive, enabled: e.target.checked })}
+          />
+          允许角色在没有对话时自己开口
+        </label>
+        <p className="hint">
+          只有设备处于「显现」且 OLVT / TTS 就绪时才会真的说话；总观模式、静默时段、触达上限都会自动闭麦。
+          说话节奏跟着空闲时间走，连续没人接话会逐步拉长间隔。
+        </p>
+        <div className="row2">
+          <div className="field">
+            <label>空闲多久后开口（秒）</label>
+            <input
+              value={String(proactive.idleSeconds)}
+              onChange={(e) => setProactive({ ...proactive, idleSeconds: Number(e.target.value) })}
+              inputMode="numeric"
+            />
+          </div>
+          <div className="field">
+            <label>两次主动说话的最短间隔（秒）</label>
+            <input
+              value={String(proactive.gapSeconds)}
+              onChange={(e) => setProactive({ ...proactive, gapSeconds: Number(e.target.value) })}
+              inputMode="numeric"
+            />
+          </div>
+        </div>
+        <div className="row2">
+          <div className="field">
+            <label>最多退避到（秒）</label>
+            <input
+              value={String(proactive.maxGapSeconds)}
+              onChange={(e) => setProactive({ ...proactive, maxGapSeconds: Number(e.target.value) })}
+              inputMode="numeric"
+            />
+          </div>
+          <div className="field">
+            <label>每天上限（次）</label>
+            <input
+              value={String(proactive.dailyMax)}
+              onChange={(e) => setProactive({ ...proactive, dailyMax: Number(e.target.value) })}
+              inputMode="numeric"
+            />
+          </div>
+        </div>
+        <div className="row2">
+          <div className="field">
+            <label>静默开始</label>
+            <input
+              value={proactive.quietStart}
+              onChange={(e) => setProactive({ ...proactive, quietStart: e.target.value })}
+              placeholder="23:30"
+            />
+          </div>
+          <div className="field">
+            <label>静默结束</label>
+            <input
+              value={proactive.quietEnd}
+              onChange={(e) => setProactive({ ...proactive, quietEnd: e.target.value })}
+              placeholder="07:30"
+            />
+          </div>
+        </div>
+        <p className="hint">{describeProactive(proactiveState)}</p>
+      </section>
+
+      <section className="panel settings-section">
+        <div className="section-head">
           <h2>运行与地图</h2>
         </div>
         <div className="row2">
@@ -351,4 +442,22 @@ export function SettingsPage({
       </div>
     </div>
   )
+}
+
+/** 把编排器 + OLVT 的自报状态翻成人话；没有数据就直说没有 */
+function describeProactive(state: ProactiveStateView | null): string {
+  if (!state) return '正在读取主动说话状态…'
+  if (state.error) return `主动说话状态不可用：${state.error}`
+  const olvt = state.olvt
+  const head =
+    state.display === 'present'
+      ? '当前：显现模式'
+      : '当前：总观模式（主动说话自动关闭，切到显现后恢复）'
+  if (!olvt?.reachable) return `${head}；OLVT 未连接（${olvt?.error || '服务未启动'}）`
+  const bits = [head, olvt.enabled ? 'OLVT 已开启主动说话' : 'OLVT 侧当前关闭主动说话']
+  if (typeof olvt.clients === 'number') bits.push(`在线客户端 ${olvt.clients}`)
+  if (typeof olvt.dailyCount === 'number') bits.push(`今日开口 ${olvt.dailyCount} 次`)
+  if (typeof olvt.lastSpokeSecondsAgo === 'number') bits.push(`${Math.round(olvt.lastSpokeSecondsAgo)} 秒前说过话`)
+  if (olvt.reason) bits.push(`待发理由：${olvt.reason}`)
+  return bits.join('；')
 }

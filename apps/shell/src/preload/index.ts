@@ -13,6 +13,7 @@ import type {
   Live2dModelView,
   MemoryCurveView,
   MemoryStatsView,
+  ProactiveStateView,
   PathPickArgs,
   PathPickResult,
   SceneRequestView,
@@ -52,6 +53,8 @@ const api = {
     ipcRenderer.invoke('dhvw:live2dModels'),
   /** 系统选择框：取一个文件夹/文件路径（取消时 ok=false） */
   pickPath: (args: PathPickArgs): Promise<PathPickResult> => ipcRenderer.invoke('dhvw:pickPath', args),
+  /** 主动说话现状（显现态 + OLVT 自报的节奏与理由） */
+  proactiveState: (): Promise<ProactiveStateView> => ipcRenderer.invoke('dhvw:proactiveState'),
   /** 记忆向量服务信息（模型 / 依赖 / 索引计数 / DB） */
   memoryStats: (): Promise<MemoryStatsView> => ipcRenderer.invoke('dhvw:memoryStats'),
   /** 重建 FTS5 + 向量索引（派生数据，正文不动） */

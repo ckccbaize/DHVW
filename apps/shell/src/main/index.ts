@@ -21,6 +21,7 @@ import type {
   Live2dModelView,
   MemoryCurveView,
   MemoryStatsView,
+  ProactiveStateView,
   PathPickArgs,
   ServiceDef,
   SettingsPatch,
@@ -74,6 +75,7 @@ async function pushOrchestratorConfig(): Promise<boolean> {
     gatewayPort: config.gateway.enabled ? config.gateway.port : 0,
     boost: config.boost.enabled,
     autoPushScene: config.scene.autoPush,
+    proactive: { ...config.proactive },
     llm: {
       baseUrl: config.llm.baseUrl,
       model: config.llm.model || undefined,
@@ -379,6 +381,20 @@ async function installMemoryDeps(): Promise<{ ok: boolean; output?: string; erro
   return { ok: true, output: String(out.stdout ?? '').slice(-600) }
 }
 
+/** 主动说话现状（编排器 + OLVT 自报，只读聚合） */
+async function readProactiveState(): Promise<ProactiveStateView> {
+  if (!orchestratorPort) return { error: '编排器未运行' }
+  try {
+    const res = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/proactive`, {
+      signal: AbortSignal.timeout(4000),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return (await res.json()) as ProactiveStateView
+  } catch (err) {
+    return { error: (err as Error).message || String(err) }
+  }
+}
+
 /** 在资源管理器里打开一个已存在的目录（模型目录、数据目录等） */
 async function openDirectory(dir: string): Promise<{ ok: boolean; error?: string }> {
   const target = String(dir ?? '').trim()
@@ -545,6 +561,7 @@ function settingsView(): SettingsView {
     asr: { ...config.asr, ready: Boolean(asrModelPaths(config.asr.enabled).modelPath) },
     live2d: { model: live2dModel?.id ?? config.live2d.model },
     scene: { ...config.scene },
+    proactive: { ...config.proactive },
     olvt: { ...config.olvt },
     tts: { ...config.tts },
     gateway: { ...config.gateway },
@@ -643,6 +660,7 @@ function registerIpc(): void {
     error: armPreviewUrl ? undefined : 'ARM 预览资源缺失（arm/www/preview.html）',
   }))
   ipcMain.handle('dhvw:memoryStats', () => readMemoryStats())
+  ipcMain.handle('dhvw:proactiveState', () => readProactiveState())
   ipcMain.handle('dhvw:memoryRebuild', () => rebuildMemory())
   ipcMain.handle('dhvw:memoryForget', (_e, dryRun: boolean) => forgetMemory(dryRun === true))
   ipcMain.handle('dhvw:memoryCurve', (_e, k: number) => memoryCurve(Number(k) || 8))
@@ -739,6 +757,28 @@ function registerIpc(): void {
     if (patch.asr?.enabled !== undefined) next.asr.enabled = Boolean(patch.asr.enabled)
     let live2dChanged = false
     if (patch.scene?.autoPush !== undefined) next.scene.autoPush = Boolean(patch.scene.autoPush)
+    if (patch.proactive) {
+      const p = patch.proactive
+      if (p.enabled !== undefined) next.proactive.enabled = Boolean(p.enabled)
+      for (const key of ['idleSeconds', 'gapSeconds', 'maxGapSeconds', 'dailyMax'] as const) {
+        const raw = p[key]
+        if (raw === undefined) continue
+        const num = Number(raw)
+        if (!Number.isFinite(num) || num < 0 || num > 86400) return { ok: false, error: `${key} 必须是 0..86400 的整数` }
+        next.proactive[key] = Math.round(num)
+      }
+      for (const key of ['quietStart', 'quietEnd'] as const) {
+        const raw = p[key]
+        if (raw === undefined) continue
+        const text = String(raw).trim()
+        if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(text)) return { ok: false, error: `${key} 需要 HH:MM` }
+        next.proactive[key] = text
+      }
+      // 最短间隔不能大于退避上限，否则节奏会自我矛盾
+      if (next.proactive.gapSeconds > next.proactive.maxGapSeconds) {
+        next.proactive.maxGapSeconds = next.proactive.gapSeconds
+      }
+    }
     if (patch.live2d?.model !== undefined) {
       const want = String(patch.live2d.model).trim()
       const ref = findModel(live2dRoots, want)

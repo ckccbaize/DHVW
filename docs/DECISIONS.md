@@ -39,6 +39,7 @@
 - **决策**：主动发言由 orchestrator 调用对话后端的**进程内 HTTP 端点**，复用设备已有的那条连接投递音频；编排器不得自己作为 WS 客户端发起主动轮。
 - **理由**：音频只会回到发起该请求的那条连接；编排器另开连接会送给错误的 socket，复用同一标识还会覆盖映射并在断开时误清设备连接。
 - **后果**：需要给上游加一个小端点；前端零改动；端点可顺便判断“是否有活跃对话”并降级为文字。
+- **2026-11-16 修订**：触发权改在 OLVT 进程内（ADR-PC-028）。原因：OLVT 1.2.1 的 `WebSocketHandler` 把 `client_connections` 与 `client_contexts` 私有在 `init_client_ws_route` 路由里，外部无法拿到“设备那条连接”，而 `process_single_conversation` 必须拿到 `websocket.send_text` 才能把音频送到设备；因此“orchestrator 调一个 HTTP 端点”升级为“端点只下发门控与上下文，服务端自己的调度器投递”。编排器仍不建 WS 客户端、仍不自己发起主动轮。
 
 ## ADR-PC-006 长期记忆：单文件三索引，正文与索引解耦
 
@@ -349,3 +350,20 @@
   - 舞台只有形象，没有历史/输入框/连接状态；对话与执行业务仍在 OLVT 后端（声纹合成、回合），两者通过编排器解耦。
   - `display:set` 是新增消息，设备固件未实现前按钮只有投递没有效果——前端如实提示，不伪造状态。
   - 换角色走「设置 → Live2D 模型」：模型库两处（随包 ∪ OLVT 组件），选中后同步进 OLVT（模型文件 + `model_dict.json` 条目）并重启 OLVT 使 `live2d_model_name` 生效；模型许可随包保留原文。
+
+## ADR-PC-028 主动说话由 OLVT 服务端调度，编排器只给门控与上下文
+
+- **日期**：2026-11-16 · **状态**：已接受（修订 ADR-PC-005 的“谁来发起”）
+- **背景**：OLVT 1.2.1 上游已有 `ai-speak-signal` → `prompt_loader.load_util("proactive_speak_prompt")` 的链路，但触发在前端页面：谁打开页面谁才有主动说话，且只看浏览器本地 idle，不知道角色在世界里的状态，也不知道设备是总观还是显现。设备在显现模式里全屏加载 OLVT 前端，音频由该页面的 `client-ws` 播放；PC 任何外部连接发起的对话都只会回流到外部连接，设备听不到。
+- **决策**：
+  1. 主动说话的**调度**落在 OLVT 服务端（覆盖层 `src/open_llm_vtuber/proactive.py`），复用上游 `process_single_conversation` 与 `proactive_speak_prompt`，metadata 固定 `{proactive_speak:true, skip_memory:true, skip_history:true}`。
+  2. 覆盖版 `server.py` 自己持有 `WebSocketHandler`（自建 `/client-ws` 路由，不复制上游消息处理），因此调度器能看到真实连接与上下文，并把对话投递到**设备那条连接**。`startup` 钩子在 FastAPI 0.163 已移除，调度循环改由 `lifespan` 启动（0.115+ 通吃）。
+  3. 任何客户端消息都经 `WebSocketHandler._route_message` 的幂等 monkeypatch 记为“有人在场”，据此复位空闲计时与退避；不整文件复制上游 handler。
+  4. **门控在编排器**：`enabled = 外壳开关 && display_state=="present" && tts_ready && olvt_port>0`。显示态来自 `POST /dhvw/display` 与设备 `digest.world.display` 两路，落 `kv.display_state`；配置变更、设备上线、显示态切换、世界状态最多 20 s 一次的对账都会 `POST /proactive/config`，同时附带由 digest/mood 生成的上下文（时间/地点/天气/正在做/心情/下一条计划，拿不到就不编）。
+  5. 不烦人的约束在服务端：空闲 `idleSeconds` 后才开口；两次至少隔 `gapSeconds`；连续没人接话按 ×1.6 退避到 `maxGapSeconds`（有人说话即复位）；`dailyMax` 每日上限；静默时段（支持跨午夜）；正在对话或没有客户端时不插嘴。
+  6. `GET /dhvw/proactive` 是状态唯一真值入口（含 OLVT 自报的 `reason`），设置页只展示与触发，不自行推算。
+- **理由**：只有服务端能看到并复用设备连接；把门控放编排器，是为了让“显现模式”成为唯一总开关，而不必让 OLVT 理解世界与显示态；把节奏放服务端，是为了任何时刻都能读到“刚刚有没有人说话”。
+- **后果**：
+  - 覆盖层新增 `proactive.py` 并改写 `server.py` 的连接路由；上游 `routes.init_client_ws_route` 不再被使用（保留不删，回滚只需改回一行 include）。
+  - OLVT 未运行时 `/dhvw/proactive` 仍可用，`push.pushed=false` 并给中文原因；主动说话不会因此阻塞编排器主循环。
+  - 前端自带的“主动说话”开关仍在页面里，但它现在只是页面本地的额外触发，服务端调度与其互不干扰；设备侧无需任何改动。

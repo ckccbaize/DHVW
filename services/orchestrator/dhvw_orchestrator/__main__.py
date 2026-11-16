@@ -16,6 +16,8 @@ import os
 import re
 import shutil
 import time
+import urllib.error
+import urllib.request
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -34,6 +36,16 @@ from .scene import SceneRunner
 from .store import Store
 
 PROTO = 1
+#: 主动说话（只给 OLVT）：默认开，但要求显示态为“显现”，且 OLVT/TTS 就绪
+DEFAULT_PROACTIVE = {
+    "enabled": True,
+    "idleSeconds": 150,
+    "gapSeconds": 240,
+    "maxGapSeconds": 1200,
+    "dailyMax": 10,
+    "quietStart": "23:30",
+    "quietEnd": "07:30",
+}
 HEARTBEAT_TIMEOUT = 60.0
 OVERVIEW_INTERVAL = 5.0
 KNOWN_INBOUND = {
@@ -99,6 +111,11 @@ class Orchestrator:
         self.auto_push_scene = bool(store.get_kv("auto_push_scene", False))
         self.scene_pushes: dict[str, dict] = store.get_kv("scene_pushes", {}) or {}
         self._last_push_flush = 0.0
+        # 主动说话：配置来自外壳，实际启停还要叠加“显现模式 + TTS/OLVT 就绪”
+        self.proactive_cfg = {**DEFAULT_PROACTIVE, **((store.get_kv("proactive", {}) or {}))}
+        self.display_state = str(store.get_kv("display_state", "overview") or "overview")
+        self.proactive_status: dict = {}
+        self._proactive_pushed_at = 0.0
         # memory:facts 回流：msg_id -> 本次下发的最大 updated_at，设备 ack 后才推进游标
         self.facts_pending: dict[str, int] = {}
         self.facts_sent_ids: set[str] = set()
@@ -418,6 +435,7 @@ class Orchestrator:
             )
             if self.llm.get("baseUrl") and self.llm.get("model"):
                 await self.send(ws, "llm:config", self.llm_payload(), msg_id)
+            await self.push_proactive(force=True)
             await self.send(ws, "digest:get", {})
             await self.send(ws, "mood:get", {})
             # 设备一上线就请求一份完整存档；PC 侧自动留一份最近备份
@@ -463,10 +481,15 @@ class Orchestrator:
         if type_ == "memory:query":
             text = str(payload.get("text") or "")
             k = int(payload.get("k") or 8)
+            mood_ctx = payload.get("mood") if isinstance(payload.get("mood"), dict) else (self.mood or None)
+            include_l0 = bool(payload.get("include_l0"))
             started = time.perf_counter()
-            hits, semantic = self.store.search_hybrid(text, k)
+            hits, semantic = self.store.search_hybrid(text, k, mood=mood_ctx)
+            res_payload: dict = {"req_id": payload.get("req_id"), "hits": hits, "semantic": semantic}
+            if include_l0:
+                res_payload["l0"] = self.store.get_l0_facts(limit=3)
             elapsed = round((time.perf_counter() - started) * 1000, 1)
-            await self.send(ws, "memory:result", {"req_id": payload.get("req_id"), "hits": hits, "semantic": semantic}, msg_id)
+            await self.send(ws, "memory:result", res_payload, msg_id)
             log("info", "记忆检索", req=payload.get("req_id"), hits=len(hits), ms=elapsed, semantic=semantic)
             return
 
@@ -490,6 +513,13 @@ class Orchestrator:
                 self.digest = digest
                 self.store.write_digest(digest)
                 await self.consume_scene_requests()
+                world_state = digest.get("world") if isinstance(digest.get("world"), dict) else {}
+                shown = world_state.get("display")
+                if shown in ("overview", "present") and shown != self.display_state:
+                    self.display_state = str(shown)
+                    self.store.put_kv("display_state", self.display_state)
+                    log("info", "显示态来自设备", data=self.display_state)
+                    await self.push_proactive(force=True)
             return
 
         if type_ == "mood:state":
@@ -607,6 +637,12 @@ class Orchestrator:
             self.auto_push_scene = bool(cfg["autoPushScene"])
             self.store.put_kv("auto_push_scene", self.auto_push_scene)
             log("info", "地图自动推送", enabled=self.auto_push_scene)
+        proactive = cfg.get("proactive")
+        if isinstance(proactive, dict):
+            self.proactive_cfg = {**self.proactive_cfg, **{k: v for k, v in proactive.items() if v is not None}}
+            self.store.put_kv("proactive", self.proactive_cfg)
+            await self.push_proactive(force=True)
+            log("info", "主动说话配置", enabled=self.proactive_cfg.get("enabled"))
         llm = cfg.get("llm")
         if isinstance(llm, dict) and llm.get("baseUrl"):
             merged = {**self.llm, **{k: v for k, v in llm.items() if v is not None}}
@@ -621,7 +657,85 @@ class Orchestrator:
             "live2d": self.live2d_ready,
             "llm": bool(self.llm.get("model")),
             "autoPushScene": self.auto_push_scene,
+            "proactive": {"display": self.display_state, **self.proactive_payload()},
         }
+
+    def _proactive_world_context(self) -> str:
+        """把此刻的世界/心情揉成给 OLVT 的上下文；拿不到的数据不编。"""
+        digest = self.digest or {}
+        clock = digest.get("clock") or {}
+        world = digest.get("world") or {}
+        mood = self.mood or {}
+        parts: list[str] = []
+        if clock:
+            day = clock.get("day")
+            minute = clock.get("minute")
+            if isinstance(minute, int):
+                hh, mm = divmod(max(0, minute), 60)
+                parts.append(f"时间：第 {day} 天 {hh:02d}:{mm:02d}（{clock.get('phase') or '未知时段'}）")
+        if world.get("place"):
+            parts.append(f"角色所在地点：{world.get('place')}")
+        if world.get("weather"):
+            parts.append(f"天气：{world.get('weather')}")
+        if world.get("doing"):
+            parts.append(f"正在做：{world.get('doing')}")
+        if mood:
+            bits = []
+            if mood.get("mood"):
+                bits.append(str(mood.get("mood")))
+            for key in ("energy", "social", "focus"):
+                if isinstance(mood.get(key), (int, float)):
+                    bits.append(f"{key}={mood[key]:.2f}")
+            if bits:
+                parts.append("心情：" + " ".join(bits))
+        agenda = digest.get("agenda") if isinstance(digest.get("agenda"), list) else []
+        nxt = next((a for a in agenda if isinstance(a, dict) and a.get("status") == "pending"), None)
+        if nxt and nxt.get("title"):
+            parts.append(f"接下来的计划：{nxt.get('title')}")
+        return "\n".join(parts) if parts else "（设备还没有回报状态，可聊些日常）"
+
+    def proactive_payload(self) -> dict:
+        cfg = self.proactive_cfg
+        present = self.display_state == "present"
+        enabled = bool(cfg.get("enabled")) and present and self.tts_ready and self.olvt_port > 0
+        return {
+            "enabled": enabled,
+            "idleSeconds": int(cfg.get("idleSeconds", 150)),
+            "gapSeconds": int(cfg.get("gapSeconds", 240)),
+            "maxGapSeconds": int(cfg.get("maxGapSeconds", 1200)),
+            "dailyMax": int(cfg.get("dailyMax", 10)),
+            "quietStart": str(cfg.get("quietStart", "23:30")),
+            "quietEnd": str(cfg.get("quietEnd", "07:30")),
+            "context": self._proactive_world_context(),
+        }
+
+    async def push_proactive(self, force: bool = False) -> dict:
+        """把显现态与节奏下发给 OLVT；失败只记录，不阻塞循环。"""
+        if not self.olvt_port:
+            self.proactive_status = {"pushed": False, "error": "OLVT 端口未就绪"}
+            return self.proactive_status
+        now = time.time()
+        if not force and now - self._proactive_pushed_at < 20:
+            return self.proactive_status
+        payload = self.proactive_payload()
+
+        def _post() -> dict:
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{self.olvt_port}/proactive/config",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=3.0) as res:
+                return json.loads(res.read().decode("utf-8") or "{}")
+
+        try:
+            state = await asyncio.to_thread(_post)
+            self._proactive_pushed_at = now
+            self.proactive_status = {"pushed": True, "enabled": payload["enabled"], "state": state}
+        except Exception as err:
+            self.proactive_status = {"pushed": False, "error": f"OLVT 不可达：{err}"}
+        return self.proactive_status
 
     async def overview_loop(self) -> None:
         while True:
@@ -639,6 +753,9 @@ class Orchestrator:
                     if int(time.time() - self.started) % 30 < OVERVIEW_INTERVAL:
                         await self.push_facts()
                     await self.flush_scene_pushes()
+                    # 世界状态变化要跟着刷新上下文，20 s 节流在 push_proactive 内
+                    if int(time.time() - self.started) % 20 < OVERVIEW_INTERVAL:
+                        await self.push_proactive()
             except Exception as err:  # 循环不能死
                 log("error", "状态循环异常", error=str(err))
 
@@ -686,6 +803,10 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
         """
         body = await request.json()
         state = body.get("state") if isinstance(body, dict) else None
+        if state in ("overview", "present"):
+            orch.display_state = str(state)
+            store.put_kv("display_state", orch.display_state)
+            await orch.push_proactive(force=True)
         if state not in ("overview", "present"):
             return JSONResponse({"ok": False, "error": "state 必须是 overview 或 present"}, status_code=400)
         delivered = len(
@@ -703,6 +824,30 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
         if delivered == 0:
             return JSONResponse({"ok": False, "delivered": 0, "error": "设备未连接"})
         return JSONResponse({"ok": True, "delivered": delivered, "state": state})
+
+    @app.get("/dhvw/proactive")
+    async def proactive_state() -> JSONResponse:
+        """主动说话现状：显现态、下发内容、OLVT 侧的自报状态（含最后一次开口原因）。"""
+        olvt: dict = {"reachable": False}
+        if orch.olvt_port:
+            def _get() -> dict:
+                with urllib.request.urlopen(
+                    f"http://127.0.0.1:{orch.olvt_port}/proactive/state", timeout=2.0
+                ) as res:
+                    return json.loads(res.read().decode("utf-8") or "{}")
+
+            try:
+                olvt = {"reachable": True, **await asyncio.to_thread(_get)}
+            except Exception as err:
+                olvt = {"reachable": False, "error": str(err)}
+        return JSONResponse(
+            {
+                "display": orch.display_state,
+                "payload": orch.proactive_payload(),
+                "push": orch.proactive_status,
+                "olvt": olvt,
+            }
+        )
 
     def _list_scene_outputs(root: Path) -> list[dict[str, object]]:
         if not root.is_dir():

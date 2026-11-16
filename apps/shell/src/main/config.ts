@@ -25,6 +25,16 @@ export interface ShellConfig {
   live2d: { model: string }
   /** 地图推送：false = 生成后必须在产出验收里手动「提交 ARM 侧」；true = 核验通过即自动推 */
   scene: { autoPush: boolean }
+  /** 主动说话（仅 OLVT）：显现模式下由编排器按节奏驱动 */
+  proactive: {
+    enabled: boolean
+    idleSeconds: number
+    gapSeconds: number
+    maxGapSeconds: number
+    dailyMax: number
+    quietStart: string
+    quietEnd: string
+  }
   /** 世界模式增强：目前只是界面层开关（不改变生产行为），持久化以便后续接线 */
   boost: { enabled: boolean }
   /** 组件依赖安装使用的 PyPI 镜像 */
@@ -50,6 +60,15 @@ const DEFAULTS: ShellConfig = {
   sidecars: {},
   live2d: { model: 'mao_pro' },
   scene: { autoPush: false },
+  proactive: {
+    enabled: true,
+    idleSeconds: 150,
+    gapSeconds: 240,
+    maxGapSeconds: 1200,
+    dailyMax: 10,
+    quietStart: '23:30',
+    quietEnd: '07:30',
+  },
   boost: { enabled: false },
   componentUrls: {},
   pipIndex: 'https://mirrors.aliyun.com/pypi/simple',
@@ -102,6 +121,7 @@ export function loadConfig(): ShellConfig {
       gateway: { ...DEFAULTS.gateway, ...raw.gateway },
       live2d: { ...DEFAULTS.live2d, ...raw.live2d },
       scene: { ...DEFAULTS.scene, ...raw.scene },
+      proactive: { ...DEFAULTS.proactive, ...raw.proactive },
       boost: { ...DEFAULTS.boost, ...raw.boost },
       sidecars: { ...DEFAULTS.sidecars, ...raw.sidecars },
       componentUrls: { ...DEFAULTS.componentUrls, ...raw.componentUrls },

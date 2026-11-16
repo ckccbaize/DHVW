@@ -78,6 +78,16 @@ export interface SettingsView {
   /** Live2D 模型 id：PC 舞台与 OLVT 共用（模型库见 resources/live2d/models 与组件的 live2d-models） */
   live2d: { model: string }
   scene: { autoPush: boolean }
+  /** 主动说话：仅 OLVT，且只有显示态为「显现」时才真正生效 */
+  proactive: {
+    enabled: boolean
+    idleSeconds: number
+    gapSeconds: number
+    maxGapSeconds: number
+    dailyMax: number
+    quietStart: string
+    quietEnd: string
+  }
   olvt: { characterName: string; humanName: string; personaPrompt: string }
   tts: { backendDir: string; refAudioPath: string; refText: string; refLang: string; textLang: string }
   gateway: { enabled: boolean; port: number }
@@ -89,6 +99,15 @@ export interface SettingsPatch {
   asr?: Partial<{ enabled: boolean }>
   live2d?: Partial<{ model: string }>
   scene?: Partial<{ autoPush: boolean }>
+  proactive?: Partial<{
+    enabled: boolean
+    idleSeconds: number
+    gapSeconds: number
+    maxGapSeconds: number
+    dailyMax: number
+    quietStart: string
+    quietEnd: string
+  }>
   olvt?: Partial<{ characterName: string; humanName: string; personaPrompt: string }>
   tts?: Partial<{ backendDir: string; refAudioPath: string; refText: string; refLang: string; textLang: string }>
   gateway?: Partial<{ enabled: boolean; port: number }>
@@ -231,6 +250,27 @@ export interface SaveView {
   scene: string | null
   bytes: number
   sha256: string
+}
+
+/** 主动说话现状（编排器 /dhvw/proactive + OLVT 自报） */
+export interface ProactiveStateView {
+  display?: string
+  payload?: Record<string, unknown>
+  push?: { pushed: boolean; enabled?: boolean; error?: string }
+  olvt?: {
+    reachable: boolean
+    enabled?: boolean
+    clients?: number
+    gap?: number
+    unanswered?: number
+    dailyCount?: number
+    lastActivityAge?: number
+    lastSpokeSecondsAgo?: number | null
+    spokenTotal?: number
+    reason?: string
+    error?: string | null
+  }
+  error?: string
 }
 
 /** 编排器记忆向量服务信息（GET /dhvw/memory/stats + 可达性） */
