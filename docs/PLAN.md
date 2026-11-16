@@ -87,6 +87,8 @@ PC 端“完成”= 下列全部成立，缺一不算：
 | PCM7 | 桥接与接管 | BRIDGE / DESK | PCM4 | Stub 契约稳定；接管零冲突 |
 | PCM8 | 硬化 | SUP / OBS 收口 | 全部 | 72 h 长稳、冷启动、断网恢复达标 |
 
+> 进展（2026-11-16，遗忘曲线）：记忆不再是只增不减——`R=exp(-Δ天/S)`，S 按层初值 L0/L1/L2 = 120/14/3 天，召回一次 ×1.6（间隔重复）并刷新最后接触；`R<5%` 判遗忘、退出检索（L0 永不自动遗忘），遗忘行 30 天后物理删除、被取代行 180 天后删除，启动时自动结算一次。`/dhvw/memory/curve` 给出最弱记忆与参数、`/dhvw/memory/forget` 可预览/执行；信息页卡片显示活跃/已遗忘/已取代/平均留存，并可展开最弱记忆。实测（隔离数据目录）：3 天龄 L2 保持率 0.368、200 天龄被判遗忘且检索不再命中、L0 400 天龄被保护、复习后复活、召回后 S 3.0→4.8 且 recalls=1、超期遗忘行删除后 `fts==meta`；真库 113 条时卡片显示活跃 65 / 已取代 48 / 平均留存 0.58；六档布局无溢出；`test:dhvw` 39 项通过。
+>
 > 进展（2026-11-16，记忆向量）：模块早已接通（`embedder.py` 本地 ONNX 编码器 + `mem_vec` sqlite-vec 虚表，随包 `bge-small-zh-v1.5`），本轮把它变成可见的一等服务：`/dhvw/memory/stats` 增模型/维度/目录/依赖版本/DB 大小，信息页新增「记忆向量」卡片（状态、条数、依赖、打开模型目录、重建索引、安装缺失依赖 + 重启编排器），并声明 `resources/memory-requirements.txt`（onnxruntime/tokenizers/numpy/sqlite-vec）修复新装环境的隐式依赖。实测：卡片显示 89/89/89 与四个依赖版本；重建索引 4 s 返回 `正文 89 · 全文 89 · 向量 89`；停编排器 → 「编排器未运行 · fetch failed」，启动后恢复；`test:dhvw` 36 项在隔离实例全通过（含新增统计断言）。
 >
 > 进展（2026-11-15，设置页路径选择）：设置里所有路径项加系统选择框（GPT-SoVITS 目录走 `openDirectory`、参考音色走 `openFile` + 音频筛选），Live2D 模型可「打开模型文件夹」（用户库 `%APPDATA%/DigitalHuman/live2d-models`）与「从文件夹导入」（校验 `<模型>/runtime/*.model3.json`、文件夹名转模型 id、同名拒绝、只写数据目录）。实测：选择框弹出标题正确、取消返回 `{ok:false}`；导入逻辑单测覆盖单模型/父目录批量/同名冲突；用户库在启动时自动创建并进入模型库搜索顺序；设置页六档无横向溢出。
@@ -131,7 +133,9 @@ PC 端“完成”= 下列全部成立，缺一不算：
 | GET | `/dhvw/mood` | 127.0.0.1 | 最近一次 `mood:state` |
 | GET | `/dhvw/memory/stats` | 127.0.0.1 | 记忆向量服务信息：条数、`semantic`、模型/维度/目录、依赖版本、DB 路径与大小 |
 | POST | `/dhvw/memory/rebuild` | 127.0.0.1 | 由 `mem_meta` 正文重建 FTS5 与 `vec0` 向量索引 |
-| GET | `/dhvw/memory/context` | 127.0.0.1 | 供 OLVT 取相关记忆 + 近况（`q,k`） |
+| GET | `/dhvw/memory/context` | 127.0.0.1 | 供 OLVT 取相关记忆 + 近况（`q,k`，命中会强化稳定性） |
+| GET | `/dhvw/memory/curve` | 127.0.0.1 | 保持率最低的活跃记忆 + 曲线参数（`k`） |
+| POST | `/dhvw/memory/forget` | 127.0.0.1 | 遗忘结算：低于阈值的标 `forgotten_at`，超期行连同 FTS/vec 物理删除（`dry_run=true` 只报数） |
 | GET | `/dhvw/scenes` | 127.0.0.1 | 场景任务表 + 设备 `sceneRequests` 账本 + 产出表（`outputs[{id,name,push{state,attempts,lastError}}]`）+ `autoPush` |
 | POST | `/dhvw/scenes/<id>/push` | 127.0.0.1 | 核验并推送一条产出（`scene:ready`）；核验失败 400，设备离线 409 且排队重试 |
 | GET | `/dhvw/scenes/<id>/dist/<path>` | 127.0.0.1 | 产出文件直出（设备缓存场景包用） |

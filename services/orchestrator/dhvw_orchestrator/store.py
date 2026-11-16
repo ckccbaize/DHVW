@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import sqlite3
@@ -16,6 +17,36 @@ from pathlib import Path
 
 from . import data_dir
 from .embedder import DIM, MODEL_NAME, LocalEmbedder, runtime_versions
+
+
+DAY_MS = 86_400_000
+
+# ---- 遗忘曲线（Ebbinghaus 指数保持）----
+# 保持率 R = exp(-Δ天 / S)；S 是稳定性（天），按层给初值，每次被成功召回就按间隔重复拉长。
+STABILITY_DAYS = {"L0": 120.0, "L1": 14.0, "L2": 3.0}
+DEFAULT_STABILITY = STABILITY_DAYS["L2"]
+REINFORCE_FACTOR = 0.6  # 召回一次稳定性 ×1.6
+MAX_STABILITY = 3650.0
+RETENTION_FLOOR = 0.05  # 低于它算“遗忘”，退出检索
+FORGOT_KEEP_DAYS = 30  # 遗忘行保留期（审计/可复活），之后物理删除
+SUPERSEDED_KEEP_DAYS = 180  # 被取代行保留期
+
+
+def stability_for(tier: str | None) -> float:
+    return STABILITY_DAYS.get(str(tier or "L2"), DEFAULT_STABILITY)
+
+
+def retention_of(stability: float | None, last_access_ms: int, now_ms: int) -> float:
+    # 指数遗忘：稳定性 S 天、最后一次接触距今 Δ 天的保持率
+    s = float(stability or 0.0)
+    if s <= 0.0:
+        return 0.0
+    age_days = max(0.0, (now_ms - int(last_access_ms or 0)) / DAY_MS)
+    return math.exp(-age_days / s)
+
+
+def half_life_days(stability: float | None) -> float:
+    return 0.6931471805599453 * float(stability or 0.0)
 
 
 def _bigrams(text: str) -> list[str]:
@@ -123,10 +154,30 @@ class Store:
         cols = {r["name"] for r in self._memory.execute("pragma table_info(mem_meta)")}
         if "superseded_by" not in cols:
             self._memory.execute("alter table mem_meta add column superseded_by text")
+        for col, ddl in (
+            ("stability", "alter table mem_meta add column stability real"),
+            ("recalls", "alter table mem_meta add column recalls integer default 0"),
+            ("last_access", "alter table mem_meta add column last_access integer"),
+            ("forgotten_at", "alter table mem_meta add column forgotten_at integer"),
+        ):
+            if col not in cols:
+                self._memory.execute(ddl)
+        # 老行按层补初值：稳定性取层初值，最后一次接触取写入时间
+        self._memory.execute(
+            "update mem_meta set stability = case coalesce(tier,'L2') when 'L0' then ? when 'L1' then ? else ? end"
+            " where stability is null",
+            (STABILITY_DAYS["L0"], STABILITY_DAYS["L1"], STABILITY_DAYS["L2"]),
+        )
+        self._memory.execute(
+            "update mem_meta set last_access = coalesce(nullif(updated_at,0), nullif(t,0), 0)"
+            " where last_access is null or last_access = 0"
+        )
         if self._vec_ready:
             self._memory.execute(f"create virtual table if not exists mem_vec using vec0(embedding float[{DIM}])")
         self._rebuild_fts_if_needed()
         self._rebuild_vec_if_needed()
+        # 启动时按曲线结算一次：过期标记 + 超期物理删除（结果可从 /dhvw/memory/stats 观察）
+        self.boot_forget = self.forget_sweep()
 
     # ---------------- events ----------------
     def add_events(self, events: list[dict]) -> dict:
@@ -343,15 +394,40 @@ class Store:
                     # LWW：同文本取 conf 高者，时间戳相同时 pc 覆盖 device
                     keep_new = existing["updated_at"] <= updated or src == "pc"
                     if keep_new:
+                        # 再次被提起 = 复习：复活已遗忘的行，稳定性不低于层初值，最后接触时间刷新
+                        tier = str(fact.get("tier") or "L2")
                         self._memory.execute(
-                            "update mem_meta set conf=max(coalesce(conf,0),?), updated_at=?, tier=coalesce(?, tier) where id=?",
-                            (float(fact.get("conf") or 0.6), updated, fact.get("tier"), existing["id"]),
+                            "update mem_meta set conf=max(coalesce(conf,0),?), updated_at=?,"
+                            " tier=coalesce(?, tier), forgotten_at=null, last_access=?,"
+                            " stability=max(coalesce(stability, 0), ?) where id=?",
+                            (
+                                float(fact.get("conf") or 0.6),
+                                updated,
+                                fact.get("tier"),
+                                updated,
+                                stability_for(tier),
+                                existing["id"],
+                            ),
                         )
                     merged.append(existing["id"])
                     continue
+                tier = str(fact.get("tier") or "L2")
                 cur = self._memory.execute(
-                    "insert into mem_meta(id, text, norm, tier, conf, t, updated_at, src) values(?,?,?,?,?,?,?,?)",
-                    (fact_id, text, text, str(fact.get("tier") or "L2"), float(fact.get("conf") or 0.6), int(fact.get("t") or 0), updated, src),
+                    "insert into mem_meta(id, text, norm, tier, conf, t, updated_at, src, stability, recalls, last_access)"
+                    " values(?,?,?,?,?,?,?,?,?,?,?)",
+                    (
+                        fact_id,
+                        text,
+                        text,
+                        tier,
+                        float(fact.get("conf") or 0.6),
+                        int(fact.get("t") or 0),
+                        updated,
+                        src,
+                        stability_for(tier),
+                        0,
+                        updated,
+                    ),
                 )
                 rowid = int(cur.lastrowid)
                 self._memory.execute("insert into mem_fts(rowid, idx) values(?,?)", (rowid, _index_text(text)))
@@ -403,6 +479,115 @@ class Store:
                 return {int(r["rowid"]): 1.0 / (1.0 + abs(float(r["rank"]))) for r in rows}
         return {}
 
+    def _reinforce(self, rowids: list[int], now_ms: int) -> None:
+        """间隔重复：被召回一次就把稳定性拉长 REINFORCE_FACTOR（封顶 MAX_STABILITY）。"""
+        if not rowids:
+            return
+        placeholders = ",".join("?" for _ in rowids)
+        with self._lock, self._memory:
+            rows = self._memory.execute(
+                f"select rowid, stability, recalls from mem_meta where rowid in ({placeholders})",
+                rowids,
+            ).fetchall()
+            for r in rows:
+                base = float(r["stability"] or DEFAULT_STABILITY)
+                grown = min(MAX_STABILITY, base * (1.0 + REINFORCE_FACTOR))
+                self._memory.execute(
+                    "update mem_meta set stability=?, recalls=coalesce(recalls,0)+1, last_access=? where rowid=?",
+                    (grown, now_ms, int(r["rowid"])),
+                )
+
+    def forget_sweep(self, now_ms: int | None = None, dry_run: bool = False) -> dict:
+        """按遗忘曲线结算：低于阈值的行标 forgotten_at（退出检索），超期行物理删除。L0 永不自遗忘。"""
+        now = int(now_ms or time.time() * 1000)
+        marked = purged = checked = 0
+        with self._lock, self._memory:
+            rows = self._memory.execute(
+                "select rowid, tier, stability, last_access, updated_at, forgotten_at, superseded_by from mem_meta"
+            ).fetchall()
+            for r in rows:
+                checked += 1
+                if r["forgotten_at"]:
+                    continue
+                if str(r["tier"] or "L2") == "L0":
+                    continue
+                stability = r["stability"] if r["stability"] is not None else stability_for(r["tier"])
+                last = int(r["last_access"] or r["updated_at"] or 0)
+                if retention_of(stability, last, now) < RETENTION_FLOOR:
+                    marked += 1
+                    if not dry_run:
+                        self._memory.execute(
+                            "update mem_meta set forgotten_at=? where rowid=?", (now, int(r["rowid"]))
+                        )
+            cutoff_forgot = now - FORGOT_KEEP_DAYS * DAY_MS
+            cutoff_super = now - SUPERSEDED_KEEP_DAYS * DAY_MS
+            dead = self._memory.execute(
+                "select rowid from mem_meta where (forgotten_at is not null and forgotten_at <= ?)"
+                " or ((superseded_by is not null and superseded_by != '') and coalesce(updated_at, 0) <= ?)",
+                (cutoff_forgot, cutoff_super),
+            ).fetchall()
+            purged = len(dead)
+            if not dry_run:
+                for r in dead:
+                    rowid = int(r["rowid"])
+                    self._memory.execute("delete from mem_meta where rowid=?", (rowid,))
+                    try:
+                        self._memory.execute("delete from mem_fts where rowid=?", (rowid,))
+                    except sqlite3.OperationalError:
+                        pass
+                    if self._vec_ready:
+                        try:
+                            self._memory.execute("delete from mem_vec where rowid=?", (rowid,))
+                        except sqlite3.OperationalError:
+                            pass
+        return {
+            "ok": True,
+            "checked": checked,
+            "marked": marked,
+            "purged": purged,
+            "dryRun": bool(dry_run),
+            "floor": RETENTION_FLOOR,
+            "keepForgottenDays": FORGOT_KEEP_DAYS,
+            "keepSupersededDays": SUPERSEDED_KEEP_DAYS,
+        }
+
+    def memory_curve(self, k: int = 12, now_ms: int | None = None) -> dict:
+        """最接近遗忘的一批活跃记忆：按保持率升序，附稳定性/年龄/召回次数。"""
+        now = int(now_ms or time.time() * 1000)
+        with self._lock:
+            rows = self._memory.execute(
+                "select id, text, tier, stability, last_access, updated_at, recalls from mem_meta"
+                " where (superseded_by is null or superseded_by='') and forgotten_at is null"
+            ).fetchall()
+        items = []
+        for r in rows:
+            stability = float(r["stability"] or stability_for(r["tier"]))
+            last = int(r["last_access"] or r["updated_at"] or 0)
+            retention = retention_of(stability, last, now)
+            items.append(
+                {
+                    "id": r["id"],
+                    "text": r["text"],
+                    "tier": r["tier"],
+                    "retention": round(retention, 4),
+                    "stabilityDays": round(stability, 1),
+                    "halfLifeDays": round(half_life_days(stability), 1),
+                    "ageDays": round(max(0.0, (now - last) / DAY_MS), 2),
+                    "recalls": int(r["recalls"] or 0),
+                    "protected": str(r["tier"] or "L2") == "L0",
+                }
+            )
+        items.sort(key=lambda it: it["retention"])
+        return {
+            "now": now,
+            "floor": RETENTION_FLOOR,
+            "reinforceFactor": REINFORCE_FACTOR,
+            "stabilityDays": dict(STABILITY_DAYS),
+            "active": len(items),
+            "average": round(sum(i["retention"] for i in items) / len(items), 4) if items else None,
+            "items": items[: max(1, int(k))],
+        }
+
     def search_hybrid(
         self, text: str, k: int = 8, min_score: float = 0.0, mood: dict | None = None
     ) -> tuple[list[dict], bool]:
@@ -428,8 +613,9 @@ class Store:
                 placeholders = ",".join("?" for _ in all_ids)
                 with self._lock:
                     meta_rows = self._memory.execute(
-                        f"select rowid, id, text, tier, t from mem_meta"
-                        f" where rowid in ({placeholders}) and (superseded_by is null or superseded_by='')",
+                        f"select rowid, id, text, tier, t, stability, last_access, recalls from mem_meta"
+                        f" where rowid in ({placeholders}) and (superseded_by is null or superseded_by='')"
+                        f" and forgotten_at is null",
                         all_ids,
                     ).fetchall()
                 now_ms = int(time.time() * 1000)
@@ -437,12 +623,11 @@ class Store:
                 for r in meta_rows:
                     rowid = int(r["rowid"])
                     ts_ms = int(r["t"] or 0)
-                    age_days = max(0.0, (now_ms - ts_ms) / 86_400_000.0) if ts_ms > 0 else 0.0
-                    decay = 0.5 ** (age_days / 30.0)
+                    retention = retention_of(r["stability"], int(r["last_access"] or ts_ms), now_ms)
                     score = (
                         0.5 * vec_scores.get(rowid, 0.0)
                         + 0.3 * fts_scores.get(rowid, 0.0)
-                        + 0.2 * decay
+                        + 0.2 * retention
                         + _mood_boost(str(r["text"]), str(r["tier"] or ""), mood)
                     )
                     if min_score > 0.0 and score < min_score:
@@ -456,11 +641,17 @@ class Store:
                                 "tier": r["tier"],
                                 "ts": ts_ms,
                                 "score": round(score, 4),
+                                "retention": round(retention, 3),
+                                "rowid": rowid,
                             },
                         )
                     )
                 scored.sort(key=lambda item: -item[0])
-                return [item[1] for item in scored[:k]], True
+                top = [item[1] for item in scored[:k]]
+                self._reinforce([int(h["rowid"]) for h in top], now_ms)
+                for h in top:
+                    h.pop("rowid", None)
+                return top, True
 
         if not fts_scores:
             return [], False
@@ -468,15 +659,20 @@ class Store:
         placeholders = ",".join("?" for _ in ids)
         with self._lock:
             meta_rows = self._memory.execute(
-                f"select rowid, id, text, tier, t from mem_meta where rowid in ({placeholders})",
+                f"select rowid, id, text, tier, t from mem_meta where rowid in ({placeholders})"
+                f" and (superseded_by is null or superseded_by='') and forgotten_at is null",
                 ids,
             ).fetchall()
         meta_map = {int(r["rowid"]): r for r in meta_rows}
+        now_ms = int(time.time() * 1000)
         hits = []
+        hit_rowids: list[int] = []
         for rowid, sc in sorted(fts_scores.items(), key=lambda kv: -kv[1])[:k]:
             r = meta_map.get(rowid)
             if r:
                 hits.append({"id": r["id"], "text": r["text"], "tier": r["tier"], "ts": r["t"], "score": round(sc, 4)})
+                hit_rowids.append(rowid)
+        self._reinforce(hit_rowids, now_ms)
         return hits, False
 
     def search(self, text: str, k: int = 8) -> list[dict]:
@@ -488,7 +684,8 @@ class Store:
         with self._lock:
             rows = self._memory.execute(
                 "select id, text, tier, t from mem_meta"
-                " where tier='L0' and (superseded_by is null or superseded_by='') order by updated_at desc limit ?",
+                " where tier='L0' and (superseded_by is null or superseded_by='') and forgotten_at is null"
+                " order by updated_at desc limit ?",
                 (int(limit),),
             ).fetchall()
         return [{"id": r["id"], "text": r["text"], "tier": r["tier"], "ts": int(r["t"] or 0)} for r in rows]
@@ -496,6 +693,20 @@ class Store:
     def memory_stats(self) -> dict:
         with self._lock:
             total = int(self._memory.execute("select count(*) c from mem_meta").fetchone()["c"])
+            forgotten = int(
+                self._memory.execute("select count(*) c from mem_meta where forgotten_at is not null").fetchone()["c"]
+            )
+            superseded = int(
+                self._memory.execute(
+                    "select count(*) c from mem_meta where superseded_by is not null and superseded_by != ''"
+                ).fetchone()["c"]
+            )
+            active = int(
+                self._memory.execute(
+                    "select count(*) c from mem_meta where forgotten_at is null"
+                    " and (superseded_by is null or superseded_by='')"
+                ).fetchone()["c"]
+            )
             fts = int(self._memory.execute("select count(*) c from mem_fts").fetchone()["c"])
             vec = int(self._memory.execute("select count(*) c from mem_vec").fetchone()["c"]) if self._vec_ready else 0
         model_dir = self.embedder.model_dir
@@ -523,6 +734,17 @@ class Store:
             "deps": runtime_versions(),
             "db_path": str(db_file),
             "db_bytes": db_bytes,
+            "forgotten": forgotten,
+            "superseded": superseded,
+            "active": active,
+            "avg_retention": self.memory_curve(k=1).get("average"),
+            "forgetting": {
+                "floor": RETENTION_FLOOR,
+                "reinforceFactor": REINFORCE_FACTOR,
+                "stabilityDays": dict(STABILITY_DAYS),
+                "keepForgottenDays": FORGOT_KEEP_DAYS,
+                "keepSupersededDays": SUPERSEDED_KEEP_DAYS,
+            },
         }
 
     def facts_since(self, since: int = 0, limit: int = 200) -> tuple[list[dict], int]:

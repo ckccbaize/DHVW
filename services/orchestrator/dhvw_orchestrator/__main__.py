@@ -1010,6 +1010,16 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
         log("info", "事件批量归纳", scanned=len(events), max_seq=max_seq, extracted=len(facts), pushed=pushed)
         return JSONResponse({"ok": True, "scanned": len(events), "max_seq": max_seq, "extracted": len(facts), **result, "pushed": pushed})
 
+    @app.post("/dhvw/memory/forget")
+    async def forget_memory(dry_run: bool = False) -> JSONResponse:
+        """按遗忘曲线结算：标记低于保持率阈值的行、物理删除超期行。dry_run=true 只报数。"""
+        return JSONResponse(store.forget_sweep(dry_run=dry_run))
+
+    @app.get("/dhvw/memory/curve")
+    async def memory_curve(k: int = 12) -> JSONResponse:
+        """最接近遗忘的记忆（保持率升序）+ 曲线参数，用于界面观察。"""
+        return JSONResponse(store.memory_curve(max(1, min(int(k), 50))))
+
     @app.get("/dhvw/memory/stats")
     async def memory_stats() -> JSONResponse:
         return JSONResponse(store.memory_stats())

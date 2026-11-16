@@ -156,6 +156,29 @@ check(
   JSON.stringify({ model: memStats.model, dim: memStats.dim, deps: memStats.deps }),
 )
 check(
+  '记忆统计暴露遗忘状态',
+  typeof memStats.forgotten === 'number' &&
+    typeof memStats.superseded === 'number' &&
+    typeof memStats.active === 'number' &&
+    (memStats.avg_retention === null || typeof memStats.avg_retention === 'number'),
+  JSON.stringify({ forgotten: memStats.forgotten, superseded: memStats.superseded, active: memStats.active }),
+)
+
+const curve = await (await fetch(`${BASE}/dhvw/memory/curve?k=3`)).json()
+check(
+  '遗忘曲线接口给出参数与最弱记忆',
+  typeof curve.floor === 'number' && curve.floor > 0 && Array.isArray(curve.items) && curve.items.length <= 3,
+  JSON.stringify({ floor: curve.floor, items: curve.items?.length }),
+)
+
+const dryForget = await (await fetch(`${BASE}/dhvw/memory/forget?dry_run=true`, { method: 'POST' })).json()
+check(
+  '遗忘结算 dry-run 只报数不写库',
+  dryForget.ok === true && dryForget.dryRun === true && typeof dryForget.marked === 'number' && typeof dryForget.purged === 'number',
+  JSON.stringify(dryForget),
+)
+
+check(
   '全文索引与正文条数一致且向量不超过正文',
   memStats.fts === memStats.total && memStats.vec <= memStats.total,
   JSON.stringify({ total: memStats.total, fts: memStats.fts, vec: memStats.vec }),

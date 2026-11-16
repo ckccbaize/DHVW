@@ -11,6 +11,7 @@ import type {
   SceneJobView,
   SceneOutputView,
   Live2dModelView,
+  MemoryCurveView,
   MemoryStatsView,
   PathPickArgs,
   PathPickResult,
@@ -56,6 +57,12 @@ const api = {
   /** 重建 FTS5 + 向量索引（派生数据，正文不动） */
   memoryRebuild: (): Promise<{ ok: boolean; total?: number; fts?: number; vec?: number; error?: string }> =>
     ipcRenderer.invoke('dhvw:memoryRebuild'),
+  /** 按遗忘曲线结算（dryRun=true 只报数，不写库） */
+  memoryForget: (dryRun: boolean): Promise<Record<string, unknown>> =>
+    ipcRenderer.invoke('dhvw:memoryForget', dryRun),
+  /** 最接近遗忘的记忆（保持率升序） */
+  memoryCurve: (k?: number): Promise<MemoryCurveView | { ok: false; error: string }> =>
+    ipcRenderer.invoke('dhvw:memoryCurve', k ?? 8),
   /** 把记忆向量运行时依赖装进共享 site-packages */
   memoryDepsInstall: (): Promise<{ ok: boolean; output?: string; error?: string }> =>
     ipcRenderer.invoke('dhvw:memoryDepsInstall'),

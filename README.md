@@ -231,7 +231,8 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 - **落盘**：事件进 `data/life.db`（`uuid` 幂等，重复批次不重复入库），摘要原子写 `data/digest.json`，心情与记忆进 `data/memory.db`。
 - **记忆检索**：SQLite FTS5 + **二元组**索引（`"京 都 的 枫 叶"` 形式），2 字中文查询可命中；`fts5(tokenize='trigram')` 对 2 字中文零命中，不用。索引与正文行数不符时自动重建。
 - **记忆向量**：`services/orchestrator/dhvw_orchestrator/embedder.py`——本地中文句向量 `bge-small-zh-v1.5`（ONNX Runtime + tokenizers，512 维，CLS 池化 + L2 归一化，零运行期联网）；模型随包 `resources/models/bge-small-zh-v1.5`（也可放 `%APPDATA%/DigitalHuman/models/`，开发期 `node scripts/fetch-embed-model.mjs` 拉取）。`memory.db` 里 `mem_vec` 是 sqlite-vec 的 `vec0` 虚表，写入正文后同步编码；检索为 `0.5×余弦 + 0.3×FTS5 + 0.2×时间衰减`（另加情绪微调），任一路缺失就降级而不是报错。
-- **服务信息**：`GET /dhvw/memory/stats` 自报 `total/fts/vec`、`semantic/vec_ready`、`model/dim/model_dir/model_files`、`deps{onnxruntime,tokenizers,numpy,sqlite_vec}`、`db_path/db_bytes`；`POST /dhvw/memory/rebuild` 只由正文重建 FTS5 + 向量；`GET /dhvw/memory/context?q=&k=` 供 OLVT 每轮取相关记忆与近况。界面在「信息 → 记忆向量」卡片：状态、条数、依赖版本、模型目录（可打开）、重建索引；依赖缺失时给「安装缺失依赖」（uv 装进内置 `runtime/site-packages`）再「重启编排器」。
+- **遗忘曲线**：保持率 `R = exp(-Δ天 / S)`，稳定性 S 按层给初值（L0 120 天 / L1 14 天 / L2 3 天，半衰期 0.69×S），每被检索召回一次 S ×1.6（间隔重复，封顶 3650 天）并刷新最后接触时间；`R < 5%` 判遗忘（`forgotten_at`，退出检索与 L0 常驻），L0 核心偏好/禁忌**永不自动遗忘**。遗忘行保留 30 天后物理删除（连同 FTS/vec 行），被取代行保留 180 天；启动时自动结算一次。同文本再次被提起 = 复习：复活该行并刷新 S。
+- **服务信息**：`GET /dhvw/memory/stats` 自报 `total/fts/vec`、`active/forgotten/superseded`、`avg_retention`、`forgetting{floor,reinforceFactor,stabilityDays,keepForgottenDays,keepSupersededDays}`、`semantic/vec_ready`、`model/dim/model_dir/model_files`、`deps{onnxruntime,tokenizers,numpy,sqlite_vec}`、`db_path/db_bytes`；`POST /dhvw/memory/rebuild` 只由正文重建 FTS5 + 向量；`GET /dhvw/memory/curve?k=` 返回保持率最低的活跃记忆（含 tier/S/半衰期/距今/召回次数/是否 L0 保护），`POST /dhvw/memory/forget[?dry_run=true]` 结算遗忘（标记 + 超期物理删除）；`GET /dhvw/memory/context?q=&k=` 供 OLVT 每轮取相关记忆与近况。界面在「信息 → 记忆向量」卡片：状态、条数、活跃/已遗忘/已取代、平均留存、依赖版本、模型目录（可打开）、重建索引、预览/执行遗忘结算、最弱记忆列表；依赖缺失时给「安装缺失依赖」（uv 装进内置 `runtime/site-packages`）再「重启编排器」。
 - **显现闸门**：`present:request` 在 TTS 未就绪时回 `present:deny{reason}`；`present:begin/end` 把 `tier` 切到 `host`/`idle`。TTS 就绪状态由外壳随配置一起下发（见下）。
 - **动作白名单**：`web.open` / `media.play` / `app.open` / `map.generate` 可执行（`map.generate` 交给场景作业，见下节，提交成功即回 `{job,dir}`）；`notify` **未接线**，返回 `ok:false` + 中文原因，不假装成功。
 - **显示态下行**：`POST /dhvw/display {state:"overview"|"present"}` → 广播 `display:set {state,t_server}`，返回 `{delivered}`；设备未连接时 `ok:false`。这是对设备契约的**新增消息**，固件未实现前只会有投递、没有效果，前端按 6 s 无确认如实提示。
@@ -244,7 +245,7 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 
 ```bash
 cd apps/shell
-npm run test:dhvw          # 直连 8877 的假设备，36 项断言
+npm run test:dhvw          # 直连 8877 的假设备，39 项断言
 npm run test:dhvw -- --wss # 同一套断言走网关 wss://127.0.0.1:8443/ws/orchestrator?token=…
 ```
 

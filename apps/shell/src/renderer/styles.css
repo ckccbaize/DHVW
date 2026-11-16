@@ -400,6 +400,26 @@ main {
 .memory .world-line b.bad {
   color: #b3242f;
 }
+.memory-curve {
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--ink);
+  font-size: 11px;
+}
+.memory-curve-row {
+  display: grid;
+  grid-template-columns: 46px 1fr;
+  gap: 2px 8px;
+}
+.memory-curve-row > span.bad {
+  color: #b3242f;
+}
+.memory-curve-text {
+  grid-column: 1 / -1;
+  overflow-wrap: anywhere;
+  opacity: 0.85;
+}
 
 .comp {
   display: flex;

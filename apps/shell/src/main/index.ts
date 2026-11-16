@@ -19,6 +19,7 @@ import type {
   ActionRequest,
   AppSnapshot,
   Live2dModelView,
+  MemoryCurveView,
   MemoryStatsView,
   PathPickArgs,
   ServiceDef,
@@ -313,6 +314,35 @@ async function rebuildMemory(): Promise<{ ok: boolean; total?: number; fts?: num
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     return (await res.json()) as { ok: boolean; total: number; fts: number; vec: number }
+  } catch (err) {
+    return { ok: false, error: (err as Error).message || String(err) }
+  }
+}
+
+/** 按遗忘曲线结算：标记过期 + 物理删除超期行；dryRun 只报数 */
+async function forgetMemory(dryRun: boolean): Promise<Record<string, unknown>> {
+  if (!orchestratorPort) return { ok: false, error: '编排器未运行' }
+  try {
+    const res = await fetch(
+      `http://127.0.0.1:${orchestratorPort}/dhvw/memory/forget${dryRun ? '?dry_run=true' : ''}`,
+      { method: 'POST', signal: AbortSignal.timeout(60_000) },
+    )
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return (await res.json()) as Record<string, unknown>
+  } catch (err) {
+    return { ok: false, error: (err as Error).message || String(err) }
+  }
+}
+
+/** 遗忘曲线：保持率最低的活跃记忆 */
+async function memoryCurve(k = 8): Promise<MemoryCurveView | { ok: false; error: string }> {
+  if (!orchestratorPort) return { ok: false, error: '编排器未运行' }
+  try {
+    const res = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/memory/curve?k=${k}`, {
+      signal: AbortSignal.timeout(5000),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return (await res.json()) as MemoryCurveView
   } catch (err) {
     return { ok: false, error: (err as Error).message || String(err) }
   }
@@ -614,6 +644,8 @@ function registerIpc(): void {
   }))
   ipcMain.handle('dhvw:memoryStats', () => readMemoryStats())
   ipcMain.handle('dhvw:memoryRebuild', () => rebuildMemory())
+  ipcMain.handle('dhvw:memoryForget', (_e, dryRun: boolean) => forgetMemory(dryRun === true))
+  ipcMain.handle('dhvw:memoryCurve', (_e, k: number) => memoryCurve(Number(k) || 8))
   ipcMain.handle('dhvw:memoryDepsInstall', () => installMemoryDeps())
   ipcMain.handle('dhvw:openDirectory', (_e, dir: string) => openDirectory(dir))
   ipcMain.handle('dhvw:saves', () => listSaves())

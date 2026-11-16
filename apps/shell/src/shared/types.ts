@@ -250,6 +250,39 @@ export interface MemoryStatsView {
   deps?: Record<string, string | null>
   db_path?: string
   db_bytes?: number
+  /** 已判遗忘（退出检索，保留 FORGOT_KEEP_DAYS 天后物理删除） */
+  forgotten?: number
+  superseded?: number
+  active?: number
+  avg_retention?: number | null
+  forgetting?: {
+    floor: number
+    reinforceFactor: number
+    stabilityDays: Record<string, number>
+    keepForgottenDays: number
+    keepSupersededDays: number
+  }
+}
+
+/** 遗忘曲线：最接近遗忘的活跃记忆（保持率升序） */
+export interface MemoryCurveView {
+  now: number
+  floor: number
+  reinforceFactor: number
+  stabilityDays: Record<string, number>
+  active: number
+  average: number | null
+  items: Array<{
+    id: string
+    text: string
+    tier: string | null
+    retention: number
+    stabilityDays: number
+    halfLifeDays: number
+    ageDays: number
+    recalls: number
+    protected: boolean
+  }>
 }
 
 /** 系统文件/文件夹选择框的参数与结果 */
