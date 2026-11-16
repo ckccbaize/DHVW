@@ -4,6 +4,7 @@ import http from "node:http";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "www");
@@ -110,17 +111,80 @@ async function proxyLlm(req, res) {
   }
 }
 
+let qqChild = null;
+const QQ_SERVER_JS = path.resolve(ROOT, "..", "qq-openclaw", "dist", "dhvw-server.js");
+const QQ_STATE_DIR = path.resolve(ROOT, "..", "data", "qq-openclaw");
+
+async function qqAlive() {
+  try {
+    const r = await fetch("http://127.0.0.1:8088/__qq/health", { signal: AbortSignal.timeout(350) });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureQqStarted() {
+  if (await qqAlive()) return true;
+  if (!qqChild && fs.existsSync(QQ_SERVER_JS)) {
+    fs.mkdirSync(QQ_STATE_DIR, { recursive: true });
+    qqChild = spawn(process.execPath, [QQ_SERVER_JS, "-followBoost", "-stateDir", QQ_STATE_DIR], {
+      stdio: "inherit",
+    });
+    qqChild.on("exit", () => {
+      qqChild = null;
+    });
+  }
+  for (let i = 0; i < 30; i++) {
+    if (await qqAlive()) return true;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return false;
+}
+
+function stopQqChild() {
+  if (qqChild) {
+    try {
+      qqChild.kill();
+    } catch {}
+    qqChild = null;
+  }
+}
+
+process.on("SIGINT", () => {
+  stopQqChild();
+  process.exit(0);
+});
+process.on("SIGTERM", () => {
+  stopQqChild();
+  process.exit(0);
+});
+
 const server = http.createServer(async (req, res) => {
   try {
     const earlyPath = decodeURIComponent((req.url || "/").split("?")[0]);
     if (earlyPath === "/__llm/chat/completions") return void (await proxyLlm(req, res));
-    if (earlyPath === "/__qq/health" || earlyPath === "/__qq/config" || earlyPath === "/__qq/rebind") {
+    if (earlyPath === "/__qq/health" || earlyPath === "/__qq/config" || earlyPath === "/__qq/rebind" || earlyPath === "/__qq/boost") {
       try {
         const body = req.method === "POST" ? await readBody(req, 65536) : undefined;
-        const upstream = await fetch(`http://127.0.0.1:8088${earlyPath}`, {
-          method: req.method,
-          headers: req.method === "POST" ? { "Content-Type": "application/json" } : undefined,
-          body,
+        if (earlyPath === "/__qq/boost" && req.method === "POST") {
+          let parsed = {};
+          try { parsed = body ? JSON.parse(body.toString("utf8")) : {}; } catch {}
+          if (parsed.enabled) {
+            await ensureQqStarted();
+          } else {
+            stopQqChild();
+            res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+            return void res.end(JSON.stringify({ ok: true, running: false, boostActive: false }));
+          }
+        } else if (earlyPath === "/__qq/config" || earlyPath === "/__qq/rebind") {
+          await ensureQqStarted();
+        }
+        const targetPath = earlyPath === "/__qq/boost" ? "/__qq/health" : earlyPath;
+        const upstream = await fetch(`http://127.0.0.1:8088${targetPath}`, {
+          method: targetPath === "/__qq/health" ? "GET" : req.method,
+          headers: targetPath !== "/__qq/health" && req.method === "POST" ? { "Content-Type": "application/json" } : undefined,
+          body: targetPath !== "/__qq/health" ? body : undefined,
         });
         const txt = await upstream.text();
         res.writeHead(upstream.status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });

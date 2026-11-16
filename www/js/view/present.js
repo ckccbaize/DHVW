@@ -127,10 +127,10 @@ export function createPresent({ root, store, onExit }) {
     touch() {
       lastInteract = performance.now();
     },
-    /** 90s 无互动自动回总观（§10.5）。 */
-    tick(now) {
-      if (root.hidden) return false;
-      if (now - lastInteract > 90000) {
+    /** 默认不因定时自动退出显现，仅在显式传入 maxIdleMs > 0 时启用超时回总观。 */
+    tick(now, maxIdleMs = 0) {
+      if (root.hidden || !(maxIdleMs > 0)) return false;
+      if (now - lastInteract > maxIdleMs) {
         onExit && onExit("idle");
         return true;
       }

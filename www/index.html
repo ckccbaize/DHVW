@@ -20,7 +20,7 @@
       <div class="hud-left">
         <span id="tierBadge" class="tier idle"></span>
         <span class="conn"><i id="connDot" class="dot off"></i><span id="connText">主机未连接</span></span>
-        <button id="qqBoostPill" class="qq-boost-pill" type="button" hidden title="查看 QQ Bot 连接说明">BOOST · QQ</button>
+        <span id="qqBoostPill" class="qq-boost-pill" hidden>BOOST · QQ</span>
       </div>
       <div class="hud-right">
         <span id="clock">第 1 天 08:00</span>
@@ -77,43 +77,6 @@
   </div>
 
   <div id="bootError" hidden></div>
-
-  <div id="qqGuideModal" class="qq-modal" hidden role="dialog" aria-modal="true" aria-labelledby="qqGuideTitle">
-    <div class="qq-modal-card">
-      <div class="qq-modal-head">
-        <strong id="qqGuideTitle">QQ 官方 Bot 注册与自动绑定</strong>
-        <button id="qqGuideClose" class="dock-btn" type="button">关闭</button>
-      </div>
-      <p class="qq-modal-lead">无需 SSH 或手工修改设备配置，直接在此网页填入官方 Bot 凭据即可生效（合规 APIv2 单聊 + 图片多模态 + 表情包）。</p>
-      <ol class="qq-modal-steps">
-        <li>
-          登录 QQ 开放平台创建应用、开通「单聊（C2C）」并在沙箱添加测试 QQ 号，复制 <b>AppID</b> 与 <b>ClientSecret</b>：
-          <a href="https://q.qq.com" target="_blank" rel="noopener noreferrer" class="qq-link-btn">打开 q.qq.com</a>
-          <button id="qqCopyUrl" class="dock-btn" type="button">复制网址</button>
-        </li>
-      </ol>
-      <form id="qqCfgForm" class="qq-form">
-        <label>AppID <input id="qqAppIdInput" type="text" placeholder="例如 1024****89" autocomplete="off" spellcheck="false"></label>
-        <label>ClientSecret <input id="qqSecretInput" type="password" placeholder="填写机器人 AppSecret（已配留空保留）" autocomplete="off"></label>
-        <div class="qq-form-row">
-          <label class="qq-check"><input id="qqSandboxInput" type="checkbox" checked> 沙箱调试模式</label>
-          <button id="qqSaveBtn" class="dock-btn" type="submit">保存并自动激活</button>
-        </div>
-      </form>
-      <div id="qqPairBox" class="qq-pair-box">
-        <div id="qqPairText" class="qq-modal-status">状态：待检测</div>
-        <div id="qqCodeRow" class="qq-code-row" hidden>
-          <code id="qqPairCodeText" class="qq-code-pill"></code>
-          <button id="qqCopyCodeBtn" class="dock-btn" type="button">复制口令</button>
-        </div>
-        <div class="qq-modal-foot">
-          <label class="qq-check"><input id="qqGuideDismiss" type="checkbox"> 以后不自动弹出</label>
-          <button id="qqRebindBtn" class="dock-btn" type="button">重新绑定 QQ</button>
-        </div>
-      </div>
-      <div id="qqGuideMsg" class="qq-modal-status"></div>
-    </div>
-  </div>
 </div>
 <script type="module" src="js/app.js"></script>
 </body>

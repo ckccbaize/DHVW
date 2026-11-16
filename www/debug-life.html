@@ -93,46 +93,9 @@
   <div class="hint" style="margin-top:8px">1× ≈ 现实时间（1 现实秒 2 游戏秒）；30× = 1 现实秒 1 游戏分钟；行为间隔固定 30 游戏分钟</div>
 </section>
 <section style="margin-bottom:12px">
-  <h2>QQ 官方 Bot 联动（Boost 模式） <span class="count" id="boostStateView">关闭</span></h2>
-  <div class="actions" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-    <button type="button" id="btnBoostOn">开启 Boost（激活 QQ Bot）</button>
-    <button type="button" id="btnBoostOff">关闭 Boost</button>
-    <button type="button" id="btnQqGuide">注册 / 绑定 QQ Bot 弹窗</button>
-    <button type="button" id="btnRebindInline">重新绑定 QQ</button>
-    <span class="hint" id="qqInlineSummary">可直接网页填写凭据与查看配对口令，无需 SSH 操作设备</span>
-  </div>
+  <h2>QQ 官方 Bot 状态（由 PC 端统一设置） <span class="count" id="boostStateView">关闭</span></h2>
+  <div id="qqInlineSummary" class="hint">读取中…（请在 PC 端「首页 Boost」或「设置 → QQ 官方 Bot」中填写 AppID/密钥与重新绑定）</div>
 </section>
-<dialog id="qqGuideDlg" style="max-width:580px;width:92vw;border:3px solid var(--line);box-shadow:6px 6px 0 var(--line);background:var(--card);color:var(--ink);padding:14px">
-  <h2 style="margin-top:0">QQ 官方 Bot 注册与自动绑定 <button type="button" id="btnCloseQqGuide">关闭</button></h2>
-  <p class="hint">合规接入 QQ 开放平台官方 Bot APIv2（单聊 + 图片多模态 + 表情包斗图），网页填好凭据后自动下发设备并通过口令认主。</p>
-  <ol style="padding-left:18px;margin:8px 0;line-height:1.6">
-    <li>
-      前往 QQ 开放平台注册机器人、开通「单聊（C2C）」并在沙箱添加测试 QQ 号：
-      <a href="https://q.qq.com" target="_blank" rel="noopener noreferrer">打开 q.qq.com</a>
-      <button type="button" id="btnCopyQqUrl">复制网址</button>
-    </li>
-    <li>把得到的 <b>AppID</b> 和 <b>ClientSecret</b> 填入下方表单并保存：</li>
-  </ol>
-  <form id="dlgQqForm" class="llm" style="margin:6px 0">
-    <label for="dlgQqAppId">AppID</label>
-    <input id="dlgQqAppId" type="text" placeholder="例如 1024****89" spellcheck="false">
-    <label for="dlgQqSecret">ClientSecret</label>
-    <input id="dlgQqSecret" type="password" placeholder="填写 AppSecret（已存可留空）" spellcheck="false">
-    <label for="dlgQqSandbox">沙箱环境</label>
-    <div><input id="dlgQqSandbox" type="checkbox" checked style="width:auto"> 测试期建议勾选</div>
-    <div class="actions">
-      <button type="submit">保存并一键生效</button>
-      <button type="button" id="btnDlgRebind">重新绑定（生成新口令）</button>
-    </div>
-  </form>
-  <div style="border:2px solid var(--line);background:#fff;padding:8px;margin-top:8px">
-    <div id="dlgQqState" class="hint">状态：读取中…</div>
-    <div id="dlgQqCodeRow" hidden style="margin-top:6px;display:flex;align-items:center;gap:8px">
-      <strong id="dlgQqCode" style="font-size:16px;letter-spacing:2px;background:#1a1a2e;color:#ffd78a;padding:3px 8px"></strong>
-      <button type="button" id="btnCopyQqCode">复制绑定口令</button>
-    </div>
-  </div>
-</dialog>
 <section style="margin-bottom:12px">
   <h2>今日剧情 / 心情 <span class="count" id="todayCount"></span></h2>
   <div id="todayPlot">还没有夜间剧情</div>
@@ -498,48 +461,21 @@ void loadLlmForm();
 refresh();
 setInterval(refresh, 2000);
 
-const copyReliable = async (txt) => {
-  const s = String(txt || "");
-  if (!s) return false;
-  try {
-    if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(s); return true; }
-  } catch {}
-  try {
-    const ta = document.createElement("textarea");
-    ta.value = s;
-    ta.style.position = "fixed";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.select();
-    const ok = document.execCommand("copy");
-    document.body.removeChild(ta);
-    return ok;
-  } catch { return false; }
-};
-
 const renderDlgQqStatus = (st) => {
+  const boostOn = localStorage.getItem("dhvw_boost") === "1" || !!st?.boostActive;
+  $("#boostStateView").textContent = boostOn ? "BOOST ON" : "关闭";
   if (!st || st.running === false) {
-    $("#dlgQqState").textContent = "状态：qq-openclaw 进程未运行";
-    $("#qqInlineSummary").textContent = "qq-openclaw 服务未启动";
-    $("#dlgQqCodeRow").hidden = true;
+    $("#qqInlineSummary").textContent = boostOn
+      ? "Boost 已开启，等待 PC 下发凭据激活服务"
+      : "未启用（由 PC 端 BOOST / 设置控制，关闭时零开销）";
     return;
   }
-  if (st.appId && !$("#dlgQqAppId").value) $("#dlgQqAppId").value = st.appId;
-  if (typeof st.sandbox === "boolean") $("#dlgQqSandbox").checked = st.sandbox;
   if (st.paired) {
-    const msg = `已绑定主人（${st.ownerOpenIdMasked || st.ownerOpenId}）· 网关 ${st.connected ? "在线" : "离线"}`;
-    $("#dlgQqState").textContent = `状态：${msg}`;
-    $("#qqInlineSummary").textContent = msg;
-    $("#dlgQqCodeRow").hidden = true;
+    $("#qqInlineSummary").textContent = `已绑定主人（${st.ownerOpenIdMasked || st.ownerOpenId}）· QQ 网关${st.connected ? "在线" : "重连中"}`;
   } else if (st.configured) {
-    $("#dlgQqState").textContent = `状态：等待绑定 · 请在 QQ 私聊发送口令：`;
-    $("#qqInlineSummary").textContent = st.pairingCode ? `待绑定口令：${st.pairingCode}` : "等待生成绑定口令";
-    $("#dlgQqCode").textContent = st.pairingCode || "";
-    $("#dlgQqCodeRow").hidden = !st.pairingCode;
+    $("#qqInlineSummary").textContent = `凭据已就绪（QQ 网关${st.connected ? "在线" : st.gatewayError || "连线中"}），请用 QQ 私聊发送任意一条激活消息自动绑定`;
   } else {
-    $("#dlgQqState").textContent = "状态：未填写 AppID / ClientSecret";
-    $("#qqInlineSummary").textContent = "未注册 Bot，点弹窗填写即可生效";
-    $("#dlgQqCodeRow").hidden = true;
+    $("#qqInlineSummary").textContent = "未填写 AppID / 密钥，请在 PC 端设置填写";
   }
 };
 
@@ -550,65 +486,8 @@ const pollQqHealth = async () => {
   } catch {}
 };
 
-const showBoost = (on) => {
-  $("#boostStateView").textContent = on ? "BOOST ON（已激活）" : "关闭";
-};
-showBoost(localStorage.getItem("dhvw_boost") === "1");
 void pollQqHealth();
 setInterval(pollQqHealth, 3000);
-
-$("#btnBoostOn")?.addEventListener("click", () => {
-  localStorage.setItem("dhvw_boost", "1");
-  showBoost(true);
-  try { new BroadcastChannel("dhvw-debug").postMessage({ type: "boost", enabled: true }); } catch {}
-  void pollQqHealth();
-  $("#qqGuideDlg")?.showModal?.();
-});
-$("#btnBoostOff")?.addEventListener("click", () => {
-  localStorage.setItem("dhvw_boost", "0");
-  showBoost(false);
-  try { new BroadcastChannel("dhvw-debug").postMessage({ type: "boost", enabled: false }); } catch {}
-});
-$("#btnQqGuide")?.addEventListener("click", () => {
-  void pollQqHealth();
-  $("#qqGuideDlg")?.showModal?.();
-});
-$("#btnCloseQqGuide")?.addEventListener("click", () => $("#qqGuideDlg")?.close?.());
-$("#btnCopyQqUrl")?.addEventListener("click", async () => {
-  const ok = await copyReliable("https://q.qq.com");
-  $("#btnCopyQqUrl").textContent = ok ? "已复制" : "请手动复制 q.qq.com";
-  setTimeout(() => { $("#btnCopyQqUrl").textContent = "复制网址"; }, 1800);
-});
-$("#btnCopyQqCode")?.addEventListener("click", async () => {
-  const ok = await copyReliable($("#dlgQqCode")?.textContent || "");
-  $("#btnCopyQqCode").textContent = ok ? "已复制口令" : "复制失败";
-  setTimeout(() => { $("#btnCopyQqCode").textContent = "复制绑定口令"; }, 1800);
-});
-$("#dlgQqForm")?.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const appId = $("#dlgQqAppId").value.trim();
-  const clientSecret = $("#dlgQqSecret").value.trim();
-  const sandbox = $("#dlgQqSandbox").checked;
-  if (!appId) { $("#dlgQqState").textContent = "请先填写 AppID"; return; }
-  localStorage.setItem("dhvw_boost", "1");
-  showBoost(true);
-  try { new BroadcastChannel("dhvw-debug").postMessage({ type: "boost", enabled: true }); } catch {}
-  const r = await fetch("/__qq/config", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ appId, ...(clientSecret ? { clientSecret } : {}), sandbox, activate: true }),
-  });
-  $("#dlgQqSecret").value = "";
-  if (r.ok) renderDlgQqStatus(await r.json());
-});
-const doRebind = async () => {
-  const r = await fetch("/__qq/rebind", { method: "POST" });
-  if (r.ok) renderDlgQqStatus(await r.json());
-};
-$("#btnDlgRebind")?.addEventListener("click", () => void doRebind());
-$("#btnRebindInline")?.addEventListener("click", () => {
-  void doRebind().then(() => $("#qqGuideDlg")?.showModal?.());
-});
 </script>
 </body>
 </html>

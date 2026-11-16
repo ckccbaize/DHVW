@@ -105,12 +105,18 @@ function attachWsClient(req, socket, onMessage, onClose) {
 
 function parseArgs(argv) {
   let configPath = "/etc/dhvw/qqbot.json";
+  let stateDir = "";
+  let followBoost = false;
   for (let i = 2; i < argv.length; i++) {
     if ((argv[i] === "-config" || argv[i] === "--config") && argv[i + 1]) {
       configPath = argv[++i];
+    } else if ((argv[i] === "-stateDir" || argv[i] === "--stateDir") && argv[i + 1]) {
+      stateDir = argv[++i];
+    } else if (argv[i] === "-followBoost" || argv[i] === "--followBoost") {
+      followBoost = true;
     }
   }
-  return { configPath };
+  return { configPath, stateDir, followBoost };
 }
 
 function isLoopbackAddr(addr) {
@@ -181,23 +187,6 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
       };
       fs.writeFileSync(botConfigPath, JSON.stringify(toSave, null, 2), { mode: 0o600 });
     } catch {}
-  }
-
-  let pairingCode = "";
-  let pairingExpiresAt = 0;
-  function ensurePairingCode(forceNew = false) {
-    if (effCfg.ownerOpenId && !forceNew) {
-      pairingCode = "";
-      pairingExpiresAt = 0;
-      return;
-    }
-    if (forceNew || !pairingCode || Date.now() >= pairingExpiresAt) {
-      pairingCode = `DHVW-${crypto.randomInt(1000, 10000)}`;
-      pairingExpiresAt = Date.now() + 15 * 60_000;
-    }
-  }
-  if (effCfg.appId && effCfg.clientSecret && !effCfg.ownerOpenId) {
-    ensurePairingCode(false);
   }
 
   function broadcastBridge(type, payload) {
@@ -301,7 +290,6 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
   let boostActive = effCfg.enabled === true;
 
   function statusSnapshot() {
-    const activePairing = !account.ownerOpenId && pairingCode && Date.now() < pairingExpiresAt ? pairingCode : "";
     return {
       ok: true,
       running: true,
@@ -315,8 +303,7 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
       paired: Boolean(account.ownerOpenId),
       ownerOpenId: account.ownerOpenId || "",
       ownerOpenIdMasked: maskStr(account.ownerOpenId),
-      pairingCode: activePairing,
-      pairingExpiresAt: activePairing ? pairingExpiresAt : 0,
+      awaitingActivation: Boolean(account.appId && account.clientSecret && !account.ownerOpenId),
       stickers: runtime.stickerStore?.stats?.() || { count: 0 },
       window: liveClient?.ledger?.snapshot(account.ownerOpenId) || { active: false, remainingSeq: 0, expiresAt: 0 },
     };
@@ -325,8 +312,6 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
   function handlePaired(openId) {
     effCfg.ownerOpenId = String(openId || "").trim();
     account = { ...account, ownerOpenId: effCfg.ownerOpenId };
-    pairingCode = "";
-    pairingExpiresAt = 0;
     saveBotConfig();
     broadcastBridge("qq:status", statusSnapshot());
   }
@@ -337,16 +322,14 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
     lastGatewayError = "";
     if (next) {
       if (!account.appId || !account.clientSecret) {
-        log?.info?.("[qq-openclaw] Boost 已开启，等待网页端填入 AppID / ClientSecret");
+        log?.info?.("[qq-openclaw] Boost 已开启，等待 PC 下发 AppID / ClientSecret");
         broadcastBridge("qq:status", statusSnapshot());
         return;
       }
       if (gwAc) return;
-      ensurePairingCode(false);
       const launchAccount = {
         ...account,
-        pairingCode,
-        pairingExpiresAt,
+        autoPairFirst: true,
         onPaired: handlePaired,
       };
       gwAc = new AbortController();
@@ -414,20 +397,13 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
     cfg.channels.snowluma.sandbox = effCfg.sandbox !== false;
     cfg.channels.snowluma.ownerOpenId = effCfg.ownerOpenId || "";
     account = resolveSnowLumaAccount(cfg);
-
-    if (account.appId && account.clientSecret && !account.ownerOpenId) {
-      ensurePairingCode(patch.rebind === true);
-    } else if (account.ownerOpenId) {
-      pairingCode = "";
-      pairingExpiresAt = 0;
-    }
     saveBotConfig();
 
     const credsChanged = account.appId !== prevAppId || account.clientSecret !== prevSecret || account.sandbox !== prevSandbox;
     if (patch.activate === true) boostActive = true;
 
     if (liveClient && !credsChanged) {
-      liveClient.setPairing({ code: pairingCode, expiresAt: pairingExpiresAt, ownerOpenId: account.ownerOpenId });
+      liveClient.setOwnerOpenId(account.ownerOpenId);
     }
     if (boostActive && account.appId && account.clientSecret) {
       if (credsChanged && gwAc) {
@@ -555,12 +531,16 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
 }
 
 if (import.meta.url === `file://${path.resolve(process.argv[1] || "")}` || process.argv[1]?.endsWith("dhvw-server.js")) {
-  const { configPath } = parseArgs(process.argv);
-  if (!fs.existsSync(configPath)) {
-    console.log(`[qq-openclaw] 未找到配置 ${configPath}（未启用），正常退出`);
+  const args = parseArgs(process.argv);
+  let raw = {};
+  if (fs.existsSync(args.configPath)) {
+    raw = JSON.parse(fs.readFileSync(args.configPath, "utf8"));
+  } else if (!args.followBoost) {
+    console.log(`[qq-openclaw] 未找到配置 ${args.configPath}（未启用），正常退出`);
     process.exit(0);
   }
-  const raw = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  if (args.followBoost) raw.followBoost = true;
+  if (args.stateDir) raw.stateDir = args.stateDir;
   if (!raw.enabled && !raw.followBoost) {
     console.log("[qq-openclaw] enabled=false 且未开启 followBoost，正常退出");
     process.exit(0);

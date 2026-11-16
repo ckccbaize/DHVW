@@ -701,8 +701,7 @@ describe("图片表情包采集（偷图）与语境挑图发送 (sticker-store 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("自动口令认主绑定与重新绑定 (pairingCode + rebind)", async () => {
-    const sent = [];
+  it("首条激活消息自动认主绑定与重新绑定 (autoPairFirst + setOwnerOpenId)", async () => {
     let pairedOpenId = "";
     let fakeSock = null;
     class PairingWs extends FakeGatewaySocket {
@@ -711,16 +710,12 @@ describe("图片表情包采集（偷图）与语境挑图发送 (sticker-store 
         fakeSock = this;
       }
     }
-    const fetchImpl = async (url, init = {}) => {
+    const fetchImpl = async (url) => {
       if (url.endsWith("/getAppAccessToken")) {
         return new Response(JSON.stringify({ access_token: "tok-p", expires_in: 7200 }), { status: 200 });
       }
       if (url.endsWith("/gateway")) {
         return new Response(JSON.stringify({ url: "wss://mock.qq.example/ws" }), { status: 200 });
-      }
-      if (url.includes("/messages")) {
-        sent.push(JSON.parse(init.body));
-        return new Response(JSON.stringify({ id: `m-${sent.length}` }), { status: 200 });
       }
       return new Response("{}", { status: 404 });
     };
@@ -729,8 +724,7 @@ describe("图片表情包采集（偷图）与语境挑图发送 (sticker-store 
       appId: "app-pair",
       clientSecret: "sec-pair",
       ownerOpenId: "",
-      pairingCode: "DHVW-4829",
-      pairingExpiresAt: Date.now() + 60_000,
+      autoPairFirst: true,
       onPaired: (id) => {
         pairedOpenId = id;
       },
@@ -741,49 +735,37 @@ describe("图片表情包采集（偷图）与语境挑图发送 (sticker-store 
     client.onMessage((ev) => chatDelivered.push(ev));
     await client.connect();
 
-    // 发错口令不会被绑定，也不会进入正常对话
-    fakeSock.pushEvent("C2C_MESSAGE_CREATE", {
-      id: "p0",
-      content: "错的口令",
-      author: { user_openid: "NEW_OWNER_99" },
-      timestamp: "2026-11-16T10:00:00Z",
-    });
-    assert.equal(pairedOpenId, "");
-    assert.equal(chatDelivered.length, 0);
-
-    // 发送正确口令（支持短码或完整 DHVW-4829）自动完成认主并回复确认
+    // 填好 AppID 和密钥后，主人只需在 QQ 发任意一条激活消息，即自动绑定并直接进入首轮回复
     fakeSock.pushEvent("C2C_MESSAGE_CREATE", {
       id: "p1",
-      content: "4829",
-      author: { user_openid: "NEW_OWNER_99" },
+      content: "你好，激活一下",
+      author: { user_openid: "FIRST_OWNER_88" },
       timestamp: "2026-11-16T10:00:01Z",
     });
-    assert.equal(pairedOpenId, "NEW_OWNER_99");
-    assert.equal(client.ownerOpenId, "NEW_OWNER_99");
-    assert.equal(chatDelivered.length, 0); // 口令消息本身不送进 LLM 对话
+    assert.equal(pairedOpenId, "FIRST_OWNER_88");
+    assert.equal(client.ownerOpenId, "FIRST_OWNER_88");
+    assert.equal(chatDelivered.length, 1);
 
-    await new Promise((r) => setTimeout(r, 20));
-    assert.equal(sent.length, 1);
-    assert.ok(sent[0].content.includes("成功绑定为主人"));
-
-    // 绑定后即可正常单聊对话
+    // 锁定主人后，其他陌生人发消息会被拦截
     fakeSock.pushEvent("C2C_MESSAGE_CREATE", {
       id: "p2",
-      content: "在吗",
-      author: { user_openid: "NEW_OWNER_99" },
+      content: "我是路人",
+      author: { user_openid: "STRANGER_99" },
       timestamp: "2026-11-16T10:00:02Z",
     });
     assert.equal(chatDelivered.length, 1);
 
-    // 重新绑定：清空旧主人并更换新口令后，旧主人不再触发正常聊天，等待新口令
-    client.setPairing({ ownerOpenId: "", code: "DHVW-9527", expiresAt: Date.now() + 60_000 });
+    // 重新绑定：清空旧绑定后，下一个发送激活消息的人成为新主人
+    client.setOwnerOpenId("");
     fakeSock.pushEvent("C2C_MESSAGE_CREATE", {
       id: "p3",
-      content: "老消息",
-      author: { user_openid: "NEW_OWNER_99" },
+      content: "换号重新激活",
+      author: { user_openid: "NEW_OWNER_77" },
       timestamp: "2026-11-16T10:00:03Z",
     });
-    assert.equal(chatDelivered.length, 1);
+    assert.equal(pairedOpenId, "NEW_OWNER_77");
+    assert.equal(client.ownerOpenId, "NEW_OWNER_77");
+    assert.equal(chatDelivered.length, 2);
 
     client.close();
   });

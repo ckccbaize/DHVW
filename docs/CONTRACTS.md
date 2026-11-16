@@ -205,7 +205,7 @@
 
 | type | payload | 说明 |
 |---|---|---|
-| `qq:status` | `{connected, configured, boostActive, sandbox, paired, ownerOpenId?, ownerOpenIdMasked?, pairingCode?, pairingExpiresAt?}` | QQ Bot 网关、注册配置与口令认主绑定状态 |
+| `qq:status` | `{connected, configured, boostActive, sandbox, paired, awaitingActivation, ownerOpenId?, ownerOpenIdMasked?}` | QQ Bot 网关、凭据配置与首条消息认主绑定状态 |
 | `qq:memory:query` | `{text, k?, mood?}` | 请求前端检索记忆；前端以 `qq:reply`（`replyTo=id`）返回 `{semantic, l0, hits}`（PC 在线走 `memory:query`，离线降级 `localMemory`） |
 | `qq:media:edge` | `{}` | 主动分享画作或日常瞬间时请求端侧最新风景图；前端以 `qq:reply`（`replyTo=id`）返回 `{dataUrl}` |
 | `qq:world:feedback` | `{moodDelta?, bubble?, action?, event?, facts?}` | 单聊回复/主动消息/消化完成后向 ARM 世界回灌心情变化、气泡、动作、事件与候选事实（写入 `localMemory` 并在线推送 PC `facts:candidates`） |
@@ -218,6 +218,6 @@
 | `qq:llm:config` | `{baseUrl, apiKey, model, reasoningEffort?}` | 从设备配置下发的 LLM 连接信息（由服务走 `dhvw-shell` `/__llm/chat/completions` 或直连） |
 | `qq:world:event` | `{id?, kind, summary, ts?}` | 生活事件流（`writing` / `browse` / `bg_ready` / `travel` / `return`），供主动发起评估 |
 | `qq:boost:state` | `{enabled}` | 同步 PC 端 `BOOST` 开关 / 端侧配置激活状态，控制 `qq-openclaw`（`followBoost: true`）实时上线或休眠 |
-| `qq:bot:config` | `{appId, clientSecret?, sandbox?, ownerOpenId?, proactive?, rebind?}` | 从网页/PC 下发 QQ Bot 注册凭据并持久化到 `stateDir/bot-config.json` |
-| `qq:bot:rebind` | `{}` | 清空已绑定 `ownerOpenId` 并重新生成 6 位配对口令 |
+| `qq:bot:config` | `{appId, clientSecret?, sandbox?, ownerOpenId?, proactive?, rebind?}` | 由 PC 端统一下发 QQ Bot 注册凭据并持久化到 `stateDir/bot-config.json` |
+| `qq:bot:rebind` | `{}` | 清空已绑定 `ownerOpenId`，等待下一条 QQ 激活消息重新认主 |
 | `qq:reply` | `{...}` | 对 `qq:memory:query` 或 `qq:media:edge` 的应答信封（必须带原请求 `replyTo`） |

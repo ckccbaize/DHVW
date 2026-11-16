@@ -24,11 +24,13 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -86,6 +88,8 @@ type server struct {
 	verifyHash bool
 	hits       atomic.Int64
 	httpClient *http.Client
+	qqMu       sync.Mutex
+	qqCmd      *exec.Cmd
 }
 
 func newServer(root, ver string, verifyHash bool, apikeyDir string) (*server, error) {
@@ -209,7 +213,7 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.serveSearch(w, r)
 		return
 	}
-	if r.URL.Path == "/__qq/health" || r.URL.Path == "/__qq/config" || r.URL.Path == "/__qq/rebind" {
+	if r.URL.Path == "/__qq/health" || r.URL.Path == "/__qq/config" || r.URL.Path == "/__qq/rebind" || r.URL.Path == "/__qq/boost" {
 		s.serveQqProxy(w, r)
 		return
 	}
@@ -464,30 +468,140 @@ func (s *server) serveLLMProxy(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, io.LimitReader(resp.Body, 4<<20))
 }
 
+func (s *server) findQqServerScript() string {
+	candidates := []string{
+		os.Getenv("DHVW_QQ_SERVER"),
+		filepath.Join(filepath.Dir(s.root), "qq-openclaw", "dist", "dhvw-server.js"),
+		"/opt/dhvw/qq-openclaw/dist/dhvw-server.js",
+	}
+	for _, c := range candidates {
+		if c == "" {
+			continue
+		}
+		if st, err := os.Stat(c); err == nil && !st.IsDir() {
+			return c
+		}
+	}
+	return ""
+}
+
+func (s *server) qqAlive() bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 350*time.Millisecond)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:8088/__qq/health", nil)
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return false
+	}
+	_ = resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
+}
+
+func (s *server) ensureQqStarted() {
+	if s.qqAlive() {
+		return
+	}
+	s.qqMu.Lock()
+	defer s.qqMu.Unlock()
+	if s.qqAlive() {
+		return
+	}
+	if s.qqCmd != nil && s.qqCmd.Process != nil && s.qqCmd.ProcessState == nil {
+		return
+	}
+	script := s.findQqServerScript()
+	if script == "" {
+		return
+	}
+	stateDir := filepath.Join(s.dataDir, "qq-openclaw")
+	_ = os.MkdirAll(stateDir, 0o755)
+	cmd := exec.Command("node", script, "-followBoost", "-stateDir", stateDir)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		log.Printf("[qq] 启动 qq-openclaw 失败: %v", err)
+		return
+	}
+	s.qqCmd = cmd
+	go func(c *exec.Cmd) {
+		_ = c.Wait()
+		s.qqMu.Lock()
+		if s.qqCmd == c {
+			s.qqCmd = nil
+		}
+		s.qqMu.Unlock()
+	}(cmd)
+	for i := 0; i < 30; i++ {
+		if s.qqAlive() {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func (s *server) stopQqChild() {
+	s.qqMu.Lock()
+	cmd := s.qqCmd
+	s.qqCmd = nil
+	s.qqMu.Unlock()
+	if cmd != nil && cmd.Process != nil && cmd.ProcessState == nil {
+		_ = cmd.Process.Kill()
+	}
+}
+
 func (s *server) serveQqProxy(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodPost {
 		w.Header().Set("Allow", "GET, POST")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	var body io.Reader
+	var rawBody []byte
 	if r.Method == http.MethodPost {
-		raw, err := io.ReadAll(io.LimitReader(r.Body, 64<<10))
+		var err error
+		rawBody, err = io.ReadAll(io.LimitReader(r.Body, 64<<10))
 		if err != nil {
 			http.Error(w, "bad body", http.StatusBadRequest)
 			return
 		}
-		body = bytes.NewReader(raw)
+	}
+	if r.URL.Path == "/__qq/boost" && r.Method == http.MethodPost {
+		var b struct {
+			Enabled bool `json:"enabled"`
+		}
+		_ = json.Unmarshal(rawBody, &b)
+		if b.Enabled {
+			s.ensureQqStarted()
+		} else {
+			s.stopQqChild()
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-store")
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "running": false, "boostActive": false})
+			return
+		}
+	} else if r.URL.Path == "/__qq/config" || r.URL.Path == "/__qq/rebind" {
+		s.ensureQqStarted()
+	}
+	targetPath := r.URL.Path
+	if targetPath == "/__qq/boost" {
+		targetPath = "/__qq/health"
+	}
+	var body io.Reader
+	if r.Method == http.MethodPost && targetPath != "/__qq/health" {
+		body = bytes.NewReader(rawBody)
+	}
+	method := r.Method
+	if targetPath == "/__qq/health" {
+		method = http.MethodGet
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
-	target := "http://127.0.0.1:8088" + r.URL.Path
-	hr, err := http.NewRequestWithContext(ctx, r.Method, target, body)
+	target := "http://127.0.0.1:8088" + targetPath
+	hr, err := http.NewRequestWithContext(ctx, method, target, body)
 	if err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	if r.Method == http.MethodPost {
+	if method == http.MethodPost {
 		hr.Header.Set("Content-Type", "application/json")
 	}
 	resp, err := s.httpClient.Do(hr)
@@ -588,5 +702,6 @@ func main() {
 		}
 	}()
 	<-idle
+	srv.stopQqChild()
 	_ = hs.Close()
 }

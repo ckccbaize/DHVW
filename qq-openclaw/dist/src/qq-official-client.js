@@ -135,8 +135,7 @@ export class QQOfficialClient extends EventEmitter {
     this.apiBaseUrl = (opts.apiBaseUrl || (this.sandbox ? DEFAULT_SANDBOX_API : DEFAULT_PROD_API)).replace(/\/+$/, "");
     this.ownerOpenId = String(opts.ownerOpenId || "").trim();
     this.allowOpenIds = Array.isArray(opts.allowOpenIds) ? opts.allowOpenIds.map((x) => String(x).trim()).filter(Boolean) : [];
-    this.pairingCode = String(opts.pairingCode || "").trim().toUpperCase();
-    this.pairingExpiresAt = Number(opts.pairingExpiresAt || 0);
+    this.autoPairFirst = opts.autoPairFirst !== false;
     this.onPaired = typeof opts.onPaired === "function" ? opts.onPaired : null;
     this.fetchImpl = opts.fetchImpl || globalThis.fetch;
     this.WSImpl = opts.WSImpl || globalThis.WebSocket;
@@ -168,25 +167,14 @@ export class QQOfficialClient extends EventEmitter {
     return false;
   }
 
-  setPairing({ code = "", expiresAt = 0, ownerOpenId } = {}) {
-    if (ownerOpenId !== undefined) this.ownerOpenId = String(ownerOpenId || "").trim();
-    this.pairingCode = String(code || "").trim().toUpperCase();
-    this.pairingExpiresAt = Number(expiresAt || 0);
+  setOwnerOpenId(ownerOpenId = "") {
+    this.ownerOpenId = String(ownerOpenId || "").trim();
   }
 
-  #tryPair(openId, msgId, text) {
-    if (this.ownerOpenId || !this.pairingCode) return false;
-    if (this.pairingExpiresAt > 0 && Date.now() > this.pairingExpiresAt) return false;
-    const norm = String(text || "").trim().toUpperCase();
-    const shortCode = this.pairingCode.replace(/^DHVW-/, "");
-    if (!norm || (norm !== this.pairingCode && norm !== shortCode)) return false;
-
+  #tryPairFirst(openId) {
+    if (this.ownerOpenId || !this.autoPairFirst || !openId) return false;
     this.ownerOpenId = openId;
-    this.pairingCode = "";
-    this.pairingExpiresAt = 0;
-    this.ledger.recordInbound(openId, msgId);
-    this.log?.info?.(`[qq-official] 通过口令自动绑定主人 openId=${openId}`);
-    void this.sendPrivateMessage(openId, "已成功绑定为主人！以后只在这一个私聊窗口陪伴你啦~", { replyToId: msgId }).catch(() => {});
+    this.log?.info?.(`[qq-official] 收到首条激活消息，自动绑定主人 openId=${openId}`);
     try {
       this.onPaired?.(openId);
     } catch {}
@@ -336,9 +324,7 @@ export class QQOfficialClient extends EventEmitter {
     if (this.dedup.seenOrAdd(msgId)) return;
     const openId = String(d.author?.user_openid || d.author?.union_openid || "").trim();
     const text = typeof d.content === "string" ? d.content.trim() : "";
-    if (this.#tryPair(openId, msgId, text)) {
-      return;
-    }
+    this.#tryPairFirst(openId);
     if (!this.isAllowedOpenId(openId)) {
       this.log?.info?.(`[qq-official] 忽略非白名单单聊 openId=${openId}`);
       return;

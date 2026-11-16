@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-16T13:45:36.453Z",
+ "built_at": "2026-11-16T14:21:20.771Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -754,13 +754,13 @@
   },
   {
    "path": "config.json",
-   "size": 607,
-   "sha256": "161e37aad327fdbd97832d61a0f0018c10225a40f08af3e41e15d5c1deae4814"
+   "size": 603,
+   "sha256": "ba46bdec2d4618f54cefa9cbf39eed1c3f5db74881ebdb7485c4f0bbf170fced"
   },
   {
    "path": "css/app.css",
-   "size": 10318,
-   "sha256": "d1d47ad58b026887d37ffe4d4c87b6d3f2515288f5cebb2d10e7876afc56b1ba"
+   "size": 7857,
+   "sha256": "4b1a53ab88580faac5bbf2ebcd1442abd96be560761cf521e09db324020382d2"
   },
   {
    "path": "css/cel.css",
@@ -779,18 +779,18 @@
   },
   {
    "path": "debug-life.html",
-   "size": 28800,
-   "sha256": "432172229dc1592cdbd6f951cd1cb393577a7ddd56edab1576ad6eb6bfdcafc4"
+   "size": 22891,
+   "sha256": "069a54322ca51c67c5dc3853bd8c0cd551b69abf97fa07099430121b786b6214"
   },
   {
    "path": "index.html",
-   "size": 5587,
-   "sha256": "08045b542c7883184ed8607393e3153ec6458a54d58b994e7b21840e828acef5"
+   "size": 3254,
+   "sha256": "133b50fa446c6cd9d0a28d99bbd6fac11b8d1ce1e0a78bb0cadf58836f879050"
   },
   {
    "path": "js/app.js",
-   "size": 56761,
-   "sha256": "337d3f1583faefd25de077c549d9d915cd1a3d4d664cc1d9cbfb433b3e83e1a5"
+   "size": 51000,
+   "sha256": "ca58c36e8ce9eb8ceca3ade3bd1d84c92fec84b7a66ba26af6c65b9783421c28"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -1104,8 +1104,8 @@
   },
   {
    "path": "js/view/present.js",
-   "size": 3986,
-   "sha256": "7f7af35f7c6bd9973b7062fb66c02e196761f48a190e5d3a2926e6564beee6ab"
+   "size": 4081,
+   "sha256": "da7f6d3b5a431d031ee6511bfe288c727d5fb38c0fa6f77338f6b901ef8d988d"
   },
   {
    "path": "js/view/scene-loader.js",

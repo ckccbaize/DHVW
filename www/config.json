@@ -13,7 +13,7 @@
   },
   "assetQuotaBytes": 524288000,
   "display": {
-    "backToOverviewMs": 90000,
+    "backToOverviewMs": 0,
     "hostLostGraceMs": 10000,
     "hysteresisMs": 20000,
     "switchSource": "virtual"
