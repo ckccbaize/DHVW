@@ -183,19 +183,25 @@ function buildOfficeSprites(scene) {
 }
 
 async function countScenePackages() {
+  const ids = new Set();
   try {
     const res = await fetch("manifest.json", { cache: "no-store" });
-    if (!res.ok) return 0;
-    const manifest = await res.json();
-    const ids = new Set();
-    for (const file of manifest.files || []) {
-      const m = /^assets\/scenes\/([^/]+)\/\1\.built\.json$/.exec(String(file.path || ""));
+    if (res.ok) {
+      const manifest = await res.json();
+      for (const file of manifest.files || []) {
+        const m = /^assets\/scenes\/([^/]+)\/\1\.built\.json$/.exec(String(file.path || ""));
+        if (m && m[1] !== "office") ids.add(m[1]);
+      }
+    }
+  } catch {}
+  try {
+    const cache = await caches.open("dhvw-scenes-v1");
+    for (const req of await cache.keys()) {
+      const m = /\/assets\/scenes\/([^/]+)\/\1\.built\.json$/.exec(new URL(req.url).pathname);
       if (m && m[1] !== "office") ids.add(m[1]);
     }
-    return ids.size;
-  } catch {
-    return 0;
-  }
+  } catch {}
+  return ids.size;
 }
 
 async function boot() {
@@ -793,14 +799,14 @@ async function boot() {
           const ready = await local.markSceneReady(p).catch(() => null);
           const id = String(ready?.placeId || alias || p.sceneId || p.job || p.id || "").trim();
           if (!id) return;
-          const added = await local.addPlace({
+          await local.addPlace({
             id,
             name: p.name || id,
             kind: p.kind === "street" ? "street" : "indoor",
             distance: p.distance,
             overnight: p.overnight === true,
           });
-          if (added?.added) store.patch({ sceneCount: (store.state.sceneCount || 0) + 1 });
+          store.patch({ sceneCount: await countScenePackages() });
           store.emit("scene_ready", { ...p, cached, placeId: id });
           if (awayPlace && (awayPlace === id || awayPlace === p.placeId || awayPlace === p.name || awayPlace === String(p.sceneId || ""))) {
             void enterPlace(awayPlace, awayAct);
