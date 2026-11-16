@@ -1,7 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell as electronShell } from 'electron'
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
-import { dataDir, logDir, rendererIndex, resourcesRoot, runtimeDir } from './paths'
+import { bundledResourceDir, dataDir, logDir, rendererIndex, resourcesRoot, runtimeDir } from './paths'
 import { log } from './logger'
 import { loadConfig, saveConfig, type ShellConfig } from './config'
 import { allocatePorts, isPortFree } from './ports'
@@ -18,6 +19,7 @@ import type {
   ActionRequest,
   AppSnapshot,
   Live2dModelView,
+  MemoryStatsView,
   PathPickArgs,
   ServiceDef,
   SettingsPatch,
@@ -33,7 +35,7 @@ import type {
 import { createTray } from './tray'
 import { applyNetworkHardening, hardenSessionSetup } from './hardening'
 import { listModels, probeLlm } from './network'
-import { COMPONENTS, componentStatus, ensureComponent, resolveSpec } from './components'
+import { COMPONENTS, componentStatus, ensureComponent, resolveSpec, uvBinary } from './components'
 import { clearApiKey, hasApiKey, readApiKey, saveApiKey } from './secret'
 import { asrModelPaths, prepareOlvt, resolveOlvtDir, syncOlvtModel } from './olvt'
 import { Gateway, type GatewayTarget } from './gateway'
@@ -285,6 +287,81 @@ async function pushScene(id: string): Promise<{
 }
 
 /** 重提一条设备场景请求（失败后手动重试，避免坏 spec 自动反复烧 token） */
+/** 记忆向量服务信息：编排器自报模型/依赖/索引计数，外壳只做转发与可达性标注 */
+async function readMemoryStats(): Promise<MemoryStatsView> {
+  if (!orchestratorPort) return { reachable: false, error: '编排器未运行' }
+  try {
+    const res = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/memory/stats`, {
+      signal: AbortSignal.timeout(5000),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const raw = (await res.json()) as Omit<MemoryStatsView, 'reachable'>
+    return { reachable: true, ...raw }
+  } catch (err) {
+    return { reachable: false, error: (err as Error).message || String(err) }
+  }
+}
+
+/** 删除并由正文重建 FTS5 + 向量索引（只重建派生数据，正文不动） */
+async function rebuildMemory(): Promise<{ ok: boolean; total?: number; fts?: number; vec?: number; error?: string }> {
+  if (!orchestratorPort) return { ok: false, error: '编排器未运行' }
+  try {
+    const res = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/memory/rebuild`, {
+      method: 'POST',
+      // 全量重新编码 512 维向量，条数多时要几十秒
+      signal: AbortSignal.timeout(120_000),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return (await res.json()) as { ok: boolean; total: number; fts: number; vec: number }
+  } catch (err) {
+    return { ok: false, error: (err as Error).message || String(err) }
+  }
+}
+
+/** 把记忆向量的运行时依赖装进共享 site-packages（模型随包，只装库） */
+async function installMemoryDeps(): Promise<{ ok: boolean; output?: string; error?: string }> {
+  const uv = uvBinary()
+  if (!uv) return { ok: false, error: '缺少 uv（打包时应随 tools/uv.exe 提供）' }
+  const req = path.join(bundledResourceDir(), 'memory-requirements.txt')
+  if (!fs.existsSync(req)) return { ok: false, error: `缺少依赖清单：${req}` }
+  const args = [
+    'pip',
+    'install',
+    '--python',
+    path.join(runtimeDir(), 'python.exe'),
+    '--target',
+    path.join(runtimeDir(), 'site-packages'),
+    '--index-url',
+    'https://mirrors.aliyun.com/pypi/simple',
+    '--no-cache',
+    '--quiet',
+    '-r',
+    req,
+  ]
+  log('info', 'memory', '安装记忆向量依赖', { uv, req })
+  const out = spawnSync(uv, args, { encoding: 'utf8', timeout: 30 * 60 * 1000 })
+  if (out.error) return { ok: false, error: String(out.error) }
+  if (out.status !== 0) {
+    return { ok: false, error: String(out.stderr ?? '').slice(-600) || String(out.stdout ?? '').slice(-600) }
+  }
+  // site-packages 变了：重启编排器才会重新 import onnxruntime / sqlite_vec
+  log('info', 'memory', '记忆向量依赖已安装，重启编排器生效')
+  return { ok: true, output: String(out.stdout ?? '').slice(-600) }
+}
+
+/** 在资源管理器里打开一个已存在的目录（模型目录、数据目录等） */
+async function openDirectory(dir: string): Promise<{ ok: boolean; error?: string }> {
+  const target = String(dir ?? '').trim()
+  if (!target) return { ok: false, error: '路径为空' }
+  try {
+    if (!fs.statSync(target).isDirectory()) return { ok: false, error: '不是文件夹' }
+  } catch {
+    return { ok: false, error: '目录不存在' }
+  }
+  const err = await electronShell.openPath(target)
+  return err ? { ok: false, error: err } : { ok: true }
+}
+
 async function listSaves(): Promise<{ ok: boolean; saves: SaveView[]; error?: string }> {
   if (!orchestratorPort) return { ok: false, saves: [], error: '编排器未运行' }
   try {
@@ -535,6 +612,10 @@ function registerIpc(): void {
     url: armPreviewUrl,
     error: armPreviewUrl ? undefined : 'ARM 预览资源缺失（arm/www/preview.html）',
   }))
+  ipcMain.handle('dhvw:memoryStats', () => readMemoryStats())
+  ipcMain.handle('dhvw:memoryRebuild', () => rebuildMemory())
+  ipcMain.handle('dhvw:memoryDepsInstall', () => installMemoryDeps())
+  ipcMain.handle('dhvw:openDirectory', (_e, dir: string) => openDirectory(dir))
   ipcMain.handle('dhvw:saves', () => listSaves())
   ipcMain.handle('dhvw:save-backup', () => backupSave())
   ipcMain.handle('dhvw:save-restore', (_e, id: string) => restoreSave(id))

@@ -1,0 +1,10 @@
+# 编排器「记忆向量」运行时依赖（安装进 apps/shell/runtime/site-packages）。
+# 模型本身随包（resources/models/bge-small-zh-v1.5），这里只装能跑它的库：
+# - onnxruntime：加载 model.onnx（CPU）
+# - tokenizers：HF tokenizer.json 分词
+# - numpy：池化/归一化
+# - sqlite-vec：memory.db 的 vec0 虚拟表（缺它时检索退回二元组字面匹配）
+onnxruntime>=1.20.1
+tokenizers>=0.20.0
+numpy>=1.26.4,<2
+sqlite-vec>=0.1.6

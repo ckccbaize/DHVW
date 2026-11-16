@@ -1,4 +1,5 @@
 import React from 'react'
+import { MemoryCard } from './MemoryCard'
 import type {
   AppSnapshot,
   ComponentStatus,
@@ -216,6 +217,8 @@ export function ConfigView({
               </div>
             )}
           </section>
+
+          <MemoryCard />
 
           <section className="panel components">
             <h2>组件</h2>

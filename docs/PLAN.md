@@ -87,6 +87,8 @@ PC 端“完成”= 下列全部成立，缺一不算：
 | PCM7 | 桥接与接管 | BRIDGE / DESK | PCM4 | Stub 契约稳定；接管零冲突 |
 | PCM8 | 硬化 | SUP / OBS 收口 | 全部 | 72 h 长稳、冷启动、断网恢复达标 |
 
+> 进展（2026-11-16，记忆向量）：模块早已接通（`embedder.py` 本地 ONNX 编码器 + `mem_vec` sqlite-vec 虚表，随包 `bge-small-zh-v1.5`），本轮把它变成可见的一等服务：`/dhvw/memory/stats` 增模型/维度/目录/依赖版本/DB 大小，信息页新增「记忆向量」卡片（状态、条数、依赖、打开模型目录、重建索引、安装缺失依赖 + 重启编排器），并声明 `resources/memory-requirements.txt`（onnxruntime/tokenizers/numpy/sqlite-vec）修复新装环境的隐式依赖。实测：卡片显示 89/89/89 与四个依赖版本；重建索引 4 s 返回 `正文 89 · 全文 89 · 向量 89`；停编排器 → 「编排器未运行 · fetch failed」，启动后恢复；`test:dhvw` 36 项在隔离实例全通过（含新增统计断言）。
+>
 > 进展（2026-11-15，设置页路径选择）：设置里所有路径项加系统选择框（GPT-SoVITS 目录走 `openDirectory`、参考音色走 `openFile` + 音频筛选），Live2D 模型可「打开模型文件夹」（用户库 `%APPDATA%/DigitalHuman/live2d-models`）与「从文件夹导入」（校验 `<模型>/runtime/*.model3.json`、文件夹名转模型 id、同名拒绝、只写数据目录）。实测：选择框弹出标题正确、取消返回 `{ok:false}`；导入逻辑单测覆盖单模型/父目录批量/同名冲突；用户库在启动时自动创建并进入模型库搜索顺序；设置页六档无横向溢出。
 >
 > 进展（2026-11-15，地图推送）：产出验收新增「提交 ARM 侧」，设置新增「自动推送生成的地图」（默认关）。推送前做资源核验（必需文件 + manifest 的 size/sha256），通过才发 `scene:ready{sceneId,basePath,…}`；投递成功记 `kv.scene_pushes.pushed`，离线记 `pending`，设备 `hello`/每 15 s 重推直到成功。实测：无设备手动推送 → 409 排队；假设备经网关 wss 上线后收到 `scene:ready`，按设备方式（`/orchestrator` 前缀 + token）拉回 manifest 与 8/8 文件且 sha256 全部吻合，状态转 `pushed`；`autoPush` 开关经设置→编排器往返生效；`test:dhvw` 34 项通过；三页六档布局无溢出。未实测：真实固件侧的 Cache Storage 落盘（PC 侧只保证可拉取）。
@@ -127,6 +129,9 @@ PC 端“完成”= 下列全部成立，缺一不算：
 | GET | `/health` | 局域网 | `{ok,service,version,pid,uptime,device:{connected,id,tier},digest_ts,memory}` |
 | GET | `/dhvw/digest` | 127.0.0.1 | 最近一次 `world:digest` 原文；`digest_ts` 同时落 `data/digest.json` |
 | GET | `/dhvw/mood` | 127.0.0.1 | 最近一次 `mood:state` |
+| GET | `/dhvw/memory/stats` | 127.0.0.1 | 记忆向量服务信息：条数、`semantic`、模型/维度/目录、依赖版本、DB 路径与大小 |
+| POST | `/dhvw/memory/rebuild` | 127.0.0.1 | 由 `mem_meta` 正文重建 FTS5 与 `vec0` 向量索引 |
+| GET | `/dhvw/memory/context` | 127.0.0.1 | 供 OLVT 取相关记忆 + 近况（`q,k`） |
 | GET | `/dhvw/scenes` | 127.0.0.1 | 场景任务表 + 设备 `sceneRequests` 账本 + 产出表（`outputs[{id,name,push{state,attempts,lastError}}]`）+ `autoPush` |
 | POST | `/dhvw/scenes/<id>/push` | 127.0.0.1 | 核验并推送一条产出（`scene:ready`）；核验失败 400，设备离线 409 且排队重试 |
 | GET | `/dhvw/scenes/<id>/dist/<path>` | 127.0.0.1 | 产出文件直出（设备缓存场景包用） |
@@ -147,8 +152,8 @@ PC 端“完成”= 下列全部成立，缺一不算：
 - `events:batch` → 按 `uuid` 幂等入库（`life.db` 的 `events`），回 `events:ack{seq,inserted,duplicated}`；重复批次不重复入库。
 - `world:digest` → 原子写 `data/digest.json` 并留最近一份内存快照；随后消费 `sceneRequests` 里 `status:"pending"` 的条目（同 id 只受理一次，账本落 `kv.scene_requests`），生成通过闸门后回 `scene:ready {id}`（id 即请求 id）。
 - `mood:state` → 落库并留快照。
-- `facts:candidates` / `memory:push` → `memory.db`（`mem_meta` + `mem_fts`，中文按二元组建索引），同文本 LWW 合并，回 `facts:ack{accepted,merged,rejected}`。当前 `semantic=false`（无随包 embedding 模型）。
-- `memory:query` → `memory:result{req_id,hits,semantic:false}`，`req_id` 原样带回。
+- `facts:candidates` / `memory:push` → `memory.db`（`mem_meta` + `mem_fts` + `mem_vec`），中文按二元组建全文索引、`bge-small-zh-v1.5`（512 维）建向量，同文本 LWW 合并，回 `facts:ack{accepted,merged,rejected}`；`semantic` 按模型与依赖实际状态给值。
+- `memory:query` → `memory:result{req_id,hits,semantic}`（`0.5×向量 + 0.3×全文 + 0.2×时间衰减`），`req_id` 原样带回。
 - `pc:action` → 白名单 `web.open` / `media.play` / `app.open` / `map.generate`（后者转场景作业，受理即回 `{job,dir}`）；`notify` 未接线，回 `ok:false` + 中文原因。
 - `present:request` → `present:grant` / `present:deny{reason}`（`tts_ready=false` 时拒绝）。
 - `present:begin` / `present:end` → 切 `tier` 为 `host` / `idle`。

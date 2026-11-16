@@ -294,6 +294,17 @@
   - 记忆检索的召回质量受限于字面二元组；embedding 随包后改的是 `semantic` 与打分，不改协议。
   - `semantic=false` 与未接线动作必须在文档与错误原因里写明，避免被当成缺陷反复排查。
 
+## ADR-PC-025 修订（记忆向量上线，semantic 不再是恒定 false）
+
+- **日期**：2026-11-16 · **状态**：已接受（取代原第 5 条的结论）
+- **决策**：
+  1. 随包 `bge-small-zh-v1.5`（量化 ONNX，24.5 MB，`resources/models/`），零运行期联网，符合 ADR-PC-017 的“不运行时下载模型”约束；开发期由 `scripts/fetch-embed-model.mjs` 从 hf-mirror 拉取。
+  2. 向量索引是 `memory.db` 的 `vec0` 虚表（sqlite-vec），与正文、FTS5 同库；编码器或 `sqlite-vec` 任一不可用时**降级**为字面检索并把 `semantic` 报 `false`，不伪造 `true`。
+  3. 依赖显式声明在 `apps/shell/resources/memory-requirements.txt`（onnxruntime / tokenizers / numpy / sqlite-vec），装进共享 `runtime/site-packages`，不再依赖开发机的偶然安装。
+  4. `GET /dhvw/memory/stats` 是唯一真值来源（模型、维度、目录、依赖版本、索引计数、DB 大小）；信息页「记忆向量」卡片只做展示与触发（重建索引、安装缺失依赖、重启编排器、打开模型目录），不自行推算。
+- **理由**：记忆检索的质量瓶颈在字面二元组；模型随包后设备端协议无需任何改动，`semantic` 字段本就存在。把依赖与状态显式化，修掉“换台机器就静默退化成字面检索”的隐患。
+- **后果**：`memory:result.semantic` 的真假取决于部署环境，文档与界面必须按 stats 的实际值说话；重建索引会把 89 条记忆重新编码约 4 s，条数上千时是十秒级操作。
+
 ## ADR-PC-026 界面按「首页 / Agent / 配置」三页重组，地图生成交给嵌入式 pi CLI
 
 - **日期**：2026-11-13 · **状态**：已接受

@@ -1,7 +1,7 @@
 // 截取指定尺寸下的整页截图，用于人工确认布局
 import fs from 'node:fs'
 
-const port = 9223
+const port = Number(process.env.DHVW_CDP_PORT ?? 9223)
 const [w, h] = [Number(process.argv[2] ?? 1020), Number(process.argv[3] ?? 720)]
 const out = process.argv[4] ?? `shot-${w}.png`
 

@@ -233,6 +233,25 @@ export interface SaveView {
   sha256: string
 }
 
+/** 编排器记忆向量服务信息（GET /dhvw/memory/stats + 可达性） */
+export interface MemoryStatsView {
+  reachable: boolean
+  error?: string
+  total?: number
+  fts?: number
+  vec?: number
+  vec_ready?: boolean
+  semantic?: boolean
+  model?: string
+  dim?: number
+  model_dir?: string | null
+  model_files?: boolean
+  embed_error?: string | null
+  deps?: Record<string, string | null>
+  db_path?: string
+  db_bytes?: number
+}
+
 /** 系统文件/文件夹选择框的参数与结果 */
 export interface PathPickArgs {
   kind: 'dir' | 'file'

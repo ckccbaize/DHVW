@@ -950,7 +950,8 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
 
     @app.get("/dhvw/events")
     async def events(limit: int = 20) -> JSONResponse:
-        return JSONResponse(store.recent_events(max(1, min(limit, 200))))
+        # 设备在线时事件流很密：上限放宽到 2000，便于按 uuid 排查（默认仍 20 条）
+        return JSONResponse(store.recent_events(max(1, min(limit, 2000))))
 
     @app.get("/dhvw/actions")
     async def action_help() -> JSONResponse:

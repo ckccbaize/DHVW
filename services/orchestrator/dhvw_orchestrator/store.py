@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 
 from . import data_dir
-from .embedder import DIM, LocalEmbedder
+from .embedder import DIM, MODEL_NAME, LocalEmbedder, runtime_versions
 
 
 def _bigrams(text: str) -> list[str]:
@@ -498,13 +498,31 @@ class Store:
             total = int(self._memory.execute("select count(*) c from mem_meta").fetchone()["c"])
             fts = int(self._memory.execute("select count(*) c from mem_fts").fetchone()["c"])
             vec = int(self._memory.execute("select count(*) c from mem_vec").fetchone()["c"]) if self._vec_ready else 0
+        model_dir = self.embedder.model_dir
+        model_files = bool(
+            model_dir
+            and (model_dir / "model.onnx").is_file()
+            and (model_dir / "tokenizer.json").is_file()
+        )
+        db_file = self.root / "memory.db"
+        try:
+            db_bytes = db_file.stat().st_size
+        except OSError:
+            db_bytes = 0
         return {
             "total": total,
             "fts": fts,
             "vec": vec,
             "vec_ready": self._vec_ready,
             "semantic": self._vec_ready and self.embedder.available,
-            "model_dir": str(self.embedder.model_dir) if self.embedder.model_dir else None,
+            "model": MODEL_NAME,
+            "dim": DIM,
+            "model_dir": str(model_dir) if model_dir else None,
+            "model_files": model_files,
+            "embed_error": self.embedder.error,
+            "deps": runtime_versions(),
+            "db_path": str(db_file),
+            "db_bytes": db_bytes,
         }
 
     def facts_since(self, since: int = 0, limit: int = 200) -> tuple[list[dict], int]:

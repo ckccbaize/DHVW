@@ -11,6 +11,7 @@ import type {
   SceneJobView,
   SceneOutputView,
   Live2dModelView,
+  MemoryStatsView,
   PathPickArgs,
   PathPickResult,
   SceneRequestView,
@@ -50,6 +51,17 @@ const api = {
     ipcRenderer.invoke('dhvw:live2dModels'),
   /** 系统选择框：取一个文件夹/文件路径（取消时 ok=false） */
   pickPath: (args: PathPickArgs): Promise<PathPickResult> => ipcRenderer.invoke('dhvw:pickPath', args),
+  /** 记忆向量服务信息（模型 / 依赖 / 索引计数 / DB） */
+  memoryStats: (): Promise<MemoryStatsView> => ipcRenderer.invoke('dhvw:memoryStats'),
+  /** 重建 FTS5 + 向量索引（派生数据，正文不动） */
+  memoryRebuild: (): Promise<{ ok: boolean; total?: number; fts?: number; vec?: number; error?: string }> =>
+    ipcRenderer.invoke('dhvw:memoryRebuild'),
+  /** 把记忆向量运行时依赖装进共享 site-packages */
+  memoryDepsInstall: (): Promise<{ ok: boolean; output?: string; error?: string }> =>
+    ipcRenderer.invoke('dhvw:memoryDepsInstall'),
+  /** 在资源管理器里打开一个已存在的目录 */
+  openDirectory: (dir: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('dhvw:openDirectory', dir),
   /** 在资源管理器里打开现用 Live2D 模型文件夹 */
   openLive2dDir: (): Promise<{ ok: boolean; path: string; error?: string }> =>
     ipcRenderer.invoke('dhvw:openLive2dDir'),

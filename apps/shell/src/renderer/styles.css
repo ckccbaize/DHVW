@@ -390,7 +390,14 @@ main {
   background: #fde8e8;
 }
 
-.world .hint.bad {
+.world .hint.bad,
+.memory .hint.bad {
+  color: #b3242f;
+}
+.memory .hint.ok {
+  color: #1f6b3a;
+}
+.memory .world-line b.bad {
   color: #b3242f;
 }
 

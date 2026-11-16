@@ -14,6 +14,27 @@ DIM = 512
 MODEL_NAME = "bge-small-zh-v1.5"
 MAX_LENGTH = 512
 
+#: 运行时依赖：没有 sqlite-vec 就只剩字面检索，没有 onnxruntime/tokenizers 就没有向量
+DEPS = {
+    "onnxruntime": "onnxruntime",
+    "tokenizers": "tokenizers",
+    "numpy": "numpy",
+    "sqlite_vec": "sqlite-vec",
+}
+
+
+def runtime_versions() -> dict[str, str | None]:
+    """已安装依赖的版本；None = 没装（顺序与 DEPS 一致）。"""
+    from importlib import metadata
+
+    out: dict[str, str | None] = {}
+    for mod, dist in DEPS.items():
+        try:
+            out[mod] = metadata.version(dist)
+        except Exception:
+            out[mod] = None
+    return out
+
 
 def find_model_dir(data_root: Path | None = None) -> Path | None:
     """按环境变量 → 用户数据目录 → 随包资源目录查找离线模型。"""

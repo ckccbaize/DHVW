@@ -87,6 +87,16 @@ export const COMPONENTS: ComponentSpec[] = [
   },
 ]
 
+/** uv 可执行文件：环境变量优先，其次随包 tools/uv.exe 与开发期的 build/tools/uv.exe */
+export function uvBinary(): string | null {
+  if (process.env.DHVW_UV) return process.env.DHVW_UV
+  return (
+    [path.join(resourcesRoot(), 'tools', 'uv.exe'), path.join(app.getAppPath(), 'build', 'tools', 'uv.exe')].find((p) =>
+      fs.existsSync(p),
+    ) ?? null
+  )
+}
+
 /** 首次写入失败（安装目录只读）才退到用户数据目录，避免“静默散落” */
 let fallbackRoot: string | null = null
 
@@ -212,11 +222,7 @@ function installDeps(
     return
   }
   const runtime = runtimeDir()
-  const uv =
-    process.env.DHVW_UV ??
-    [path.join(resourcesRoot(), 'tools', 'uv.exe'), path.join(app.getAppPath(), 'build', 'tools', 'uv.exe')].find(
-      (p) => fs.existsSync(p),
-    )
+  const uv = uvBinary()
   if (!uv) throw new Error('缺少 uv（打包时应随 tools/uv.exe 提供）')
   onProgress(60)
   log('info', 'component', '安装组件依赖', { component: spec.id, req, uv })

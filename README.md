@@ -230,19 +230,21 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 - **连接即推送**：设备连上后服务端主动发 `digest:get`、`mood:get`，配置里有 LLM 时补 `llm:config`。
 - **落盘**：事件进 `data/life.db`（`uuid` 幂等，重复批次不重复入库），摘要原子写 `data/digest.json`，心情与记忆进 `data/memory.db`。
 - **记忆检索**：SQLite FTS5 + **二元组**索引（`"京 都 的 枫 叶"` 形式），2 字中文查询可命中；`fts5(tokenize='trigram')` 对 2 字中文零命中，不用。索引与正文行数不符时自动重建。
+- **记忆向量**：`services/orchestrator/dhvw_orchestrator/embedder.py`——本地中文句向量 `bge-small-zh-v1.5`（ONNX Runtime + tokenizers，512 维，CLS 池化 + L2 归一化，零运行期联网）；模型随包 `resources/models/bge-small-zh-v1.5`（也可放 `%APPDATA%/DigitalHuman/models/`，开发期 `node scripts/fetch-embed-model.mjs` 拉取）。`memory.db` 里 `mem_vec` 是 sqlite-vec 的 `vec0` 虚表，写入正文后同步编码；检索为 `0.5×余弦 + 0.3×FTS5 + 0.2×时间衰减`（另加情绪微调），任一路缺失就降级而不是报错。
+- **服务信息**：`GET /dhvw/memory/stats` 自报 `total/fts/vec`、`semantic/vec_ready`、`model/dim/model_dir/model_files`、`deps{onnxruntime,tokenizers,numpy,sqlite_vec}`、`db_path/db_bytes`；`POST /dhvw/memory/rebuild` 只由正文重建 FTS5 + 向量；`GET /dhvw/memory/context?q=&k=` 供 OLVT 每轮取相关记忆与近况。界面在「信息 → 记忆向量」卡片：状态、条数、依赖版本、模型目录（可打开）、重建索引；依赖缺失时给「安装缺失依赖」（uv 装进内置 `runtime/site-packages`）再「重启编排器」。
 - **显现闸门**：`present:request` 在 TTS 未就绪时回 `present:deny{reason}`；`present:begin/end` 把 `tier` 切到 `host`/`idle`。TTS 就绪状态由外壳随配置一起下发（见下）。
 - **动作白名单**：`web.open` / `media.play` / `app.open` / `map.generate` 可执行（`map.generate` 交给场景作业，见下节，提交成功即回 `{job,dir}`）；`notify` **未接线**，返回 `ok:false` + 中文原因，不假装成功。
 - **显示态下行**：`POST /dhvw/display {state:"overview"|"present"}` → 广播 `display:set {state,t_server}`，返回 `{delivered}`；设备未连接时 `ok:false`。这是对设备契约的**新增消息**，固件未实现前只会有投递、没有效果，前端按 6 s 无确认如实提示。
 - **配置来源**：外壳持有解密后的 API Key（DPAPI），启动、设置保存、密钥保存、worker 健康变化以及每分钟一次，向 `POST http://127.0.0.1:8877/dhvw/config` 回环下发 `{tts,live2d,llm:{baseUrl,model,apiKey}}`；`llm` 变化即时以 `llm:config` 转给设备。Python 服务不碰 safeStorage。
 - **界面**：世界状态在两处出现——首页舞台的「总观」与配置页的「世界」卡片。数据由主进程 `dhvw:world` 汇总 `GET /health` + `/dhvw/digest` + `/dhvw/mood`，`dhvw:stats` 另取 `/dhvw/stats`，均 2 s 刷新；编排器没起来显示「编排器未运行」，设备断开显示「编排器在线 · 无设备」（此时摘要仍是上一次的）。
 - **记忆回流**：PC 侧写事实走 `POST /dhvw/facts`（`src=pc`），编排器按 `updated_at` 增量以 `memory:facts{since,facts,summary}` 下发给在线设备；设备回 `facts:ack` 才把游标推进到本批最大 `updated_at`，上一批没 ack 不重复下发。
-- **`semantic=false`**：随包没有 embedding 模型（ADR-PC-017 禁止运行时下载），`memory:result.semantic` 恒为 `false`，设备侧按契约降级为本地字面检索。
+- **`semantic` 如实反映现状**：模型与 `onnxruntime/tokenizers/numpy/sqlite-vec` 都在时 `memory:result.semantic=true`；缺模型或缺库时为 `false` 并在 `/dhvw/memory/stats` 给出 `model_files`/`deps`/`embed_error`，设备侧按契约降级为本地字面检索——不假装可用。
 
 调测：
 
 ```bash
 cd apps/shell
-npm run test:dhvw          # 直连 8877 的假设备，34 项断言
+npm run test:dhvw          # 直连 8877 的假设备，36 项断言
 npm run test:dhvw -- --wss # 同一套断言走网关 wss://127.0.0.1:8443/ws/orchestrator?token=…
 ```
 
