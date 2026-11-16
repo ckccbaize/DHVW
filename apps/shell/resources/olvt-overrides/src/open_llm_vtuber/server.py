@@ -61,6 +61,49 @@ DHVW_BOOTSTRAP_SCRIPT = """<script>
 <script src="./dhvw-arm.js" defer></script>"""
 
 DHVW_STYLE_TAG = '<link rel="stylesheet" href="./dhvw-cel.css" />'
+_DHVW_PATCHED_ASSETS: dict[str, bytes] = {}
+
+
+def _patch_olvt_main_bundle(rel_path: str) -> bytes | None:
+    """Apply Live2D multi-mask RT, clear, and RAF loop fixes to OLVT's main bundle."""
+    cached = _DHVW_PATCHED_ASSETS.get(rel_path)
+    if cached is not None:
+        return cached
+    fs_path = os.path.join("frontend", rel_path)
+    if not os.path.isfile(fs_path):
+        return None
+    with open(fs_path, "r", encoding="utf-8") as f:
+        text = f.read()
+    # 1. Auto-size multi-render-texture count when clipping masks exceed default 36 (32 per RT)
+    text = text.replace(
+        "this._clippingContextListForMask.pushBack(_)),_.addClippedDrawable(a),this._clippingContextListForDraw.pushBack(_)}}findSameClip(o,s)",
+        "this._clippingContextListForMask.pushBack(_)),_.addClippedDrawable(a),this._clippingContextListForDraw.pushBack(_)}"
+        "this._clippingContextListForMask.getSize()>36&&s<=1&&("
+        "this._renderTextureCount=Math.ceil(this._clippingContextListForMask.getSize()/32),"
+        "this._clearedFrameBufferFlags=new csmVector(this._renderTextureCount))"
+        "}findSameClip(o,s)",
+        1,
+    )
+    # 2. Clear color buffer with transparent alpha alongside depth buffer to prevent ghosting
+    text = text.replace(
+        "gl.clearColor(0,0,0,1),gl.enable(gl.DEPTH_TEST),gl.depthFunc(gl.LEQUAL),gl.clear(gl.DEPTH_BUFFER_BIT)",
+        "gl.clearColor(0,0,0,0),gl.enable(gl.DEPTH_TEST),gl.depthFunc(gl.LEQUAL),gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT)",
+        1,
+    )
+    # 3. Guard duplicate LAppDelegate.run() requestAnimationFrame loops across model reloads
+    text = text.replace(
+        "release(){this._textureManager.release(),",
+        "release(){this._running=!1,this._textureManager.release(),",
+        1,
+    )
+    text = text.replace(
+        "run(){const o=()=>{if(s_instance!=null){",
+        "run(){if(this._running)return;this._running=!0;const o=()=>{if(s_instance!=null){",
+        1,
+    )
+    data = text.encode("utf-8")
+    _DHVW_PATCHED_ASSETS[rel_path] = data
+    return data
 
 
 class CORSStaticFiles(StarletteStaticFiles):
@@ -73,7 +116,7 @@ class CORSStaticFiles(StarletteStaticFiles):
         response.headers["Access-Control-Allow-Headers"] = "*"
         if path.endswith(".js"):
             response.headers["Content-Type"] = "application/javascript"
-        norm = (path or "").strip("/")
+        norm = (path or "").replace("\\", "/").strip("/")
         if norm in ("dhvw-cel.css", "dhvw-arm.js"):
             response.headers["Cache-Control"] = "no-store"
         return response
@@ -84,7 +127,7 @@ class FrontendStaticFiles(CORSStaticFiles):
 
     async def get_response(self, path: str, scope):
         response = await super().get_response(path, scope)
-        norm = (path or "").strip("/")
+        norm = (path or "").replace("\\", "/").strip("/")
         if norm in ("", ".", "index.html") and response.status_code == 200:
             idx = os.path.join("frontend", "index.html")
             if os.path.isfile(idx):
@@ -96,6 +139,17 @@ class FrontendStaticFiles(CORSStaticFiles):
                     html = html.replace("</head>", DHVW_STYLE_TAG + "\n</head>", 1)
                 return HTMLResponse(
                     html,
+                    headers={
+                        "Access-Control-Allow-Origin": "*",
+                        "Cache-Control": "no-store",
+                    },
+                )
+        if norm.startswith("assets/main-") and norm.endswith(".js") and response.status_code == 200:
+            patched = _patch_olvt_main_bundle(norm)
+            if patched is not None:
+                return Response(
+                    content=patched,
+                    media_type="application/javascript",
                     headers={
                         "Access-Control-Allow-Origin": "*",
                         "Cache-Control": "no-store",
