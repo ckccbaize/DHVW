@@ -81,8 +81,7 @@ export interface QqBotStatusView {
   paired: boolean
   ownerOpenId: string
   ownerOpenIdMasked: string
-  pairingCode: string
-  pairingExpiresAt: number
+  awaitingActivation?: boolean
   proactive: boolean
   stickerEagerness: number
   gatewayError?: string

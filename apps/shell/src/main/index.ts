@@ -762,8 +762,7 @@ function registerIpc(): void {
       paired: Boolean(config.qqBot.ownerOpenId),
       ownerOpenId: config.qqBot.ownerOpenId,
       ownerOpenIdMasked: config.qqBot.ownerOpenId ? `${config.qqBot.ownerOpenId.slice(0, 4)}****${config.qqBot.ownerOpenId.slice(-3)}` : '',
-      pairingCode: '',
-      pairingExpiresAt: 0,
+      awaitingActivation: Boolean(config.qqBot.appId && hasQqSecret() && !config.qqBot.ownerOpenId),
       proactive: config.qqBot.proactive,
       stickerEagerness: config.qqBot.stickerEagerness,
     }

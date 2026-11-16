@@ -451,11 +451,9 @@ export function SettingsPage({
             <span className={`pill ${qqStatus?.paired ? 'ok' : ''}`}>
               {qqStatus?.paired
                 ? `已绑定 · ${qqStatus.ownerOpenIdMasked || '主人'}`
-                : qqStatus?.pairingCode
-                  ? `待绑定口令 ${qqStatus.pairingCode}`
-                  : qqStatus?.configured
-                    ? '待 ARM 上线'
-                    : '未配置'}
+                : qqStatus?.configured
+                  ? '待 QQ 首条激活消息'
+                  : '未配置'}
             </span>
           </h2>
           {onOpenQqGuide && (
@@ -539,11 +537,8 @@ export function SettingsPage({
                   if (res.status) setQqStatus(res.status)
                   setQqMsg({
                     ok: true,
-                    text: res.status?.pairingCode
-                      ? `已清空旧绑定，请在 QQ 私聊发送新口令：${res.status.pairingCode}`
-                      : '已下发重新绑定指令，请在向导弹窗中查看新配对口令',
+                    text: '已解除旧 QQ 绑定！现在用新 QQ 给机器人私聊发任意一条激活消息即可完成重新绑定',
                   })
-                  onOpenQqGuide?.()
                 } finally {
                   setBusy(false)
                 }
