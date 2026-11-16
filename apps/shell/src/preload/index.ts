@@ -16,6 +16,7 @@ import type {
   ProactiveStateView,
   PathPickArgs,
   PathPickResult,
+  QqBotStatusView,
   SceneRequestView,
   SaveView,
   SettingsView,
@@ -110,6 +111,20 @@ const api = {
     ipcRenderer.invoke('dhvw:save-restore', id),
   setBoost: (enabled: boolean): Promise<{ ok: boolean; settings?: SettingsView }> =>
     ipcRenderer.invoke('dhvw:setBoost', enabled),
+  copyText: (text: string): Promise<boolean> => ipcRenderer.invoke('dhvw:copyText', text),
+  openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke('dhvw:openExternal', url),
+  qqBotStatus: (): Promise<QqBotStatusView> => ipcRenderer.invoke('dhvw:qqBotStatus'),
+  qqBotSave: (patch: {
+    appId?: string
+    clientSecret?: string
+    sandbox?: boolean
+    proactive?: boolean
+    stickerEagerness?: number
+    activateBoost?: boolean
+  }): Promise<{ ok: boolean; error?: string; settings?: SettingsView; status?: QqBotStatusView }> =>
+    ipcRenderer.invoke('dhvw:qqBotSave', patch),
+  qqBotRebind: (): Promise<{ ok: boolean; error?: string; settings?: SettingsView; status?: QqBotStatusView }> =>
+    ipcRenderer.invoke('dhvw:qqBotRebind'),
   gatewayPair: (): Promise<{ code: string; expiresAt: number } | null> => ipcRenderer.invoke('dhvw:gatewayPair'),
   gatewayClosePair: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:gatewayClosePair'),
   gatewayForget: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:gatewayForget'),

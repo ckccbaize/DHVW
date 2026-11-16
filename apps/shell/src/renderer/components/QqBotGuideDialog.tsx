@@ -1,29 +1,50 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
+import type { QqBotStatusView, SettingsView } from '../../shared/types'
 
-const QQ_BOT_CONFIG_SAMPLE = `{
-  "enabled": false,
-  "followBoost": true,
-  "appId": "你的AppID",
-  "clientSecret": "你的ClientSecret",
-  "sandbox": true,
-  "ownerOpenId": "你的单聊user_openid",
-  "listenAddr": "127.0.0.1:8088",
-  "shellUrl": "http://127.0.0.1:8080",
-  "stateDir": "/var/lib/dhvw/qq-openclaw",
-  "sticker": { "enabled": true, "autoCollect": true, "eagerness": 2 }
-}`
+async function reliableCopy(text: string): Promise<boolean> {
+  try {
+    const ok = await window.dhvw.copyText(text)
+    if (ok) return true
+  } catch {}
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    const ok = document.execCommand('copy')
+    document.body.removeChild(ta)
+    return ok
+  } catch {
+    return false
+  }
+}
 
 /**
- * QQ 官方 Bot 登录 / 链接操作提示说明弹窗（遵循 QQ 开放平台官方 APIv2，不扫码登录个人号）。
+ * 首次启动 / 绑定 QQ 官方 Bot 自动化向导弹窗：
+ * - 支持一键打开 QQ 开放平台 & 可靠系统剪贴板复制；
+ * - 直接在网页表单填写 AppID 与 ClientSecret，一键加密保存并下发 ARM 设备；
+ * - 自动生成 6 位配对口令（DHVW-XXXX）并实时轮询绑定结果，无需 SSH 或手动改设备文件。
  */
 export function QqBotGuideDialog({
+  settings,
   boost,
+  onSettingsChange,
   onClose,
 }: {
+  settings: SettingsView | null
   boost: boolean
+  onSettingsChange: (s: SettingsView) => void
   onClose: () => void
 }): React.ReactElement {
-  const [copied, setCopied] = useState<'url' | 'cfg' | 'cmd' | null>(null)
+  const [appId, setAppId] = useState(settings?.qqBot?.appId || '')
+  const [clientSecret, setClientSecret] = useState('')
+  const [sandbox, setSandbox] = useState(settings?.qqBot?.sandbox ?? true)
+  const [status, setStatus] = useState<QqBotStatusView | null>(null)
+  const [copiedKey, setCopiedKey] = useState<'url' | 'code' | null>(null)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [saving, setSaving] = useState(false)
   const [dontAutoOpen, setDontAutoOpen] = useState<boolean>(() => {
     try {
       return localStorage.getItem('dhvw.qqBotGuide.dismissed') === '1'
@@ -32,11 +53,80 @@ export function QqBotGuideDialog({
     }
   })
 
-  const copyText = (key: 'url' | 'cfg' | 'cmd', text: string): void => {
-    void navigator.clipboard?.writeText(text).then(() => {
-      setCopied(key)
-      setTimeout(() => setCopied(null), 1800)
-    })
+  useEffect(() => {
+    let alive = true
+    const poll = (): void => {
+      void window.dhvw.qqBotStatus().then((st) => {
+        if (!alive) return
+        setStatus(st)
+        if (!appId && st.appId) setAppId(st.appId)
+      })
+    }
+    poll()
+    const t = window.setInterval(poll, 2000)
+    return () => {
+      alive = false
+      window.clearInterval(t)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const copy = async (key: 'url' | 'code', text: string): Promise<void> => {
+    const ok = await reliableCopy(text)
+    if (ok) {
+      setCopiedKey(key)
+      setTimeout(() => setCopiedKey(null), 1800)
+    } else {
+      setMsg({ ok: false, text: '写入剪贴板失败，请手动选中复制' })
+    }
+  }
+
+  const submit = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault()
+    if (!appId.trim()) {
+      setMsg({ ok: false, text: '请先填入 QQ Bot AppID' })
+      return
+    }
+    if (!clientSecret.trim() && !settings?.qqBot?.hasSecret) {
+      setMsg({ ok: false, text: '首次配置请填入 ClientSecret' })
+      return
+    }
+    setSaving(true)
+    setMsg(null)
+    try {
+      const res = await window.dhvw.qqBotSave({
+        appId: appId.trim(),
+        clientSecret: clientSecret.trim() || undefined,
+        sandbox,
+        activateBoost: true,
+      })
+      if (!res.ok) {
+        setMsg({ ok: false, text: res.error || '保存失败' })
+        return
+      }
+      if (res.settings) onSettingsChange(res.settings)
+      if (res.status) setStatus(res.status)
+      setClientSecret('')
+      setMsg({
+        ok: true,
+        text: '已加密保存并自动同步 ARM 设备与开启 BOOST，请用 QQ 私聊发送配对口令完成认主',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const rebind = async (): Promise<void> => {
+    setSaving(true)
+    setMsg(null)
+    try {
+      const res = await window.dhvw.qqBotRebind()
+      if (res.settings) onSettingsChange(res.settings)
+      if (res.status) setStatus(res.status)
+      setMsg({ ok: true, text: '已解除原主人绑定，请在 QQ 私聊发送下方新口令完成重绑' })
+    } finally {
+      setSaving(false)
+    }
   }
 
   const toggleDismiss = (checked: boolean): void => {
@@ -51,58 +141,109 @@ export function QqBotGuideDialog({
     <div className="overlay" onClick={onClose}>
       <div className="dialog qq-guide-dialog" onClick={(e) => e.stopPropagation()}>
         <h2>
-          QQ 官方 Bot 登录与链接指引
-          <span className={`pill ${boost ? 'ok' : ''}`}>{boost ? 'BOOST 已联动开启' : 'BOOST 当前关闭'}</span>
+          QQ 官方 Bot 注册与自动绑定向导
+          <span className={`pill ${status?.paired ? 'ok' : boost ? 'ok' : ''}`}>
+            {status?.paired ? '已绑定主人' : boost ? 'BOOST 已激活' : '待注册配置'}
+          </span>
         </h2>
+
         <p className="hint">
-          为符合平台规范并保护账号安全，ARM 侧不扫码登录个人 QQ，而是接入 <b>QQ 开放平台官方 Bot APIv2</b>（一期支持单聊 + 图片多模态 + 表情包）。开启桌面端 <b>BOOST ON</b> 即联动激活设备侧 QQ Bot。
+          无需操作设备或 SSH，只需在此填入官方 Bot 凭据即可自动同步到 ARM 侧（合规 Bot APIv2 单聊 + 图片多模态 + 表情包，不扫个人号二维码）。
         </p>
 
         <ol className="qq-guide-steps">
           <li>
-            <b>登录 QQ 开放平台创建应用：</b>
-            浏览器访问 <code className="mono">https://q.qq.com</code> 使用 QQ 登录并创建机器人应用，在「开发管理」复制 <b>AppID</b> 与 <b>ClientSecret</b>。
-            <button type="button" className="mini-btn" onClick={() => copyText('url', 'https://q.qq.com')}>
-              {copied === 'url' ? '已复制网址' : '复制网址'}
-            </button>
-          </li>
-          <li>
-            <b>开通单聊与配置沙箱测试成员：</b>
-            在「能力配置」勾选<b>私信 / 单聊（C2C）</b>权限；测试阶段可在「沙箱配置」添加你的 QQ 号作为调试成员，配置保留 <code className="mono">"sandbox": true</code>。
-          </li>
-          <li>
-            <b>绑定主人单聊 OpenID（防陌生人触发）：</b>
-            用测试 QQ 给机器人私聊发送一条任意消息，在平台沙箱日志或设备日志（<code className="mono">journalctl -u dhvw-qqbot -n 30</code>）查看忽略提示中的 <code className="mono">openId</code>，填入下方 <code className="mono">ownerOpenId</code>。
-          </li>
-          <li>
-            <b>写入设备配置并启动可选守护进程：</b>
-            在 ARM 设备编辑 <code className="mono">/etc/dhvw/qqbot.json</code>（表情图包可放在 <code className="mono">/var/lib/dhvw/qq-openclaw/stickers/</code>），执行命令启用服务：
+            <b>登录 QQ 开放平台注册机器人：</b>开通「单聊（C2C）消息」并把你的 QQ 加入「沙箱配置」测试成员，复制 <b>AppID</b> 与 <b>ClientSecret</b>。
             <div className="qq-cmd-row">
-              <code className="gw-url mono">sudo systemctl enable --now dhvw-qqbot.service</code>
-              <button
-                type="button"
-                className="mini-btn"
-                onClick={() => copyText('cmd', 'sudo systemctl enable --now dhvw-qqbot.service')}
-              >
-                {copied === 'cmd' ? '已复制命令' : '复制命令'}
+              <button type="button" onClick={() => void window.dhvw.openExternal('https://q.qq.com')}>
+                打开 QQ 开放平台 (q.qq.com)
+              </button>
+              <button type="button" className="mini-btn" onClick={() => void copy('url', 'https://q.qq.com')}>
+                {copiedKey === 'url' ? '已复制网址' : '复制网址'}
               </button>
             </div>
           </li>
         </ol>
 
-        <div className="field">
-          <label>
-            ARM 设备端配置模板（<span className="mono">/etc/dhvw/qqbot.json</span>）
-            <button type="button" className="mini-btn" onClick={() => copyText('cfg', QQ_BOT_CONFIG_SAMPLE)}>
-              {copied === 'cfg' ? '已复制模板' : '复制 JSON'}
+        <form onSubmit={(e) => void submit(e)} className="qq-form">
+          <div className="row2">
+            <div className="field">
+              <label>AppID</label>
+              <input
+                type="text"
+                value={appId}
+                onChange={(e) => setAppId(e.target.value)}
+                placeholder="例如 1024****89"
+                spellCheck={false}
+              />
+            </div>
+            <div className="field">
+              <label>ClientSecret</label>
+              <input
+                type="password"
+                value={clientSecret}
+                onChange={(e) => setClientSecret(e.target.value)}
+                placeholder={settings?.qqBot?.hasSecret ? '已加密保存（留空保留）' : '填写机器人 AppSecret'}
+                spellCheck={false}
+              />
+            </div>
+          </div>
+          <div className="row2" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <label className="qq-dismiss-check">
+              <input type="checkbox" checked={sandbox} onChange={(e) => setSandbox(e.target.checked)} />
+              启用沙箱测试环境（推荐调试期勾选）
+            </label>
+            <button type="submit" className="primary" disabled={saving}>
+              {saving ? '同步中…' : '保存并一键同步 ARM'}
             </button>
-          </label>
-          <pre className="qq-code-pre mono">{QQ_BOT_CONFIG_SAMPLE}</pre>
+          </div>
+        </form>
+
+        <div className={`qq-pair-box ${status?.paired ? 'ok' : ''}`}>
+          {status?.paired ? (
+            <div className="qq-pair-row">
+              <div>
+                <b>绑定成功</b>：已锁为主人 <code className="mono">{status.ownerOpenIdMasked || status.ownerOpenId}</code>
+                <div className="hint">
+                  网关：{status.connected ? '已连线就绪' : '待 ARM 设备上线接管'} · 表情包：{status.stickersCount ?? 0} 张
+                </div>
+              </div>
+              <button type="button" disabled={saving} onClick={() => void rebind()}>
+                重新绑定 QQ
+              </button>
+            </div>
+          ) : status?.configured ? (
+            <div>
+              <div className="qq-pair-row">
+                <div>
+                  <b>第 2 步 · 发送口令自动认主：</b>请用你的 QQ 在沙箱里私聊机器人发送以下口令：
+                </div>
+                <button type="button" disabled={saving} onClick={() => void rebind()}>
+                  刷新口令
+                </button>
+              </div>
+              <div className="qq-code-banner">
+                <code className="mono">{status.pairingCode || '等待 ARM 生成口令…'}</code>
+                {status.pairingCode && (
+                  <button
+                    type="button"
+                    className="mini-btn"
+                    onClick={() => void copy('code', status.pairingCode)}
+                  >
+                    {copiedKey === 'code' ? '已复制口令' : '复制口令'}
+                  </button>
+                )}
+              </div>
+              <div className="hint">
+                网关状态：{status.connected ? '已连上 QQ 网关，等待你发来口令…' : status.gatewayError || '正在同步下发给 ARM 设备…'}
+              </div>
+            </div>
+          ) : (
+            <div className="hint">填好上方 AppID 与 ClientSecret 后，这里会自动生成 6 位认主配对口令，无需翻看设备日志。</div>
+          )}
         </div>
 
-        <p className="hint">
-          健康检查：<code className="mono">curl -s http://127.0.0.1:8088/__qq/health</code>；若设置了 <code className="mono">"followBoost": true</code>，仅当本页 <b>BOOST ON</b> 时才会连线 QQ 网关，关闭 <b>BOOST OFF</b> 自动休眠。
-        </p>
+        {msg && <p className={`msg ${msg.ok ? 'ok' : 'bad'}`}>{msg.text}</p>}
 
         <div className="actions dialog-actions qq-guide-footer">
           <label className="qq-dismiss-check">
@@ -111,10 +252,10 @@ export function QqBotGuideDialog({
               checked={dontAutoOpen}
               onChange={(e) => toggleDismiss(e.target.checked)}
             />
-            开启 BOOST 时不再自动弹出本指引
+            启动或开启 BOOST 时不再自动弹出
           </label>
           <button type="button" onClick={onClose}>
-            知道了
+            完成 / 关闭
           </button>
         </div>
       </div>

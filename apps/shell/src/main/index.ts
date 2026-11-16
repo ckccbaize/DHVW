@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell as electronShell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, screen, shell as electronShell } from 'electron'
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -23,6 +23,7 @@ import type {
   MemoryStatsView,
   ProactiveStateView,
   PathPickArgs,
+  QqBotStatusView,
   ServiceDef,
   SettingsPatch,
   SceneJobView,
@@ -38,7 +39,7 @@ import { createTray } from './tray'
 import { applyNetworkHardening, hardenSessionSetup } from './hardening'
 import { listModels, probeLlm } from './network'
 import { COMPONENTS, componentStatus, ensureComponent, resolveSpec, uvBinary } from './components'
-import { clearApiKey, hasApiKey, readApiKey, saveApiKey } from './secret'
+import { clearApiKey, hasApiKey, hasQqSecret, readApiKey, readQqSecret, saveApiKey, saveQqSecret } from './secret'
 import { asrModelPaths, prepareOlvt, resolveOlvtDir, syncOlvtModel } from './olvt'
 import { Gateway, type GatewayTarget } from './gateway'
 
@@ -74,6 +75,14 @@ async function pushOrchestratorConfig(): Promise<boolean> {
     olvtPort: olvtServicePort,
     gatewayPort: config.gateway.enabled ? config.gateway.port : 0,
     boost: config.boost.enabled,
+    qqBot: {
+      appId: config.qqBot.appId,
+      clientSecret: readQqSecret() || undefined,
+      sandbox: config.qqBot.sandbox,
+      ownerOpenId: config.qqBot.ownerOpenId,
+      proactive: config.qqBot.proactive,
+      stickerEagerness: config.qqBot.stickerEagerness,
+    },
     autoPushScene: config.scene.autoPush,
     proactive: { ...config.proactive },
     llm: {
@@ -556,6 +565,7 @@ const PROTOCOLS = ['openai-compatible', 'anthropic'] as const
 function settingsView(): SettingsView {
   return {
     boost: { ...config.boost },
+    qqBot: { ...config.qqBot, hasSecret: hasQqSecret() },
     llm: { ...config.llm, hasKey: hasApiKey() },
     ports: { ...config.ports },
     asr: { ...config.asr, ready: Boolean(asrModelPaths(config.asr.enabled).modelPath) },
@@ -720,6 +730,107 @@ function registerIpc(): void {
     log('info', 'settings', '世界模式增强开关', { enabled: config.boost.enabled })
     void pushOrchestratorConfig()
     return { ok: true, settings: settingsView() }
+  })
+  ipcMain.handle('dhvw:copyText', (_e, text: string) => {
+    try {
+      clipboard.writeText(String(text ?? ''))
+      return true
+    } catch {
+      return false
+    }
+  })
+  ipcMain.handle('dhvw:openExternal', async (_e, url: string) => {
+    try {
+      const clean = String(url ?? '').trim()
+      if (!/^https?:\/\//i.test(clean)) return false
+      await electronShell.openExternal(clean)
+      return true
+    } catch {
+      return false
+    }
+  })
+  const readQqBotStatus = async (): Promise<QqBotStatusView> => {
+    const base: QqBotStatusView = {
+      reachable: false,
+      configured: Boolean(config.qqBot.appId && hasQqSecret()),
+      hasSecret: hasQqSecret(),
+      boostActive: config.boost.enabled,
+      connected: false,
+      sandbox: config.qqBot.sandbox,
+      appId: config.qqBot.appId,
+      appIdMasked: config.qqBot.appId ? `${config.qqBot.appId.slice(0, 4)}***` : '',
+      paired: Boolean(config.qqBot.ownerOpenId),
+      ownerOpenId: config.qqBot.ownerOpenId,
+      ownerOpenIdMasked: config.qqBot.ownerOpenId ? `${config.qqBot.ownerOpenId.slice(0, 4)}****${config.qqBot.ownerOpenId.slice(-3)}` : '',
+      pairingCode: '',
+      pairingExpiresAt: 0,
+      proactive: config.qqBot.proactive,
+      stickerEagerness: config.qqBot.stickerEagerness,
+    }
+    if (!orchestratorPort) return base
+    try {
+      const res = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/qqbot/status`, {
+        signal: AbortSignal.timeout(2500),
+      })
+      if (!res.ok) return base
+      const data = (await res.json()) as Partial<QqBotStatusView> & { ok?: boolean }
+      if (data.paired && data.ownerOpenId && data.ownerOpenId !== config.qqBot.ownerOpenId) {
+        config = { ...config, qqBot: { ...config.qqBot, ownerOpenId: String(data.ownerOpenId) } }
+        saveConfig(config)
+      }
+      return { ...base, ...data, reachable: true, hasSecret: base.hasSecret }
+    } catch {
+      return base
+    }
+  }
+  ipcMain.handle('dhvw:qqBotStatus', () => readQqBotStatus())
+  ipcMain.handle(
+    'dhvw:qqBotSave',
+    async (
+      _e,
+      patch: {
+        appId?: string
+        clientSecret?: string
+        sandbox?: boolean
+        proactive?: boolean
+        stickerEagerness?: number
+        activateBoost?: boolean
+      },
+    ) => {
+      const nextQq = { ...config.qqBot }
+      if (patch?.appId !== undefined) nextQq.appId = String(patch.appId).trim()
+      if (patch?.sandbox !== undefined) nextQq.sandbox = Boolean(patch.sandbox)
+      if (patch?.proactive !== undefined) nextQq.proactive = Boolean(patch.proactive)
+      if (patch?.stickerEagerness !== undefined) {
+        const n = Number(patch.stickerEagerness)
+        if (Number.isFinite(n)) nextQq.stickerEagerness = Math.max(0, Math.min(3, Math.floor(n)))
+      }
+      if (patch?.clientSecret && patch.clientSecret.trim()) {
+        const secRes = saveQqSecret(patch.clientSecret.trim())
+        if (!secRes.ok) return { ok: false, error: secRes.error }
+      }
+      const nextBoost = patch?.activateBoost === true ? true : config.boost.enabled
+      config = { ...config, qqBot: nextQq, boost: { enabled: nextBoost } }
+      saveConfig(config)
+      await pushOrchestratorConfig()
+      const status = await readQqBotStatus()
+      return { ok: true, settings: settingsView(), status }
+    },
+  )
+  ipcMain.handle('dhvw:qqBotRebind', async () => {
+    config = { ...config, qqBot: { ...config.qqBot, ownerOpenId: '' }, boost: { enabled: true } }
+    saveConfig(config)
+    await pushOrchestratorConfig()
+    if (orchestratorPort) {
+      try {
+        await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/qqbot/rebind`, {
+          method: 'POST',
+          signal: AbortSignal.timeout(3000),
+        })
+      } catch {}
+    }
+    const status = await readQqBotStatus()
+    return { ok: true, settings: settingsView(), status }
   })
   ipcMain.handle('dhvw:gatewayRestart', async () => {
     await gateway?.stop()

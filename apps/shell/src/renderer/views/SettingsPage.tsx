@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react'
-import type { Live2dModelView, LlmProtocol, ProactiveStateView, SettingsView } from '../../shared/types'
+import type { Live2dModelView, LlmProtocol, ProactiveStateView, QqBotStatusView, SettingsView } from '../../shared/types'
 import { SaveBackupPanel } from './SaveBackupPanel'
 
-/** 独立设置页：按模型 / 角色语音 / 运行 / 存档分类。 */
+/** 独立设置页：按模型 / 角色语音 / QQ Bot / 运行 / 存档分类。 */
 export function SettingsPage({
   value,
   onSaved,
+  onOpenQqGuide,
 }: {
   value: SettingsView
   onSaved: (next: SettingsView) => void
+  onOpenQqGuide?: () => void
 }): React.ReactElement {
   const [protocol, setProtocol] = useState<LlmProtocol>(value.llm.protocol)
   const [baseUrl, setBaseUrl] = useState(value.llm.baseUrl)
@@ -33,6 +35,13 @@ export function SettingsPage({
   const [refText, setRefText] = useState(value.tts.refText)
   const [key, setKey] = useState('')
   const [hasKey, setHasKey] = useState(value.llm.hasKey)
+  const [qqAppId, setQqAppId] = useState(value.qqBot?.appId || '')
+  const [qqSecret, setQqSecret] = useState('')
+  const [qqSandbox, setQqSandbox] = useState(value.qqBot?.sandbox ?? true)
+  const [qqProactive, setQqProactive] = useState(value.qqBot?.proactive ?? true)
+  const [qqEagerness, setQqEagerness] = useState(String(value.qqBot?.stickerEagerness ?? 2))
+  const [qqStatus, setQqStatus] = useState<QqBotStatusView | null>(null)
+  const [qqMsg, setQqMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -65,6 +74,9 @@ export function SettingsPage({
     const load = (): void => {
       void window.dhvw.proactiveState().then((res) => {
         if (alive) setProactiveState(res)
+      })
+      void window.dhvw.qqBotStatus().then((st) => {
+        if (alive) setQqStatus(st)
       })
     }
     load()
@@ -430,6 +442,117 @@ export function SettingsPage({
             ? '开：核验通过即推送；设备离线时排队，上线后自动重试直到成功。'
             : '关：生成后必须在 Agent 页「产出验收」里手动点「提交 ARM 侧」。'}
         </p>
+      </section>
+
+      <section className="panel settings-section">
+        <div className="section-head">
+          <h2>
+            QQ 官方 Bot（Boost 单聊互动）
+            <span className={`pill ${qqStatus?.paired ? 'ok' : ''}`}>
+              {qqStatus?.paired
+                ? `已绑定 · ${qqStatus.ownerOpenIdMasked || '主人'}`
+                : qqStatus?.pairingCode
+                  ? `待绑定口令 ${qqStatus.pairingCode}`
+                  : qqStatus?.configured
+                    ? '待 ARM 上线'
+                    : '未配置'}
+            </span>
+          </h2>
+          {onOpenQqGuide && (
+            <button type="button" onClick={onOpenQqGuide}>
+              打开注册与绑定向导
+            </button>
+          )}
+        </div>
+        <div className="row2">
+          <div className="field">
+            <label>AppID</label>
+            <input value={qqAppId} onChange={(e) => setQqAppId(e.target.value)} placeholder="QQ 开放平台机器人 AppID" />
+          </div>
+          <div className="field">
+            <label>ClientSecret</label>
+            <input
+              type="password"
+              value={qqSecret}
+              onChange={(e) => setQqSecret(e.target.value)}
+              placeholder={value.qqBot?.hasSecret ? '已加密保存（留空保留）' : '填写机器人 AppSecret'}
+            />
+          </div>
+        </div>
+        <div className="row2">
+          <label className="switch">
+            <input type="checkbox" checked={qqSandbox} onChange={(e) => setQqSandbox(e.target.checked)} />
+            沙箱模式
+          </label>
+          <label className="switch">
+            <input type="checkbox" checked={qqProactive} onChange={(e) => setQqProactive(e.target.checked)} />
+            允许心情 / 世界事件主动发 QQ 消息
+          </label>
+          <div className="field" style={{ maxWidth: 160 }}>
+            <label>表情包积极度 (0~3)</label>
+            <input value={qqEagerness} onChange={(e) => setQqEagerness(e.target.value)} inputMode="numeric" />
+          </div>
+        </div>
+        {qqMsg && <p className={`msg ${qqMsg.ok ? 'ok' : 'bad'}`}>{qqMsg.text}</p>}
+        <div className="actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              void (async () => {
+                setBusy(true)
+                setQqMsg(null)
+                try {
+                  const res = await window.dhvw.qqBotSave({
+                    appId: qqAppId.trim(),
+                    clientSecret: qqSecret.trim() || undefined,
+                    sandbox: qqSandbox,
+                    proactive: qqProactive,
+                    stickerEagerness: Number(qqEagerness),
+                  })
+                  if (!res.ok) {
+                    setQqMsg({ ok: false, text: res.error || '保存失败' })
+                    return
+                  }
+                  if (res.settings) onSaved(res.settings)
+                  if (res.status) setQqStatus(res.status)
+                  setQqSecret('')
+                  setQqMsg({ ok: true, text: 'QQ Bot 配置已加密保存并同步给 ARM 设备' })
+                } finally {
+                  setBusy(false)
+                }
+              })()
+            }
+          >
+            保存 QQ Bot 配置
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              void (async () => {
+                setBusy(true)
+                setQqMsg(null)
+                try {
+                  const res = await window.dhvw.qqBotRebind()
+                  if (res.settings) onSaved(res.settings)
+                  if (res.status) setQqStatus(res.status)
+                  setQqMsg({
+                    ok: true,
+                    text: res.status?.pairingCode
+                      ? `已清空旧绑定，请在 QQ 私聊发送新口令：${res.status.pairingCode}`
+                      : '已下发重新绑定指令，请在向导弹窗中查看新配对口令',
+                  })
+                  onOpenQqGuide?.()
+                } finally {
+                  setBusy(false)
+                }
+              })()
+            }
+          >
+            重新绑定 QQ（解除旧绑定）
+          </button>
+        </div>
       </section>
 
       <SaveBackupPanel />

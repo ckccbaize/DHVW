@@ -1469,6 +1469,39 @@ main.page.settings {
   cursor: pointer;
 }
 
+.qq-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.qq-pair-box {
+  border: var(--line) solid var(--ink);
+  background: #fffdf0;
+  padding: 12px;
+}
+.qq-pair-box.ok {
+  background: #e9f7ed;
+}
+.qq-pair-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.qq-code-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+  padding: 8px 12px;
+  background: var(--ink);
+  color: var(--sunset);
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
 /* ARM 状态机统计表 */
 .stats {
   min-height: 0;

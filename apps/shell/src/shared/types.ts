@@ -69,9 +69,38 @@ export interface ServiceDef {
 
 export type LlmProtocol = 'openai-compatible' | 'anthropic'
 
+export interface QqBotStatusView {
+  reachable: boolean
+  configured: boolean
+  hasSecret: boolean
+  boostActive: boolean
+  connected: boolean
+  sandbox: boolean
+  appId: string
+  appIdMasked: string
+  paired: boolean
+  ownerOpenId: string
+  ownerOpenIdMasked: string
+  pairingCode: string
+  pairingExpiresAt: number
+  proactive: boolean
+  stickerEagerness: number
+  gatewayError?: string
+  stickersCount?: number
+  error?: string
+}
+
 export interface SettingsView {
   /** 老配置库没有这个键，渲染层必须按可选处理 */
   boost?: { enabled: boolean }
+  qqBot?: {
+    appId: string
+    sandbox: boolean
+    ownerOpenId: string
+    proactive: boolean
+    stickerEagerness: number
+    hasSecret: boolean
+  }
   llm: { baseUrl: string; model: string; temperature: number; protocol: LlmProtocol; hasKey: boolean }
   ports: { olvt: number; tts: number }
   asr: { enabled: boolean; ready: boolean }

@@ -35,8 +35,16 @@ export interface ShellConfig {
     quietStart: string
     quietEnd: string
   }
-  /** 世界模式增强：目前只是界面层开关（不改变生产行为），持久化以便后续接线 */
+  /** 世界模式增强：联动激活 ARM 侧 QQ 官方 Bot */
   boost: { enabled: boolean }
+  /** QQ 官方 Bot 基础配置（clientSecret 由 secret.ts DPAPI 加密另存） */
+  qqBot: {
+    appId: string
+    sandbox: boolean
+    ownerOpenId: string
+    proactive: boolean
+    stickerEagerness: number
+  }
   /** 组件依赖安装使用的 PyPI 镜像 */
   pipIndex: string
   services: Record<string, { enabled: boolean }>
@@ -70,6 +78,7 @@ const DEFAULTS: ShellConfig = {
     quietEnd: '07:30',
   },
   boost: { enabled: false },
+  qqBot: { appId: '', sandbox: true, ownerOpenId: '', proactive: true, stickerEagerness: 2 },
   componentUrls: {},
   pipIndex: 'https://mirrors.aliyun.com/pypi/simple',
   services: {},
@@ -123,6 +132,7 @@ export function loadConfig(): ShellConfig {
       scene: { ...DEFAULTS.scene, ...raw.scene },
       proactive: { ...DEFAULTS.proactive, ...raw.proactive },
       boost: { ...DEFAULTS.boost, ...raw.boost },
+      qqBot: { ...DEFAULTS.qqBot, ...raw.qqBot },
       sidecars: { ...DEFAULTS.sidecars, ...raw.sidecars },
       componentUrls: { ...DEFAULTS.componentUrls, ...raw.componentUrls },
     }

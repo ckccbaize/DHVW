@@ -70,6 +70,7 @@ KNOWN_INBOUND = {
     "llm:state",
     "state:save",
     "state:restore:ack",
+    "qqbot:status",
 }
 
 
@@ -102,6 +103,8 @@ class Orchestrator:
         self.olvt_port = int(store.get_kv("olvt_port", 0) or 0)
         self.gateway_port = int(store.get_kv("gateway_port", 0) or 0)
         self.boost = bool(store.get_kv("boost", False))
+        self.qqbot_cfg: dict = store.get_kv("qqbot_cfg", {}) or {}
+        self.qqbot_status: dict = {}
         self.world_running = True
         self.started = time.time()
         self.saves = SaveStore(store)
@@ -437,6 +440,8 @@ class Orchestrator:
                 msg_id,
             )
             await self.send(ws, "boost:config", {"enabled": self.boost}, msg_id)
+            if self.qqbot_cfg.get("appId"):
+                await self.send(ws, "qqbot:config", self.qqbot_payload(), msg_id)
             if self.llm.get("baseUrl") and self.llm.get("model"):
                 await self.send(ws, "llm:config", self.llm_payload(), msg_id)
             await self.push_proactive(force=True)
@@ -509,6 +514,13 @@ class Orchestrator:
 
         if type_ == "state:restore:ack":
             log("info", "设备确认存档恢复", id=payload.get("id"), ok=payload.get("ok"))
+            return
+
+        if type_ == "qqbot:status":
+            self.qqbot_status = dict(payload)
+            if payload.get("paired") and payload.get("ownerOpenId"):
+                self.qqbot_cfg["ownerOpenId"] = str(payload["ownerOpenId"])
+                self.store.put_kv("qqbot_cfg", self.qqbot_cfg)
             return
 
         if type_ == "world:digest":
@@ -610,6 +622,41 @@ class Orchestrator:
         log("info" if ok else "warn", "PC 动作", action=action, ok=ok, result=result)
 
     # ---------- 配置下发 ----------
+    def qqbot_payload(self) -> dict:
+        c = self.qqbot_cfg or {}
+        return {
+            "appId": c.get("appId") or "",
+            "clientSecret": c.get("clientSecret") or "",
+            "sandbox": bool(c.get("sandbox", True)),
+            "ownerOpenId": c.get("ownerOpenId") or "",
+            "proactive": bool(c.get("proactive", True)),
+            "stickerEagerness": int(c.get("stickerEagerness", 2) or 2),
+        }
+
+    def qqbot_status_view(self) -> dict:
+        st = dict(self.qqbot_status or {})
+        cfg = self.qqbot_cfg or {}
+        app_id = str(st.get("appId") or cfg.get("appId") or "")
+        owner_id = str(st.get("ownerOpenId") or cfg.get("ownerOpenId") or "")
+        return {
+            "ok": True,
+            "configured": bool(st.get("configured") or (app_id and (cfg.get("clientSecret") or st.get("configured")))),
+            "boostActive": bool(st.get("boostActive", self.boost)),
+            "connected": bool(st.get("connected")),
+            "sandbox": bool(st.get("sandbox", cfg.get("sandbox", True))),
+            "appId": app_id,
+            "appIdMasked": str(st.get("appIdMasked") or ""),
+            "paired": bool(st.get("paired") or owner_id),
+            "ownerOpenId": owner_id,
+            "ownerOpenIdMasked": str(st.get("ownerOpenIdMasked") or ""),
+            "pairingCode": str(st.get("pairingCode") or ""),
+            "pairingExpiresAt": int(st.get("pairingExpiresAt") or 0),
+            "proactive": bool(cfg.get("proactive", True)),
+            "stickerEagerness": int(cfg.get("stickerEagerness", 2) or 2),
+            "gatewayError": str(st.get("gatewayError") or ""),
+            "stickersCount": int((st.get("stickers") or {}).get("count") or 0),
+        }
+
     def llm_payload(self) -> dict:
         return {
             "baseUrl": self.llm.get("baseUrl"),
@@ -638,6 +685,19 @@ class Orchestrator:
             self.store.put_kv("boost", self.boost)
             await self.broadcast("boost:config", {"enabled": self.boost})
             log("info", "世界模式增强(Boost/ARM Bot)", enabled=self.boost)
+        qq_bot = cfg.get("qqBot")
+        if isinstance(qq_bot, dict):
+            merged_qq = {**self.qqbot_cfg}
+            for k in ("appId", "sandbox", "ownerOpenId", "proactive", "stickerEagerness"):
+                if k in qq_bot and qq_bot[k] is not None:
+                    merged_qq[k] = qq_bot[k]
+            if isinstance(qq_bot.get("clientSecret"), str) and qq_bot["clientSecret"].strip():
+                merged_qq["clientSecret"] = qq_bot["clientSecret"].strip()
+            self.qqbot_cfg = merged_qq
+            self.store.put_kv("qqbot_cfg", merged_qq)
+            if merged_qq.get("appId"):
+                await self.broadcast("qqbot:config", self.qqbot_payload())
+                log("info", "下发 QQ Bot 配置", appId=merged_qq.get("appId"), sandbox=merged_qq.get("sandbox"))
         if "autoPushScene" in cfg:
             # 地图自动推送：关 = 必须人工在产出验收里提交；开 = 闸门通过即推
             self.auto_push_scene = bool(cfg["autoPushScene"])
@@ -1244,6 +1304,19 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
                 lines.append(f"- [{tier}] {h.get('text', '')}")
         block = "\n".join(lines)
         return JSONResponse({"ok": True, "semantic": semantic, "hits": hits, "l0": l0_extra, "context": ctx, "block": block})
+
+    @app.get("/dhvw/qqbot/status")
+    async def qqbot_status_route() -> JSONResponse:
+        return JSONResponse(orch.qqbot_status_view())
+
+    @app.post("/dhvw/qqbot/rebind")
+    async def qqbot_rebind_route() -> JSONResponse:
+        orch.qqbot_cfg["ownerOpenId"] = ""
+        store.put_kv("qqbot_cfg", orch.qqbot_cfg)
+        orch.qqbot_status = {**orch.qqbot_status, "paired": False, "ownerOpenId": "", "ownerOpenIdMasked": ""}
+        sent = await orch.broadcast("qqbot:rebind", {})
+        log("info", "下发 QQ Bot 重新绑定指令", delivered=len(sent))
+        return JSONResponse({"ok": True, "delivered": len(sent), **orch.qqbot_status_view()})
 
     @app.post("/dhvw/config")
     async def config(request: Request) -> JSONResponse:

@@ -145,7 +145,17 @@ export default function App(): React.ReactElement {
     void window.dhvw.gateway().then(setGateway)
     void window.dhvw.world().then(setWorld)
     void window.dhvw.stats().then(setStats)
-    void window.dhvw.settings().then(setSettings)
+    void window.dhvw.settings().then((s) => {
+      setSettings(s)
+      // 首次启动且未配置 QQ Bot 凭据时，自动弹出向导方便直接网页填写完成绑定
+      if (!s.qqBot?.appId) {
+        let dismissed = false
+        try {
+          dismissed = localStorage.getItem('dhvw.qqBotGuide.dismissed') === '1'
+        } catch {}
+        if (!dismissed) setShowQqGuide(true)
+      }
+    })
     void window.dhvw.live2d().then(setLive2d)
     const offComp = window.dhvw.onComponentProgress(({ id, progress }) =>
       setComponents((prev) => prev.map((c) => (c.id === id ? { ...c, progress } : c))),
@@ -252,7 +262,9 @@ export default function App(): React.ReactElement {
       {showGateway && <GatewayDialog status={gateway} onChange={setGateway} onClose={() => setShowGateway(false)} />}
       {showQqGuide && (
         <QqBotGuideDialog
+          settings={settings}
           boost={settings?.boost?.enabled ?? false}
+          onSettingsChange={setSettings}
           onClose={() => setShowQqGuide(false)}
         />
       )}
@@ -302,6 +314,7 @@ export default function App(): React.ReactElement {
         {tab === 'settings' && settings && (
           <SettingsPage
             value={settings}
+            onOpenQqGuide={() => setShowQqGuide(true)}
             onSaved={(next) => {
               setSettings(next)
               setSnap((prev) => (prev ? { ...prev, llm: { baseUrl: next.llm.baseUrl, model: next.llm.model } } : prev))

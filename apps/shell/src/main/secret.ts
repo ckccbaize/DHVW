@@ -8,6 +8,7 @@ import { log } from './logger'
  * 明文不落盘、不进日志、不出主进程——渲染层只能拿到 hasKey 布尔值。
  */
 const KEY = 'llm.apiKey'
+const QQ_SECRET_KEY = 'qqBot.clientSecret'
 
 let db: DatabaseSync | null = null
 
@@ -24,14 +25,14 @@ function open(): DatabaseSync | null {
   }
 }
 
-export function hasApiKey(): boolean {
+function hasSecretByKey(key: string): boolean {
   const conn = open()
   if (!conn) return false
-  const row = conn.prepare('select value from secrets where key = ?').get(KEY) as { value?: string } | undefined
+  const row = conn.prepare('select value from secrets where key = ?').get(key) as { value?: string } | undefined
   return Boolean(row?.value)
 }
 
-export function saveApiKey(plain: string): { ok: boolean; error?: string } {
+function saveSecretByKey(key: string, label: string, plain: string): { ok: boolean; error?: string } {
   const conn = open()
   if (!conn) return { ok: false, error: '密钥库不可用' }
   if (!plain.trim()) return { ok: false, error: '密钥为空' }
@@ -40,32 +41,43 @@ export function saveApiKey(plain: string): { ok: boolean; error?: string } {
     const cipher = safeStorage.encryptString(plain.trim()).toString('base64')
     conn
       .prepare('insert into secrets(key, value) values(?, ?) on conflict(key) do update set value = excluded.value')
-      .run(KEY, cipher)
-    log('info', 'secret', 'API Key 已更新', { length: plain.trim().length })
+      .run(key, cipher)
+    log('info', 'secret', `${label} 已更新`, { length: plain.trim().length })
     return { ok: true }
   } catch (err) {
-    log('error', 'secret', 'API Key 保存失败', { error: String(err) })
+    log('error', 'secret', `${label} 保存失败`, { error: String(err) })
     return { ok: false, error: '加密保存失败' }
   }
 }
 
-/** 只在主进程内部使用（组装请求头），永不跨 IPC 返回明文 */
-export function readApiKey(): string | null {
+function readSecretByKey(key: string, label: string): string | null {
   const conn = open()
   if (!conn) return null
-  const row = conn.prepare('select value from secrets where key = ?').get(KEY) as { value?: string } | undefined
+  const row = conn.prepare('select value from secrets where key = ?').get(key) as { value?: string } | undefined
   if (!row?.value) return null
   try {
     return safeStorage.decryptString(Buffer.from(row.value, 'base64'))
   } catch (err) {
-    log('warn', 'secret', 'API Key 解密失败，按未配置处理', { error: String(err) })
+    log('warn', 'secret', `${label} 解密失败，按未配置处理`, { error: String(err) })
     return null
   }
 }
 
-export function clearApiKey(): void {
+function clearSecretByKey(key: string, label: string): void {
   const conn = open()
   if (!conn) return
-  conn.prepare('delete from secrets where key = ?').run(KEY)
-  log('info', 'secret', 'API Key 已清除')
+  conn.prepare('delete from secrets where key = ?').run(key)
+  log('info', 'secret', `${label} 已清除`)
 }
+
+export const hasApiKey = (): boolean => hasSecretByKey(KEY)
+export const saveApiKey = (plain: string): { ok: boolean; error?: string } => saveSecretByKey(KEY, 'API Key', plain)
+/** 只在主进程内部使用（组装请求头），永不跨 IPC 返回明文 */
+export const readApiKey = (): string | null => readSecretByKey(KEY, 'API Key')
+export const clearApiKey = (): void => clearSecretByKey(KEY, 'API Key')
+
+export const hasQqSecret = (): boolean => hasSecretByKey(QQ_SECRET_KEY)
+export const saveQqSecret = (plain: string): { ok: boolean; error?: string } =>
+  saveSecretByKey(QQ_SECRET_KEY, 'QQ Bot Secret', plain)
+export const readQqSecret = (): string | null => readSecretByKey(QQ_SECRET_KEY, 'QQ Bot Secret')
+export const clearQqSecret = (): void => clearSecretByKey(QQ_SECRET_KEY, 'QQ Bot Secret')
