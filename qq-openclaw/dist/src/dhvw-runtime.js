@@ -503,10 +503,10 @@ export function createDhvwRuntime({
               ...(searchHintBlock ? [searchHintBlock] : []),
               ...(stickerHintBlock ? [stickerHintBlock] : []),
               `最近对话：\n${recentHistoryText}`,
-              `对方刚发来：\n${ctx.BodyForAgent || ctx.Body}`,
+              `对方刚发来：\n${String(ctx.BodyForAgent || ctx.Body || "").replace(/^(?:\[[^\]]+\]\s*)?(?:主人|对方)\s*[:：]\s*/u, "")}`,
               "",
               "请以真人口吻回复，严格输出 JSON（不要解释、不要 markdown 代码块）：",
-              '{"reply_mode":"reply|short|skip","parts":["短句1","可选短句2"],"sticker_id":"可选表情包id","sticker_only":false,"collect_sticker":{"save":false,"emotion":"","desc":"","tags":[]},"tone":"warm|playful|sleepy|needy|curious","bubble":"总观气泡(<=18字)","mood_delta":{"valence":0.05,"social":-0.06},"slang_note":"可选口癖/梗","unknown_term":"可选想查意思的新词黑话","memory_fact":"可选一句话记住的新事实","thread":"可选后续可再聊的新线头","action":"可选轻动作如rest/read","send_edge_bg":false}',
+              '{"reply_mode":"reply|short|skip","parts":["短句1","可选短句2"],"sticker_id":"可选表情包id","sticker_only":false,"collect_sticker":{"save":false,"emotion":"","desc":"","tags":[]},"tone":"warm|playful|sleepy|needy|curious","bubble":"总观气泡(<=18字)","mood_delta":{"valence":0.05,"social":-0.06},"slang_note":"仅记录对方常说的独特黑话/新词，普通词留空","unknown_term":"可选想查意思的新词黑话","memory_fact":"可选一句话记住的新事实","thread":"可选后续可再聊的新线头","action":"可选轻动作如rest/read","send_edge_bg":false}',
               `要求：1. parts 1~3 条口语短句，优先顺着对方刚发来的内容和长期记忆自然接话，严禁重复描写天气/时间或“刚醒”套话；2. 严禁死咬同一个梗/称呼/约定连续超过 2 轮，对方说“聊点别的”或只回短句时立即干脆翻篇开启新话题；3. 严禁列表编号与客服套话；4. 若对方发了 [QQ表情:xxx] 或简称如 /睡，请按对应情绪自然互动；5. 可用表情包时自然选用，只想用一张表情包接话可设 sticker_only=true；6. 若只是简单道别/敷衍可设 reply_mode=skip。${collectHint}`,
             ].join("\n");
 

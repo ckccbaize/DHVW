@@ -411,7 +411,7 @@ export class QQOfficialClient extends EventEmitter {
       time: tsSec,
       raw_message: text,
       message: segments,
-      sender: { user_id: openId, nickname: "主人" },
+      sender: { user_id: openId, nickname: "对方" },
     };
     this.#recordHistory(openId, event);
     for (const h of this.messageHandlers) {

@@ -1008,6 +1008,14 @@ describe("图片表情包采集（偷图）与语境挑图发送 (sticker-store 
     assert.ok(!prompts[1].includes("熟人习惯与黑话"));
     assert.ok(prompts[1].includes("话题切换指令"));
 
+    // 3. 验证单聊正文不会带着 “主人: ” 称呼前缀误导 LLM
+    await rt.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+      ctx: { CommandSource: "qq", RawBody: "我当然吃过了，你都喜欢看啥书", Body: "主人: 我当然吃过了，你都喜欢看啥书", BodyForAgent: "主人: 我当然吃过了，你都喜欢看啥书" },
+      dispatcherOptions: { deliver: async () => {} },
+    });
+    assert.ok(!prompts[2].includes("主人: 我当然吃过了"));
+    assert.ok(prompts[2].includes("对方刚发来：\n我当然吃过了，你都喜欢看啥书"));
+
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 });
