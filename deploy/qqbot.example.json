@@ -1,6 +1,6 @@
 {
   "enabled": false,
-  "followBoost": false,
+  "followBoost": true,
   "appId": "",
   "clientSecret": "",
   "sandbox": true,

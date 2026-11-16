@@ -132,18 +132,73 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
   };
 
   const stateDir = rawCfg.stateDir || "/var/lib/dhvw/qq-openclaw";
+  fs.mkdirSync(stateDir, { recursive: true });
   const llmCachePath = path.join(stateDir, "llm.json");
+  const botConfigPath = path.join(stateDir, "bot-config.json");
+
   let cachedLlm = {};
   try {
     if (fs.existsSync(llmCachePath)) cachedLlm = JSON.parse(fs.readFileSync(llmCachePath, "utf8")) || {};
   } catch {}
 
+  let persistedBot = {};
+  try {
+    if (fs.existsSync(botConfigPath)) persistedBot = JSON.parse(fs.readFileSync(botConfigPath, "utf8")) || {};
+  } catch {}
+
+  const effCfg = {
+    ...rawCfg,
+    ...persistedBot,
+    sticker: { ...(rawCfg.sticker || {}), ...(persistedBot.sticker || {}) },
+  };
+  if (!effCfg.clientSecret && rawCfg.clientSecret) effCfg.clientSecret = rawCfg.clientSecret;
+
   let worldState = { day: 1, minute: 480, phase: "morning", weather: "clear", place: "home", mood: { energy: 0.55, valence: 0.55, social: 0.4, focus: 0.5 }, band: "calm" };
-  let llmConfig = rawCfg.llm?.baseUrl ? rawCfg.llm : cachedLlm;
+  let llmConfig = effCfg.llm?.baseUrl ? effCfg.llm : cachedLlm;
   const sockets = new Set();
   const pendingBridgeReqs = new Map();
   let liveClient = null;
   let liveAccount = null;
+  let lastGatewayError = "";
+
+  const maskStr = (s) => {
+    const str = String(s || "").trim();
+    if (!str) return "";
+    if (str.length <= 6) return `${str[0]}***`;
+    return `${str.slice(0, 4)}****${str.slice(-3)}`;
+  };
+
+  function saveBotConfig() {
+    try {
+      const toSave = {
+        appId: effCfg.appId || "",
+        clientSecret: effCfg.clientSecret || "",
+        sandbox: effCfg.sandbox !== false,
+        ownerOpenId: effCfg.ownerOpenId || "",
+        proactive: effCfg.proactive !== false,
+        followBoost: effCfg.followBoost !== false,
+        sticker: effCfg.sticker || {},
+      };
+      fs.writeFileSync(botConfigPath, JSON.stringify(toSave, null, 2), { mode: 0o600 });
+    } catch {}
+  }
+
+  let pairingCode = "";
+  let pairingExpiresAt = 0;
+  function ensurePairingCode(forceNew = false) {
+    if (effCfg.ownerOpenId && !forceNew) {
+      pairingCode = "";
+      pairingExpiresAt = 0;
+      return;
+    }
+    if (forceNew || !pairingCode || Date.now() >= pairingExpiresAt) {
+      pairingCode = `DHVW-${crypto.randomInt(1000, 10000)}`;
+      pairingExpiresAt = Date.now() + 15 * 60_000;
+    }
+  }
+  if (effCfg.appId && effCfg.clientSecret && !effCfg.ownerOpenId) {
+    ensurePairingCode(false);
+  }
 
   function broadcastBridge(type, payload) {
     const pkt = { v: 1, id: crypto.randomBytes(6).toString("hex"), type, ts: Date.now(), payload };
@@ -169,10 +224,10 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
 
   const runtime = createDhvwRuntime({
     stateDir,
-    mediaDir: rawCfg.mediaDir || "/tmp/dhvw-qq-media",
-    shellUrl: rawCfg.shellUrl || "http://127.0.0.1:8080",
-    sticker: rawCfg.sticker || {},
-    partDelayMs: rawCfg.partDelayMs ?? 450,
+    mediaDir: effCfg.mediaDir || "/tmp/dhvw-qq-media",
+    shellUrl: effCfg.shellUrl || "http://127.0.0.1:8080",
+    sticker: effCfg.sticker || {},
+    partDelayMs: effCfg.partDelayMs ?? 450,
     getLlmConfig: () => llmConfig,
     getWorldState: () => worldState,
     queryMemory: async (text, k, mood) => {
@@ -208,22 +263,22 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
     channels: {
       snowluma: {
         enabled: true,
-        appId: rawCfg.appId,
-        clientSecret: rawCfg.clientSecret,
-        sandbox: rawCfg.sandbox !== false,
-        ownerOpenId: rawCfg.ownerOpenId,
-        allowOpenIds: rawCfg.allowOpenIds || [],
-        proactiveCooldownMin: rawCfg.proactiveCooldownMin ?? 90,
-        proactiveDailyMax: rawCfg.proactiveDailyMax ?? 6,
-        partDelayMs: rawCfg.partDelayMs ?? 450,
+        appId: effCfg.appId || "",
+        clientSecret: effCfg.clientSecret || "",
+        sandbox: effCfg.sandbox !== false,
+        ownerOpenId: effCfg.ownerOpenId || "",
+        allowOpenIds: effCfg.allowOpenIds || [],
+        proactiveCooldownMin: effCfg.proactiveCooldownMin ?? 90,
+        proactiveDailyMax: effCfg.proactiveDailyMax ?? 6,
+        partDelayMs: effCfg.partDelayMs ?? 450,
         receive: {
           mention: { enabled: true, alwaysReplyInDirect: true },
           realtime: {
             enabled: true,
-            windowMs: rawCfg.debounceMs ?? 800,
-            maxWindowMs: rawCfg.maxWindowMs ?? 3000,
-            maxMessages: rawCfg.maxCoalesceMsgs ?? 10,
-            maxChars: rawCfg.maxCoalesceChars ?? 8000,
+            windowMs: effCfg.debounceMs ?? 800,
+            maxWindowMs: effCfg.maxWindowMs ?? 3000,
+            maxMessages: effCfg.maxCoalesceMsgs ?? 10,
+            maxChars: effCfg.maxCoalesceChars ?? 8000,
           },
           digest: { enabled: false },
           summary: { enabled: true },
@@ -231,46 +286,98 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
         },
         image: {
           enabled: true,
-          maxPerMessage: rawCfg.maxImagesPerMsg ?? 3,
-          maxBytes: rawCfg.mediaMaxBytes ?? 4 * 1024 * 1024,
+          maxPerMessage: effCfg.maxImagesPerMsg ?? 3,
+          maxBytes: effCfg.mediaMaxBytes ?? 4 * 1024 * 1024,
           tool: false,
         },
       },
     },
   };
 
-  const account = resolveSnowLumaAccount(cfg);
+  let account = resolveSnowLumaAccount(cfg);
   let gwAc = null;
   let gatewayPromise = null;
   let proactiveTimer = null;
-  let boostActive = rawCfg.enabled === true;
+  let boostActive = effCfg.enabled === true;
+
+  function statusSnapshot() {
+    const activePairing = !account.ownerOpenId && pairingCode && Date.now() < pairingExpiresAt ? pairingCode : "";
+    return {
+      ok: true,
+      running: true,
+      configured: Boolean(account.appId && account.clientSecret),
+      boostActive,
+      connected: !!liveClient?.connected,
+      gatewayError: lastGatewayError || "",
+      sandbox: account.sandbox,
+      appId: account.appId || "",
+      appIdMasked: maskStr(account.appId),
+      paired: Boolean(account.ownerOpenId),
+      ownerOpenId: account.ownerOpenId || "",
+      ownerOpenIdMasked: maskStr(account.ownerOpenId),
+      pairingCode: activePairing,
+      pairingExpiresAt: activePairing ? pairingExpiresAt : 0,
+      stickers: runtime.stickerStore?.stats?.() || { count: 0 },
+      window: liveClient?.ledger?.snapshot(account.ownerOpenId) || { active: false, remainingSeq: 0, expiresAt: 0 },
+    };
+  }
+
+  function handlePaired(openId) {
+    effCfg.ownerOpenId = String(openId || "").trim();
+    account = { ...account, ownerOpenId: effCfg.ownerOpenId };
+    pairingCode = "";
+    pairingExpiresAt = 0;
+    saveBotConfig();
+    broadcastBridge("qq:status", statusSnapshot());
+  }
 
   async function setActive(active) {
-    const next = Boolean(active) || rawCfg.enabled === true;
+    const next = Boolean(active) || effCfg.enabled === true;
     boostActive = next;
+    lastGatewayError = "";
     if (next) {
+      if (!account.appId || !account.clientSecret) {
+        log?.info?.("[qq-openclaw] Boost 已开启，等待网页端填入 AppID / ClientSecret");
+        broadcastBridge("qq:status", statusSnapshot());
+        return;
+      }
       if (gwAc) return;
+      ensurePairingCode(false);
+      const launchAccount = {
+        ...account,
+        pairingCode,
+        pairingExpiresAt,
+        onPaired: handlePaired,
+      };
       gwAc = new AbortController();
       gatewayPromise = startGateway({
-        account,
+        account: launchAccount,
         cfg,
         runtime,
         abortSignal: gwAc.signal,
         log,
+        onError: (err) => {
+          lastGatewayError = String(err?.message || err || "");
+          broadcastBridge("qq:status", statusSnapshot());
+        },
         onReady: ({ client, account: effAcc }) => {
           liveClient = client;
           liveAccount = effAcc;
+          lastGatewayError = "";
           client.onMessage(() => proactive.recordInbound());
-          broadcastBridge("qq:status", { connected: true, sandbox: account.sandbox, boostActive: true });
+          broadcastBridge("qq:status", statusSnapshot());
         },
       }).catch((err) => {
-        log?.warn?.(`[qq-openclaw] gateway 退出: ${err?.message || err}`);
+        lastGatewayError = String(err?.message || err || "");
+        log?.warn?.(`[qq-openclaw] gateway 退出: ${lastGatewayError}`);
+        broadcastBridge("qq:status", statusSnapshot());
       });
-      if (rawCfg.proactive !== false && !proactiveTimer) {
+      if (effCfg.proactive !== false && !proactiveTimer) {
         proactiveTimer = setInterval(() => void proactive.tick(), 60_000);
         proactiveTimer.unref?.();
       }
       log?.info?.("[qq-openclaw] Boost 已开启，QQ Bot 网关上线");
+      broadcastBridge("qq:status", statusSnapshot());
     } else {
       if (proactiveTimer) {
         clearInterval(proactiveTimer);
@@ -284,24 +391,92 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
       }
       liveClient = null;
       liveAccount = null;
-      broadcastBridge("qq:status", { connected: false, sandbox: account.sandbox, boostActive: false });
+      broadcastBridge("qq:status", statusSnapshot());
       log?.info?.("[qq-openclaw] Boost 已关闭，QQ Bot 网关休眠");
     }
   }
 
-  const server = http.createServer((req, res) => {
-    if (req.url === "/__qq/health") {
+  async function applyBotConfig(patch = {}) {
+    const prevAppId = account.appId;
+    const prevSecret = account.clientSecret;
+    const prevSandbox = account.sandbox;
+
+    if (typeof patch.appId === "string" && patch.appId.trim()) effCfg.appId = patch.appId.trim();
+    if (typeof patch.clientSecret === "string" && patch.clientSecret.trim()) effCfg.clientSecret = patch.clientSecret.trim();
+    if (typeof patch.sandbox === "boolean") effCfg.sandbox = patch.sandbox;
+    if (typeof patch.ownerOpenId === "string") effCfg.ownerOpenId = patch.ownerOpenId.trim();
+    if (typeof patch.proactive === "boolean") effCfg.proactive = patch.proactive;
+    if (typeof patch.followBoost === "boolean") effCfg.followBoost = patch.followBoost;
+    if (patch.rebind === true) effCfg.ownerOpenId = "";
+
+    cfg.channels.snowluma.appId = effCfg.appId || "";
+    cfg.channels.snowluma.clientSecret = effCfg.clientSecret || "";
+    cfg.channels.snowluma.sandbox = effCfg.sandbox !== false;
+    cfg.channels.snowluma.ownerOpenId = effCfg.ownerOpenId || "";
+    account = resolveSnowLumaAccount(cfg);
+
+    if (account.appId && account.clientSecret && !account.ownerOpenId) {
+      ensurePairingCode(patch.rebind === true);
+    } else if (account.ownerOpenId) {
+      pairingCode = "";
+      pairingExpiresAt = 0;
+    }
+    saveBotConfig();
+
+    const credsChanged = account.appId !== prevAppId || account.clientSecret !== prevSecret || account.sandbox !== prevSandbox;
+    if (patch.activate === true) boostActive = true;
+
+    if (liveClient && !credsChanged) {
+      liveClient.setPairing({ code: pairingCode, expiresAt: pairingExpiresAt, ownerOpenId: account.ownerOpenId });
+    }
+    if (boostActive && account.appId && account.clientSecret) {
+      if (credsChanged && gwAc) {
+        await setActive(false);
+      }
+      await setActive(true);
+    }
+    broadcastBridge("qq:status", statusSnapshot());
+    return statusSnapshot();
+  }
+
+  async function triggerRebind() {
+    return applyBotConfig({ rebind: true, ownerOpenId: "" });
+  }
+
+  function readJsonBody(req) {
+    return new Promise((resolve) => {
+      let raw = "";
+      req.on("data", (c) => {
+        if (raw.length < 65536) raw += c.toString("utf8");
+      });
+      req.on("end", () => {
+        try {
+          resolve(raw ? JSON.parse(raw) : {});
+        } catch {
+          resolve({});
+        }
+      });
+    });
+  }
+
+  const server = http.createServer(async (req, res) => {
+    const cleanUrl = (req.url || "/").split("?")[0];
+    if (cleanUrl === "/__qq/health" && req.method === "GET") {
       res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
-      res.end(
-        JSON.stringify({
-          ok: true,
-          boostActive,
-          connected: !!liveClient?.connected,
-          sandbox: account.sandbox,
-          stickers: runtime.stickerStore?.stats?.() || { count: 0 },
-          window: liveClient?.ledger?.snapshot(account.ownerOpenId) || { active: false, remainingSeq: 0, expiresAt: 0 },
-        }),
-      );
+      res.end(JSON.stringify(statusSnapshot()));
+      return;
+    }
+    if (cleanUrl === "/__qq/config" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const st = await applyBotConfig(body);
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+      res.end(JSON.stringify(st));
+      return;
+    }
+    if (cleanUrl === "/__qq/rebind" && req.method === "POST") {
+      const st = await triggerRebind();
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+      res.end(JSON.stringify(st));
       return;
     }
     res.writeHead(404).end();
@@ -334,6 +509,10 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
           proactive.recordWorldEvent(msg.payload);
         } else if (msg?.type === "qq:boost:state" && msg.payload) {
           void setActive(msg.payload.enabled);
+        } else if (msg?.type === "qq:bot:config" && msg.payload) {
+          void applyBotConfig(msg.payload);
+        } else if (msg?.type === "qq:bot:rebind") {
+          void triggerRebind();
         }
       },
       () => {
@@ -347,7 +526,7 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
         id: crypto.randomBytes(6).toString("hex"),
         type: "qq:status",
         ts: Date.now(),
-        payload: { connected: !!liveClient?.connected, sandbox: account.sandbox, boostActive },
+        payload: statusSnapshot(),
       });
     }
   });
@@ -360,6 +539,9 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
     proactive,
     runtime,
     setActive,
+    applyBotConfig,
+    triggerRebind,
+    statusSnapshot,
     isActive: () => boostActive,
     stop: async () => {
       if (proactiveTimer) clearInterval(proactiveTimer);

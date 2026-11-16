@@ -114,6 +114,22 @@ const server = http.createServer(async (req, res) => {
   try {
     const earlyPath = decodeURIComponent((req.url || "/").split("?")[0]);
     if (earlyPath === "/__llm/chat/completions") return void (await proxyLlm(req, res));
+    if (earlyPath === "/__qq/health" || earlyPath === "/__qq/config" || earlyPath === "/__qq/rebind") {
+      try {
+        const body = req.method === "POST" ? await readBody(req, 65536) : undefined;
+        const upstream = await fetch(`http://127.0.0.1:8088${earlyPath}`, {
+          method: req.method,
+          headers: req.method === "POST" ? { "Content-Type": "application/json" } : undefined,
+          body,
+        });
+        const txt = await upstream.text();
+        res.writeHead(upstream.status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+        return void res.end(txt);
+      } catch {
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+        return void res.end(JSON.stringify({ ok: true, running: false, configured: false, paired: false }));
+      }
+    }
     if (req.method !== "GET" && req.method !== "HEAD") {
       return void res.writeHead(405, { Allow: "GET, HEAD" }).end("method not allowed");
     }

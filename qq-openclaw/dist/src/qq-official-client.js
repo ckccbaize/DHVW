@@ -135,6 +135,9 @@ export class QQOfficialClient extends EventEmitter {
     this.apiBaseUrl = (opts.apiBaseUrl || (this.sandbox ? DEFAULT_SANDBOX_API : DEFAULT_PROD_API)).replace(/\/+$/, "");
     this.ownerOpenId = String(opts.ownerOpenId || "").trim();
     this.allowOpenIds = Array.isArray(opts.allowOpenIds) ? opts.allowOpenIds.map((x) => String(x).trim()).filter(Boolean) : [];
+    this.pairingCode = String(opts.pairingCode || "").trim().toUpperCase();
+    this.pairingExpiresAt = Number(opts.pairingExpiresAt || 0);
+    this.onPaired = typeof opts.onPaired === "function" ? opts.onPaired : null;
     this.fetchImpl = opts.fetchImpl || globalThis.fetch;
     this.WSImpl = opts.WSImpl || globalThis.WebSocket;
     this.log = opts.log;
@@ -163,6 +166,31 @@ export class QQOfficialClient extends EventEmitter {
     if (this.ownerOpenId && id === this.ownerOpenId) return true;
     if (this.allowOpenIds.includes(id) || this.allowOpenIds.includes("*")) return true;
     return false;
+  }
+
+  setPairing({ code = "", expiresAt = 0, ownerOpenId } = {}) {
+    if (ownerOpenId !== undefined) this.ownerOpenId = String(ownerOpenId || "").trim();
+    this.pairingCode = String(code || "").trim().toUpperCase();
+    this.pairingExpiresAt = Number(expiresAt || 0);
+  }
+
+  #tryPair(openId, msgId, text) {
+    if (this.ownerOpenId || !this.pairingCode) return false;
+    if (this.pairingExpiresAt > 0 && Date.now() > this.pairingExpiresAt) return false;
+    const norm = String(text || "").trim().toUpperCase();
+    const shortCode = this.pairingCode.replace(/^DHVW-/, "");
+    if (!norm || (norm !== this.pairingCode && norm !== shortCode)) return false;
+
+    this.ownerOpenId = openId;
+    this.pairingCode = "";
+    this.pairingExpiresAt = 0;
+    this.ledger.recordInbound(openId, msgId);
+    this.log?.info?.(`[qq-official] 通过口令自动绑定主人 openId=${openId}`);
+    void this.sendPrivateMessage(openId, "已成功绑定为主人！以后只在这一个私聊窗口陪伴你啦~", { replyToId: msgId }).catch(() => {});
+    try {
+      this.onPaired?.(openId);
+    } catch {}
+    return true;
   }
 
   async getAccessToken() {
@@ -307,13 +335,16 @@ export class QQOfficialClient extends EventEmitter {
     const msgId = String(d.id || "").trim();
     if (this.dedup.seenOrAdd(msgId)) return;
     const openId = String(d.author?.user_openid || d.author?.union_openid || "").trim();
+    const text = typeof d.content === "string" ? d.content.trim() : "";
+    if (this.#tryPair(openId, msgId, text)) {
+      return;
+    }
     if (!this.isAllowedOpenId(openId)) {
       this.log?.info?.(`[qq-official] 忽略非白名单单聊 openId=${openId}`);
       return;
     }
     this.ledger.recordInbound(openId, msgId);
     const segments = [];
-    const text = typeof d.content === "string" ? d.content.trim() : "";
     if (text) segments.push({ type: "text", data: { text } });
     for (const att of Array.isArray(d.attachments) ? d.attachments : []) {
       const ct = String(att?.content_type || "").toLowerCase();

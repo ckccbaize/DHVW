@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-16T13:01:30.689Z",
+ "built_at": "2026-11-16T13:45:36.453Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -759,8 +759,8 @@
   },
   {
    "path": "css/app.css",
-   "size": 9154,
-   "sha256": "89f204ab853cbb56adf3010eccaf0a7affac264646bec6b67bd909537a73b9e4"
+   "size": 10318,
+   "sha256": "d1d47ad58b026887d37ffe4d4c87b6d3f2515288f5cebb2d10e7876afc56b1ba"
   },
   {
    "path": "css/cel.css",
@@ -779,18 +779,18 @@
   },
   {
    "path": "debug-life.html",
-   "size": 24956,
-   "sha256": "05d703694d640eb3fd91423ea2e3110448cc707a3c6756f422c8a25817db4765"
+   "size": 28800,
+   "sha256": "432172229dc1592cdbd6f951cd1cb393577a7ddd56edab1576ad6eb6bfdcafc4"
   },
   {
    "path": "index.html",
-   "size": 5154,
-   "sha256": "9a5b1a0cd017961b5bd35188c6719370471ec04110060a3cb9c5b3b60fa946b7"
+   "size": 5587,
+   "sha256": "08045b542c7883184ed8607393e3153ec6458a54d58b994e7b21840e828acef5"
   },
   {
    "path": "js/app.js",
-   "size": 50036,
-   "sha256": "829649caacd4da34cf75ea92046cc9d324298d6f5a36f05c3bed24764708efa9"
+   "size": 56761,
+   "sha256": "337d3f1583faefd25de077c549d9d915cd1a3d4d664cc1d9cbfb433b3e83e1a5"
   },
   {
    "path": "js/core/actions/browse.js",

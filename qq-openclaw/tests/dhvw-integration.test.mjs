@@ -700,4 +700,91 @@ describe("图片表情包采集（偷图）与语境挑图发送 (sticker-store 
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
+
+  it("自动口令认主绑定与重新绑定 (pairingCode + rebind)", async () => {
+    const sent = [];
+    let pairedOpenId = "";
+    let fakeSock = null;
+    class PairingWs extends FakeGatewaySocket {
+      constructor(url) {
+        super(url);
+        fakeSock = this;
+      }
+    }
+    const fetchImpl = async (url, init = {}) => {
+      if (url.endsWith("/getAppAccessToken")) {
+        return new Response(JSON.stringify({ access_token: "tok-p", expires_in: 7200 }), { status: 200 });
+      }
+      if (url.endsWith("/gateway")) {
+        return new Response(JSON.stringify({ url: "wss://mock.qq.example/ws" }), { status: 200 });
+      }
+      if (url.includes("/messages")) {
+        sent.push(JSON.parse(init.body));
+        return new Response(JSON.stringify({ id: `m-${sent.length}` }), { status: 200 });
+      }
+      return new Response("{}", { status: 404 });
+    };
+
+    const client = new QQOfficialClient({
+      appId: "app-pair",
+      clientSecret: "sec-pair",
+      ownerOpenId: "",
+      pairingCode: "DHVW-4829",
+      pairingExpiresAt: Date.now() + 60_000,
+      onPaired: (id) => {
+        pairedOpenId = id;
+      },
+      fetchImpl,
+      WSImpl: PairingWs,
+    });
+    const chatDelivered = [];
+    client.onMessage((ev) => chatDelivered.push(ev));
+    await client.connect();
+
+    // 发错口令不会被绑定，也不会进入正常对话
+    fakeSock.pushEvent("C2C_MESSAGE_CREATE", {
+      id: "p0",
+      content: "错的口令",
+      author: { user_openid: "NEW_OWNER_99" },
+      timestamp: "2026-11-16T10:00:00Z",
+    });
+    assert.equal(pairedOpenId, "");
+    assert.equal(chatDelivered.length, 0);
+
+    // 发送正确口令（支持短码或完整 DHVW-4829）自动完成认主并回复确认
+    fakeSock.pushEvent("C2C_MESSAGE_CREATE", {
+      id: "p1",
+      content: "4829",
+      author: { user_openid: "NEW_OWNER_99" },
+      timestamp: "2026-11-16T10:00:01Z",
+    });
+    assert.equal(pairedOpenId, "NEW_OWNER_99");
+    assert.equal(client.ownerOpenId, "NEW_OWNER_99");
+    assert.equal(chatDelivered.length, 0); // 口令消息本身不送进 LLM 对话
+
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(sent.length, 1);
+    assert.ok(sent[0].content.includes("成功绑定为主人"));
+
+    // 绑定后即可正常单聊对话
+    fakeSock.pushEvent("C2C_MESSAGE_CREATE", {
+      id: "p2",
+      content: "在吗",
+      author: { user_openid: "NEW_OWNER_99" },
+      timestamp: "2026-11-16T10:00:02Z",
+    });
+    assert.equal(chatDelivered.length, 1);
+
+    // 重新绑定：清空旧主人并更换新口令后，旧主人不再触发正常聊天，等待新口令
+    client.setPairing({ ownerOpenId: "", code: "DHVW-9527", expiresAt: Date.now() + 60_000 });
+    fakeSock.pushEvent("C2C_MESSAGE_CREATE", {
+      id: "p3",
+      content: "老消息",
+      author: { user_openid: "NEW_OWNER_99" },
+      timestamp: "2026-11-16T10:00:03Z",
+    });
+    assert.equal(chatDelivered.length, 1);
+
+    client.close();
+  });
 });

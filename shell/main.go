@@ -209,6 +209,10 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.serveSearch(w, r)
 		return
 	}
+	if r.URL.Path == "/__qq/health" || r.URL.Path == "/__qq/config" || r.URL.Path == "/__qq/rebind" {
+		s.serveQqProxy(w, r)
+		return
+	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		w.Header().Set("Allow", "GET, HEAD")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -458,6 +462,47 @@ func (s *server) serveLLMProxy(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(resp.StatusCode)
 	_, _ = io.Copy(w, io.LimitReader(resp.Body, 4<<20))
+}
+
+func (s *server) serveQqProxy(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		w.Header().Set("Allow", "GET, POST")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var body io.Reader
+	if r.Method == http.MethodPost {
+		raw, err := io.ReadAll(io.LimitReader(r.Body, 64<<10))
+		if err != nil {
+			http.Error(w, "bad body", http.StatusBadRequest)
+			return
+		}
+		body = bytes.NewReader(raw)
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	target := "http://127.0.0.1:8088" + r.URL.Path
+	hr, err := http.NewRequestWithContext(ctx, r.Method, target, body)
+	if err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	if r.Method == http.MethodPost {
+		hr.Header.Set("Content-Type", "application/json")
+	}
+	resp, err := s.httpClient.Do(hr)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "running": false, "configured": false, "paired": false})
+		return
+	}
+	defer resp.Body.Close()
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(resp.StatusCode)
+	_, _ = io.Copy(w, io.LimitReader(resp.Body, 256<<10))
 }
 
 func (s *server) serveHealth(w http.ResponseWriter, r *http.Request) {

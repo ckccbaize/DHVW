@@ -54,6 +54,9 @@ sysctl -p /etc/sysctl.d/99-dhvw.conf >/dev/null 2>&1 || true
 
 systemctl daemon-reload
 systemctl enable --now dhvw-shell.service
+if [ -f /etc/dhvw/qqbot.json ]; then
+  systemctl enable --now dhvw-qqbot.service >/dev/null 2>&1 || true
+fi
 systemctl restart systemd-logind >/dev/null 2>&1 || true
 
 echo "已安装。检查："

@@ -81,31 +81,37 @@
   <div id="qqGuideModal" class="qq-modal" hidden role="dialog" aria-modal="true" aria-labelledby="qqGuideTitle">
     <div class="qq-modal-card">
       <div class="qq-modal-head">
-        <strong id="qqGuideTitle">QQ 官方 Bot 登录与链接指引</strong>
+        <strong id="qqGuideTitle">QQ 官方 Bot 注册与自动绑定</strong>
         <button id="qqGuideClose" class="dock-btn" type="button">关闭</button>
       </div>
-      <p class="qq-modal-lead">遵循 QQ 开放平台规范，不扫码登录个人号，而是接入官方 Bot APIv2（单聊 + 图片多模态 + 表情包）。</p>
+      <p class="qq-modal-lead">无需 SSH 或手工修改设备配置，直接在此网页填入官方 Bot 凭据即可生效（合规 APIv2 单聊 + 图片多模态 + 表情包）。</p>
       <ol class="qq-modal-steps">
-        <li>登录 QQ 开放平台 <code>https://q.qq.com</code> 创建机器人应用，在「开发管理」复制 <b>AppID</b> 与 <b>ClientSecret</b>。</li>
-        <li>在「能力配置」开通<b>单聊（C2C）消息</b>，并在「沙箱配置」添加你的 QQ 号（<code>"sandbox": true</code>）。</li>
-        <li>给测试机器人私聊发一条消息，从日志获取你的单聊 <code>user_openid</code>，填入 <code>ownerOpenId</code> 白名单。</li>
-        <li>配置设备端 <code>/etc/dhvw/qqbot.json</code>（设 <code>"followBoost": true</code> 或 <code>"enabled": true</code>）并执行 <code>sudo systemctl enable --now dhvw-qqbot.service</code>。</li>
+        <li>
+          登录 QQ 开放平台创建应用、开通「单聊（C2C）」并在沙箱添加测试 QQ 号，复制 <b>AppID</b> 与 <b>ClientSecret</b>：
+          <a href="https://q.qq.com" target="_blank" rel="noopener noreferrer" class="qq-link-btn">打开 q.qq.com</a>
+          <button id="qqCopyUrl" class="dock-btn" type="button">复制网址</button>
+        </li>
       </ol>
-      <pre class="qq-modal-pre" id="qqGuideSample">{
-  "enabled": false,
-  "followBoost": true,
-  "appId": "你的AppID",
-  "clientSecret": "你的ClientSecret",
-  "sandbox": true,
-  "ownerOpenId": "你的单聊user_openid",
-  "listenAddr": "127.0.0.1:8088",
-  "shellUrl": "http://127.0.0.1:8080",
-  "stateDir": "/var/lib/dhvw/qq-openclaw"
-}</pre>
-      <div class="qq-modal-foot">
-        <span id="qqGuideStatus" class="qq-modal-status">状态：待检测</span>
-        <button id="qqGuideCopy" class="dock-btn" type="button">复制 JSON 模板</button>
+      <form id="qqCfgForm" class="qq-form">
+        <label>AppID <input id="qqAppIdInput" type="text" placeholder="例如 1024****89" autocomplete="off" spellcheck="false"></label>
+        <label>ClientSecret <input id="qqSecretInput" type="password" placeholder="填写机器人 AppSecret（已配留空保留）" autocomplete="off"></label>
+        <div class="qq-form-row">
+          <label class="qq-check"><input id="qqSandboxInput" type="checkbox" checked> 沙箱调试模式</label>
+          <button id="qqSaveBtn" class="dock-btn" type="submit">保存并自动激活</button>
+        </div>
+      </form>
+      <div id="qqPairBox" class="qq-pair-box">
+        <div id="qqPairText" class="qq-modal-status">状态：待检测</div>
+        <div id="qqCodeRow" class="qq-code-row" hidden>
+          <code id="qqPairCodeText" class="qq-code-pill"></code>
+          <button id="qqCopyCodeBtn" class="dock-btn" type="button">复制口令</button>
+        </div>
+        <div class="qq-modal-foot">
+          <label class="qq-check"><input id="qqGuideDismiss" type="checkbox"> 以后不自动弹出</label>
+          <button id="qqRebindBtn" class="dock-btn" type="button">重新绑定 QQ</button>
+        </div>
       </div>
+      <div id="qqGuideMsg" class="qq-modal-status"></div>
     </div>
   </div>
 </div>

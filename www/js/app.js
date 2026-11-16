@@ -667,6 +667,8 @@ async function boot() {
   }
 
   let setQqBotBoost = () => {};
+  let applyRemoteQqConfig = async () => {};
+  let triggerRemoteQqRebind = async () => {};
   let pendingRemoteBoost = null;
 
   function handleRemoteMessage(msg) {
@@ -754,6 +756,14 @@ async function boot() {
         const enabled = Boolean(p.enabled);
         pendingRemoteBoost = enabled;
         void setQqBotBoost(enabled, { persist: true });
+        break;
+      }
+      case "qqbot:config": {
+        void applyRemoteQqConfig(p);
+        break;
+      }
+      case "qqbot:rebind": {
+        void triggerRemoteQqRebind();
         break;
       }
       case "digest:get": {
@@ -1196,17 +1206,83 @@ async function boot() {
   // 可选开启：QQ 单聊多模态互动融合（支持 config.json qqBot.enabled 或 PC Boost 模式联动开启，关闭零开销）
   const qqGuideModal = document.querySelector("#qqGuideModal");
   const qqBoostPill = document.querySelector("#qqBoostPill");
-  const qqGuideStatus = document.querySelector("#qqGuideStatus");
+  const qqPairText = document.querySelector("#qqPairText");
+  const qqCodeRow = document.querySelector("#qqCodeRow");
+  const qqPairCodeText = document.querySelector("#qqPairCodeText");
+  const qqGuideMsg = document.querySelector("#qqGuideMsg");
+  const qqAppIdInput = document.querySelector("#qqAppIdInput");
+  const qqSecretInput = document.querySelector("#qqSecretInput");
+  const qqSandboxInput = document.querySelector("#qqSandboxInput");
+  const qqGuideDismiss = document.querySelector("#qqGuideDismiss");
+
+  const copyTextReliable = async (text) => {
+    const str = String(text || "");
+    if (!str) return false;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(str);
+        return true;
+      }
+    } catch {}
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = str;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  };
+
+  const renderQqModalStatus = (st) => {
+    if (!qqPairText) return;
+    if (!st || st.running === false) {
+      qqPairText.textContent = "状态：qq-openclaw 服务未启动（若已安装服务请稍候，或检查 /__qq/health）";
+      if (qqCodeRow) qqCodeRow.hidden = true;
+      return;
+    }
+    if (qqAppIdInput && st.appId && !qqAppIdInput.value) qqAppIdInput.value = st.appId;
+    if (qqSandboxInput && typeof st.sandbox === "boolean") qqSandboxInput.checked = st.sandbox;
+    if (st.paired) {
+      qqPairText.textContent = `状态：已成功绑定主人（${st.ownerOpenIdMasked || st.ownerOpenId}），QQ 网关：${st.connected ? "在线" : "重连中"}`;
+      if (qqCodeRow) qqCodeRow.hidden = true;
+    } else if (st.configured) {
+      qqPairText.textContent = `状态：${st.connected ? "QQ 网关已连线" : st.gatewayError || "等待连接"} · 请用 QQ 私聊发送下方口令自动认主：`;
+      if (qqCodeRow) qqCodeRow.hidden = !st.pairingCode;
+      if (qqPairCodeText) qqPairCodeText.textContent = st.pairingCode || "";
+    } else {
+      qqPairText.textContent = "状态：未配置 AppID / ClientSecret，请在上方表单填写后点保存";
+      if (qqCodeRow) qqCodeRow.hidden = true;
+    }
+  };
+
+  const fetchQqHealth = async () => {
+    try {
+      const r = await fetch("/__qq/health", { cache: "no-store" });
+      if (!r.ok) return null;
+      const st = await r.json();
+      store.patch({ qqStatus: st });
+      renderQqModalStatus(st);
+      if (store.state.conn === "up") remote.send({ type: "qqbot:status", payload: st });
+      return st;
+    } catch {
+      return null;
+    }
+  };
+
   const openQqGuide = () => {
     if (!qqGuideModal) return;
-    if (qqGuideStatus) {
-      const st = store.state.qqStatus;
-      qqGuideStatus.textContent = st?.connected
-        ? "状态：QQ Bot 已在线"
-        : store.state.boost || cfg.qqBot?.enabled
-          ? "状态：Boost 已激活，等待本地 qq-openclaw 连接"
-          : "状态：未开启 Boost";
+    if (qqGuideDismiss) {
+      try { qqGuideDismiss.checked = localStorage.getItem("dhvw_qq_guide_dismissed") === "1"; } catch {}
     }
+    renderQqModalStatus(store.state.qqStatus);
+    void fetchQqHealth();
     qqGuideModal.hidden = false;
   };
   document.querySelector("#qqGuideClose")?.addEventListener("click", () => {
@@ -1215,13 +1291,27 @@ async function boot() {
   qqGuideModal?.addEventListener("click", (e) => {
     if (e.target === qqGuideModal) qqGuideModal.hidden = true;
   });
-  document.querySelector("#qqGuideCopy")?.addEventListener("click", () => {
-    const txt = document.querySelector("#qqGuideSample")?.textContent || "";
-    void navigator.clipboard?.writeText(txt);
-    const btn = document.querySelector("#qqGuideCopy");
+  qqGuideDismiss?.addEventListener("change", () => {
+    try {
+      if (qqGuideDismiss.checked) localStorage.setItem("dhvw_qq_guide_dismissed", "1");
+      else localStorage.removeItem("dhvw_qq_guide_dismissed");
+    } catch {}
+  });
+  document.querySelector("#qqCopyUrl")?.addEventListener("click", async () => {
+    const btn = document.querySelector("#qqCopyUrl");
+    const ok = await copyTextReliable("https://q.qq.com");
     if (btn) {
-      btn.textContent = "已复制";
-      setTimeout(() => { btn.textContent = "复制 JSON 模板"; }, 1600);
+      btn.textContent = ok ? "已复制" : "请手动复制 q.qq.com";
+      setTimeout(() => { btn.textContent = "复制网址"; }, 1800);
+    }
+  });
+  document.querySelector("#qqCopyCodeBtn")?.addEventListener("click", async () => {
+    const code = qqPairCodeText?.textContent?.trim() || "";
+    const btn = document.querySelector("#qqCopyCodeBtn");
+    const ok = await copyTextReliable(code);
+    if (btn) {
+      btn.textContent = ok ? "已复制口令" : "复制失败";
+      setTimeout(() => { btn.textContent = "复制口令"; }, 1800);
     }
   });
   qqBoostPill?.addEventListener("click", openQqGuide);
@@ -1282,9 +1372,26 @@ async function boot() {
     const updateHudPill = () => {
       if (!qqBoostPill) return;
       qqBoostPill.hidden = !qqActive;
-      const connected = !!store.state.qqStatus?.connected;
-      qqBoostPill.classList.toggle("live", connected);
-      qqBoostPill.textContent = connected ? "BOOST · QQ在线" : "BOOST · QQ待连";
+      const st = store.state.qqStatus;
+      const connected = !!st?.connected;
+      qqBoostPill.classList.toggle("live", connected && !!st?.paired);
+      qqBoostPill.textContent = connected
+        ? st?.paired
+          ? "BOOST · QQ在线"
+          : "BOOST · 待绑定"
+        : "BOOST · QQ待连";
+    };
+
+    const handleQqStatus = (st) => {
+      store.patch({ qqStatus: st });
+      updateHudPill();
+      renderQqModalStatus(st);
+      if (store.state.conn === "up") remote.send({ type: "qqbot:status", payload: st });
+      if (qqActive && st && st.configured === false) {
+        let dismissed = false;
+        try { dismissed = localStorage.getItem("dhvw_qq_guide_dismissed") === "1"; } catch {}
+        if (!dismissed && qqGuideModal && qqGuideModal.hidden) openQqGuide();
+      }
     };
 
     const ensureQqStarted = () => {
@@ -1298,10 +1405,7 @@ async function boot() {
             pushLlmConfig();
             pushWorldState();
           },
-          onStatus: (st) => {
-            store.patch({ qqStatus: st });
-            updateHudPill();
-          },
+          onStatus: handleQqStatus,
           onMemoryQuery: (q) => qqAdapter.handleMemoryQuery(q),
           onEdgeMedia: () => qqAdapter.handleEdgeMedia(),
           onFeedback: (fb) => qqAdapter.handleFeedback(fb),
@@ -1347,6 +1451,84 @@ async function boot() {
       store.patch({ qqStatus: { connected: false } });
       updateHudPill();
     };
+
+    const postQqConfig = async (payload) => {
+      if (qqBridge?.connected) qqBridge.send({ type: "qq:bot:config", payload });
+      try {
+        const res = await fetch("/__qq/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          const st = await res.json();
+          handleQqStatus(st);
+          return st;
+        }
+      } catch {}
+      return null;
+    };
+
+    const postQqRebind = async () => {
+      if (qqBridge?.connected) qqBridge.send({ type: "qq:bot:rebind", payload: {} });
+      try {
+        const res = await fetch("/__qq/rebind", { method: "POST" });
+        if (res.ok) {
+          const st = await res.json();
+          handleQqStatus(st);
+          return st;
+        }
+      } catch {}
+      return null;
+    };
+
+    applyRemoteQqConfig = async (payload) => {
+      if (!payload || typeof payload !== "object") return;
+      if (payload.appId && (store.state.boost || staticQqEnabled)) ensureQqStarted();
+      await postQqConfig(payload);
+    };
+
+    triggerRemoteQqRebind = async () => {
+      await setQqBotBoost(true, { persist: true });
+      await postQqRebind();
+    };
+
+    document.querySelector("#qqCfgForm")?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const appId = qqAppIdInput?.value?.trim() || "";
+      const clientSecret = qqSecretInput?.value?.trim() || "";
+      const sandbox = qqSandboxInput?.checked !== false;
+      if (!appId) {
+        if (qqGuideMsg) qqGuideMsg.textContent = "请先填入 AppID";
+        return;
+      }
+      void (async () => {
+        if (qqGuideMsg) qqGuideMsg.textContent = "正在下发凭据并连接 QQ 网关…";
+        await setQqBotBoost(true, { persist: true });
+        const st = await postQqConfig({
+          appId,
+          ...(clientSecret ? { clientSecret } : {}),
+          sandbox,
+          activate: true,
+        });
+        if (qqSecretInput) qqSecretInput.value = "";
+        if (qqGuideMsg) {
+          qqGuideMsg.textContent = st?.pairingCode
+            ? `配置已保存！请用 QQ 私聊机器人发送口令：${st.pairingCode}`
+            : "配置已下发，正在同步状态…";
+        }
+      })();
+    });
+
+    document.querySelector("#qqRebindBtn")?.addEventListener("click", () => {
+      void (async () => {
+        if (qqGuideMsg) qqGuideMsg.textContent = "正在解除旧绑定并生成新口令…";
+        const st = await postQqRebind();
+        if (qqGuideMsg) {
+          qqGuideMsg.textContent = st?.pairingCode ? `已生成新绑定口令：${st.pairingCode}` : "已请求重新绑定";
+        }
+      })();
+    });
 
     setQqBotBoost = async (enabled, { persist = false } = {}) => {
       const next = Boolean(enabled);
