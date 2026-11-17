@@ -511,6 +511,10 @@ async function boot() {
       remote.send({ type: "present:request", payload: { t: Date.now() } });
 
       const presentUrl = resolvePresentUrl();
+      // OLVT 显现页会加载完整 React + Live2D + onnxruntime VAD；2GB 设备实测会
+      // 触发 cgroup/global OOM。低于 4GB 时退回静态立绘，避免整机被 OOM killer 杀掉。
+      const lowMemory = Number(navigator.deviceMemory || 0) > 0 && Number(navigator.deviceMemory) < 4;
+      const iframeUrl = lowMemory ? "" : presentUrl;
       const [tts, bg] = await Promise.all([probeTts(), bestBackground(), coverPromise]);
       if (presentCancelled || store.state.conn !== "up") {
         remote.send({ type: "world:resume" });
@@ -519,8 +523,8 @@ async function boot() {
         return;
       }
 
-      if (presentUrl) {
-        const probe = await waitForPresentReady(presentUrl, 45000);
+      if (iframeUrl) {
+        const probe = await waitForPresentReady(iframeUrl, 45000);
         if (presentCancelled) {
           remote.send({ type: "world:resume" });
           await transition.reveal(320);
@@ -547,7 +551,7 @@ async function boot() {
         const guard = setTimeout(done, 12000);
         present.open({
           backgroundUrl: bg,
-          iframeUrl: presentUrl || "",
+          iframeUrl: iframeUrl || "",
           live2d: false,
           tts,
           timeoutMs: 20000,
@@ -565,6 +569,7 @@ async function boot() {
         await transition.reveal(320);
         return;
       }
+      if (lowMemory) overview.say("设备内存不足，显现使用静态立绘", 4000);
       store.patch({ display: "present" });
       displayChangedAt = performance.now();
       presentOpenedAt = displayChangedAt;

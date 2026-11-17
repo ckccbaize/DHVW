@@ -442,4 +442,5 @@ curl -s http://127.0.0.1:8088/__qq/health
 | 内存不足 | 实测 QQ 服务约 30MB RSS，`MemoryMax=512M` 足够 | 不是内存问题；先看 `journalctl -u dhvw-qqbot` |
 | `[OpenClaw] Error: TypeError: fetch failed` | LLM 端点瞬时断连/超时 | 已加 3 次重试与 `cause` 日志；主动消息 tick 异常只跳过本轮，不再退出进程 |
 | 切显现后 Chromium 被 OOM killer 杀 | OLVT Live2D 纹理 4096/8192（单张 8192² RGBA 约 256MB），叠加 onnxruntime VAD worker 1GB+ | 模型纹理降到 1024/2048；ARM iframe 禁用音频 `getUserMedia`，不创建 MicVAD/ORT；`model3.json` no-store |
+| 2GB 设备显现直接静态立绘 | `navigator.deviceMemory < 4` 时 `app.js` 不加载 OLVT iframe，避免整机 OOM | 静态立绘 + 字幕仍可退出回总观；4GB+ 设备保留 iframe |
 | `GL_OUT_OF_MEMORY` / `DRM_IOCTL_PANFROST_CREATE_BO failed` | RK3566 CMA 紧张，Xorg 在多次 Chromium 崩溃后 RSS 可涨到 500MB+ | 纹理降到 1024；必要时重启 `dhvw-x` 释放 Xorg 泄漏；不要反复切显现压测 |
