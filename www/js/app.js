@@ -19,6 +19,7 @@ import { loadScene } from "./view/scene-loader.js";
 import { createPerfOverlay } from "./view/perf-overlay.js";
 import { normalizePresentUrl, probePresent } from "./view/present-host.js";
 import { createBlockTransition } from "./view/transition.js";
+import { collectConsoleSnapshot } from "./runtime/console-bridge.js";
 
 const DEFAULTS = {
   host: { wsUrl: "", probeUrl: "", ttsUrl: "" },
@@ -881,6 +882,55 @@ async function boot() {
             void enterPlace(awayPlace, awayAct);
           }
         })();
+        break;
+      }
+      case "console:snapshot": {
+        void collectConsoleSnapshot()
+          .then((data) => {
+            remote.send({
+              type: "console:snapshot",
+              payload: { req_id: p.req_id || "", ok: true, data },
+              replyTo: msg.id,
+            });
+          })
+          .catch((err) => {
+            remote.send({
+              type: "console:snapshot",
+              payload: { req_id: p.req_id || "", ok: false, error: err.message },
+              replyTo: msg.id,
+            });
+          });
+        break;
+      }
+      case "console:command": {
+        const cmd = p.command || p;
+        try {
+          if (cmd.kind === "trigger") {
+            local.trigger(cmd.trigger, cmd.act || null);
+            if (cmd.trigger === "night") {
+              local.trigger("plot");
+              local.trigger("memory");
+            }
+          } else if (cmd.kind === "speed") {
+            const v = Math.max(0.5, Math.min(30, Number(cmd.value) || 1));
+            localStorage.setItem("dhvw_speed", String(v));
+            local.setSpeed(v);
+          } else if (cmd.kind === "llm-set") {
+            localStorage.setItem("dhvw_llm", JSON.stringify(cmd.config || {}));
+          } else if (cmd.kind === "llm-clear") {
+            localStorage.removeItem("dhvw_llm");
+          } else if (cmd.kind === "open") {
+            openConsole();
+          }
+          remote.send({ type: "console:ack", payload: { req_id: p.req_id || "", ok: true }, replyTo: msg.id });
+          if (cmd.kind === "llm-set" || cmd.kind === "llm-clear") setTimeout(() => location.reload(), 150);
+        } catch (err) {
+          remote.send({
+            type: "console:ack",
+            payload: { req_id: p.req_id || "", ok: false, error: err.message },
+            replyTo: msg.id,
+          });
+        }
         break;
       }
       case "display:set": {

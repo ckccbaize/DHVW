@@ -585,7 +585,7 @@ export async function dispatchBatch(batch, deps) {
                     const cause = err?.cause?.code || err?.cause?.message || "";
                     const detail = `${String(err)}${cause ? ` (${cause})` : ""}`;
                     log?.error?.(`[snowluma:${account.accountId}] dispatch error: ${detail}`);
-                    await sendErrorNotice(`[OpenClaw] Error: ${detail.slice(0, 500)}`);
+                    await sendErrorNotice("（刚刚信号晃了一下没接上，你再发一句试试~）");
                 },
             },
             replyOptions: {},

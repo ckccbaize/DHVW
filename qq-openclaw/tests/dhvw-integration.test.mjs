@@ -1115,4 +1115,64 @@ describe("图片表情包采集（偷图）与语境挑图发送 (sticker-store 
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
+
+  it("表情包默认节流冷却与防机械三段式/口头禅反重复约束", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dhvw-style-guard-"));
+    const stkDir = path.join(tmpDir, "stickers");
+    fs.mkdirSync(stkDir, { recursive: true });
+    fs.writeFileSync(path.join(stkDir, "开心_比心.png"), TINY_PNG);
+
+    // 默认 eagerness=1：发送一次后至少跳过 4 轮纯文字才再次解锁表情包
+    const st = createStickerStore({ dir: stkDir, autoFetch: false });
+    assert.equal(st.eagerness, 1);
+    assert.equal(st.canSendThisTurn(), true);
+    st.recordTurn(true);
+    for (let i = 0; i < 4; i++) {
+      assert.equal(st.canSendThisTurn(), false);
+      st.recordTurn(false);
+    }
+    assert.equal(st.canSendThisTurn(), true);
+
+    // 预置前 2 轮含模板套话的历史，验证第 3 轮 prompt 触发防机械约束
+    fs.writeFileSync(
+      path.join(tmpDir, "history.json"),
+      JSON.stringify([
+        { role: "user", text: "2 点睡", ts: 1 },
+        { role: "assistant", text: "反正我鲸尾一甩就不困了\n不过说真的，有啥事让你天天这么晚才睡？", ts: 2 },
+        { role: "user", text: "为了开发你", ts: 3 },
+        { role: "assistant", text: "那我这鲸尾摇得可太值了\n不过说真的，别光顾着开发我，咋还不歇着？", ts: 4 },
+      ]),
+      "utf8",
+    );
+
+    const prompts = [];
+    const rt = createDhvwRuntime({
+      stateDir: tmpDir,
+      mediaDir: path.join(tmpDir, "m"),
+      partDelayMs: 0,
+      sticker: { enabled: false },
+      getLlmConfig: () => ({ baseUrl: "http://llm.local/v1", model: "test-m", apiKey: "k" }),
+      fetchImpl: async (_url, init) => {
+        prompts.push(JSON.parse(init.body).messages[0].content);
+        return new Response(
+          JSON.stringify({ choices: [{ message: { content: JSON.stringify({ reply_mode: "reply", parts: ["行，那我先去溜达一圈"] }) } }] }),
+          { status: 200 },
+        );
+      },
+    });
+
+    await rt.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+      ctx: { CommandSource: "qq", RawBody: "每个人都该有个自己的世界", Body: "每个人都该有个自己的世界", BodyForAgent: "每个人都该有个自己的世界" },
+      dispatcherOptions: { deliver: async () => {} },
+    });
+
+    assert.equal(prompts.length, 1);
+    assert.ok(prompts[0].includes("防机械对话约束"));
+    assert.ok(prompts[0].includes("鲸尾"));
+    assert.ok(prompts[0].includes("不过说真的"));
+    assert.ok(prompts[0].includes("禁止以问句收尾"));
+    assert.ok(prompts[0].includes("parts 仅填 1 句"));
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
 });

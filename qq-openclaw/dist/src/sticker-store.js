@@ -48,7 +48,7 @@ export function createStickerStore({
   enabled = true,
   autoCollect = true,
   autoFetch = true,
-  eagerness = 2,
+  eagerness = 1,
   maxStickers = 200,
   shellUrl = "http://127.0.0.1:8080",
   fetchImpl = globalThis.fetch,
@@ -60,7 +60,7 @@ export function createStickerStore({
 
   const indexFile = path.join(dir, "index.json");
   let items = loadIndex();
-  let turnsSinceSticker = 10;
+  let turnsSinceSticker = 4;
   let lastWebFetchAt = 0;
   let lastWebAttemptAt = 0;
   let webFetchInFlight = null;
@@ -186,11 +186,11 @@ export function createStickerStore({
       }
     },
 
-    canSendThisTurn({ proactive = false } = {}) {
+    canSendThisTurn({ proactive = false, userSentMedia = false } = {}) {
       if (!enabled || eagerness <= 0) return false;
-      if (proactive) return eagerness >= 1;
-      if (eagerness === 1) return turnsSinceSticker >= 3;
-      if (eagerness === 2) return turnsSinceSticker >= 1;
+      if (proactive) return eagerness >= 1 && turnsSinceSticker >= 2;
+      if (eagerness === 1) return userSentMedia ? turnsSinceSticker >= 2 : turnsSinceSticker >= 4;
+      if (eagerness === 2) return userSentMedia ? turnsSinceSticker >= 1 : turnsSinceSticker >= 2;
       return true;
     },
 

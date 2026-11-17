@@ -79,7 +79,7 @@ export function createDhvwRuntime({
     enabled: stickerCfg.enabled !== false,
     autoCollect: stickerCfg.autoCollect !== false,
     autoFetch: stickerCfg.autoFetch !== false,
-    eagerness: stickerCfg.eagerness ?? 2,
+    eagerness: stickerCfg.eagerness ?? 1,
     maxStickers: stickerCfg.maxStickers ?? 200,
     shellUrl,
     fetchImpl,
@@ -233,6 +233,49 @@ export function createDhvwRuntime({
     let inter = 0;
     for (const g of sa) if (sb.has(g)) inter += 1;
     return inter / Math.min(sa.size, sb.size) >= 0.45;
+  }
+
+  const CLICHE_PHRASES = [
+    "不过说真的",
+    "说真的",
+    "讲真",
+    "说实话",
+    "话说回来",
+    "记小本本",
+    "踩踩点",
+    "踩点",
+    "行吧",
+  ];
+
+  function buildReplyStyleGuard(history) {
+    const recentBot = history.filter((m) => m?.role === "assistant" && m.text).slice(-4);
+    if (!recentBot.length) return "";
+    const texts = recentBot.map((m) => String(m.text).replace(/\[表情包:[^\]]*\]/g, "").trim());
+    const banWords = new Set();
+    for (const p of CLICHE_PHRASES) {
+      if (texts.some((t) => t.includes(p))) banWords.add(p);
+    }
+    // 扫描近 4 轮重复出现 >=2 次的高频名词/动作词（如 鲸尾 / 沙发 / 咖啡厅 / 铁打）
+    const tokenCounts = new Map();
+    for (const t of texts) {
+      const tokens = new Set(t.match(/[\u4e00-\u9fa5]{2,4}/g) || []);
+      for (const tok of tokens) {
+        if (/^(这个|那个|这样|那样|现在|时候|自己|其实|但是|不过|感觉|今天|昨天|晚上|早上|没有|是不是|怎么样|知道)$/.test(tok)) continue;
+        tokenCounts.set(tok, (tokenCounts.get(tok) || 0) + 1);
+      }
+    }
+    for (const [tok, cnt] of tokenCounts.entries()) {
+      if (cnt >= 2) banWords.add(tok);
+    }
+    const recent3 = texts.slice(-3);
+    const trailingQuestions = recent3.filter((t) => /[？?]\s*$/.test(t)).length;
+    const multiPartTurns = texts.slice(-2).filter((t) => t.split(/\n+/).length >= 2 || t.length > 42).length;
+
+    const rules = [];
+    if (banWords.size) rules.push(`本轮严禁出现最近用腻的词/口头禅：${[...banWords].slice(0, 6).join("、")}`);
+    if (trailingQuestions >= 2) rules.push("最近几轮一直在反问，本轮【禁止以问句收尾】，直接用陈述/接梗/吐槽收住");
+    if (multiPartTurns >= 2) rules.push("最近两轮话太多太像模板，本轮请只发【1 条】简短口语（parts 仅填 1 句，<=25 字），不要拆多段");
+    return rules.length ? `【防机械对话约束】${rules.join("；")}` : "";
   }
 
   async function researchSlang(term) {
@@ -487,7 +530,7 @@ export function createDhvwRuntime({
               `[dhvw-runtime] memory query semantic=${Boolean(mem?.semantic)} hits=${mem?.hits?.length || 0} l0=${mem?.l0?.length || 0} cost=${now() - tMemStart}ms`
             );
             const inboundMedia = Array.isArray(ctx.media) ? ctx.media.filter((m) => m?.path) : [];
-            const canSticker = stickerStore.canSendThisTurn();
+            const canSticker = stickerStore.canSendThisTurn({ userSentMedia: inboundMedia.length > 0 });
             if (stickerStore.enabled) {
               if (stickerStore.stats().count < 6) {
                 await Promise.race([
@@ -499,12 +542,13 @@ export function createDhvwRuntime({
               }
             }
             const stickerCandidates = canSticker
-              ? stickerStore.selectCandidates({ query: userText, mood: { band: world.band, dims: world.mood }, limit: 8 })
+              ? stickerStore.selectCandidates({ query: userText, mood: { band: world.band, dims: world.mood }, limit: 4 })
               : [];
             const stickerHintBlock = stickerCandidates.length
-              ? `可用表情包库（情绪合适时可在 sticker_id 填入下列 id 之一，不想发留空）：\n${stickerStore.formatPromptBlock(stickerCandidates)}`
+              ? `可用表情包库（极克制使用：大多数纯聊天回合请把 sticker_id 留空，仅在非常搞笑/撒娇/斗图时才偶尔填下列 id 之一）：\n${stickerStore.formatPromptBlock(stickerCandidates)}`
               : "";
             const searchHintBlock = quickSearchText ? `联网搜索参考：\n${quickSearchText}` : "";
+            const styleGuardBlock = buildReplyStyleGuard(chatHistory.slice(0, -1));
             const collectHint = inboundMedia.length && stickerStore.autoCollect
               ? "若对方发来的图片是适合日常斗图的表情包，请在 collect_sticker 中填 save:true 及 emotion/desc/tags 进行收藏。"
               : "";
@@ -520,14 +564,15 @@ export function createDhvwRuntime({
               `长期记忆与偏好：\n${formatMemoryBlock(mem)}`,
               ...(!isTopicShift ? [`熟人习惯与黑话：${formatSlangBlock()}`] : []),
               ...(topicShiftHint ? [topicShiftHint] : []),
+              ...(styleGuardBlock ? [styleGuardBlock] : []),
               ...(searchHintBlock ? [searchHintBlock] : []),
               ...(stickerHintBlock ? [stickerHintBlock] : []),
               `最近对话：\n${recentHistoryText}`,
               `对方刚发来：\n${String(ctx.BodyForAgent || ctx.Body || "").replace(/^(?:\[[^\]]+\]\s*)?(?:主人|对方)\s*[:：]\s*/u, "")}`,
               "",
-              "请以真人口吻回复，严格输出 JSON（不要解释、不要 markdown 代码块）：",
-              '{"reply_mode":"reply|short|skip","parts":["短句1","可选短句2"],"sticker_id":"可选表情包id","sticker_only":false,"collect_sticker":{"save":false,"emotion":"","desc":"","tags":[]},"tone":"warm|playful|sleepy|needy|curious","bubble":"总观气泡(<=18字)","mood_delta":{"valence":0.05,"social":-0.06},"slang_note":"仅记录对方常说的独特黑话/新词，普通词留空","unknown_term":"可选想查意思的新词黑话","memory_fact":"可选一句话记住的新事实","thread":"可选后续可再聊的新线头","action":"可选轻动作如rest/read","send_edge_bg":false}',
-              `要求：1. parts 1~3 条口语短句，优先顺着对方刚发来的内容和长期记忆自然接话，严禁重复描写天气/时间或“刚醒”套话；2. 严禁死咬同一个梗/称呼/约定连续超过 2 轮，对方说“聊点别的”或只回短句时立即干脆翻篇开启新话题；3. 严禁列表编号与客服套话；4. 若对方发了 [QQ表情:xxx] 或简称如 /睡，请按对应情绪自然互动；5. 可用表情包时自然选用，只想用一张表情包接话可设 sticker_only=true；6. 若只是简单道别/敷衍可设 reply_mode=skip。${collectHint}`,
+              "请像真人在 QQ 随手打字一样自然接话，严格输出 JSON（不要解释、不要 markdown 代码块）：",
+              '{"reply_mode":"reply|short|skip","parts":["自然的一句话(必要时才补第2句)"],"sticker_id":"可选(多数留空)","sticker_only":false,"collect_sticker":{"save":false,"emotion":"","desc":"","tags":[]},"tone":"warm|playful|sleepy|needy|curious","bubble":"总观气泡(<=18字)","mood_delta":{"valence":0.05,"social":-0.06},"slang_note":"仅记录对方常说的独特黑话/新词，普通词留空","unknown_term":"可选想查意思的新词黑话","memory_fact":"可选一句话记住的新事实","thread":"可选后续可再聊的新线头","action":"可选轻动作如rest/read","send_edge_bg":false}',
+              `要求：1. 像真人一样变着节奏聊天：多数情况只写 1 句（偶尔才分 2 句），严禁凑成“先复述对方原话感叹→再硬塞鲸尾/屋子动作→最后‘不过说真的’反问”的三段式模板；2. 禁止复读对方刚发的整句话，也不要每轮硬塞人设特征词或说教关心；3. 不要每句话都反问结尾，可用陈述、调侃或吐槽直接收住；4. 严禁连续超过 2 轮咬着同一个梗/约定不放；5. 表情包要克制、宁缺毋滥，只有情绪特别契合或斗图时才发，不想发把 sticker_id 留空；6. 若对方发了 [QQ表情:xxx] 或简称如 /睡请自然互动，若仅道别/敷衍可设 reply_mode=skip。${collectHint}`,
             ].join("\n");
 
             const messages = await buildMultimodalTurnMessages(prompt, ctx);
@@ -579,7 +624,7 @@ export function createDhvwRuntime({
               const joined = [
                 ...rawParts,
                 ...(chosenSticker ? [`[表情包:${chosenSticker.desc}]`] : []),
-              ].join(" ").trim();
+              ].join("\n").trim();
               if (joined) {
                 chatHistory.push({ role: "assistant", text: joined, ts: now() });
                 pendingTurns.push({ role: "assistant", text: joined, ts: now() });
