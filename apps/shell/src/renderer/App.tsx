@@ -122,7 +122,10 @@ function GatewayDialog({
         </div>
         {browserUrl && (
           <>
-            <code className="gw-url mono">{browserUrl}</code>
+            <div className="gw-url-row">
+              <code className="gw-url mono">{browserUrl}</code>
+              <button onClick={() => void window.dhvw.copyText(browserUrl)}>复制</button>
+            </div>
             <div className="actions">
               <button onClick={() => void window.dhvw.openExternal(browserUrl)}>在浏览器打开</button>
               <button onClick={() => void window.dhvw.copyText(browserUrl)}>复制链接</button>
