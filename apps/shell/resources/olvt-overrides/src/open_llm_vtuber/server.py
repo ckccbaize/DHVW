@@ -25,6 +25,17 @@ from .proactive import ProactiveScheduler
 DHVW_BOOTSTRAP_SCRIPT = """<script>
 (function () {
   try {
+    var isArm = location.search.indexOf('arm=1') !== -1 || window.self !== window.top;
+    if (isArm && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      /* 2GB ARM 没有麦克风，且 onnxruntime VAD worker 会吃掉 1GB+；在应用加载前拒绝音频。 */
+      var origGum = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      navigator.mediaDevices.getUserMedia = function (constraints) {
+        if (constraints && constraints.audio) {
+          return Promise.reject(new DOMException('ARM device has no microphone', 'NotAllowedError'));
+        }
+        return origGum(constraints);
+      };
+    }
     var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
     var underGateway = location.pathname.indexOf('/olvt') === 0;
     var base = underGateway ? (location.origin + '/olvt') : location.origin;
@@ -205,7 +216,7 @@ class CORSStaticFiles(StarletteStaticFiles):
         if path.endswith(".js"):
             response.headers["Content-Type"] = "application/javascript"
         norm = (path or "").replace("\\", "/").strip("/")
-        if norm in ("dhvw-cel.css", "dhvw-arm.js"):
+        if norm in ("dhvw-cel.css", "dhvw-arm.js") or norm.endswith(".model3.json"):
             response.headers["Cache-Control"] = "no-store"
         return response
 

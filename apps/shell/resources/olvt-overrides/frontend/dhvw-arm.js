@@ -21,6 +21,20 @@
   docEl.classList.add('dhvw-cel');
   if (isArm) {
     docEl.classList.add('dhvw-arm');
+    /* 2GB ARM 设备没有麦克风，也承受不起 onnxruntime VAD worker 的常驻内存。
+       在应用初始化前拒绝音频 getUserMedia，避免 MicVAD 创建 ORT 线程池。 */
+    try {
+      var md = navigator.mediaDevices;
+      if (md && typeof md.getUserMedia === 'function') {
+        var origGum = md.getUserMedia.bind(md);
+        md.getUserMedia = function (constraints) {
+          if (constraints && constraints.audio) {
+            return Promise.reject(new DOMException('ARM device has no microphone', 'NotAllowedError'));
+          }
+          return origGum(constraints);
+        };
+      }
+    } catch (e) {}
   }
 
   try {
