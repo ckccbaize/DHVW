@@ -24,6 +24,7 @@ fi
 usermod -aG video,render dhvw 2>/dev/null || true
 
 install -d /opt/dhvw
+install -d -o dhvw -g dhvw -m 0755 /opt/dhvw/data
 rm -rf /opt/dhvw/www
 cp -a "$ROOT/www" /opt/dhvw/www
 chown -R root:root /opt/dhvw/www

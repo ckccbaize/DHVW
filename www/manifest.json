@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-16T16:30:56.273Z",
+ "built_at": "2026-11-17T05:55:09.400Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -789,8 +789,8 @@
   },
   {
    "path": "js/app.js",
-   "size": 51223,
-   "sha256": "60640c9810964901e7cce11bca68d7978ebdb6b35decaa4d66ef1847ec73ad20"
+   "size": 52891,
+   "sha256": "e80116c90cce126a520522cb86b22040bb03e8251f75696340de46de5a9c5402"
   },
   {
    "path": "js/core/actions/browse.js",

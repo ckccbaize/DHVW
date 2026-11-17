@@ -57,14 +57,42 @@ function readSavedHost() {
   return null;
 }
 
+/** PC 通过局域网配对写入的主机地址（壳的 /__host）；没有配对文件时返回 null。 */
+async function readShellHost() {
+  try {
+    const res = await fetch("/__host", { cache: "no-store" });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data?.ok && typeof data.wsUrl === "string" && data.wsUrl) {
+      return {
+        wsUrl: data.wsUrl,
+        probeUrl: data.probeUrl || probeUrlFor(data.wsUrl),
+        name: data.name || "",
+      };
+    }
+  } catch {
+    /* 本机预览/旧壳没有 /__host 时忽略 */
+  }
+  return null;
+}
+
 async function loadConfig() {
   try {
     const res = await fetch("config.json", { cache: "no-store" });
     if (!res.ok) throw new Error(String(res.status));
     const raw = await res.json();
     const hostParam = new URLSearchParams(location.search).get("host");
+    const shellHost = await readShellHost();
     if (hostParam) {
       raw.host = { ...(raw.host || {}), wsUrl: hostParam, probeUrl: probeUrlFor(hostParam) };
+      try {
+        localStorage.setItem(HOST_KEY, JSON.stringify(raw.host));
+      } catch {
+        /* 隐私模式/配额满时只影响本次连接 */
+      }
+    } else if (shellHost) {
+      // PC 局域网配对写入的地址优先于旧 localStorage，设备端无需任何设置。
+      raw.host = { ...(raw.host || {}), ...shellHost, probeUrl: shellHost.probeUrl || probeUrlFor(shellHost.wsUrl) };
       try {
         localStorage.setItem(HOST_KEY, JSON.stringify(raw.host));
       } catch {
@@ -204,8 +232,26 @@ async function countScenePackages() {
   return ids.size;
 }
 
+/** PC 重新配对后无需重启 kiosk：轮询 /__host，地址变化就刷新页面续连。 */
+function watchShellHost(initialWsUrl) {
+  if (new URLSearchParams(location.search).get("host")) return;
+  let current = String(initialWsUrl || "");
+  setInterval(async () => {
+    const host = await readShellHost();
+    if (!host?.wsUrl || host.wsUrl === current) return;
+    current = host.wsUrl;
+    try {
+      localStorage.setItem(HOST_KEY, JSON.stringify(host));
+    } catch {
+      /* 隐私模式/配额满时仍刷新，本次连接可用 */
+    }
+    location.reload();
+  }, 3000);
+}
+
 async function boot() {
   const cfg = await loadConfig();
+  watchShellHost(cfg.host?.wsUrl);
   const sceneParam = new URLSearchParams(location.search).get("scene") || cfg.scene || "home";
   let scene = await loadScene(sceneParam);
   const homeScene = scene;

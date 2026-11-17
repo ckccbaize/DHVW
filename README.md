@@ -36,6 +36,7 @@ sudo apt-get install -y xserver-xorg xinit x11-xserver-utils xserver-xorg-legacy
 sudo sh deploy/install.sh dist/dhvw-shell-linux-arm64     # 在设备上执行
 curl -s http://127.0.0.1:8080/__health
 # 屏幕倒装：kiosk.sh 用 xrandr --rotate inverted 输出 180°；X 由 dhvw-x.service 启动
+# 配对：PC「配对设备」→ 扫描设备 → 配对这台；ARM 无需输入配对码/改 URL
 ```
 
 ## 三条硬约束（设备侧落点）

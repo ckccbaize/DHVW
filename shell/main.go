@@ -77,9 +77,18 @@ type packStatus struct {
 	HashBad []string `json:"hash_bad"`
 }
 
+// hostConfig 由 PC 通过局域网配对写入，页面启动时读取并续连。
+type hostConfig struct {
+	WSURL     string `json:"wsUrl"`
+	ProbeURL  string `json:"probeUrl,omitempty"`
+	Name      string `json:"name,omitempty"`
+	UpdatedAt string `json:"updatedAt,omitempty"`
+}
+
 type server struct {
 	root       string
 	dataDir    string
+	hostFile   string
 	apikeyDir  string
 	noCache    bool
 	version    string
@@ -104,6 +113,7 @@ func newServer(root, ver string, verifyHash bool, apikeyDir string) (*server, er
 	s := &server{
 		root:       abs,
 		dataDir:    filepath.Join(filepath.Dir(abs), "data"),
+		hostFile:   filepath.Join(filepath.Dir(abs), "data", "host.json"),
 		apikeyDir:  apikeyDir,
 		version:    ver,
 		started:    time.Now(),
@@ -205,6 +215,10 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.serveState(w, r)
 		return
 	}
+	if r.URL.Path == "/__host" {
+		s.serveHost(w, r)
+		return
+	}
 	if r.URL.Path == "/__fetch" {
 		s.serveFetch(w, r)
 		return
@@ -304,6 +318,154 @@ func (s *server) serveFile(w http.ResponseWriter, r *http.Request, urlPath, fsPa
 	}
 	// ServeContent 处理 Range / HEAD / 错误；已设 Content-Length 时它会复用。
 	http.ServeContent(w, r, fi.Name(), fi.ModTime(), f)
+}
+
+// readHostConfig 读取 PC 配对写入的主机地址；不存在时返回 nil。
+func (s *server) readHostConfig() *hostConfig {
+	raw, err := os.ReadFile(s.hostFile)
+	if err != nil {
+		return nil
+	}
+	var cfg hostConfig
+	if err := json.Unmarshal(raw, &cfg); err != nil || strings.TrimSpace(cfg.WSURL) == "" {
+		return nil
+	}
+	return &cfg
+}
+
+func (s *server) writeHostConfig(cfg hostConfig) error {
+	if err := os.MkdirAll(s.dataDir, 0o755); err != nil {
+		return err
+	}
+	cfg.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
+	raw, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp := s.hostFile + ".tmp"
+	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, s.hostFile)
+}
+
+// serveHost 只服务本机回环，页面用它读取 PC 配对结果。
+func (s *server) serveHost(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	cfg := s.readHostConfig()
+	if cfg == nil {
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"ok":        true,
+		"wsUrl":     cfg.WSURL,
+		"probeUrl":  cfg.ProbeURL,
+		"name":      cfg.Name,
+		"updatedAt": cfg.UpdatedAt,
+	})
+}
+
+func privateRemote(remote string) bool {
+	host, _, err := net.SplitHostPort(remote)
+	if err != nil {
+		return false
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback() || ip.IsPrivate()
+}
+
+func (s *server) pairJSON(w http.ResponseWriter, code int, body any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", "content-type")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(body)
+}
+
+// pairHandler 是局域网配对入口：只暴露 identity / pair / unpair，不服务静态资源。
+func (s *server) pairHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodOptions {
+			s.pairJSON(w, http.StatusNoContent, map[string]any{})
+			return
+		}
+		if r.RemoteAddr != "" && !privateRemote(r.RemoteAddr) {
+			s.pairJSON(w, http.StatusForbidden, map[string]any{"ok": false, "error": "只允许局域网配对"})
+			return
+		}
+		switch r.URL.Path {
+		case "/__identity":
+			host, _ := os.Hostname()
+			cfg := s.readHostConfig()
+			s.pairJSON(w, http.StatusOK, map[string]any{
+				"ok":      true,
+				"app":     "dhvw-arm",
+				"version": s.version,
+				"name":    host,
+				"paired":  cfg != nil,
+			})
+		case "/__pair":
+			if r.Method != http.MethodPost {
+				s.pairJSON(w, http.StatusMethodNotAllowed, map[string]any{"ok": false, "error": "POST only"})
+				return
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, 8<<10)
+			var req struct {
+				WSURL    string `json:"wsUrl"`
+				ProbeURL string `json:"probeUrl"`
+				Token    string `json:"token"`
+				Name     string `json:"name"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				s.pairJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "bad json"})
+				return
+			}
+			wsURL := strings.TrimSpace(req.WSURL)
+			if len(wsURL) == 0 || len(wsURL) > 2048 {
+				s.pairJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "bad wsUrl"})
+				return
+			}
+			u, err := url.Parse(wsURL)
+			if err != nil || (u.Scheme != "ws" && u.Scheme != "wss") || u.Host == "" {
+				s.pairJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "wsUrl 必须是 ws/wss 地址"})
+				return
+			}
+			// 兼容只传 token 的调用：拼到 orchestrator WS 地址上。
+			if req.Token != "" && u.Query().Get("token") == "" {
+				q := u.Query()
+				q.Set("token", req.Token)
+				u.RawQuery = q.Encode()
+				wsURL = u.String()
+			}
+			cfg := hostConfig{WSURL: wsURL, ProbeURL: strings.TrimSpace(req.ProbeURL), Name: strings.TrimSpace(req.Name)}
+			if err := s.writeHostConfig(cfg); err != nil {
+				s.pairJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": err.Error()})
+				return
+			}
+			s.pairJSON(w, http.StatusOK, map[string]any{"ok": true})
+		case "/__unpair":
+			if r.Method != http.MethodPost {
+				s.pairJSON(w, http.StatusMethodNotAllowed, map[string]any{"ok": false, "error": "POST only"})
+				return
+			}
+			_ = os.Remove(s.hostFile)
+			s.pairJSON(w, http.StatusOK, map[string]any{"ok": true})
+		default:
+			s.pairJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "not found"})
+		}
+	})
 }
 
 func isLoopbackHost(host string) bool {
@@ -646,6 +808,7 @@ func defaultApikeyDir() string {
 
 func main() {
 	addr := flag.String("addr", "127.0.0.1:8080", "监听地址（只允许回环）")
+	pairAddr := flag.String("pair-addr", "0.0.0.0:8081", "局域网配对监听地址（空=关闭）")
 	apikeyDir := flag.String("apikey", defaultApikeyDir(), "本机 LLM 配置目录（读取第一个 *.txt）")
 	root := flag.String("root", "./www", "资源包根目录")
 	verifyHash := flag.Bool("verify-hash", false, "启动时校验 manifest 的 sha256（较慢，仅排障用）")
@@ -687,6 +850,22 @@ func main() {
 	}
 	log.Printf("dhvw-shell %s → http://%s (root=%s)", version, *addr, srv.root)
 
+	var pairSrv *http.Server
+	if strings.TrimSpace(*pairAddr) != "" {
+		pairSrv = &http.Server{
+			Addr:              *pairAddr,
+			Handler:           srv.pairHandler(),
+			ReadHeaderTimeout: 5 * time.Second,
+			IdleTimeout:       30 * time.Second,
+		}
+		go func() {
+			log.Printf("局域网配对 → http://%s/__identity", *pairAddr)
+			if err := pairSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				log.Printf("配对监听失败（继续仅本机）: %v", err)
+			}
+		}()
+	}
+
 	idle := make(chan struct{})
 	go func() {
 		sig := make(chan os.Signal, 1)
@@ -703,5 +882,8 @@ func main() {
 	}()
 	<-idle
 	srv.stopQqChild()
+	if pairSrv != nil {
+		_ = pairSrv.Close()
+	}
 	_ = hs.Close()
 }

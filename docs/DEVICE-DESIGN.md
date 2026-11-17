@@ -43,11 +43,11 @@
 | 端侧引擎 | 两个 Web Worker：`life.worker`（tick，P0）、`forge.worker`（生成，随时让位） |
 | 数据 | IndexedDB（`dhvw` 库：`events` 环形 2000 条 / `assets` 端侧产物 / `kv` 状态） |
 | 内存预算 | 总观 120–180MB；端侧档增量 ≤100MB；显现 380–520MB（两态互斥） |
-| 端口 | 仅 `8080`（本地回环）。PC 侧 `8877`/`12393` 只在显现与世界·主机档被访问 |
+| 端口 | `8080`（本地回环，页面/静态壳）；`8081`（局域网，仅 `/__identity`、`/__pair`、`/__unpair`）。PC 侧 `8877`/`12393` 只在显现与世界·主机档被访问 |
 
 ```
 systemd
-├─ dhvw-shell.service     静态壳 :8080（Restart=always，看门狗 ≤5s）
+├─ dhvw-shell.service     静态壳 :8080 + 局域网配对口 :8081（Restart=always，看门狗 ≤5s）
 ├─ dhvw-x.service         Xorg :0（tty1，本地 kiosk 专用；屏幕倒装时输出旋转 180°）
 └─ dhvw-kiosk.service     Chromium kiosk（崩溃/白屏自动重启；Requires shell + X）
    ├─ 主线程：总观/显现视图、PathAgent、LifeStore、模式控制
@@ -263,7 +263,7 @@ state = {
 
 | 项 | 定稿 |
 |---|---|
-| 服务 | `dhvw-shell -addr 127.0.0.1:8080 -root /opt/dhvw/www`，只读 |
+| 服务 | `dhvw-shell -addr 127.0.0.1:8080 -pair-addr 0.0.0.0:8081 -root /opt/dhvw/www`；静态只读，配对口只写 `data/host.json` |
 | 开发对照 | `tools/serve.mjs` 路径规则与壳一致，但**一律 `no-cache`**；壳才对 `/js/`、`/assets/` 发 `immutable`（否则改完模块刷新仍拿旧文件） |
 | 路径规则 | 拒绝 `..`/绝对路径/符号链接逃逸；**无目录列表**；无扩展名路径回退 `index.html`（SPA） |
 | 缓存 | `index.html` / `manifest.json` / `config.json`：`no-cache` + ETag；`/assets/` 与 `/js/`：`max-age=31536000, immutable`（资源包随版本整体替换） |
@@ -289,17 +289,27 @@ state = {
 
 ### 10.1 网关配对与 CA 信任
 
-设备端首次连接 PC 网关时，需要把 PC 的 `ca.crt.pem` 导入 Chromium 的 NSS 库，并写入一次 `?host=` 地址（之后 kiosk 从 localStorage 续连）：
+设备端不再需要输入配对码或改 URL。PC 侧「配对设备」对话框：
+
+1. **本机浏览器测试**：点「一键配对」生成 token，点「在浏览器打开」即可用任意浏览器打开 PC 内置的 ARM 页面（`arm-preview` 服务根路径已改为 `index.html`）。
+2. **ARM 设备**：点「扫描设备」，PC 扫描本机所在 `/24` 私网的 `8081` 端口，列出 `dhvw-arm` 设备；点「配对这台」后 PC 直接签发 token 并 POST 到设备 `http://<arm>:8081/__pair`。
+3. 设备端 `dhvw-shell` 把地址写入 `/opt/dhvw/data/host.json`；页面轮询 `/__host`，3 秒内自动刷新并连接，无需在 ARM 上做任何设置。
+
+设备端配对接口（只允许私网来源）：
+
+```text
+GET  http://<arm>:8081/__identity   → {ok, app:"dhvw-arm", name, version, paired}
+POST http://<arm>:8081/__pair       → {wsUrl, name} 写 host.json
+POST http://<arm>:8081/__unpair     → 删除 host.json
+GET  http://127.0.0.1:8080/__host   → 页面读取当前配对地址
+```
+
+CA 信任仍需一次性导入（设备端）：
 
 ```bash
-# 1) CA（PC 侧 gateway/ca.crt.pem）
 sudo apt-get install -y libnss3-tools
 sudo install -d -o dhvw -g dhvw /home/dhvw/.pki/nssdb
 sudo certutil -d sql:/home/dhvw/.pki/nssdb -A -t "C,," -n dhvw-gateway -i /path/to/ca.crt.pem
-
-# 2) 首次配对：在设备 Chromium 打开一次（token 由 PC 网关生成）
-#    http://127.0.0.1:8080/?host=wss://<PC-IP>:8443/ws/orchestrator?token=<token>
-#    页面会把地址写入 localStorage.dhvw_host；之后 kiosk 无 query 也能续连。
 ```
 
 验证：PC 侧 `GET /orchestrator/health?token=<token>` 返回 `device.connected=true`。

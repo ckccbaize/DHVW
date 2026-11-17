@@ -6,8 +6,9 @@ Before=dhvw-kiosk.service
 
 [Service]
 Type=simple
-DynamicUser=yes
-ExecStart=/usr/local/bin/dhvw-shell -addr 127.0.0.1:8080 -root /opt/dhvw/www
+User=dhvw
+Group=dhvw
+ExecStart=/usr/local/bin/dhvw-shell -addr 127.0.0.1:8080 -pair-addr 0.0.0.0:8081 -root /opt/dhvw/www
 Restart=always
 RestartSec=2
 MemoryMax=64M
@@ -18,7 +19,8 @@ PrivateTmp=yes
 PrivateDevices=yes
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 ReadOnlyPaths=/opt/dhvw/www
-# 只读壳不该写盘：日志走 journald
+ReadWritePaths=/opt/dhvw/data
+# 日志走 journald；data 目录仅用于 state/digest/host 配对
 StandardOutput=journal
 StandardError=journal
 

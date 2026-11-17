@@ -125,6 +125,64 @@ func TestSPAFallback(t *testing.T) {
 	}
 }
 
+func TestPairWritesHostConfig(t *testing.T) {
+	s, _ := newTestServer(t)
+	pair := s.pairHandler()
+
+	body := `{"wsUrl":"wss://192.168.8.51:8443/ws/orchestrator?token=abc","name":"md1000"}`
+	req := httptest.NewRequest(http.MethodPost, "/__pair", strings.NewReader(body))
+	req.RemoteAddr = "192.168.8.83:4567"
+	rec := httptest.NewRecorder()
+	pair.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("pair → %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = get(t, s, "/__host")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("host → %d", rec.Code)
+	}
+	var host struct {
+		OK    bool   `json:"ok"`
+		WSURL string `json:"wsUrl"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &host); err != nil {
+		t.Fatal(err)
+	}
+	if !host.OK || !strings.Contains(host.WSURL, "token=abc") {
+		t.Fatalf("host 配置不对: %+v", host)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/__identity", nil)
+	req.RemoteAddr = "192.168.8.83:4567"
+	rec = httptest.NewRecorder()
+	pair.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"paired":true`) {
+		t.Fatalf("identity 不对: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPairRejectsPublicAndBadURL(t *testing.T) {
+	s, _ := newTestServer(t)
+	pair := s.pairHandler()
+
+	req := httptest.NewRequest(http.MethodPost, "/__pair", strings.NewReader(`{"wsUrl":"wss://x/y"}`))
+	req.RemoteAddr = "8.8.8.8:1234"
+	rec := httptest.NewRecorder()
+	pair.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("公网来源应 403，得到 %d", rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/__pair", strings.NewReader(`{"wsUrl":"http://x/y"}`))
+	req.RemoteAddr = "192.168.8.83:4567"
+	rec = httptest.NewRecorder()
+	pair.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("非 ws/wss 应 400，得到 %d", rec.Code)
+	}
+}
+
 func TestMethodNotAllowed(t *testing.T) {
 	s, _ := newTestServer(t)
 	req := httptest.NewRequest(http.MethodPost, "/index.html", strings.NewReader("x"))
