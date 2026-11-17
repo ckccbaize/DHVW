@@ -521,19 +521,16 @@ async function boot() {
     presentCancelled = false;
     try {
       const coverPromise = transition.cover("正在唤醒显现服务…", 520);
-      remote.send({ type: "world:stop" });
       remote.send({ type: "present:request", payload: { t: Date.now() } });
 
       const remotePresent = isRemotePresent();
       const presentUrl = resolvePresentUrl(remotePresent);
-      // 设备本机（127.0.0.1）不渲染 Live2D，只显示静态立绘；手机/电脑通过
-      // ?remote=1 或局域网地址打开时，用它们自己的算力加载 OLVT 完整页面。
-      // 设备本机一律静态立绘；只有手机/电脑远程打开（remote=1 或非回环主机）才加载 OLVT。
+      // 设备本机（127.0.0.1）一律静态立绘；手机/电脑通过 ?remote=1 或局域网地址
+      // 打开时，用它们自己的算力加载 OLVT 完整页面。
       const lowMemory = !remotePresent;
       const iframeUrl = lowMemory ? "" : presentUrl;
       const [tts, bg] = await Promise.all([probeTts(), bestBackground(), coverPromise]);
       if (presentCancelled || store.state.conn !== "up") {
-        remote.send({ type: "world:resume" });
         await transition.reveal(320);
         if (store.state.conn !== "up") overview.say("主机断开了，先留在总观", 3000);
         return;
@@ -542,12 +539,10 @@ async function boot() {
       if (iframeUrl) {
         const probe = await waitForPresentReady(iframeUrl, 45000);
         if (presentCancelled) {
-          remote.send({ type: "world:resume" });
           await transition.reveal(320);
           return;
         }
         if (!probe.ok) {
-          remote.send({ type: "world:resume" });
           await transition.reveal(320);
           overview.say(store.state.conn !== "up" ? "主机断开了，先留在总观" : "显现服务启动超时，先留在总观", 3000);
           return;
@@ -556,7 +551,6 @@ async function boot() {
 
       transition.setText("正在加载显现面板…");
       setPresentModeActive(true);
-      local.suspend();
       await new Promise((resolve) => {
         let settled = false;
         const done = () => {
@@ -580,8 +574,6 @@ async function boot() {
       if (presentCancelled) {
         present.close();
         setPresentModeActive(false);
-        local.resume();
-        remote.send({ type: "world:resume" });
         await transition.reveal(320);
         return;
       }
@@ -615,9 +607,7 @@ async function boot() {
       store.patch({ display: "overview" });
       displayChangedAt = performance.now();
       presentOpenedAt = 0;
-      local.resume();
       if (store.state.tier === "edge") local.setTier("edge");
-      remote.send({ type: "world:resume" });
       if (reason === "host_lost") overview.say("主机断开了，我先回去", 3000);
       if (reason === "iframe_timeout" || reason === "iframe_error") overview.say("显现页加载失败，先回总观", 3000);
       store.emit("state", { display: "overview", reason });
@@ -648,7 +638,6 @@ async function boot() {
     } else {
       hostLostAt = 0;
       setTier("idle");
-      local.resume();
       void flushEvents();
       if (was === "down") overview.say("主机回来了", 2200);
     }
