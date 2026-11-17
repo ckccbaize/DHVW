@@ -14,6 +14,7 @@ import type { DhvwApi } from '../preload'
 import { HomeView } from './views/HomeView'
 import { AgentView } from './views/AgentView'
 import { ConfigView } from './views/ConfigView'
+import { ArmConsoleDialog } from './views/ArmConsole'
 import { SettingsPage } from './views/SettingsPage'
 import { QqBotGuideDialog } from './components/QqBotGuideDialog'
 
@@ -238,6 +239,7 @@ export default function App(): React.ReactElement {
   const [settings, setSettings] = useState<SettingsView | null>(null)
   const [boostBusy, setBoostBusy] = useState(false)
   const [showQqGuide, setShowQqGuide] = useState(false)
+  const [showArmConsole, setShowArmConsole] = useState(false)
   const [live2d, setLive2d] = useState<{ url: string | null; model: string | null; error?: string } | null>(null)
 
   const refresh = useCallback(async () => setSnap(await window.dhvw.snapshot()), [])
@@ -365,6 +367,7 @@ export default function App(): React.ReactElement {
       </header>
 
       {showGateway && <GatewayDialog status={gateway} onChange={setGateway} onClose={() => setShowGateway(false)} />}
+      {showArmConsole && <ArmConsoleDialog onClose={() => setShowArmConsole(false)} />}
       {showQqGuide && (
         <QqBotGuideDialog
           settings={settings}
@@ -401,6 +404,7 @@ export default function App(): React.ReactElement {
             onSelect={setSelected}
             onAct={(id, action) => void act(id, action)}
             onOpenGateway={() => setShowGateway(true)}
+            onOpenArmConsole={() => setShowArmConsole(true)}
             onInstall={installComponent}
             autoLaunch={snap?.autoLaunch ?? false}
             onAutoLaunch={(next) => void window.dhvw.setAutoLaunch(next).then(refresh)}

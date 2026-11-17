@@ -71,6 +71,8 @@ KNOWN_INBOUND = {
     "state:save",
     "state:restore:ack",
     "qqbot:status",
+    "console:snapshot",
+    "console:ack",
 }
 
 
@@ -124,6 +126,8 @@ class Orchestrator:
         # memory:facts 回流：msg_id -> 本次下发的最大 updated_at，设备 ack 后才推进游标
         self.facts_pending: dict[str, int] = {}
         self.facts_sent_ids: set[str] = set()
+        # 远程生活控制台：一次请求一个 waiter，设备回 console:* 后唤醒
+        self.console_waiters: dict[str, asyncio.Future] = {}
         # 档位迁移计数（本次进程内），首页状态机统计表直接读它
         self.tier_transitions: dict[str, int] = {}
 
@@ -149,6 +153,23 @@ class Orchestrator:
             if msg_id:
                 sent.append(msg_id)
         return sent
+
+    async def console_rpc(self, type_: str, payload: dict, timeout: float = 5.0) -> dict:
+        """向设备发一条 console 请求并等它回同一个 req_id；PC 不直连设备。"""
+        if not self.clients:
+            return {"ok": False, "error": "设备未连接"}
+        req_id = uuid.uuid4().hex
+        fut: asyncio.Future = asyncio.get_running_loop().create_future()
+        self.console_waiters[req_id] = fut
+        try:
+            sent = await self.broadcast(type_, {**payload, "req_id": req_id})
+            if not sent:
+                return {"ok": False, "error": "设备未连接"}
+            return await asyncio.wait_for(fut, timeout)
+        except asyncio.TimeoutError:
+            return {"ok": False, "error": "设备未响应（5 秒）"}
+        finally:
+            self.console_waiters.pop(req_id, None)
 
     # ---------- 状态 ----------
     @staticmethod
@@ -461,6 +482,13 @@ class Orchestrator:
         self.connected = True
 
         if type_ == "heartbeat":
+            return
+
+        if type_ in ("console:snapshot", "console:ack"):
+            req_id = str(payload.get("req_id") or "")
+            fut = self.console_waiters.get(req_id)
+            if fut is not None and not fut.done():
+                fut.set_result(payload)
             return
 
         if type_ == "events:batch":
@@ -897,6 +925,19 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
         if delivered == 0:
             return JSONResponse({"ok": False, "delivered": 0, "error": "设备未连接"})
         return JSONResponse({"ok": True, "delivered": delivered, "state": state})
+
+    @app.get("/dhvw/console/snapshot")
+    async def console_snapshot() -> JSONResponse:
+        """ARM 世界生活控制台快照：经设备 WS 读取设备 IndexedDB，PC 不直连设备。"""
+        return JSONResponse(await orch.console_rpc("console:snapshot", {}))
+
+    @app.post("/dhvw/console/command")
+    async def console_command(request: Request) -> JSONResponse:
+        """远程控制台命令：trigger / speed / llm-set / llm-clear / open。"""
+        body = await request.json()
+        if not isinstance(body, dict):
+            return JSONResponse({"ok": False, "error": "bad_body"}, status_code=400)
+        return JSONResponse(await orch.console_rpc("console:command", {"command": body}))
 
     @app.get("/dhvw/proactive")
     async def proactive_state() -> JSONResponse:

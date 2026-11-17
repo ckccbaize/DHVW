@@ -192,6 +192,34 @@ export interface GatewayPairResult {
 
 export type WorkTier = 'idle' | 'host' | 'edge'
 
+/** ARM 世界生活控制台快照（设备 IndexedDB 的只读镜像） */
+export interface ArmConsoleSnapshot {
+  ts: number
+  life: Record<string, unknown> | null
+  qq: Record<string, unknown> | null
+  speed: number
+  llm: { baseUrl: string; model: string; source: string }
+  llmLog: Array<Record<string, unknown>>
+  memory: Array<Record<string, unknown>>
+  writings: Array<Record<string, unknown>>
+  plots: Array<Record<string, unknown>>
+  sceneRequests: Array<Record<string, unknown>>
+  dailyPlots: Record<string, Record<string, unknown>>
+  mood: Record<string, unknown> | null
+  browses: Array<Record<string, unknown>>
+  desires: Array<Record<string, unknown>>
+  sudden: Array<Record<string, unknown>>
+  highlight: Record<string, unknown> | null
+  summary: string
+  events: Array<Record<string, unknown>>
+}
+
+export interface ArmConsoleResult {
+  ok: boolean
+  error?: string
+  data?: ArmConsoleSnapshot
+}
+
 /** 编排器侧世界状态（只读展示，数据源是设备的 world:digest / mood:state） */
 export interface WorldView {
   reachable: boolean

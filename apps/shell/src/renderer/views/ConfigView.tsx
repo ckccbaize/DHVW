@@ -1,5 +1,6 @@
 import React from 'react'
 import { MemoryCard } from './MemoryCard'
+import { ArmConsoleCard } from './ArmConsole'
 import type {
   AppSnapshot,
   ComponentStatus,
@@ -43,6 +44,7 @@ export function ConfigView({
   onSelect,
   onAct,
   onOpenGateway,
+  onOpenArmConsole,
   onInstall,
   autoLaunch,
   onAutoLaunch,
@@ -63,6 +65,7 @@ export function ConfigView({
   onSelect: (id: string) => void
   onAct: (id: string, action: 'start' | 'stop' | 'restart') => void
   onOpenGateway: () => void
+  onOpenArmConsole: () => void
   onInstall: (id: string) => void
   autoLaunch: boolean
   onAutoLaunch: (next: boolean) => void
@@ -217,6 +220,8 @@ export function ConfigView({
               </div>
             )}
           </section>
+
+          <ArmConsoleCard onOpen={onOpenArmConsole} />
 
           <MemoryCard />
 

@@ -1687,3 +1687,131 @@ main.page.settings {
     flex: 1;
   }
 }
+/* ---------------- ARM 世界生活控制台 ---------------- */
+.arm-console-card .actions {
+  margin-top: 10px;
+}
+
+.arm-console-dialog {
+  width: min(1100px, 94vw);
+}
+
+.arm-console-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.arm-console-head h2 {
+  margin: 0;
+}
+
+.arm-console-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-bottom: var(--line) solid var(--ink);
+  padding-bottom: 8px;
+}
+
+.arm-console-tabs button.active {
+  background: var(--ink);
+  color: var(--cel-white);
+}
+
+.arm-console-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.arm-console-block,
+.arm-console-item {
+  border: 2px solid var(--ink);
+  background: #fff;
+  padding: 10px;
+  min-width: 0;
+}
+
+.arm-console-block h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.arm-console-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.arm-console-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.arm-console-pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: none;
+  overflow: visible;
+  margin: 4px 0;
+  font: 12px/1.5 ui-monospace, Consolas, monospace;
+}
+
+.arm-console-dialog .muted {
+  color: var(--muted);
+}
+
+.arm-console-dialog .ok {
+  color: #1f7a45;
+}
+
+.arm-console-dialog .bad {
+  color: #b3242f;
+}
+
+.llm-item {
+  border: 1px solid var(--ink);
+  background: #fff;
+}
+
+.llm-item summary {
+  cursor: pointer;
+  padding: 6px 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.llm-item .llm-body {
+  padding: 6px 8px;
+  border-top: 1px solid var(--ink);
+}
+
+.llm-item .llm-label {
+  font-weight: 900;
+  margin: 6px 0 2px;
+}
+
+.arm-console-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.arm-console-table th,
+.arm-console-table td {
+  border-bottom: 1px solid #ddd4c4;
+  padding: 4px 6px;
+  text-align: left;
+  vertical-align: top;
+}
+
+@media (max-width: 720px) {
+  .arm-console-grid {
+    grid-template-columns: 1fr;
+  }
+}

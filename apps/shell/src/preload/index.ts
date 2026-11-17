@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type {
   ActionRequest,
   AppSnapshot,
+  ArmConsoleResult,
   ArmDeviceView,
   ComponentProgress,
   ComponentStatus,
@@ -83,6 +84,11 @@ const api = {
     state: 'overview' | 'present',
   ): Promise<{ ok: boolean; delivered?: number; state?: string; error?: string }> =>
     ipcRenderer.invoke('dhvw:setDisplay', state),
+  /** ARM 世界生活控制台快照（经编排器转发，不直连设备） */
+  armConsoleSnapshot: (): Promise<ArmConsoleResult> => ipcRenderer.invoke('dhvw:armConsoleSnapshot'),
+  /** 远程控制台命令：trigger / speed / llm-set / llm-clear / open */
+  armConsoleCommand: (command: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('dhvw:armConsoleCommand', command),
   scenes: (): Promise<{
     reachable: boolean
     jobs: SceneJobView[]

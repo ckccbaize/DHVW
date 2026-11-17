@@ -18,6 +18,7 @@ import { resolveArmWwwDir, startArmPreviewServer, stopArmPreviewServer } from '.
 import type {
   ActionRequest,
   AppSnapshot,
+  ArmConsoleResult,
   Live2dModelView,
   MemoryCurveView,
   MemoryStatsView,
@@ -242,6 +243,38 @@ async function setDisplay(
     })
     const raw = (await res.json()) as { ok?: boolean; delivered?: number; state?: string; error?: string }
     return { ok: Boolean(raw.ok), delivered: raw.delivered, state: raw.state, error: raw.error }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/** ARM 世界生活控制台：快照与控制都经编排器转发给设备，PC 不直连设备。 */
+async function armConsoleSnapshot(): Promise<ArmConsoleResult> {
+  if (!orchestratorPort) return { ok: false, error: '编排器未运行' }
+  try {
+    const res = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/console/snapshot`, {
+      signal: AbortSignal.timeout(6000),
+    })
+    const raw = (await res.json()) as ArmConsoleResult
+    return raw
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+async function armConsoleCommand(
+  command: Record<string, unknown>,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!orchestratorPort) return { ok: false, error: '编排器未运行' }
+  try {
+    const res = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/console/command`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(command),
+      signal: AbortSignal.timeout(6000),
+    })
+    const raw = (await res.json()) as { ok?: boolean; error?: string }
+    return { ok: Boolean(raw.ok), error: raw.error }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
@@ -744,6 +777,10 @@ function registerIpc(): void {
   ipcMain.handle('dhvw:world', () => readWorld())
   ipcMain.handle('dhvw:stats', () => readStats())
   ipcMain.handle('dhvw:setDisplay', (_e, state: 'overview' | 'present') => setDisplay(state))
+  ipcMain.handle('dhvw:armConsoleSnapshot', () => armConsoleSnapshot())
+  ipcMain.handle('dhvw:armConsoleCommand', (_e, command: Record<string, unknown>) =>
+    armConsoleCommand(command),
+  )
   ipcMain.handle('dhvw:scenes', () => readScenes())
   ipcMain.handle('dhvw:sceneGenerate', (_e, spec: Record<string, unknown>) => requestScene(spec))
   ipcMain.handle('dhvw:sceneRetry', (_e, id: string) => retryScene(id))
