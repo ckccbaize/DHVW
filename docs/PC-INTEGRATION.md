@@ -3,6 +3,8 @@
 > 状态：v0.1（2026-11-12）。**完整 PC 侧开发手册见 [`PC-DEV-HANDBOOK.md`](PC-DEV-HANDBOOK.md)**；本文只列设备端对 PC 的接口请求。
 > 契约以 `arm/docs/CONTRACTS.md` 为准；记忆分工见 `arm/docs/MEMORY-AND-SYNC.md`；地图/交互见 `docs/MAP-SCENE-DESIGN.md`。
 > 读者：负责 PC 软件的 agent。设备端已完成：核心机骨架、世界/生活状态机、事件日志、快照恢复、场景校验器。
+>
+> **2026-11-17 修订（2GB 设备 D 方案）**：设备本机显现只显示静态立绘，不再嵌 OLVT iframe，也不加载生成背景图；手机/电脑用 `?remote=1` 或局域网地址打开时，才用自己的算力渲染完整 OLVT。远程页 `hello.role="viewer"`，其 `world:digest` 不覆盖物理设备显示态，`display:set` 只下发给 `device`。
 
 ---
 
