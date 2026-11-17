@@ -316,6 +316,11 @@ export function createProactiveRunner({
           event: { kind: "qq:proactive", payload: { trigger: decision.kind, sentOk, sendError, parts, stickerId: chosenSticker?.id } },
         });
         return { ok: true, trigger: decision.kind, sentOk, sendError, parts, stickerId: chosenSticker?.id };
+      } catch (err) {
+        const msg = String(err?.message || err);
+        log?.error?.(`[dhvw-proactive] 本轮跳过（不退出进程）: ${msg}`);
+        lastDecision = { ok: false, reason: "error", error: msg, ts };
+        return { ok: false, reason: "error", error: msg };
       } finally {
         busy = false;
       }

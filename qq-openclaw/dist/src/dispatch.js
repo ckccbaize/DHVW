@@ -582,8 +582,10 @@ export async function dispatchBatch(batch, deps) {
                     }
                 },
                 onError: async (err) => {
-                    log?.error?.(`[snowluma:${account.accountId}] dispatch error: ${String(err)}`);
-                    await sendErrorNotice(`[OpenClaw] Error: ${String(err).slice(0, 500)}`);
+                    const cause = err?.cause?.code || err?.cause?.message || "";
+                    const detail = `${String(err)}${cause ? ` (${cause})` : ""}`;
+                    log?.error?.(`[snowluma:${account.accountId}] dispatch error: ${detail}`);
+                    await sendErrorNotice(`[OpenClaw] Error: ${detail.slice(0, 500)}`);
                 },
             },
             replyOptions: {},

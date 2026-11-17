@@ -171,20 +171,40 @@ export function createDhvwRuntime({
     const url = useShellProxy
       ? `${shellUrl.replace(/\/+$/, "")}/__llm/chat/completions`
       : `${String(llm.baseUrl).replace(/\/+$/, "")}/chat/completions`;
-    const res = await fetchImpl(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(!useShellProxy && llm.apiKey ? { Authorization: `Bearer ${llm.apiKey}` } : {}),
-      },
-      body: JSON.stringify(useShellProxy ? { baseUrl: llm.baseUrl, apiKey: llm.apiKey, body } : body),
-    });
-    const text = await res.text();
-    if (!res.ok) throw new Error(`LLM HTTP ${res.status}: ${text.slice(0, 200)}`);
-    const data = JSON.parse(text);
-    const content = data?.choices?.[0]?.message?.content;
-    if (typeof content !== "string") throw new Error("LLM 返回缺少 content");
-    return content;
+    let lastErr = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const res = await fetchImpl(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(!useShellProxy && llm.apiKey ? { Authorization: `Bearer ${llm.apiKey}` } : {}),
+          },
+          body: JSON.stringify(useShellProxy ? { baseUrl: llm.baseUrl, apiKey: llm.apiKey, body } : body),
+          signal: AbortSignal.timeout(45_000),
+        });
+        const text = await res.text();
+        if (!res.ok) {
+          if ((res.status === 429 || res.status >= 500) && attempt < 2) {
+            await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+            continue;
+          }
+          throw new Error(`LLM HTTP ${res.status}: ${text.slice(0, 200)}`);
+        }
+        const data = JSON.parse(text);
+        const content = data?.choices?.[0]?.message?.content;
+        if (typeof content !== "string") throw new Error("LLM 返回缺少 content");
+        return content;
+      } catch (err) {
+        lastErr = err;
+        if (attempt < 2) {
+          await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+          continue;
+        }
+      }
+    }
+    const cause = lastErr?.cause?.code || lastErr?.cause?.message || "";
+    throw new Error(`LLM fetch failed after 3 tries: ${lastErr?.message || lastErr}${cause ? ` (${cause})` : ""}`);
   }
 
   const DICT_JUNK_RE = /百度百科|汉典|笔顺|部首|汉语文字|多音字|书证|康熙字典/;

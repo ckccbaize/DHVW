@@ -1,6 +1,7 @@
 #!/bin/sh
 # Chromium kiosk：只打开本地壳，不请求主机。
-# 总观态不建 WebGL，因此不强制 GPU 后端；保留 --disable-gpu-compositing 兜底由实测决定。
+# 总观态不建 WebGL；显现页的 Live2D 在 RK3566/panfrost 上会 GL_OUT_OF_MEMORY，
+# 因此 ARM 统一走 SwiftShader 软件 WebGL，并用 --disable-gpu-compositing 降低共享内存。
 set -eu
 
 URL="http://127.0.0.1:8080/"
@@ -55,6 +56,11 @@ if command -v xdotool >/dev/null 2>&1; then
   ) &
 fi
 
+# Debian 的 chromium 包装脚本在 /dev/shm 小于 3.8G 时强制 --disable-dev-shm-usage，
+# 默认会落到 /tmp（本机也是 tmpfs）。把 TMPDIR 指到根分区，避免共享内存吃光 RAM。
+mkdir -p /var/tmp/dhvw-chromium
+export TMPDIR=/var/tmp/dhvw-chromium
+
 exec chromium \
   --kiosk \
   --start-fullscreen \
@@ -64,6 +70,11 @@ exec chromium \
   --disable-infobars \
   --disable-session-crashed-bubble \
   --disable-pinch \
+  --disable-gpu-compositing \
+  --use-gl=angle \
+  --use-angle=swiftshader \
+  --enable-unsafe-swiftshader \
+  --js-flags=--max-old-space-size=256 \
   --overscroll-history-navigation=0 \
   --autoplay-policy=no-user-gesture-required \
   --lang=zh-CN \
