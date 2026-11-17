@@ -414,6 +414,14 @@ curl -s http://127.0.0.1:8080/__health
 * **在线优先语义 + 离线降级**：QQ 对话与主动发起前统一经 `qq:memory:query` 向前端 `qq-adapter` 查询记忆；PC 在线时发 `memory:query`（携带 `mood` 与 `include_l0: true`）走 `vec0 + FTS5 + Ebbinghaus + _mood_boost` 混合检索并附带 L0 核心事实；主机离线或超时（350ms）自动降级为设备 `localMemory` bigram 检索与本地 L0 缓存。
 * **对话事实回流**：单聊消化器（digest）与对话即时抽取的 L0/L1/L2 候选事实通过 `qq:world:feedback` 写入设备 `localMemory`，主机在线时再经 `facts:candidates` 推回 PC 向量化落库，实现“显现 / 总观 / QQ”三端共享同一人格与记忆。
 
+### 15.2.1 显现渲染位置（D 方案）
+
+- **ARM 本机**：只显示静态立绘 + 字幕，不加载 OLVT/Live2D，避免 2GB 设备 OOM。
+- **手机/电脑**：同一局域网打开 PC 的「设备配对 → 本机浏览器测试 → 复制链接」，链接形如
+  `http://<PC-LAN-IP>:<port>/?host=wss://...&remote=1`。页面在手机/电脑上运行，`remote=1`
+  让 `app.js` 加载 OLVT iframe，Live2D、聊天、语音都用手机/电脑算力，ARM 不参与渲染。
+- **安全边界**：链接里带网关 token；只在可信局域网分享。ARM 静态页不请求 OLVT。
+
 ### 15.3 部署与排障（真机）
 
 QQ Bot 默认关闭；确认 `/etc/dhvw/qqbot.json` 存在且 `enabled=true` 后，`dhvw-shell` 的 `/__qq/config` 会拉起服务。
@@ -442,5 +450,6 @@ curl -s http://127.0.0.1:8088/__qq/health
 | 内存不足 | 实测 QQ 服务约 30MB RSS，`MemoryMax=512M` 足够 | 不是内存问题；先看 `journalctl -u dhvw-qqbot` |
 | `[OpenClaw] Error: TypeError: fetch failed` | LLM 端点瞬时断连/超时 | 已加 3 次重试与 `cause` 日志；主动消息 tick 异常只跳过本轮，不再退出进程 |
 | 切显现后 Chromium 被 OOM killer 杀 | OLVT Live2D 纹理 4096/8192（单张 8192² RGBA 约 256MB），叠加 onnxruntime VAD worker 1GB+ | 模型纹理降到 1024/2048；ARM iframe 禁用音频 `getUserMedia`，不创建 MicVAD/ORT；`model3.json` no-store |
-| 2GB 设备显现直接静态立绘 | `navigator.deviceMemory < 4` 时 `app.js` 不加载 OLVT iframe，避免整机 OOM | 静态立绘 + 字幕仍可退出回总观；4GB+ 设备保留 iframe |
+| 2GB 设备显现直接静态立绘 | 设备本机（`127.0.0.1`/`localhost`）一律不加载 OLVT iframe，避免整机 OOM | 静态立绘 + 字幕仍可退出回总观 |
+| 手机/电脑要完整 Live2D | 远程打开时 `?remote=1` 或主机名非回环，`app.js` 才加载 OLVT iframe | 手机/电脑用自己的算力渲染；ARM 屏幕仍是静态立绘 |
 | `GL_OUT_OF_MEMORY` / `DRM_IOCTL_PANFROST_CREATE_BO failed` | RK3566 CMA 紧张，Xorg 在多次 Chromium 崩溃后 RSS 可涨到 500MB+ | 纹理降到 1024；必要时重启 `dhvw-x` 释放 Xorg 泄漏；不要反复切显现压测 |

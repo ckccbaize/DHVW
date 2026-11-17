@@ -180,6 +180,7 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
   function saveBotConfig() {
     try {
       const toSave = {
+        enabled: effCfg.enabled !== false && boostActive,
         appId: effCfg.appId || "",
         clientSecret: effCfg.clientSecret || "",
         sandbox: effCfg.sandbox !== false,
@@ -290,7 +291,9 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
   let gwAc = null;
   let gatewayPromise = null;
   let proactiveTimer = null;
-  let boostActive = effCfg.enabled === true;
+  let boostActive =
+    effCfg.enabled === true ||
+    (Boolean(persistedBot.appId && persistedBot.clientSecret) && persistedBot.enabled !== false);
 
   function statusSnapshot() {
     return {
@@ -321,8 +324,10 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
   }
 
   async function setActive(active) {
-    const next = Boolean(active) || effCfg.enabled === true;
+    const next = Boolean(active);
+    effCfg.enabled = next;
     boostActive = next;
+    saveBotConfig();
     lastGatewayError = "";
     if (next) {
       if (!account.appId || !account.clientSecret) {
@@ -334,6 +339,7 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
       const launchAccount = {
         ...account,
         autoPairFirst: true,
+        ledgerStateFile: path.join(stateDir, "qq-window-ledger.json"),
         onPaired: handlePaired,
       };
       gwAc = new AbortController();

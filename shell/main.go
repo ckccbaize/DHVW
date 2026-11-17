@@ -227,7 +227,7 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.serveSearch(w, r)
 		return
 	}
-	if r.URL.Path == "/__qq/health" || r.URL.Path == "/__qq/config" || r.URL.Path == "/__qq/rebind" || r.URL.Path == "/__qq/boost" {
+	if r.URL.Path == "/__qq/health" || r.URL.Path == "/__qq/config" || r.URL.Path == "/__qq/rebind" || r.URL.Path == "/__qq/boost" || r.URL.Path == "/__qq/proactive/trigger" {
 		s.serveQqProxy(w, r)
 		return
 	}
@@ -740,7 +740,7 @@ func (s *server) serveQqProxy(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "running": false, "boostActive": false})
 			return
 		}
-	} else if r.URL.Path == "/__qq/config" || r.URL.Path == "/__qq/rebind" {
+	} else if r.URL.Path == "/__qq/config" || r.URL.Path == "/__qq/rebind" || r.URL.Path == "/__qq/proactive/trigger" {
 		s.ensureQqStarted()
 	}
 	targetPath := r.URL.Path
@@ -755,7 +755,11 @@ func (s *server) serveQqProxy(w http.ResponseWriter, r *http.Request) {
 	if targetPath == "/__qq/health" {
 		method = http.MethodGet
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	timeout := 5 * time.Second
+	if targetPath == "/__qq/proactive/trigger" {
+		timeout = 18 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
 	target := "http://127.0.0.1:8088" + targetPath
 	hr, err := http.NewRequestWithContext(ctx, method, target, body)
@@ -849,6 +853,22 @@ func main() {
 		log.Fatalf("监听失败: %v", err)
 	}
 	log.Printf("dhvw-shell %s → http://%s (root=%s)", version, *addr, srv.root)
+	go func() {
+		cfgPath := filepath.Join(srv.dataDir, "qq-openclaw", "bot-config.json")
+		raw, err := os.ReadFile(cfgPath)
+		if err != nil {
+			return
+		}
+		var bc struct {
+			AppID        string `json:"appId"`
+			ClientSecret string `json:"clientSecret"`
+			Enabled      *bool  `json:"enabled"`
+		}
+		if json.Unmarshal(raw, &bc) == nil && strings.TrimSpace(bc.AppID) != "" && strings.TrimSpace(bc.ClientSecret) != "" && (bc.Enabled == nil || *bc.Enabled) {
+			log.Printf("[qq] 检测到已保存 QQ Bot 配置，自动拉起 qq-openclaw")
+			srv.ensureQqStarted()
+		}
+	}()
 
 	var pairSrv *http.Server
 	if strings.TrimSpace(*pairAddr) != "" {

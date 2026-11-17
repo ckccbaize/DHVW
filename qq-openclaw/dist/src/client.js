@@ -17,6 +17,7 @@ export function createSnowLumaClient(account) {
     onPaired: account.onPaired,
     proactiveCooldownMin: account.proactiveCooldownMin,
     proactiveDailyMax: account.proactiveDailyMax,
+    ledgerStateFile: account.ledgerStateFile,
     authUrl: account.authUrl,
     apiBaseUrl: account.apiBaseUrl,
     fetchImpl: account.fetchImpl,

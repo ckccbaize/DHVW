@@ -87,15 +87,59 @@ export class MsgDedupRing {
 }
 
 export class WindowLedger {
-  constructor({ proactiveCooldownMin = 90, proactiveDailyMax = 6, now = () => Date.now() } = {}) {
+  constructor({ proactiveCooldownMin = 40, proactiveDailyMax = 6, stateFile = "", now = () => Date.now() } = {}) {
     /** @type {Map<string, Array<{ msgId: string, receivedAt: number, usedSeq: number }>>} */
     this.passive = new Map();
     this.cooldownMs = Math.max(1, proactiveCooldownMin) * 60_000;
     this.dailyMax = Math.max(1, proactiveDailyMax);
+    this.stateFile = String(stateFile || "");
     this.now = now;
     this.day = "";
     this.proactiveCount = 0;
     this.lastProactiveAt = 0;
+    this.#load();
+  }
+
+  #load() {
+    if (!this.stateFile) return;
+    try {
+      if (!fs.existsSync(this.stateFile)) return;
+      const raw = JSON.parse(fs.readFileSync(this.stateFile, "utf8"));
+      const t = this.now();
+      this.day = String(raw?.day || "");
+      this.proactiveCount = Number(raw?.proactiveCount) || 0;
+      this.lastProactiveAt = Number(raw?.lastProactiveAt) || 0;
+      if (raw?.passive && typeof raw.passive === "object") {
+        for (const [openId, entries] of Object.entries(raw.passive)) {
+          const valid = (Array.isArray(entries) ? entries : []).filter(
+            (e) => e?.msgId && t - Number(e.receivedAt || 0) < C2C_PASSIVE_TTL_MS && Number(e.usedSeq || 0) < C2C_PASSIVE_MAX,
+          );
+          if (valid.length) this.passive.set(openId, valid);
+        }
+      }
+    } catch {}
+  }
+
+  #save() {
+    if (!this.stateFile) return;
+    try {
+      const t = this.now();
+      const passiveObj = {};
+      for (const [openId, list] of this.passive.entries()) {
+        const valid = list.filter((e) => t - e.receivedAt < C2C_PASSIVE_TTL_MS && e.usedSeq < C2C_PASSIVE_MAX);
+        if (valid.length) passiveObj[openId] = valid.slice(-20);
+      }
+      fs.writeFileSync(
+        this.stateFile,
+        JSON.stringify({
+          day: this.day,
+          proactiveCount: this.proactiveCount,
+          lastProactiveAt: this.lastProactiveAt,
+          passive: passiveObj,
+        }),
+        "utf8",
+      );
+    } catch {}
   }
 
   recordInbound(openId, msgId) {
@@ -108,6 +152,7 @@ export class WindowLedger {
       if (list.length > 20) list.splice(0, list.length - 20);
     }
     this.passive.set(openId, list);
+    this.#save();
   }
 
   claimPassive(openId, preferredMsgId) {
@@ -129,6 +174,7 @@ export class WindowLedger {
     }
     if (!ent) return null;
     ent.usedSeq += 1;
+    this.#save();
     return { msgId: ent.msgId, seq: ent.usedSeq };
   }
 
@@ -155,6 +201,7 @@ export class WindowLedger {
     }
     this.proactiveCount += 1;
     this.lastProactiveAt = t;
+    this.#save();
   }
 
   snapshot(openId) {
@@ -188,8 +235,9 @@ export class QQOfficialClient extends EventEmitter {
     this.WSImpl = opts.WSImpl || globalThis.WebSocket;
     this.log = opts.log;
     this.ledger = new WindowLedger({
-      proactiveCooldownMin: opts.proactiveCooldownMin ?? 90,
+      proactiveCooldownMin: opts.proactiveCooldownMin ?? 40,
       proactiveDailyMax: opts.proactiveDailyMax ?? 6,
+      stateFile: opts.ledgerStateFile || "",
       now: opts.now,
     });
     this.dedup = new MsgDedupRing(500);
@@ -516,11 +564,28 @@ export class QQOfficialClient extends EventEmitter {
       if (claim) {
         body.msg_id = claim.msgId;
         body.msg_seq = claim.seq;
+        const res = await this.apiJson("POST", `/v2/users/${encodeURIComponent(openId)}/messages`, body);
+        lastId = String(res?.id || `out-${Date.now()}`);
       } else if (options.isWakeup) {
-        body.is_wakeup = true;
+        // 先尝试带 is_wakeup:true 的互动召回；若当日周期额度用完或沙箱不支持，自动降级普通主动通道再试一次
+        try {
+          const res = await this.apiJson("POST", `/v2/users/${encodeURIComponent(openId)}/messages`, {
+            ...body,
+            is_wakeup: true,
+          });
+          lastId = String(res?.id || `out-${Date.now()}`);
+        } catch (wakeupErr) {
+          try {
+            const res2 = await this.apiJson("POST", `/v2/users/${encodeURIComponent(openId)}/messages`, body);
+            lastId = String(res2?.id || `out-${Date.now()}`);
+          } catch (plainErr) {
+            throw new Error(`互动召回失败(${wakeupErr.message})；普通主动也失败(${plainErr.message})`);
+          }
+        }
+      } else {
+        const res = await this.apiJson("POST", `/v2/users/${encodeURIComponent(openId)}/messages`, body);
+        lastId = String(res?.id || `out-${Date.now()}`);
       }
-      const res = await this.apiJson("POST", `/v2/users/${encodeURIComponent(openId)}/messages`, body);
-      lastId = String(res?.id || `out-${Date.now()}`);
     }
 
     for (const imgSrc of images) {

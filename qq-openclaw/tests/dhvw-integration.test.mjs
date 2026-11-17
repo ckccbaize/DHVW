@@ -1018,4 +1018,96 @@ describe("图片表情包采集（偷图）与语境挑图发送 (sticker-store 
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
+
+  it("WindowLedger 持久化 msg_id、超窗单条合并发送、is_wakeup 失败自动兜底及失败不伪造今日次数", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dhvw-ledger-persist-"));
+    const ledgerFile = path.join(tmpDir, "ledger.json");
+    let tNow = new Date(2026, 10, 17, 15, 0, 0).getTime();
+
+    // 1. 收到消息后持久化到 ledger.json，模拟重启后新 WindowLedger 仍可复用 60 分钟被动窗口
+    const l1 = new WindowLedger({ stateFile: ledgerFile, now: () => tNow });
+    l1.recordInbound("OWNER", "msg-abc");
+    assert.deepEqual(l1.claimPassive("OWNER"), { msgId: "msg-abc", seq: 1 });
+
+    const l2 = new WindowLedger({ stateFile: ledgerFile, now: () => tNow + 5 * 60_000 });
+    assert.equal(l2.snapshot("OWNER").active, true);
+    assert.equal(l2.snapshot("OWNER").remainingSeq, 3);
+    assert.deepEqual(l2.claimPassive("OWNER"), { msgId: "msg-abc", seq: 2 });
+
+    // 2. 超窗后 is_wakeup 遭平台拒绝时，自动降级为不带 is_wakeup 的普通主动请求再试一次
+    const payloads = [];
+    const client = new QQOfficialClient({
+      appId: "app1",
+      clientSecret: "sec1",
+      ownerOpenId: "OWNER",
+      now: () => tNow,
+      fetchImpl: async (url, init = {}) => {
+        if (url.endsWith("/getAppAccessToken")) {
+          return new Response(JSON.stringify({ access_token: "tok", expires_in: 7200 }), { status: 200 });
+        }
+        const body = JSON.parse(init.body);
+        payloads.push(body);
+        if (body.is_wakeup) {
+          return new Response(JSON.stringify({ message: "wakeup quota limit", code: 304082 }), { status: 400 });
+        }
+        return new Response(JSON.stringify({ id: "pro-fallback-1" }), { status: 200 });
+      },
+    });
+    const sent = await client.sendPrivateMessage("OWNER", "下午好，想你了", { proactive: true, isWakeup: true });
+    assert.equal(sent.message_id, "pro-fallback-1");
+    assert.equal(payloads.length, 2);
+    assert.equal(payloads[0].is_wakeup, true);
+    assert.equal(payloads[1].is_wakeup, undefined);
+
+    // 3. 当被动窗口失效且超窗多句输出时，合并成 1 条发送；若全被拒发，todayCount 不增加且记录 lastSendError + 5 分钟退避
+    const rt = createDhvwRuntime({
+      stateDir: tmpDir,
+      mediaDir: path.join(tmpDir, "m"),
+      sticker: { enabled: false },
+      getLlmConfig: () => ({ baseUrl: "http://llm.local/v1", model: "m", apiKey: "k" }),
+      fetchImpl: async () =>
+        new Response(
+          JSON.stringify({
+            choices: [{ message: { content: JSON.stringify({ speak: true, parts: ["第一句", "第二句"], bubble: "冒泡" }) } }],
+          }),
+          { status: 200 },
+        ),
+    });
+
+    const sentTexts = [];
+    let shouldFail = true;
+    const runner = createProactiveRunner({
+      getClient: () => ({
+        ledger: { snapshot: () => ({ active: false, remainingSeq: 0 }) },
+        async sendPrivateMessage(_uid, segs) {
+          sentTexts.push(segs.toSegments().map((s) => s.data?.text).join(""));
+          if (shouldFail) throw new Error("QQ API HTTP 400: daily limit");
+          return { message_id: "ok-1" };
+        },
+      }),
+      getAccount: () => ({ ownerOpenId: "OWNER", proactiveDailyMax: 6, partDelayMs: 0 }),
+      runtime: rt,
+      now: () => tNow,
+      log: { info: () => {}, warn: () => {} },
+    });
+
+    const failRes = await runner.tick();
+    assert.equal(failRes.sentOk, false);
+    assert.equal(sentTexts.length, 1);
+    assert.equal(sentTexts[0], "第一句\n第二句");
+    assert.equal(runner.getStatus().todayCount, 0);
+    assert.ok(runner.getStatus().lastSendError.includes("QQ API HTTP 400"));
+    // 5 分钟退避期内不重复打扰
+    assert.equal((await runner.tick()).reason, "failed_backoff");
+
+    // 5 分钟退避结束后重发成功，才计入 todayCount
+    tNow += 6 * 60_000;
+    shouldFail = false;
+    const okRes = await runner.tick();
+    assert.equal(okRes.sentOk, true);
+    assert.equal(runner.getStatus().todayCount, 1);
+    assert.equal(runner.getStatus().lastSendError, "");
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
 });

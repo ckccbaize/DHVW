@@ -449,22 +449,35 @@ async function boot() {
     return url;
   }
 
-  function withArmParam(url) {
+  function isRemotePresent() {
+    try {
+      const q = new URLSearchParams(location.search || "");
+      if (q.get("remote") === "1") return true;
+    } catch {}
+    return !["127.0.0.1", "localhost", "::1"].includes(location.hostname);
+  }
+
+  function withArmParam(url, remote = false) {
     if (!url) return url;
     try {
       const parsed = new URL(url);
-      if (!parsed.searchParams.has("arm")) parsed.searchParams.set("arm", "1");
+      if (remote) {
+        parsed.searchParams.delete("arm");
+        parsed.searchParams.set("remote", "1");
+      } else if (!parsed.searchParams.has("arm")) {
+        parsed.searchParams.set("arm", "1");
+      }
       return parsed.href;
     } catch {
       return url;
     }
   }
 
-  function resolvePresentUrl() {
+  function resolvePresentUrl(remote = false) {
     const explicit = normalizePresentUrl(
       cfg.present?.url || cfg.host?.presentUrl || hostPresentInfo.presentUrl || "",
     );
-    if (explicit) return withArmParam(explicit);
+    if (explicit) return withArmParam(explicit, remote);
     const raw = cfg.host?.wsUrl || cfg.host?.probeUrl || "";
     if (!raw) return null;
     try {
@@ -472,11 +485,12 @@ async function boot() {
       const httpProto = u.protocol === "wss:" || u.protocol === "https:" ? "https:" : "http:";
       if (/\/ws\//.test(u.pathname)) {
         const token = u.searchParams.get("token") || "";
-        const q = token ? `?token=${encodeURIComponent(token)}&arm=1` : "?arm=1";
+        const mode = remote ? "remote=1" : "arm=1";
+        const q = token ? `?token=${encodeURIComponent(token)}&${mode}` : `?${mode}`;
         return normalizePresentUrl(`${httpProto}//${u.host}/olvt/${q}`);
       }
       if (hostPresentInfo.olvtPort > 0) {
-        return normalizePresentUrl(`${httpProto}//${u.hostname}:${hostPresentInfo.olvtPort}/?arm=1`);
+        return normalizePresentUrl(`${httpProto}//${u.hostname}:${hostPresentInfo.olvtPort}/?${remote ? "remote=1" : "arm=1"}`);
       }
     } catch {
       return null;
@@ -510,10 +524,12 @@ async function boot() {
       remote.send({ type: "world:stop" });
       remote.send({ type: "present:request", payload: { t: Date.now() } });
 
-      const presentUrl = resolvePresentUrl();
-      // OLVT 显现页会加载完整 React + Live2D + onnxruntime VAD；2GB 设备实测会
-      // 触发 cgroup/global OOM。低于 4GB 时退回静态立绘，避免整机被 OOM killer 杀掉。
-      const lowMemory = Number(navigator.deviceMemory || 0) > 0 && Number(navigator.deviceMemory) < 4;
+      const remotePresent = isRemotePresent();
+      const presentUrl = resolvePresentUrl(remotePresent);
+      // 设备本机（127.0.0.1）不渲染 Live2D，只显示静态立绘；手机/电脑通过
+      // ?remote=1 或局域网地址打开时，用它们自己的算力加载 OLVT 完整页面。
+      // 设备本机一律静态立绘；只有手机/电脑远程打开（remote=1 或非回环主机）才加载 OLVT。
+      const lowMemory = !remotePresent;
       const iframeUrl = lowMemory ? "" : presentUrl;
       const [tts, bg] = await Promise.all([probeTts(), bestBackground(), coverPromise]);
       if (presentCancelled || store.state.conn !== "up") {
@@ -569,7 +585,7 @@ async function boot() {
         await transition.reveal(320);
         return;
       }
-      if (lowMemory) overview.say("设备内存不足，显现使用静态立绘", 4000);
+      if (lowMemory) overview.say("设备本机显示静态立绘；手机/电脑打开可渲染 Live2D", 4000);
       store.patch({ display: "present" });
       displayChangedAt = performance.now();
       presentOpenedAt = displayChangedAt;

@@ -125,9 +125,12 @@ export function createProactiveRunner({
 
   let lastProactiveAt = Number(persisted.lastProactiveAt) || 0;
   let lastInboundAt = Number(persisted.lastInboundAt) || 0;
+  let lastFailedAttemptAt = Number(persisted.lastFailedAttemptAt) || 0;
   let dayKey = String(persisted.dayKey || "");
   let todayCount = Number(persisted.todayCount) || 0;
   let lastWeatherShared = String(persisted.lastWeatherShared || "");
+  let lastSendError = String(persisted.lastSendError || "");
+  let lastSendErrorAt = Number(persisted.lastSendErrorAt) || 0;
   const sharedEventIds = Array.isArray(persisted.sharedEventIds) ? persisted.sharedEventIds.slice(-30) : [];
   const recentEvents = [];
   let busy = false;
@@ -143,9 +146,12 @@ export function createProactiveRunner({
           {
             lastProactiveAt,
             lastInboundAt,
+            lastFailedAttemptAt,
             dayKey,
             todayCount,
             lastWeatherShared,
+            lastSendError,
+            lastSendErrorAt,
             sharedEventIds: sharedEventIds.slice(-30),
             lastDecision,
           },
@@ -171,8 +177,11 @@ export function createProactiveRunner({
       return {
         lastProactiveAt,
         lastInboundAt,
+        lastFailedAttemptAt,
         dayKey,
         todayCount,
+        lastSendError,
+        lastSendErrorAt,
         lastDecision,
       };
     },
@@ -188,6 +197,9 @@ export function createProactiveRunner({
       }
 
       const ts = now();
+      if (!force && lastFailedAttemptAt > 0 && ts - lastFailedAttemptAt < 5 * 60_000) {
+        return { ok: false, reason: "failed_backoff" };
+      }
       const dk = new Date(ts).toISOString().slice(0, 10);
       if (dayKey !== dk) {
         dayKey = dk;
@@ -268,54 +280,83 @@ export function createProactiveRunner({
         if (!parts.length && !chosenSticker) return { ok: false, reason: "empty_parts" };
 
         const to = `snowluma:private:${openId}`;
+        const ledgerSnap = client.ledger?.snapshot?.(openId) || { active: false, remainingSeq: 0 };
+        const hasPassive = Boolean(ledgerSnap.active && ledgerSnap.remainingSeq >= 1);
+        // 超出 60 分钟被动窗口（走主动/is_wakeup 配额）或被动余量仅 1 条时，合并为单条发，防止多段请求被平台配额拒发
+        const sendParts =
+          parts.length > 1 && (!hasPassive || ledgerSnap.remainingSeq < parts.length)
+            ? [parts.join("\n")]
+            : parts;
+        const canSendAttachment = hasPassive && ledgerSnap.remainingSeq >= sendParts.length + 1;
+
         let sentOk = false;
+        let sentTextCount = 0;
+        let sentMedia = false;
         let sendError = "";
         try {
           const delayMs = account.partDelayMs ?? 400;
-          for (let i = 0; i < parts.length; i++) {
+          for (let i = 0; i < sendParts.length; i++) {
             if (i > 0 && delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
             await sendText({
               client,
               to,
-              text: parts[i],
+              text: sendParts[i],
               proactive: true,
               isWakeup: true,
             });
+            sentOk = true;
+            sentTextCount += 1;
           }
-          if (parsed.send_edge_bg === true) {
+          if (parsed.send_edge_bg === true && (canSendAttachment || !sendParts.length)) {
             const img = await requestEdgeMedia().catch(() => "");
-            if (img) await sendMedia({ client, to, mediaPath: img, proactive: true, isWakeup: true });
-          } else if (chosenSticker) {
-            if (parts.length && delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
+            if (img) {
+              await sendMedia({ client, to, mediaPath: img, proactive: true, isWakeup: true });
+              sentOk = true;
+              sentMedia = true;
+            }
+          } else if (chosenSticker && (canSendAttachment || !sendParts.length)) {
+            if (sendParts.length && delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
             await sendMedia({ client, to, mediaPath: chosenSticker.path, proactive: true, isWakeup: true });
             runtime.stickerStore.markUsed(chosenSticker.id);
+            sentOk = true;
+            sentMedia = true;
           }
-          sentOk = true;
         } catch (err) {
           sendError = String(err?.message || err);
-          log?.info?.(`[dhvw-proactive] QQ 发送受限，降级为仅总观气泡: ${sendError}`);
+          log?.warn?.(`[dhvw-proactive] QQ 主动发送受限: ${sendError}`);
         }
 
-        lastProactiveAt = ts;
-        todayCount += 1;
-        if (decision.kind === "weather_shift") lastWeatherShared = decision.weather;
-        if (decision.eventId) sharedEventIds.push(decision.eventId);
-        if (decision.threadId) runtime.closeThread(decision.threadId);
-        if (typeof parsed.thread === "string" && parsed.thread.trim()) runtime.addThread(parsed.thread.trim());
         if (sentOk) {
-          const histText = [...parts, ...(chosenSticker ? [`[表情包:${chosenSticker.desc}]`] : [])].join(" ").trim();
+          lastProactiveAt = ts;
+          todayCount += 1;
+          lastFailedAttemptAt = 0;
+          lastSendError = "";
+          if (decision.kind === "weather_shift") lastWeatherShared = decision.weather;
+          if (decision.eventId) sharedEventIds.push(decision.eventId);
+          if (decision.threadId) runtime.closeThread(decision.threadId);
+          if (typeof parsed.thread === "string" && parsed.thread.trim()) runtime.addThread(parsed.thread.trim());
+          const histText = [
+            ...sendParts.slice(0, sentTextCount),
+            ...(sentMedia && chosenSticker ? [`[表情包:${chosenSticker.desc}]`] : []),
+          ]
+            .join(" ")
+            .trim();
           if (histText) runtime.appendAssistantTurn(histText);
+        } else {
+          lastFailedAttemptAt = ts;
+          lastSendError = sendError || "send_failed";
+          lastSendErrorAt = ts;
         }
 
-        lastDecision = { ok: true, kind: decision.kind, sentOk, sendError, ts };
+        lastDecision = { ok: sentOk, kind: decision.kind, sentOk, passive: hasPassive, sendError, ts };
         saveState();
-        log?.info?.(`[dhvw-proactive] 触发自唤醒 kind=${decision.kind} sentOk=${sentOk} parts=${parts.length}`);
+        log?.info?.(`[dhvw-proactive] 自唤醒结束 kind=${decision.kind} passive=${hasPassive} sentOk=${sentOk} parts=${sentTextCount}`);
 
         emitFeedback({
-          bubble: String(parsed.bubble || parts[0] || "[发了表情包]").slice(0, 20),
-          event: { kind: "qq:proactive", payload: { trigger: decision.kind, sentOk, sendError, parts, stickerId: chosenSticker?.id } },
+          bubble: String(parsed.bubble || sendParts[0] || "[发了表情包]").slice(0, 20),
+          event: { kind: "qq:proactive", payload: { trigger: decision.kind, sentOk, passive: hasPassive, sendError, parts: sendParts, stickerId: chosenSticker?.id } },
         });
-        return { ok: true, trigger: decision.kind, sentOk, sendError, parts, stickerId: chosenSticker?.id };
+        return { ok: true, trigger: decision.kind, sentOk, passive: hasPassive, sendError, parts: sendParts, stickerId: chosenSticker?.id };
       } catch (err) {
         const msg = String(err?.message || err);
         log?.error?.(`[dhvw-proactive] 本轮跳过（不退出进程）: ${msg}`);

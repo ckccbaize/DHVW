@@ -234,4 +234,13 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`dhvw dev shell → http://${HOST}:${PORT}  (root=${ROOT})`);
+  try {
+    const cfgPath = path.join(QQ_STATE_DIR, "bot-config.json");
+    if (fs.existsSync(cfgPath)) {
+      const cfg = JSON.parse(fs.readFileSync(cfgPath, "utf8"));
+      if (cfg?.appId && cfg?.clientSecret && cfg?.enabled !== false) {
+        void ensureQqStarted();
+      }
+    }
+  } catch {}
 });
