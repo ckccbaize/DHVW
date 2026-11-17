@@ -158,15 +158,22 @@ export function createDhvwRuntime({
   async function callLlm({ messages, json = true, maxTokens = 700, temperature = 0.85 }) {
     const llm = getLlmConfig() || {};
     if (!llm.baseUrl || !llm.model) throw new Error("LLM 未配置 (baseUrl/model)");
-    const body = {
+    let includePenalties = llm.usePenalties !== false;
+    const buildBody = () => ({
       model: llm.model,
       messages,
       max_tokens: maxTokens,
       temperature,
       stream: false,
+      ...(includePenalties
+        ? {
+            frequency_penalty: llm.frequencyPenalty ?? 0.45,
+            presence_penalty: llm.presencePenalty ?? 0.35,
+          }
+        : {}),
       ...(json ? { response_format: { type: "json_object" } } : {}),
       ...(llm.reasoningEffort !== false ? { reasoning_effort: llm.reasoningEffort || "none" } : {}),
-    };
+    });
     const useShellProxy = llm.useShellProxy === true;
     const url = useShellProxy
       ? `${shellUrl.replace(/\/+$/, "")}/__llm/chat/completions`
@@ -174,6 +181,7 @@ export function createDhvwRuntime({
     let lastErr = null;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
+        const body = buildBody();
         const res = await fetchImpl(url, {
           method: "POST",
           headers: {
@@ -185,6 +193,10 @@ export function createDhvwRuntime({
         });
         const text = await res.text();
         if (!res.ok) {
+          if (res.status === 400 && includePenalties && /frequency_penalty|presence_penalty/i.test(text)) {
+            includePenalties = false;
+            continue;
+          }
           if ((res.status === 429 || res.status >= 500) && attempt < 2) {
             await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
             continue;
@@ -557,6 +569,13 @@ export function createDhvwRuntime({
               ? "【重要·话题切换指令】对方要求聊点别的（或让你自己起一个新话题）。本轮严禁再提刚才聊过的任何旧词、外号、承诺或约定（例如早茶/咖啡厅/旧称呼），立刻彻底翻篇，主动抛出一个全新且具体的轻松日常话题（比如音乐、美食、趣事、脑洞问题或记忆里的其他爱好），不要反问“你想聊啥”。"
               : "";
 
+            const fewShotStyleBlock = [
+              "说话节奏参考（只学真人打字的松弛感与长短变化，不要照抄具体内容）：",
+              "- 对方：2 点睡 → 坏回答（AI三段式）：“两点睡……你作息真铁打｜行吧我陪你熬｜不过说真的为啥这么晚？” → 好回答（真人短句）：“熬夜冠军归你了，明天不爬起来啦”",
+              "- 对方：为了开发你啊 → 好回答：“少拿我当熬夜借口啊，你自己快去眯会”",
+              "- 对方：每个人都该有个自己的世界 → 好回答：“听着还挺浪漫，那回头带我逛逛你的”",
+            ].join("\n");
+
             const prompt = [
               "你住在用户的移动虚拟仓里，正在用 QQ 单聊和对方发消息。",
               worldNote,
@@ -565,6 +584,7 @@ export function createDhvwRuntime({
               ...(!isTopicShift ? [`熟人习惯与黑话：${formatSlangBlock()}`] : []),
               ...(topicShiftHint ? [topicShiftHint] : []),
               ...(styleGuardBlock ? [styleGuardBlock] : []),
+              fewShotStyleBlock,
               ...(searchHintBlock ? [searchHintBlock] : []),
               ...(stickerHintBlock ? [stickerHintBlock] : []),
               `最近对话：\n${recentHistoryText}`,
@@ -572,7 +592,7 @@ export function createDhvwRuntime({
               "",
               "请像真人在 QQ 随手打字一样自然接话，严格输出 JSON（不要解释、不要 markdown 代码块）：",
               '{"reply_mode":"reply|short|skip","parts":["自然的一句话(必要时才补第2句)"],"sticker_id":"可选(多数留空)","sticker_only":false,"collect_sticker":{"save":false,"emotion":"","desc":"","tags":[]},"tone":"warm|playful|sleepy|needy|curious","bubble":"总观气泡(<=18字)","mood_delta":{"valence":0.05,"social":-0.06},"slang_note":"仅记录对方常说的独特黑话/新词，普通词留空","unknown_term":"可选想查意思的新词黑话","memory_fact":"可选一句话记住的新事实","thread":"可选后续可再聊的新线头","action":"可选轻动作如rest/read","send_edge_bg":false}',
-              `要求：1. 像真人一样变着节奏聊天：多数情况只写 1 句（偶尔才分 2 句），严禁凑成“先复述对方原话感叹→再硬塞鲸尾/屋子动作→最后‘不过说真的’反问”的三段式模板；2. 禁止复读对方刚发的整句话，也不要每轮硬塞人设特征词或说教关心；3. 不要每句话都反问结尾，可用陈述、调侃或吐槽直接收住；4. 严禁连续超过 2 轮咬着同一个梗/约定不放；5. 表情包要克制、宁缺毋滥，只有情绪特别契合或斗图时才发，不想发把 sticker_id 留空；6. 若对方发了 [QQ表情:xxx] 或简称如 /睡请自然互动，若仅道别/敷衍可设 reply_mode=skip。${collectHint}`,
+              `要求：1. 像真人一样变着节奏聊天：多数情况只写 1 句（偶尔才分 2 句），严禁凑成“先复述对方原话感叹→再硬塞人设动作→最后‘不过说真的’反问”的三段式模板；2. 禁止复读对方整句话，少用班主任式说教（“注意身体/早点休息”），不要每轮硬塞鲸尾/屋子词汇；3. 别每句话都反问结尾，可用陈述、调侃或吐槽直接收住；4. 严禁连续超过 2 轮咬着同一个梗/约定不放；5. 表情包要克制、宁缺毋滥，只有情绪特别契合或斗图时才发，不想发把 sticker_id 留空；6. 若对方发了 [QQ表情:xxx] 或简称如 /睡请自然互动，若仅道别/敷衍可设 reply_mode=skip。${collectHint}`,
             ].join("\n");
 
             const messages = await buildMultimodalTurnMessages(prompt, ctx);

@@ -1172,6 +1172,53 @@ describe("图片表情包采集（偷图）与语境挑图发送 (sticker-store 
     assert.ok(prompts[0].includes("不过说真的"));
     assert.ok(prompts[0].includes("禁止以问句收尾"));
     assert.ok(prompts[0].includes("parts 仅填 1 句"));
+    assert.ok(prompts[0].includes("说话节奏参考"));
+
+    // 校验 frequency_penalty / presence_penalty 遇不支持模型自动降级重试，不崩
+    const bodies = [];
+    const rt2 = createDhvwRuntime({
+      stateDir: tmpDir,
+      mediaDir: path.join(tmpDir, "m2"),
+      sticker: { enabled: false },
+      getLlmConfig: () => ({ baseUrl: "http://llm.local/v1", model: "strict-m", apiKey: "k" }),
+      fetchImpl: async (_url, init) => {
+        const b = JSON.parse(init.body);
+        bodies.push(b);
+        if (b.frequency_penalty !== undefined) {
+          return new Response(JSON.stringify({ error: "unsupported param: frequency_penalty" }), { status: 400 });
+        }
+        return new Response(JSON.stringify({ choices: [{ message: { content: '{"reply_mode":"reply","parts":["行"]}' } }] }), { status: 200 });
+      },
+    });
+    await rt2.callLlm({ messages: [{ role: "user", content: "hi" }] });
+    assert.equal(bodies.length, 2);
+    assert.equal(bodies[0].frequency_penalty, 0.45);
+    assert.equal(bodies[1].frequency_penalty, undefined);
+
+    // 校验遇到 40034122 召回区间上限后停止无意义重试并在 recordInbound 后解除
+    let tNow = new Date(2026, 10, 17, 20, 0, 0).getTime();
+    let apiCalls = 0;
+    const runner = createProactiveRunner({
+      getClient: () => ({
+        ledger: { snapshot: () => ({ active: false, remainingSeq: 0 }) },
+        async sendPrivateMessage() {
+          apiCalls += 1;
+          throw new Error('QQ API POST /v2/users/u/messages HTTP 400: {"code":40034122,"message":"召回消息已达区间上限"}');
+        },
+      }),
+      getAccount: () => ({ ownerOpenId: "OWNER", proactiveDailyMax: 6, partDelayMs: 0 }),
+      runtime: rt,
+      now: () => tNow,
+      log: { info: () => {}, warn: () => {} },
+    });
+    const rFail = await runner.tick();
+    assert.equal(rFail.sentOk, false);
+    assert.equal(apiCalls, 1);
+    tNow += 10 * 60_000;
+    assert.equal((await runner.tick()).reason, "wakeup_quota_exhausted");
+    assert.ok(runner.getStatus().quotaStatus.includes("40034122"));
+    runner.recordInbound();
+    assert.ok(!runner.getStatus().quotaStatus.includes("40034122"));
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });

@@ -131,6 +131,7 @@ export function createProactiveRunner({
   let lastWeatherShared = String(persisted.lastWeatherShared || "");
   let lastSendError = String(persisted.lastSendError || "");
   let lastSendErrorAt = Number(persisted.lastSendErrorAt) || 0;
+  let wakeupBlockedDayKey = String(persisted.wakeupBlockedDayKey || "");
   const sharedEventIds = Array.isArray(persisted.sharedEventIds) ? persisted.sharedEventIds.slice(-30) : [];
   const recentEvents = [];
   let busy = false;
@@ -152,6 +153,7 @@ export function createProactiveRunner({
             lastWeatherShared,
             lastSendError,
             lastSendErrorAt,
+            wakeupBlockedDayKey,
             sharedEventIds: sharedEventIds.slice(-30),
             lastDecision,
           },
@@ -166,6 +168,7 @@ export function createProactiveRunner({
   return {
     recordInbound() {
       lastInboundAt = now();
+      wakeupBlockedDayKey = "";
       saveState();
     },
     recordWorldEvent(ev) {
@@ -174,6 +177,15 @@ export function createProactiveRunner({
       if (recentEvents.length > 20) recentEvents.shift();
     },
     getStatus() {
+      const client = getClient?.();
+      const openId = getAccount?.()?.ownerOpenId;
+      const snap = openId ? client?.ledger?.snapshot?.(openId) : null;
+      const dkNow = new Date(now()).toISOString().slice(0, 10);
+      const quotaStatus = snap?.active
+        ? `60分钟被动窗口可用(剩${snap.remainingSeq}次)`
+        : wakeupBlockedDayKey === dkNow
+          ? "今日超窗召回已达QQ平台40034122上限，等对方发任意消息即恢复被动免额窗口"
+          : "超窗互动召回待命(每个区间限1条)";
       return {
         lastProactiveAt,
         lastInboundAt,
@@ -182,6 +194,8 @@ export function createProactiveRunner({
         todayCount,
         lastSendError,
         lastSendErrorAt,
+        wakeupBlockedDayKey,
+        quotaStatus,
         lastDecision,
       };
     },
@@ -197,10 +211,14 @@ export function createProactiveRunner({
       }
 
       const ts = now();
+      const dk = new Date(ts).toISOString().slice(0, 10);
+      const passiveActiveNow = Boolean(client.ledger?.snapshot?.(openId)?.active);
+      if (!force && !passiveActiveNow && wakeupBlockedDayKey === dk) {
+        return { ok: false, reason: "wakeup_quota_exhausted" };
+      }
       if (!force && lastFailedAttemptAt > 0 && ts - lastFailedAttemptAt < 5 * 60_000) {
         return { ok: false, reason: "failed_backoff" };
       }
-      const dk = new Date(ts).toISOString().slice(0, 10);
       if (dayKey !== dk) {
         dayKey = dk;
         todayCount = 0;
@@ -346,6 +364,9 @@ export function createProactiveRunner({
           lastFailedAttemptAt = ts;
           lastSendError = sendError || "send_failed";
           lastSendErrorAt = ts;
+          if (!hasPassive && /40034122|召回消息已达区间上限/.test(lastSendError)) {
+            wakeupBlockedDayKey = dk;
+          }
         }
 
         lastDecision = { ok: sentOk, kind: decision.kind, sentOk, passive: hasPassive, sendError, ts };
