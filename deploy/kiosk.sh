@@ -5,16 +5,12 @@ set -eu
 
 URL="http://127.0.0.1:8080/"
 
-# 显示层不熄屏交给应用（息屏由页面 #dim + DPMS 控制）；先关掉 X 的屏保与 DPMS
-xset s off 2>/dev/null || true
-xset -dpms 2>/dev/null || true
-
 # 设备屏幕倒装：X 输出旋转 180°（触控坐标由 X 一并旋转）
 # 开机时 kiosk 可能早于 CRTC 就绪，等 connected 输出出现后再转
 if command -v xrandr >/dev/null 2>&1; then
   n=0
   outs=""
-  while [ "$n" -lt 25 ]; do
+  while [ "$n" -lt 50 ]; do
     outs=$(xrandr --query 2>/dev/null | awk '/ connected/{print $1}')
     [ -n "$outs" ] && break
     n=$((n + 1))
@@ -24,6 +20,15 @@ if command -v xrandr >/dev/null 2>&1; then
     xrandr --output "$out" --rotate inverted 2>/dev/null || true
   done
 fi
+
+# 显示层不熄屏交给应用（息屏由页面 #dim 控制）；必须在 X 就绪后关闭屏保/DPMS
+xset s off 2>/dev/null || true
+xset s noblank 2>/dev/null || true
+xset -dpms 2>/dev/null || true
+xset dpms 0 0 0 2>/dev/null || true
+
+# 兜底：Chromium/X 组合可能在启动后重新打开 DPMS；低频 watchdog 保持关闭
+( while :; do xset -dpms 2>/dev/null || true; xset dpms 0 0 0 2>/dev/null || true; sleep 5; done ) &
 
 exec chromium \
   --kiosk \

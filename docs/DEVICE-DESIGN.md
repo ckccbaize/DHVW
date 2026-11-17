@@ -279,12 +279,12 @@ state = {
 |---|---|
 | `deploy/install.sh` | 复制 `www/` → `/opt/dhvw/www`、二进制 → `/usr/local/bin/`、units → `/etc/systemd/system/`、`systemctl enable --now` |
 | `dhvw-shell.service` | `Restart=always`、`RestartSec=2`、`MemoryMax=64M`、`ProtectSystem=strict`、`ReadOnlyPaths=/opt/dhvw/www` |
-| `dhvw-x.service` | `Xorg :0 -ac -nolisten tcp -keeptty vt1`，`PAMName=login` 建立 logind 会话；`TTYPath=/dev/tty1`；`Restart=always` |
+| `dhvw-x.service` | `Xorg :0 -ac -nolisten tcp -keeptty vt1`，`PAMName=login` 建立 logind 会话；`TTYPath=/dev/tty1`；`Restart=always`；`ExecStartPost` 写 `fb0/blank=0` 并 `xset -dpms` / `xset dpms 0 0 0`，避免面板黑屏 |
 | `dhvw-kiosk.service` | `Requires=`/`After=` shell 与 X；`ExecStartPre` 检查 `/__health`；`Restart=always`；`LANG=zh_CN.UTF-8` |
-| `kiosk.sh` | 先 `xrandr --output <connected> --rotate inverted`（设备屏倒装，180°），再 `--kiosk --start-fullscreen --window-size=1920,1080 --app=http://127.0.0.1:8080 --noerrdialogs --disable-infobars --disable-pinch --overscroll-history-navigation=0 --autoplay-policy=no-user-gesture-required --lang=zh-CN --disable-translate --disable-features=Translate,TranslateUI,MediaRouter` |
+| `kiosk.sh` | 等 connected 输出后 `xrandr --output <connected> --rotate inverted`（设备屏倒装，180°），再 `xset s off / s noblank / -dpms / dpms 0 0 0`，并保留 5s 低频 watchdog；最后 `--kiosk --start-fullscreen --window-size=1920,1080 --app=http://127.0.0.1:8080 --noerrdialogs --disable-infobars --disable-pinch --overscroll-history-navigation=0 --autoplay-policy=no-user-gesture-required --lang=zh-CN --disable-translate --disable-features=Translate,TranslateUI,MediaRouter` |
 | `chromium/dhvw-policy.json` | `TranslateEnabled=false`，安装到 `/etc/chromium/policies/managed/`，避免 kiosk 弹出翻译条 |
 | `99-dhvw-nosleep.conf` | `HandleLidSwitch=ignore`、`IdleAction=ignore`（**只关显示层，不进 suspend**，否则 JS tick 停摆） |
-| 息屏 | `xset dpms force off` / `display_power 0`；唤醒由触摸或滑动开关中断触发 |
+| 息屏 | 页面 `#dim` 遮罩；**不要**用 DPMS 关屏（`fb0/blank=4` 会导致整块面板黑屏且唤醒不稳定） |
 
 ### 10.1 网关配对与 CA 信任
 
