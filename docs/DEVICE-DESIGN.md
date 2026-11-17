@@ -48,7 +48,8 @@
 ```
 systemd
 ├─ dhvw-shell.service     静态壳 :8080（Restart=always，看门狗 ≤5s）
-└─ dhvw-kiosk.service     Chromium kiosk（崩溃/白屏自动重启）
+├─ dhvw-x.service         Xorg :0（tty1，本地 kiosk 专用；屏幕倒装时输出旋转 180°）
+└─ dhvw-kiosk.service     Chromium kiosk（崩溃/白屏自动重启；Requires shell + X）
    ├─ 主线程：总观/显现视图、PathAgent、LifeStore、模式控制
    ├─ life.worker  ：tick 状态机 + 事件环形缓冲（IndexedDB）
    └─ forge.worker ：剧情文法 / 背景合成 / 光照变体（IndexedDB + 配额 LRU）
@@ -94,7 +95,9 @@ arm/
 │   └─ assets/scenes/home/      家园场景：home.png / home@2x.png / sprites.png / home.built.json
 ├─ deploy/
 │   ├─ systemd/dhvw-shell.service
+│   ├─ systemd/dhvw-x.service
 │   ├─ systemd/dhvw-kiosk.service
+│   ├─ chromium/dhvw-policy.json  关闭翻译气泡
 │   ├─ logind/99-dhvw-nosleep.conf
 │   ├─ sysctl/99-dhvw.conf      zram 友好 / 少写 eMMC
 │   ├─ kiosk.sh
@@ -276,8 +279,10 @@ state = {
 |---|---|
 | `deploy/install.sh` | 复制 `www/` → `/opt/dhvw/www`、二进制 → `/usr/local/bin/`、units → `/etc/systemd/system/`、`systemctl enable --now` |
 | `dhvw-shell.service` | `Restart=always`、`RestartSec=2`、`MemoryMax=64M`、`ProtectSystem=strict`、`ReadOnlyPaths=/opt/dhvw/www` |
-| `dhvw-kiosk.service` | 依赖 shell 的 `/__health`；`Restart=always`；X11 下运行 |
-| `kiosk.sh` | `--kiosk --app=http://127.0.0.1:8080 --noerrdialogs --disable-infobars --disable-pinch --overscroll-history-navigation=0 --autoplay-policy=no-user-gesture-required --disable-features=Translate` |
+| `dhvw-x.service` | `Xorg :0 -ac -nolisten tcp -keeptty vt1`，`PAMName=login` 建立 logind 会话；`TTYPath=/dev/tty1`；`Restart=always` |
+| `dhvw-kiosk.service` | `Requires=`/`After=` shell 与 X；`ExecStartPre` 检查 `/__health`；`Restart=always`；`LANG=zh_CN.UTF-8` |
+| `kiosk.sh` | 先 `xrandr --output <connected> --rotate inverted`（设备屏倒装，180°），再 `--kiosk --start-fullscreen --window-size=1920,1080 --app=http://127.0.0.1:8080 --noerrdialogs --disable-infobars --disable-pinch --overscroll-history-navigation=0 --autoplay-policy=no-user-gesture-required --lang=zh-CN --disable-translate --disable-features=Translate,TranslateUI,MediaRouter` |
+| `chromium/dhvw-policy.json` | `TranslateEnabled=false`，安装到 `/etc/chromium/policies/managed/`，避免 kiosk 弹出翻译条 |
 | `99-dhvw-nosleep.conf` | `HandleLidSwitch=ignore`、`IdleAction=ignore`（**只关显示层，不进 suspend**，否则 JS tick 停摆） |
 | 息屏 | `xset dpms force off` / `display_power 0`；唤醒由触摸或滑动开关中断触发 |
 
@@ -324,9 +329,10 @@ npm run verify           # 校验资源包
 # 离线壳
 cd shell && go test ./... && sh build.sh     # 产出 dist/dhvw-shell-linux-arm64 / -armv7
 
-# 设备端安装（在设备上）
+# 设备端安装（在设备上；先装 X/Chromium）
+sudo apt-get install -y xserver-xorg xinit x11-xserver-utils xserver-xorg-legacy chromium fonts-noto-cjk
 sudo sh deploy/install.sh /path/to/dist/dhvw-shell-linux-arm64
-systemctl status dhvw-shell dhvw-kiosk
+systemctl status dhvw-shell dhvw-x dhvw-kiosk
 curl -s http://127.0.0.1:8080/__health
 ```
 

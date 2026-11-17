@@ -31,8 +31,11 @@ npm run validate -- www/assets/scenes/home   # 场景包校验（§15 不变量�
 
 ```bash
 cd shell && sh build.sh                                  # dist/dhvw-shell-linux-arm64
+# 设备先装 X/Chromium（Armbian 精简镜像默认无桌面）
+sudo apt-get install -y xserver-xorg xinit x11-xserver-utils xserver-xorg-legacy chromium fonts-noto-cjk
 sudo sh deploy/install.sh dist/dhvw-shell-linux-arm64     # 在设备上执行
 curl -s http://127.0.0.1:8080/__health
+# 屏幕倒装：kiosk.sh 用 xrandr --rotate inverted 输出 180°；X 由 dhvw-x.service 启动
 ```
 
 ## 三条硬约束（设备侧落点）

@@ -1,0 +1,21 @@
+[Unit]
+Description=DHVW X server (:0, local kiosk only)
+After=systemd-user-sessions.service
+Before=dhvw-kiosk.service
+Conflicts=getty@tty1.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/Xorg :0 -ac -nolisten tcp -keeptty vt1
+Restart=always
+RestartSec=2
+PAMName=login
+TTYPath=/dev/tty1
+StandardInput=tty
+StandardOutput=tty
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+
+[Install]
+WantedBy=graphical.target

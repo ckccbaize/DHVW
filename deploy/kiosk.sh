@@ -9,8 +9,26 @@ URL="http://127.0.0.1:8080/"
 xset s off 2>/dev/null || true
 xset -dpms 2>/dev/null || true
 
+# 设备屏幕倒装：X 输出旋转 180°（触控坐标由 X 一并旋转）
+# 开机时 kiosk 可能早于 CRTC 就绪，等 connected 输出出现后再转
+if command -v xrandr >/dev/null 2>&1; then
+  n=0
+  outs=""
+  while [ "$n" -lt 25 ]; do
+    outs=$(xrandr --query 2>/dev/null | awk '/ connected/{print $1}')
+    [ -n "$outs" ] && break
+    n=$((n + 1))
+    sleep 0.2
+  done
+  for out in $outs; do
+    xrandr --output "$out" --rotate inverted 2>/dev/null || true
+  done
+fi
+
 exec chromium \
   --kiosk \
+  --start-fullscreen \
+  --window-size=1920,1080 \
   --app="$URL" \
   --noerrdialogs \
   --disable-infobars \
@@ -18,7 +36,11 @@ exec chromium \
   --disable-pinch \
   --overscroll-history-navigation=0 \
   --autoplay-policy=no-user-gesture-required \
-  --disable-features=Translate,MediaRouter \
+  --lang=zh-CN \
+  --accept-lang=zh-CN \
+  --no-first-run \
+  --disable-translate \
+  --disable-features=Translate,TranslateUI,MediaRouter \
   --check-for-update-interval=31536000 \
   --user-data-dir=/home/dhvw/.config/dhvw-kiosk \
   --window-position=0,0

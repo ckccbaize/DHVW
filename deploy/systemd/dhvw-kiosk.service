@@ -1,14 +1,15 @@
 [Unit]
 Description=DHVW kiosk (Chromium fullscreen on 127.0.0.1:8080)
-After=graphical.target dhvw-shell.service
-Requires=dhvw-shell.service
-Wants=graphical.target
+After=dhvw-shell.service dhvw-x.service
+Requires=dhvw-shell.service dhvw-x.service
 
 [Service]
 Type=simple
 User=dhvw
 Environment=DISPLAY=:0
 Environment=XAUTHORITY=/home/dhvw/.Xauthority
+Environment=LANG=zh_CN.UTF-8
+Environment=LANGUAGE=zh_CN:zh
 ExecStartPre=/usr/bin/curl -sf --max-time 5 http://127.0.0.1:8080/__health
 ExecStart=/opt/dhvw/kiosk.sh
 Restart=always

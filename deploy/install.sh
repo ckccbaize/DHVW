@@ -20,6 +20,8 @@ fi
 if ! id dhvw >/dev/null 2>&1; then
   useradd --system --home-dir /home/dhvw --create-home --shell /usr/sbin/nologin dhvw
 fi
+# Chromium 需要访问 /dev/dri/card* 与 renderD*（GPU 合成）
+usermod -aG video,render dhvw 2>/dev/null || true
 
 install -d /opt/dhvw
 rm -rf /opt/dhvw/www
@@ -31,6 +33,7 @@ install -m 0755 "$BIN" /usr/local/bin/dhvw-shell
 install -m 0755 "$HERE/kiosk.sh" /opt/dhvw/kiosk.sh
 
 install -m 0644 "$HERE/systemd/dhvw-shell.service" /etc/systemd/system/dhvw-shell.service
+install -m 0644 "$HERE/systemd/dhvw-x.service" /etc/systemd/system/dhvw-x.service
 install -m 0644 "$HERE/systemd/dhvw-kiosk.service" /etc/systemd/system/dhvw-kiosk.service
 install -m 0644 "$HERE/systemd/dhvw-qqbot.service" /etc/systemd/system/dhvw-qqbot.service
 
@@ -44,6 +47,15 @@ if [ -f "$ROOT/qq-openclaw/dist/dhvw-server.js" ]; then
     install -m 0640 -o root -g dhvw "$HERE/qqbot.example.json" /etc/dhvw/qqbot.json
   fi
 fi
+
+# Chromium 中文界面需要 zh_CN.UTF-8 locale（避免英文 UI 触发翻译气泡）
+if command -v localedef >/dev/null 2>&1; then
+  localedef -i zh_CN -f UTF-8 zh_CN.UTF-8 2>/dev/null || true
+fi
+
+# 关闭 Chromium 翻译气泡（kiosk 全屏不应出现浏览器 UI）
+install -d /etc/chromium/policies/managed
+install -m 0644 "$HERE/chromium/dhvw-policy.json" /etc/chromium/policies/managed/dhvw.json
 
 install -d /etc/systemd/logind.conf.d
 install -m 0644 "$HERE/logind/99-dhvw-nosleep.conf" /etc/systemd/logind.conf.d/99-dhvw-nosleep.conf
