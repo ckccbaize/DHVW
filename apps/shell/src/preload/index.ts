@@ -2,8 +2,10 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type {
   ActionRequest,
   AppSnapshot,
+  ArmDeviceView,
   ComponentProgress,
   ComponentStatus,
+  GatewayPairResult,
   GatewayStatusView,
   HostEvent,
   LlmProtocol,
@@ -126,6 +128,11 @@ const api = {
   qqBotRebind: (): Promise<{ ok: boolean; error?: string; settings?: SettingsView; status?: QqBotStatusView }> =>
     ipcRenderer.invoke('dhvw:qqBotRebind'),
   gatewayPair: (): Promise<{ code: string; expiresAt: number } | null> => ipcRenderer.invoke('dhvw:gatewayPair'),
+  gatewayBrowserPair: (name?: string): Promise<GatewayPairResult> =>
+    ipcRenderer.invoke('dhvw:gatewayBrowserPair', name),
+  gatewayScan: (): Promise<ArmDeviceView[]> => ipcRenderer.invoke('dhvw:gatewayScan'),
+  gatewayPairArm: (req: { host: string; name?: string }): Promise<GatewayPairResult> =>
+    ipcRenderer.invoke('dhvw:gatewayPairArm', req),
   gatewayClosePair: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:gatewayClosePair'),
   gatewayForget: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:gatewayForget'),
   gatewayRestart: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:gatewayRestart'),

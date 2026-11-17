@@ -173,6 +173,23 @@ export interface GatewayStatusView {
   error?: string
 }
 
+/** PC 扫描到的 ARM 设备（dhvw-shell 局域网配对口）。 */
+export interface ArmDeviceView {
+  host: string
+  name: string
+  version: string
+  paired: boolean
+}
+
+/** 一键配对结果：浏览器测试或 ARM 设备都复用。 */
+export interface GatewayPairResult {
+  ok: boolean
+  token?: string
+  wsUrl?: string
+  name?: string
+  error?: string
+}
+
 export type WorkTier = 'idle' | 'host' | 'edge'
 
 /** 编排器侧世界状态（只读展示，数据源是设备的 world:digest / mood:state） */

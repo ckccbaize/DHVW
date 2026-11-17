@@ -48,7 +48,7 @@ export interface GatewayStatus {
 const CA_DAYS = 3650
 const LEAF_DAYS = 397
 
-function lanAddresses(): string[] {
+export function lanAddresses(): string[] {
   const out = new Set<string>(['127.0.0.1'])
   for (const list of Object.values(os.networkInterfaces())) {
     for (const info of list ?? []) {
@@ -215,8 +215,44 @@ export class Gateway {
     this.pairing = null
   }
 
+  /** 直接签发设备 token（PC 扫描到 ARM 后一键配对，不再让用户输 6 位码）。 */
+  createDevice(name: string): { token: string; name: string } {
+    const token = crypto.randomBytes(32).toString('hex')
+    const device: Device = {
+      token,
+      name: (name || '未命名设备').slice(0, 40),
+      addedAt: new Date().toISOString(),
+      lastSeen: new Date().toISOString(),
+    }
+    this.devices.set(token, device)
+    this.saveDevices()
+    return { token, name: device.name }
+  }
+
+  /** 设备应连接的 orchestrator WS 地址；优先与 ARM 同网段的 RFC1918 地址。 */
+  wsUrlFor(token: string, preferHost = ''): string {
+    // 优先与目标设备同 /24 的地址；其次 RFC1918；Tailscale/VPN 地址对 ARM 不可达
+    const prefix = preferHost.split('.').slice(0, 3).join('.')
+    const sameSubnet = prefix ? this.urls.find((u) => u.includes(`//${prefix}.`)) : undefined
+    const lan =
+      sameSubnet ??
+      this.urls.find((u) => /https:\/\/(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(u))
+    const base =
+      lan ??
+      this.urls.find((u) => !/\/\/(127\.0\.0\.1|localhost)(:|\/|$)/.test(u)) ??
+      this.urls[0] ??
+      ''
+    if (!base) return ''
+    return `${base.replace(/^https:\/\//, 'wss://')}/ws/orchestrator?token=${encodeURIComponent(token)}`
+  }
+
   forgetDevices(): void {
     this.devices.clear()
+    this.saveDevices()
+  }
+
+  forgetDevice(token: string): void {
+    this.devices.delete(token)
     this.saveDevices()
   }
 
@@ -415,15 +451,8 @@ export class Gateway {
       this.json(res, 403, { ok: false, error: '配对码不正确' })
       return
     }
-    const token = crypto.randomBytes(32).toString('hex')
-    const device: Device = {
-      token,
-      name: (body.name ?? '未命名设备').slice(0, 40),
-      addedAt: new Date().toISOString(),
-      lastSeen: new Date().toISOString(),
-    }
-    this.devices.set(token, device)
-    this.saveDevices()
+    const device = this.createDevice(body.name ?? '未命名设备')
+    const token = device.token
     this.fails.delete(ip)
     // 一次性码：成功即作废，防止被重复使用
     this.pairing = null

@@ -38,7 +38,8 @@ export async function startArmPreviewServer(
   const resolvedRoot = path.resolve(root)
   server = createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1')
-    const rel = decodeURIComponent(url.pathname === '/' ? '/preview.html' : url.pathname)
+    // 根路径给完整 ARM 页面（浏览器一键配对测试），场景预览仍走 /preview.html
+    const rel = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname)
     const file = path.resolve(resolvedRoot, '.' + rel)
     if (!file.startsWith(resolvedRoot + path.sep) && file !== path.join(resolvedRoot, 'preview.html')) {
       res.writeHead(403).end('forbidden')

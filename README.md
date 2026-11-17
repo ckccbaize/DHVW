@@ -201,12 +201,14 @@ PYTHONPATH=host python -m dhvw_host --shell-pid <外壳PID> --log-dir <数据目
 
 ## 局域网网关（PCM3）
 
-服务面板底部的「设备接入」条显示网关地址，点「配对 / 设备」打开弹层。
+服务面板底部的「设备接入」条显示网关地址，点「配对设备」打开弹层。
 
 - **监听**：`0.0.0.0:8443`（端口可在设置里改，默认 8443，改后网关自动重建监听）。
 - **证书**：首次启动生成 CA（`%APPDATA%/DigitalHuman/gateway/ca.crt.pem`，10 年）+ 主机证书（397 天，SAN 含 `localhost`、`127.0.0.1` 与本机所有 IPv4）。局域网 IP 变化或证书快过期时只重签主机证书，CA 不变，设备无需重新信任。
 - **免鉴权端点**：`GET /healthz`、`GET /ca.crt`（设备先取它信任证书）、`POST /pair`。
-- **配对**：弹层点「生成配对码」得到 6 位码（5 分钟有效、一次性），设备 `POST /pair {"code":"123456","name":"客厅屏"}` 换 32 字节 token，token 存 `gateway/devices.json`（0600）。连续 5 次错误码后该 IP 被锁，直到重新生成配对码。
+- **一键配对**：弹层点「一键配对」直接签发浏览器测试 token，点「在浏览器打开」用任意浏览器打开 PC 内置 ARM 页面（`arm-preview` 根路径为 `index.html`）。
+- **扫描配对 ARM**：点「扫描设备」扫描本机 `/24` 私网的 `8081` 端口，列出 `dhvw-arm`；点「配对这台」后 PC 签发 token 并 `POST http://<arm>:8081/__pair`。设备写入 `data/host.json`，页面轮询 `/__host` 3 秒内自动重连，ARM 侧无需输入配对码或改 URL。
+- **兼容旧流程**：弹层「高级：6 位配对码」仍保留；设备 `POST /pair {"code":"123456","name":"客厅屏"}` 换 token，token 存 `gateway/devices.json`（0600）。连续 5 次错误码后该 IP 被锁，直到重新生成配对码。
 - **鉴权**：其余请求必须带 `X-DHVW-Token` 头或 `?token=`，未配对返回 401。
 - **反代**：`/<服务名>/...` 转发到本机对应端口（`olvt`、`orchestrator`、`waketrace`）；`/ws/<服务名>?token=...` 转发 WebSocket（OLVT 走 `/client-ws`，设备通道走 `/ws/orchestrator` → `ws://127.0.0.1:8877/dhvw`）。上游连接尚未建立时的设备帧会排队，连上后一次补发——设备连上就发 `hello`，不排队会丢掉握手。
 

@@ -282,9 +282,19 @@ main {
 }
 
 .gw-dev {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   font-size: 11px;
   padding: 2px 0;
   opacity: 0.8;
+}
+
+.gw-dev button {
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 2px 8px;
 }
 
 /* ---------- 世界状态（只读，单行 pill + 一行心情条，避免挤占右列） ---------- */

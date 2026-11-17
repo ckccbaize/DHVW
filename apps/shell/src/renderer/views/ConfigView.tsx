@@ -133,7 +133,7 @@ export function ConfigView({
               设备接入 :{gateway?.port ?? '—'}
             </span>
             <code className="mono gw-strip-url">{gateway?.urls[0] ?? '未启动'}</code>
-            <button onClick={onOpenGateway}>配对 / 设备</button>
+            <button onClick={onOpenGateway}>配对设备</button>
           </div>
           <p className="hint">
             数据目录：{snap?.dataDir ?? '…'} · Python：{snap?.pythonPath ?? '…'}

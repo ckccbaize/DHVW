@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import type {
   AppSnapshot,
+  ArmDeviceView,
   ComponentStatus,
+  GatewayPairResult,
   GatewayStatusView,
   HostEvent,
   SettingsView,
@@ -32,86 +34,186 @@ function GatewayDialog({
   onClose: () => void
 }): React.ReactElement {
   const [msg, setMsg] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [browser, setBrowser] = useState<GatewayPairResult | null>(null)
+  const [devices, setDevices] = useState<ArmDeviceView[]>([])
+  const [scanning, setScanning] = useState(false)
+  const [armPreview, setArmPreview] = useState<string | null>(null)
   const refresh = async (): Promise<void> => onChange(await window.dhvw.gateway())
   const left = status?.pairing ? Math.max(0, Math.round((status.pairing.expiresAt - Date.now()) / 1000)) : 0
 
+  useEffect(() => {
+    void window.dhvw.armPreview().then((r) => setArmPreview(r.url))
+  }, [])
+
+  const browserUrl =
+    browser?.ok && browser.wsUrl
+      ? `${armPreview ?? 'http://127.0.0.1:8080/'}?host=${encodeURIComponent(browser.wsUrl)}`
+      : ''
+
+  const pairBrowser = async (): Promise<void> => {
+    setBusy(true)
+    setMsg(null)
+    try {
+      const res = await window.dhvw.gatewayBrowserPair('浏览器测试')
+      setBrowser(res)
+      setMsg(res.ok ? '已生成浏览器配对链接；ARM 设备请用下面的扫描配对。' : res.error || '配对失败')
+      if (res.ok) await refresh()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const scan = async (): Promise<void> => {
+    setScanning(true)
+    setMsg(null)
+    try {
+      const found = await window.dhvw.gatewayScan()
+      setDevices(found)
+      setMsg(found.length ? `发现 ${found.length} 台 ARM 设备` : '没有发现 ARM 设备（确认同一局域网、设备已启动）')
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  const pairArm = async (device: ArmDeviceView): Promise<void> => {
+    setBusy(true)
+    setMsg(`正在配对 ${device.host}…`)
+    try {
+      const res = await window.dhvw.gatewayPairArm({ host: device.host, name: device.name })
+      setMsg(res.ok ? `已配对 ${device.name || device.host}，设备 3 秒内自动重连` : res.error || '配对失败')
+      if (res.ok) await refresh()
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="overlay" onClick={onClose}>
-    <div className="dialog" onClick={(e) => e.stopPropagation()}>
-      <h2>设备接入（局域网网关）</h2>
-      <div className="comp">
-        <div className="comp-info">
-          <span className="comp-name">局域网网关</span>
-          <span className={`pill ${status?.running ? 'ok' : 'bad'}`}>{status?.running ? '运行中' : '未运行'}</span>
-          <span className="comp-ver mono">:{status?.port ?? '—'}</span>
-        </div>
-        <button onClick={() => void window.dhvw.gatewayRestart().then(refresh)}>重启网关</button>
-      </div>
-      {status?.error && <div className="comp-err">{status.error}</div>}
-      {status?.urls.map((u) => (
-        <code key={u} className="gw-url mono">
-          {u}
-        </code>
-      ))}
-      <div className="comp">
-        <div className="comp-info">
-          <span className="comp-name">配对码</span>
-          {status?.pairing ? (
-            <span className="pill mono">
-              {status.pairing.code} · {left}s
+      <div className="dialog" onClick={(e) => e.stopPropagation()}>
+        <h2>设备配对</h2>
+        <div className="comp">
+          <div className="comp-info">
+            <span className="comp-name">局域网网关</span>
+            <span className={`pill ${status?.running ? 'ok' : 'bad'}`}>
+              {status?.running ? '运行中' : '未运行'}
             </span>
-          ) : (
-            <span className="pill">未开启</span>
+            <span className="comp-ver mono">:{status?.port ?? '—'}</span>
+          </div>
+          <button disabled={busy} onClick={() => void window.dhvw.gatewayRestart().then(refresh)}>
+            重启网关
+          </button>
+        </div>
+        {status?.error && <div className="comp-err">{status.error}</div>}
+        {status?.urls.map((u) => (
+          <code key={u} className="gw-url mono">
+            {u}
+          </code>
+        ))}
+
+        <div className="comp">
+          <div className="comp-info">
+            <span className="comp-name">本机浏览器测试</span>
+            <span className="pill">无需 ARM</span>
+          </div>
+          <button disabled={busy} onClick={() => void pairBrowser()}>
+            一键配对
+          </button>
+        </div>
+        {browserUrl && (
+          <>
+            <code className="gw-url mono">{browserUrl}</code>
+            <div className="actions">
+              <button onClick={() => void window.dhvw.openExternal(browserUrl)}>在浏览器打开</button>
+              <button onClick={() => void window.dhvw.copyText(browserUrl)}>复制链接</button>
+            </div>
+          </>
+        )}
+
+        <div className="comp">
+          <div className="comp-info">
+            <span className="comp-name">局域网 ARM 设备</span>
+            <span className="pill mono">{devices.length}</span>
+          </div>
+          <button disabled={scanning || busy} onClick={() => void scan()}>
+            {scanning ? '扫描中…' : '扫描设备'}
+          </button>
+        </div>
+        {devices.map((d) => (
+          <div key={d.host} className="gw-dev mono">
+            <span>
+              {d.name} · {d.host}
+              {d.paired ? ' · 已配对' : ''}
+            </span>
+            <button disabled={busy} onClick={() => void pairArm(d)}>
+              配对这台
+            </button>
+          </div>
+        ))}
+
+        <details>
+          <summary className="hint">高级：6 位配对码</summary>
+          <div className="comp">
+            <div className="comp-info">
+              <span className="comp-name">配对码</span>
+              {status?.pairing ? (
+                <span className="pill mono">
+                  {status.pairing.code} · {left}s
+                </span>
+              ) : (
+                <span className="pill">未开启</span>
+              )}
+            </div>
+            {status?.pairing ? (
+              <button onClick={() => void window.dhvw.gatewayClosePair().then(refresh)}>取消</button>
+            ) : (
+              <button
+                onClick={() =>
+                  void window.dhvw.gatewayPair().then((p) => {
+                    setMsg(p ? '配对码 5 分钟内有效，一次性使用' : '网关未运行')
+                    return refresh()
+                  })
+                }
+              >
+                生成配对码
+              </button>
+            )}
+          </div>
+        </details>
+
+        <div className="comp">
+          <div className="comp-info">
+            <span className="comp-name">已配对设备</span>
+            <span className="pill mono">{status?.devices.length ?? 0}</span>
+          </div>
+          {!!status?.devices.length && (
+            <button
+              onClick={() =>
+                void window.dhvw.gatewayForget().then(() => {
+                  setMsg('已解除全部设备，需重新配对')
+                  return refresh()
+                })
+              }
+            >
+              全部解除
+            </button>
           )}
         </div>
-        {status?.pairing ? (
-          <button onClick={() => void window.dhvw.gatewayClosePair().then(refresh)}>取消</button>
-        ) : (
-          <button
-            onClick={() =>
-              void window.dhvw.gatewayPair().then((p) => {
-                setMsg(p ? '配对码 5 分钟内有效，一次性使用' : '网关未运行，先启动网关')
-                return refresh()
-              })
-            }
-          >
-            生成配对码
-          </button>
-        )}
-      </div>
-      <div className="comp">
-        <div className="comp-info">
-          <span className="comp-name">已配对设备</span>
-          <span className="pill mono">{status?.devices.length ?? 0}</span>
+        {status?.devices.map((d) => (
+          <div key={d.addedAt} className="gw-dev mono">
+            {d.name} · 配对 {d.addedAt.slice(0, 10)}
+          </div>
+        ))}
+        <p className="hint">
+          ARM 无需设置：PC 扫描到设备后点「配对这台」，设备写入主机地址并在 3 秒内自动重连。
+          <br />
+          CA 指纹 <span className="mono">{status?.caFingerprint?.slice(0, 23) ?? '…'}</span>
+        </p>
+        {msg && <p className="hint">{msg}</p>}
+        <div className="actions dialog-actions">
+          <button onClick={onClose}>关闭</button>
         </div>
-        {!!status?.devices.length && (
-          <button
-            onClick={() =>
-              void window.dhvw.gatewayForget().then(() => {
-                setMsg('已解除全部设备，需重新配对')
-                return refresh()
-              })
-            }
-          >
-            全部解除
-          </button>
-        )}
       </div>
-      {status?.devices.map((d) => (
-        <div key={d.addedAt} className="gw-dev mono">
-          {d.name} · 配对 {d.addedAt.slice(0, 10)}
-        </div>
-      ))}
-      <p className="hint">
-        CA 指纹 <span className="mono">{status?.caFingerprint?.slice(0, 23) ?? '…'}</span>
-        <br />
-        设备先取 {status?.urls[0] ?? 'https://<主机IP>:8443'}/ca.crt 信任证书，再用配对码换 token
-      </p>
-      {msg && <p className="hint">{msg}</p>}
-      <div className="actions dialog-actions">
-        <button onClick={onClose}>关闭</button>
-      </div>
-    </div>
     </div>
   )
 }

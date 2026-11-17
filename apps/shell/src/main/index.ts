@@ -42,6 +42,7 @@ import { COMPONENTS, componentStatus, ensureComponent, resolveSpec, uvBinary } f
 import { clearApiKey, hasApiKey, hasQqSecret, readApiKey, readQqSecret, saveApiKey, saveQqSecret } from './secret'
 import { asrModelPaths, prepareOlvt, resolveOlvtDir, syncOlvtModel } from './olvt'
 import { Gateway, type GatewayTarget } from './gateway'
+import { pairArmDevice, scanArmDevices } from './arm-pair'
 
 applyNetworkHardening()
 
@@ -707,6 +708,31 @@ function registerIpc(): void {
   ipcMain.handle('dhvw:settings', () => settingsView())
   ipcMain.handle('dhvw:gateway', () => gateway?.status ?? null)
   ipcMain.handle('dhvw:gatewayPair', () => gateway?.openPairing() ?? null)
+  ipcMain.handle('dhvw:gatewayBrowserPair', (_e, name?: string) => {
+    if (!gateway) return { ok: false, error: '网关未启动' }
+    if (!gateway.status.running) gateway.start()
+    const device = gateway.createDevice(name || '浏览器测试')
+    const wsUrl = gateway.wsUrlFor(device.token)
+    if (!wsUrl) return { ok: false, error: '网关没有局域网地址' }
+    return { ok: true, token: device.token, wsUrl, name: device.name }
+  })
+  ipcMain.handle('dhvw:gatewayScan', () => scanArmDevices())
+  ipcMain.handle('dhvw:gatewayPairArm', async (_e, req: { host?: string; name?: string }) => {
+    if (!gateway) return { ok: false, error: '网关未启动' }
+    if (!gateway.status.running) gateway.start()
+    const host = String(req?.host || '').trim()
+    if (!host) return { ok: false, error: '缺少设备地址' }
+    const device = gateway.createDevice(req?.name || `ARM ${host}`)
+    const wsUrl = gateway.wsUrlFor(device.token, host)
+    if (!wsUrl) return { ok: false, error: '网关没有局域网地址' }
+    const result = await pairArmDevice(host, wsUrl, device.name)
+    if (!result.ok) {
+      gateway.forgetDevice(device.token)
+      return { ok: false, error: result.error || '设备配对失败' }
+    }
+    log('info', 'gateway', 'ARM 已配对', { host, name: device.name })
+    return { ok: true, wsUrl, name: device.name }
+  })
   ipcMain.handle('dhvw:gatewayClosePair', () => {
     gateway?.closePairing()
     return { ok: true }
