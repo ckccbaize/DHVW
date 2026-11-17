@@ -16,7 +16,7 @@
   } catch (e) {
     isEmbedded = true;
   }
-  var isArm = Boolean((params && params.get('arm') === '1') || isEmbedded);
+  var isArm = Boolean(params && params.get('arm') === '1');
 
   docEl.classList.add('dhvw-cel');
   if (isArm) {

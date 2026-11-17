@@ -25,7 +25,7 @@ from .proactive import ProactiveScheduler
 DHVW_BOOTSTRAP_SCRIPT = """<script>
 (function () {
   try {
-    var isArm = location.search.indexOf('arm=1') !== -1 || window.self !== window.top;
+    var isArm = location.search.indexOf('arm=1') !== -1;
     if (isArm && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       /* 2GB ARM 没有麦克风，且 onnxruntime VAD worker 会吃掉 1GB+；在应用加载前拒绝音频。 */
       var origGum = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);

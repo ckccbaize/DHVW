@@ -1,5 +1,6 @@
 import http, { createServer, type Server } from 'node:http'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 const MIME: Record<string, string> = {
@@ -92,13 +93,22 @@ export async function startArmPreviewServer(
 
   return await new Promise<string>((resolve, reject) => {
     server!.once('error', reject)
-    server!.listen(0, '127.0.0.1', () => {
+    // 绑 0.0.0.0，手机/平板同一局域网可直接打开；URL 用局域网 IPv4，避免 127.0.0.1 只在本机可用。
+    server!.listen(0, '0.0.0.0', () => {
       const addr = server!.address()
       if (!addr || typeof addr === 'string') {
         reject(new Error('ARM 预览服务端口异常'))
         return
       }
-      baseUrl = `http://127.0.0.1:${addr.port}/`
+      const lan = Object.values(os.networkInterfaces())
+        .flat()
+        .filter((n) => Boolean(n) && n!.family === 'IPv4' && !n!.internal)
+        .map((n) => n!.address)
+        .sort((a, b) => {
+          const rank = (ip: string): number => (ip.startsWith('192.168.') ? 0 : ip.startsWith('10.') ? 1 : ip.startsWith('172.') ? 2 : 3)
+          return rank(a) - rank(b)
+        })[0]
+      baseUrl = `http://${lan || '127.0.0.1'}:${addr.port}/`
       resolve(baseUrl)
     })
   })

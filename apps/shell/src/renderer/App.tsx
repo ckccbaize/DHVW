@@ -48,7 +48,7 @@ function GatewayDialog({
 
   const browserUrl =
     browser?.ok && browser.wsUrl
-      ? `${armPreview ?? 'http://127.0.0.1:8080/'}?host=${encodeURIComponent(browser.wsUrl)}`
+      ? `${armPreview ?? 'http://127.0.0.1:8080/'}?host=${encodeURIComponent(browser.wsUrl)}&remote=1`
       : ''
 
   const pairBrowser = async (): Promise<void> => {
@@ -57,7 +57,7 @@ function GatewayDialog({
     try {
       const res = await window.dhvw.gatewayBrowserPair('浏览器测试')
       setBrowser(res)
-      setMsg(res.ok ? '已生成浏览器配对链接；ARM 设备请用下面的扫描配对。' : res.error || '配对失败')
+      setMsg(res.ok ? '已生成浏览器配对链接；手机/电脑同一局域网可直接打开。ARM 设备请用下面的扫描配对。' : res.error || '配对失败')
       if (res.ok) await refresh()
     } finally {
       setBusy(false)
