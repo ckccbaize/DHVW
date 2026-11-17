@@ -281,7 +281,8 @@ state = {
 | `dhvw-shell.service` | `Restart=always`、`RestartSec=2`、`MemoryMax=64M`、`ProtectSystem=strict`、`ReadOnlyPaths=/opt/dhvw/www` |
 | `dhvw-x.service` | `Xorg :0 -ac -nolisten tcp -keeptty vt1`，`PAMName=login` 建立 logind 会话；`TTYPath=/dev/tty1`；`Restart=always`；`ExecStartPost` 写 `fb0/blank=0` 并 `xset -dpms` / `xset dpms 0 0 0`，避免面板黑屏 |
 | `dhvw-kiosk.service` | `Requires=`/`After=` shell 与 X；`ExecStartPre` 检查 `/__health`；`Restart=always`；`LANG=zh_CN.UTF-8` |
-| `kiosk.sh` | 等 connected 输出后 `xrandr --output <connected> --rotate inverted`（设备屏倒装，180°），再 `xset s off / s noblank / -dpms / dpms 0 0 0`，并保留 5s 低频 watchdog；最后 `--kiosk --start-fullscreen --window-size=1920,1080 --app=http://127.0.0.1:8080 --noerrdialogs --disable-infobars --disable-pinch --overscroll-history-navigation=0 --autoplay-policy=no-user-gesture-required --lang=zh-CN --disable-translate --disable-features=Translate,TranslateUI,MediaRouter` |
+| `dhvw-display.service` | 常亮：每 5s `xset s off / noblank / s 0 0 / -dpms / dpms 0 0 0`，并写 `fb0/blank=0`；加触摸屏后停用即可恢复息屏 |
+| `kiosk.sh` | 等 connected 输出后 `xrandr --output <connected> --rotate inverted`（设备屏倒装，180°），再 `xset s off / s noblank / s 0 0 / dpms force on / -dpms / dpms 0 0 0`；延迟用 `xdotool mousemove` 触发一次输入事件唤醒面板；最后 `--kiosk --start-fullscreen --window-size=1920,1080 --app=http://127.0.0.1:8080 --noerrdialogs --disable-infobars --disable-pinch --overscroll-history-navigation=0 --autoplay-policy=no-user-gesture-required --lang=zh-CN --disable-translate --disable-features=Translate,TranslateUI,MediaRouter` |
 | `chromium/dhvw-policy.json` | `TranslateEnabled=false`，安装到 `/etc/chromium/policies/managed/`，避免 kiosk 弹出翻译条 |
 | `99-dhvw-nosleep.conf` | `HandleLidSwitch=ignore`、`IdleAction=ignore`（**只关显示层，不进 suspend**，否则 JS tick 停摆） |
 | 息屏 | 页面 `#dim` 遮罩；**不要**用 DPMS 关屏（`fb0/blank=4` 会导致整块面板黑屏且唤醒不稳定） |
@@ -347,7 +348,7 @@ npm run verify           # 校验资源包
 cd shell && go test ./... && sh build.sh     # 产出 dist/dhvw-shell-linux-arm64 / -armv7
 
 # 设备端安装（在设备上；先装 X/Chromium）
-sudo apt-get install -y xserver-xorg xinit x11-xserver-utils xserver-xorg-legacy chromium fonts-noto-cjk
+sudo apt-get install -y xserver-xorg xinit x11-xserver-utils xserver-xorg-legacy chromium fonts-noto-cjk xdotool
 sudo sh deploy/install.sh /path/to/dist/dhvw-shell-linux-arm64
 systemctl status dhvw-shell dhvw-x dhvw-kiosk
 curl -s http://127.0.0.1:8080/__health

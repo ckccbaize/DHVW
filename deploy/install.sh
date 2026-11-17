@@ -34,6 +34,7 @@ install -m 0755 "$HERE/kiosk.sh" /opt/dhvw/kiosk.sh
 
 install -m 0644 "$HERE/systemd/dhvw-shell.service" /etc/systemd/system/dhvw-shell.service
 install -m 0644 "$HERE/systemd/dhvw-x.service" /etc/systemd/system/dhvw-x.service
+install -m 0644 "$HERE/systemd/dhvw-display.service" /etc/systemd/system/dhvw-display.service
 install -m 0644 "$HERE/systemd/dhvw-kiosk.service" /etc/systemd/system/dhvw-kiosk.service
 install -m 0644 "$HERE/systemd/dhvw-qqbot.service" /etc/systemd/system/dhvw-qqbot.service
 
@@ -66,6 +67,7 @@ sysctl -p /etc/sysctl.d/99-dhvw.conf >/dev/null 2>&1 || true
 
 systemctl daemon-reload
 systemctl enable --now dhvw-shell.service
+systemctl enable dhvw-x.service dhvw-display.service >/dev/null 2>&1 || true
 if [ -f /etc/dhvw/qqbot.json ]; then
   systemctl enable --now dhvw-qqbot.service >/dev/null 2>&1 || true
 fi

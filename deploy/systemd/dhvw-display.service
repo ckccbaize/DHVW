@@ -1,0 +1,16 @@
+[Unit]
+Description=DHVW display keep-awake (X screen saver/DPMS off)
+After=dhvw-x.service
+Requires=dhvw-x.service
+
+[Service]
+Type=simple
+Environment=DISPLAY=:0
+# 设备端要求常亮：X 屏保、DPMS、fbcon blank 全部压住。
+# 加触摸屏后如需息屏，停用本单元即可。
+ExecStart=/bin/sh -c 'while :; do xset s off 2>/dev/null || true; xset s noblank 2>/dev/null || true; xset s 0 0 2>/dev/null || true; xset -dpms 2>/dev/null || true; xset dpms 0 0 0 2>/dev/null || true; echo 0 > /sys/class/graphics/fb0/blank 2>/dev/null || true; sleep 5; done'
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=graphical.target

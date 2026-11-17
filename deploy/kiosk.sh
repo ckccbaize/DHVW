@@ -17,18 +17,43 @@ if command -v xrandr >/dev/null 2>&1; then
     sleep 0.2
   done
   for out in $outs; do
+    # 开机后 HDMI 已 active 但面板可能仍黑；一次 off/auto 强制 mode set 唤醒
+    xrandr --output "$out" --off 2>/dev/null || true
+    sleep 1
+    xrandr --output "$out" --auto 2>/dev/null || true
     xrandr --output "$out" --rotate inverted 2>/dev/null || true
   done
+  # 面板/显示器可能比 X 晚就绪；延迟再强制一次 mode set
+  (
+    sleep 15
+    for out in $outs; do
+      xrandr --output "$out" --off 2>/dev/null || true
+      sleep 1
+      xrandr --output "$out" --auto 2>/dev/null || true
+      xrandr --output "$out" --rotate inverted 2>/dev/null || true
+    done
+  ) &
 fi
 
 # 显示层不熄屏交给应用（息屏由页面 #dim 控制）；必须在 X 就绪后关闭屏保/DPMS
 xset s off 2>/dev/null || true
 xset s noblank 2>/dev/null || true
+xset s 0 0 2>/dev/null || true
+xset dpms force on 2>/dev/null || true
 xset -dpms 2>/dev/null || true
 xset dpms 0 0 0 2>/dev/null || true
 
-# 兜底：Chromium/X 组合可能在启动后重新打开 DPMS；低频 watchdog 保持关闭
-( while :; do xset -dpms 2>/dev/null || true; xset dpms 0 0 0 2>/dev/null || true; sleep 5; done ) &
+# 这台 HDMI 面板需要一次输入事件才真正点亮；模拟鼠标移动，避免开机黑屏
+if command -v xdotool >/dev/null 2>&1; then
+  (
+    sleep 10
+    xdotool mousemove 1 1 2>/dev/null || true
+    sleep 1
+    xdotool mousemove 2 2 2>/dev/null || true
+    sleep 20
+    xdotool mousemove 3 3 2>/dev/null || true
+  ) &
+fi
 
 exec chromium \
   --kiosk \
