@@ -92,6 +92,8 @@ class Orchestrator:
     def __init__(self, store: Store) -> None:
         self.store = store
         self.clients: set[WebSocket] = set()
+        # role: device（物理 ARM/本地壳）或 viewer（手机/电脑远程渲染页）
+        self.client_roles: dict[WebSocket, str] = {}
         self.device_id = ""
         self.last_seen = 0.0
         self.connected = False
@@ -149,6 +151,17 @@ class Orchestrator:
     async def broadcast(self, type_: str, payload: dict | None = None) -> list[str]:
         sent: list[str] = []
         for ws in list(self.clients):
+            msg_id = await self.send(ws, type_, payload)
+            if msg_id:
+                sent.append(msg_id)
+        return sent
+
+    async def broadcast_devices(self, type_: str, payload: dict | None = None) -> list[str]:
+        """只发给物理设备/本地壳，不发给手机/电脑远程渲染页。"""
+        sent: list[str] = []
+        for ws in list(self.clients):
+            if self.client_roles.get(ws, "device") != "device":
+                continue
             msg_id = await self.send(ws, type_, payload)
             if msg_id:
                 sent.append(msg_id)
@@ -440,6 +453,7 @@ class Orchestrator:
             return
 
         if type_ == "hello":
+            self.client_roles[ws] = "viewer" if payload.get("role") == "viewer" else "device"
             self.device_id = str(payload.get("uuid") or payload.get("client_uid") or payload.get("id") or "device")
             self.connected = True
             self.last_seen = time.time()
@@ -552,6 +566,9 @@ class Orchestrator:
             return
 
         if type_ == "world:digest":
+            # 远程渲染页的显示态不能覆盖物理设备；否则 PC 显现/ARM 总观会互相打架。
+            if self.client_roles.get(ws) == "viewer":
+                return
             digest = payload.get("digest")
             if isinstance(digest, dict):
                 self.digest = digest
@@ -911,7 +928,7 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
         if state not in ("overview", "present"):
             return JSONResponse({"ok": False, "error": "state 必须是 overview 或 present"}, status_code=400)
         delivered = len(
-            await orch.broadcast(
+            await orch.broadcast_devices(
                 "display:set",
                 {
                     "state": state,
@@ -1401,6 +1418,7 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
             pass
         finally:
             orch.clients.discard(ws)
+            orch.client_roles.pop(ws, None)
             # 以存活连接为准：旧连接的 finally 晚于新连接握手时，不能把在线判成离线
             orch.connected = bool(orch.clients)
             log("info", "设备断开", clients=len(orch.clients), peer=peer)
