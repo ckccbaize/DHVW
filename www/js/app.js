@@ -390,6 +390,7 @@ async function boot() {
     url: cfg.host.wsUrl,
     probeUrl: cfg.host.probeUrl,
     onMessage: (msg) => handleRemoteMessage(msg),
+    role: isRemotePresent() ? "viewer" : "device",
     onConn: (next, info) => handleConn(next, info),
     log: (m) => console.info("[remote]", m),
   });
@@ -522,7 +523,6 @@ async function boot() {
     presentCancelled = false;
     try {
       const coverPromise = transition.cover("正在唤醒显现服务…", 520);
-      remote.send({ type: "present:request", payload: { t: Date.now() } });
 
       const remotePresent = isRemotePresent();
       const presentUrl = resolvePresentUrl(remotePresent);
@@ -538,6 +538,7 @@ async function boot() {
       }
 
       if (iframeUrl) {
+        remote.send({ type: "present:request", payload: { t: Date.now() } });
         const probe = await waitForPresentReady(iframeUrl, 45000);
         if (presentCancelled) {
           await transition.reveal(320);
@@ -561,7 +562,8 @@ async function boot() {
         };
         const guard = setTimeout(done, 12000);
         present.open({
-          backgroundUrl: bg,
+          // 2GB 设备只用 CSS 渐变，不把生成背景图塞进 GPU 合成层。
+          backgroundUrl: lowMemory ? null : bg,
           iframeUrl: iframeUrl || "",
           live2d: false,
           tts,

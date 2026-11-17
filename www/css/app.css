@@ -247,6 +247,9 @@ html, body {
 
 #present[hidden] { display: none; }
 
+/* 显现时总观画布不再参与合成，给 2GB 设备省一层 1920×1080 GPU 纹理。 */
+body.present-active #stage { display: none; }
+
 .block-transition {
   position: absolute;
   inset: 0;

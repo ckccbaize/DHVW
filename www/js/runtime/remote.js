@@ -9,6 +9,7 @@ export function createRemoteRuntime({
   probeUrl = "",
   heartbeatMs = 5000,
   timeoutMs = 60000,
+  role = "device",
   onMessage = () => {},
   onConn = () => {},
   log = () => {},
@@ -115,7 +116,7 @@ export function createRemoteRuntime({
       retryDelay = 2000;
       lastSeen = now();
       setConn("up", "ws_open");
-      send({ type: "hello", payload: { t: now(), role: "device", proto: 1 } });
+      send({ type: "hello", payload: { t: now(), role, proto: 1 } });
     };
     sock.onmessage = (ev) => {
       lastSeen = now();
