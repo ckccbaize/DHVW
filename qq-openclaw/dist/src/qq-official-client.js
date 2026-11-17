@@ -318,6 +318,13 @@ export class QQOfficialClient extends EventEmitter {
     }
   }
 
+  on(event, handler) {
+    super.on(event, handler);
+    return () => {
+      this.off(event, handler);
+    };
+  }
+
   onMessage(handler) {
     this.messageHandlers.add(handler);
     return () => this.messageHandlers.delete(handler);

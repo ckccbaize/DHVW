@@ -1108,6 +1108,11 @@ describe("图片表情包采集（偷图）与语境挑图发送 (sticker-store 
     assert.equal(runner.getStatus().todayCount, 1);
     assert.equal(runner.getStatus().lastSendError, "");
 
+    // 验证 client.on("error") 返回可调用的退订函数（兼容 gateway.js 清理）
+    const unsub = client.on("error", () => {});
+    assert.equal(typeof unsub, "function");
+    unsub();
+
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 });
