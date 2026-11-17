@@ -8,7 +8,7 @@ ConditionPathExists=/etc/dhvw/qqbot.json
 [Service]
 Type=simple
 User=dhvw
-ExecStart=/usr/bin/node /opt/dhvw/qq-openclaw/dist/dhvw-server.js -config /etc/dhvw/qqbot.json
+ExecStart=/usr/local/bin/node /opt/dhvw/qq-openclaw/dist/dhvw-server.js -config /etc/dhvw/qqbot.json
 Restart=on-failure
 RestartSec=5
 MemoryMax=512M

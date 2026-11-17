@@ -15,7 +15,7 @@ RK3566（4×A55 / 2GB / 32G eMMC）+ Armbian + Chromium kiosk 上的设备端软
 | 端侧生成 | `www/workers/forge.worker.js` | 剧情文法 / 背景合成 / 光照变体，`tier:edge`，0 token |
 | 部署 | `deploy/` | systemd 单元、kiosk、禁 suspend、安装脚本 |
 
-**设备端不跑 Python / Electron / Node**：只有静态壳二进制 + Chromium + 浏览器里的 JS/Worker。
+**设备端默认不跑 Python / Electron / Node**：静态壳 + Chromium + 浏览器 JS/Worker；可选 QQ Bot 服务例外，需 Node 22.14+（默认关闭）。
 
 ## 快速开始
 
@@ -33,6 +33,8 @@ npm run validate -- www/assets/scenes/home   # 场景包校验（§15 不变量�
 cd shell && sh build.sh                                  # dist/dhvw-shell-linux-arm64
 # 设备先装 X/Chromium（Armbian 精简镜像默认无桌面）
 sudo apt-get install -y xserver-xorg xinit x11-xserver-utils xserver-xorg-legacy chromium fonts-noto-cjk xdotool
+# 部署包需带 qq-openclaw（可选 QQ Bot）：
+tar -czf dist/arm-deploy.tar.gz www deploy qq-openclaw dist/dhvw-shell-linux-arm64
 sudo sh deploy/install.sh dist/dhvw-shell-linux-arm64     # 在设备上执行
 curl -s http://127.0.0.1:8080/__health
 # 屏幕倒装：kiosk.sh 用 xrandr --rotate inverted 输出 180°；X 由 dhvw-x.service 启动

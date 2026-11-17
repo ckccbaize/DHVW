@@ -28,7 +28,7 @@
 2. **显现需主机**（A15）：主机不可达时点击角色 / 拨开关 **0 次进入显现**，只出气泡，显示态不变。
 3. **世界双档、主机优先**（A11/A16）：主机可达走主机档；不可达才切端侧档，端侧档 **0 token / 0 GPU** 继续产 `tier:edge` 资产。
 
-**设备端不跑 Python、不跑 Electron、不跑 Node**（PROJECT-PLAN §2.1）。设备上只有：静态壳二进制 + Chromium + 浏览器里的 JS/Worker。
+**设备端默认不跑 Python、不跑 Electron、不跑 Node**（PROJECT-PLAN §2.1）。设备上只有：静态壳二进制 + Chromium + 浏览器里的 JS/Worker；§15 的可选 QQ Bot 例外，需 Node 22.14+。
 
 ---
 
@@ -413,3 +413,30 @@ curl -s http://127.0.0.1:8080/__health
 
 * **在线优先语义 + 离线降级**：QQ 对话与主动发起前统一经 `qq:memory:query` 向前端 `qq-adapter` 查询记忆；PC 在线时发 `memory:query`（携带 `mood` 与 `include_l0: true`）走 `vec0 + FTS5 + Ebbinghaus + _mood_boost` 混合检索并附带 L0 核心事实；主机离线或超时（350ms）自动降级为设备 `localMemory` bigram 检索与本地 L0 缓存。
 * **对话事实回流**：单聊消化器（digest）与对话即时抽取的 L0/L1/L2 候选事实通过 `qq:world:feedback` 写入设备 `localMemory`，主机在线时再经 `facts:candidates` 推回 PC 向量化落库，实现“显现 / 总观 / QQ”三端共享同一人格与记忆。
+
+### 15.3 部署与排障（真机）
+
+QQ Bot 默认关闭；确认 `/etc/dhvw/qqbot.json` 存在且 `enabled=true` 后，`dhvw-shell` 的 `/__qq/config` 会拉起服务。
+
+```bash
+# Node 22.14+（Debian trixie 自带 nodejs 20 太旧，用官方 arm64 包）
+curl -L -o /tmp/node22.tar.xz https://nodejs.org/dist/v22.14.0/node-v22.14.0-linux-arm64.tar.xz
+mkdir -p /opt/node22 && tar -xJf /tmp/node22.tar.xz -C /opt/node22 --strip-components=1
+ln -sf /opt/node22/bin/node /usr/local/bin/node
+
+# 组件与配置
+tar -xzf qq-openclaw.tar.gz -C /opt/dhvw/qq-openclaw --strip-components=1
+install -m 0640 -o root -g dhvw qqbot.json /etc/dhvw/qqbot.json
+systemctl enable --now dhvw-qqbot
+curl -s http://127.0.0.1:8088/__qq/health
+```
+
+常见故障：
+
+| 现象 | 原因 | 处理 |
+|---|---|---|
+| `dhvw-qqbot` inactive / `No entries` | 组件未部署或 `/etc/dhvw/qqbot.json` 不存在 | 部署 `qq-openclaw` 与配置，`systemctl enable --now` |
+| 每分钟重启，日志 `LLM 未配置 (baseUrl/model)` | ARM 页面收到 `llm:config` 后没同步给本地 QQ 桥 | 已修 `app.js`：`llm:config` 更新 `cfg.llm` 并调用 `pushQqLlmConfig()` |
+| `connected=false` 但进程 active | 页面未启动本地 QQ 桥 | 确认 `boost:config` 或 `qqbot:config` 已到达，`/__qq/health` 应返回 `connected=true` |
+| `QQ API ... 40034122 召回消息已达区间上限` | QQ 平台主动消息配额/召回限制，不是内存 | 降低主动频率或等待配额恢复；入站对话不受影响 |
+| 内存不足 | 实测 QQ 服务约 30MB RSS，`MemoryMax=512M` 足够 | 不是内存问题；先看 `journalctl -u dhvw-qqbot` |

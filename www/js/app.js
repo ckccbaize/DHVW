@@ -715,6 +715,7 @@ async function boot() {
   let setQqBotBoost = () => {};
   let applyRemoteQqConfig = async () => {};
   let triggerRemoteQqRebind = async () => {};
+  let pushQqLlmConfig = () => {};
   let pendingRemoteBoost = null;
 
   function handleRemoteMessage(msg) {
@@ -795,7 +796,9 @@ async function boot() {
         break;
       }
       case "llm:config": {
+        cfg.llm = { ...(cfg.llm || {}), ...(p || {}) };
         void local.setLlmConfig(p);
+        pushQqLlmConfig();
         break;
       }
       case "boost:config": {
@@ -1303,6 +1306,8 @@ async function boot() {
         },
       });
     };
+    pushQqLlmConfig = pushLlmConfig;
+
     const updateHudPill = () => {
       if (!qqBoostPill) return;
       qqBoostPill.hidden = !qqActive;

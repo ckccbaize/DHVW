@@ -39,6 +39,9 @@ install -m 0644 "$HERE/systemd/dhvw-display.service" /etc/systemd/system/dhvw-di
 install -m 0644 "$HERE/systemd/dhvw-kiosk.service" /etc/systemd/system/dhvw-kiosk.service
 install -m 0644 "$HERE/systemd/dhvw-qqbot.service" /etc/systemd/system/dhvw-qqbot.service
 
+if [ -f "$ROOT/qq-openclaw/dist/dhvw-server.js" ] && [ ! -x /usr/local/bin/node ]; then
+  echo "警告: QQ Bot 需要 Node 22.14+（/usr/local/bin/node），当前未安装" >&2
+fi
 if [ -f "$ROOT/qq-openclaw/dist/dhvw-server.js" ]; then
   rm -rf /opt/dhvw/qq-openclaw
   cp -a "$ROOT/qq-openclaw" /opt/dhvw/qq-openclaw
