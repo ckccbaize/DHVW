@@ -286,6 +286,23 @@ state = {
 | `99-dhvw-nosleep.conf` | `HandleLidSwitch=ignore`、`IdleAction=ignore`（**只关显示层，不进 suspend**，否则 JS tick 停摆） |
 | 息屏 | `xset dpms force off` / `display_power 0`；唤醒由触摸或滑动开关中断触发 |
 
+### 10.1 网关配对与 CA 信任
+
+设备端首次连接 PC 网关时，需要把 PC 的 `ca.crt.pem` 导入 Chromium 的 NSS 库，并写入一次 `?host=` 地址（之后 kiosk 从 localStorage 续连）：
+
+```bash
+# 1) CA（PC 侧 gateway/ca.crt.pem）
+sudo apt-get install -y libnss3-tools
+sudo install -d -o dhvw -g dhvw /home/dhvw/.pki/nssdb
+sudo certutil -d sql:/home/dhvw/.pki/nssdb -A -t "C,," -n dhvw-gateway -i /path/to/ca.crt.pem
+
+# 2) 首次配对：在设备 Chromium 打开一次（token 由 PC 网关生成）
+#    http://127.0.0.1:8080/?host=wss://<PC-IP>:8443/ws/orchestrator?token=<token>
+#    页面会把地址写入 localStorage.dhvw_host；之后 kiosk 无 query 也能续连。
+```
+
+验证：PC 侧 `GET /orchestrator/health?token=<token>` 返回 `device.connected=true`。
+
 ---
 
 ## 11. 性能预算与验收映射
