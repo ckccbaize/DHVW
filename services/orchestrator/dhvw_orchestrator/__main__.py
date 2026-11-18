@@ -239,6 +239,8 @@ class Orchestrator:
         设备每 5 s 重发摘要，pending 会反复出现；幂等靠 SceneRunner 的请求账本，
         失败也不自动重试（避免坏 spec 无限烧 token），重试走 /dhvw/scene/retry。
         """
+        if str(self.llm.get("mode") or "") == "local":
+            return
         items = (self.digest or {}).get("sceneRequests")
         if not isinstance(items, list):
             return
@@ -1113,8 +1115,9 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
         if not re.fullmatch(r"[A-Za-z0-9_-]+", job_id):
             return JSONResponse({"ok": False, "error": "invalid_job_id"}, status_code=400)
         job = orch.scenes.jobs.get(job_id)
+        # 先杀进程再删目录：运行中的任务也能被用户直接删掉
         if job and job.get("state") in ("queued", "running"):
-            return JSONResponse({"ok": False, "error": "任务进行中，不能删除"}, status_code=409)
+            orch.scenes.cancel(job_id)
         target_dir = (orch.scenes.root / job_id).resolve()
         try:
             target_dir.relative_to(orch.scenes.root.resolve())
@@ -1125,7 +1128,15 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
         if job_id in orch.scenes.jobs:
             orch.scenes.jobs.pop(job_id, None)
             orch.scenes._save()
-        log("info", "删除产出地图", job=job_id)
+        # 请求账本里的 job 指针一起清掉，否则同名请求会永远显示“已处理”
+        dropped = [rid for rid, info in orch.scenes.requests.items() if info.get("job") == job_id]
+        for rid in dropped:
+            orch.scenes.requests.pop(rid, None)
+        if dropped:
+            orch.scenes._save_requests()
+        orch.scene_pushes.pop(job_id, None)
+        orch._save_pushes()
+        log("info", "删除产出地图", job=job_id, requests=len(dropped))
         return JSONResponse({"ok": True, "id": job_id})
 
     @app.post("/dhvw/scene/retry")
@@ -1135,6 +1146,8 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
         rid = str((body or {}).get("id") or "").strip() if isinstance(body, dict) else ""
         if not rid:
             return JSONResponse({"ok": False, "error": "缺 id"}, status_code=400)
+        if str(orch.llm.get("mode") or "") == "local":
+            return JSONResponse({"ok": False, "error": "本地 LLM 模式不开放地图生成"}, status_code=409)
         items = (orch.digest or {}).get("sceneRequests")
         req = next(
             (i for i in items or [] if isinstance(i, dict) and str(i.get("id") or "") == rid),

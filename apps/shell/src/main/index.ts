@@ -543,6 +543,7 @@ async function deleteSceneOutput(id: string): Promise<{ ok: boolean; error?: str
 
 /** 提交一次地图生成（走编排器的场景任务，agent 由编排器拉起） */
 async function requestScene(spec: Record<string, unknown>): Promise<{ ok: boolean; job?: SceneJobView; error?: string }> {
+  if (config.llmMode === 'local') return { ok: false, error: '本地 LLM 模式不开放地图生成' }
   if (!orchestratorPort) return { ok: false, error: '编排器未运行' }
   try {
     const res = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/scene`, {

@@ -137,6 +137,9 @@ class SceneRunner:
         self.on_done: Callable[[dict[str, Any]], Awaitable[None]] | None = None
         self.llm: dict[str, Any] = {}
         self.jobs: dict[str, dict[str, Any]] = {}
+        # 运行中的 agent 进程：删除任务时要能立即杀掉，不能只把状态改成失败
+        self.procs: dict[str, asyncio.subprocess.Process] = {}
+        self.cancelled: set[str] = set()
         # 设备的 sceneRequests 条目 -> 作业映射。设备每个 digest 会重复报同一条 pending，
         # 靠这本账目做幂等：一个请求只生成一次，不论成功失败。
         self.requests: dict[str, dict[str, Any]] = self.store.get_kv("scene_requests", {}) or {}
@@ -224,6 +227,8 @@ class SceneRunner:
 
     def submit(self, spec: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
         """同步前置检查；通过后返回任务，由调用方 create_task 执行。"""
+        if str(self.llm.get("mode") or "") == "local":
+            return None, "本地 LLM 模式不开放地图生成"
         toolchain = find_toolchain()
         if toolchain is None:
             return None, "地图工具链缺失：需要 docs/MAP-SCENE-DESIGN.md 与 scripts/（可设 DHVW_MAP_TOOLCHAIN）"
@@ -259,6 +264,8 @@ class SceneRunner:
             return None, f"找不到任务：{job_id}"
         if job.get("state") in ("queued", "running"):
             return None, "任务正在进行中"
+        if str(self.llm.get("mode") or "") == "local":
+            return None, "本地 LLM 模式不开放地图生成"
         toolchain = find_toolchain()
         if toolchain is None:
             return None, "地图工具链缺失：需要 docs/MAP-SCENE-DESIGN.md 与 scripts/（可设 DHVW_MAP_TOOLCHAIN）"
@@ -313,6 +320,21 @@ class SceneRunner:
         self._save_requests()
         return job, None
 
+    def cancel(self, job_id: str) -> None:
+        """用户删除任务：先杀 agent 进程，再清掉请求账本；产物目录由调用方删。"""
+        self.cancelled.add(job_id)
+        proc = self.procs.get(job_id)
+        if proc is not None and proc.returncode is None:
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass
+        job = self.jobs.get(job_id)
+        rid = str(job.get("request") or "") if job else ""
+        if rid:
+            self.requests.pop(rid, None)
+            self._save_requests()
+
     def mark_request(self, rid: str, state: str, **extra: Any) -> None:
         if not rid:
             return
@@ -322,6 +344,8 @@ class SceneRunner:
 
     async def run(self, job: dict[str, Any]) -> None:
         job_id = job["id"]
+        if job_id in self.cancelled:
+            return
         workdir = self.root / job_id
         toolchain = Path(job.pop("_toolchain"))
         pi = job.pop("_pi")
@@ -374,6 +398,7 @@ class SceneRunner:
                 # pi 的 --mode json 单行可以超 64 KiB，默认 stream limit 会直接抛 ValueError
                 limit=8 * 1024 * 1024,
             )
+            self.procs[job_id] = proc
             job["stage"] = "agent 生成中"
             self._save()
 
@@ -391,6 +416,8 @@ class SceneRunner:
             except asyncio.TimeoutError:
                 proc.kill()
                 raise RuntimeError(f"agent 超时（{JOB_TIMEOUT}s）") from None
+            if job_id in self.cancelled:
+                return
             warnings: list[str] = []
             if proc.returncode != 0:
                 # agent 进程可能在上报结果后崩（端点流式报错）；产物齐不齐以收包闸门为准
@@ -423,6 +450,8 @@ class SceneRunner:
             if self.on_done:
                 await self.on_done(job)
         except Exception as err:  # 任何失败都如实记录，不留占位
+            if job_id in self.cancelled:
+                return
             import traceback
 
             job["state"] = "failed"
@@ -435,6 +464,9 @@ class SceneRunner:
             log("error", "场景作业失败", job=job_id, error=str(err), trace=traceback.format_exc()[-1500:])
             self.mark_request(job.get("request") or "", "failed", job=job_id, reason=str(err)[:300])
             self._save()
+        finally:
+            self.procs.pop(job_id, None)
+            self.cancelled.discard(job_id)
 
     async def _run_script(self, py: str, script: Path, workdir: Path) -> tuple[int, str]:
         proc = await asyncio.create_subprocess_exec(
