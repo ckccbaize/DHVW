@@ -1222,4 +1222,114 @@ describe("图片表情包采集（偷图）与语境挑图发送 (sticker-store 
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
+
+  it("本地 Nemotron/llama 不带 response_format 以保住 reasoning_effort=none，且截断 JSON 绝不裸发给 QQ", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dhvw-local-json-guard-"));
+    const sentBodies = [];
+    const delivered = [];
+    const rt = createDhvwRuntime({
+      stateDir: tmpDir,
+      mediaDir: path.join(tmpDir, "m"),
+      partDelayMs: 0,
+      sticker: { enabled: false },
+      getLlmConfig: () => ({ baseUrl: "http://127.0.0.1:8089/v1", model: "nemotron-3.5-bolt-e4b", apiKey: "k" }),
+      fetchImpl: async (_url, init) => {
+        const b = JSON.parse(init.body);
+        sentBodies.push(b);
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: '{\n"reply_mode":"short",\n"parts":' } }],
+          }),
+          { status: 200 },
+        );
+      },
+    });
+    await rt.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+      ctx: { CommandSource: "qq", RawBody: "哈哈", Body: "哈哈", BodyForAgent: "哈哈" },
+      dispatcherOptions: { deliver: async (m) => delivered.push(m) },
+    });
+    assert.equal(sentBodies[0].response_format, undefined);
+    assert.equal(sentBodies[0].reasoning_effort, "none");
+    assert.equal(delivered.length, 0);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("本地模型专属优化：轻惩罚参数、实体/代词联网查百科与防装懂约束（云端模型保持不变）", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dhvw-local-only-opt-"));
+    const searches = [];
+    const localBodies = [];
+
+    const rtLocal = createDhvwRuntime({
+      stateDir: tmpDir,
+      mediaDir: path.join(tmpDir, "m1"),
+      partDelayMs: 0,
+      sticker: { enabled: false },
+      getLlmConfig: () => ({ baseUrl: "http://127.0.0.1:8089/v1", model: "nemotron-3.5-bolt-e4b", apiKey: "k" }),
+      searchWeb: async (q) => {
+        searches.push(q);
+        return [{ title: "三秋缒 - 轻小说作家", snippet: "代表作《三日间的幸福》《重启人生》等" }];
+      },
+      fetchImpl: async (_url, init) => {
+        const b = JSON.parse(init.body);
+        localBodies.push(b);
+        return new Response(
+          JSON.stringify({ choices: [{ message: { content: JSON.stringify({ reply_mode: "reply", parts: ["我看过《三日间的幸福》，特别戳人"] }) } }] }),
+          { status: 200 },
+        );
+      },
+    });
+
+    assert.equal(normalizeQqInboundContent("[不支持的元素类型]你去看看那个轻小说三秋缒的"), "你去看看那个轻小说三秋缒的");
+
+    await rtLocal.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+      ctx: { CommandSource: "qq", RawBody: "[不支持的元素类型]你去看看那个轻小说三秋缒的", Body: "[不支持的元素类型]你去看看那个轻小说三秋缒的", BodyForAgent: "[不支持的元素类型]你去看看那个轻小说三秋缒的" },
+      dispatcherOptions: { deliver: async () => {} },
+    });
+    await rtLocal.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+      ctx: { CommandSource: "qq", RawBody: "那你知道他的作品吗", Body: "那你知道他的作品吗", BodyForAgent: "那你知道他的作品吗" },
+      dispatcherOptions: { deliver: async () => {} },
+    });
+
+    assert.equal(searches.length, 2);
+    assert.ok(searches[0].includes("三秋缒"));
+    assert.ok(searches[1].includes("三秋缒"));
+    assert.equal(localBodies[0].frequency_penalty, 0.15);
+    assert.equal(localBodies[0].presence_penalty, 0.1);
+    assert.ok(localBodies[0].temperature <= 0.72);
+    assert.ok(localBodies[0].messages[0].content.includes("本地模型专用规则"));
+    assert.ok(localBodies[0].messages[0].content.includes("《三日间的幸福》"));
+    assert.ok(!localBodies[0].messages[0].content.includes("[不支持的元素类型]"));
+
+    // 云端模型不启用本地模型专用规则、不降惩罚、也不走 LOCAL_SEARCH_RE
+    const cloudSearches = [];
+    const cloudBodies = [];
+    const rtCloud = createDhvwRuntime({
+      stateDir: path.join(tmpDir, "cloud"),
+      mediaDir: path.join(tmpDir, "m2"),
+      partDelayMs: 0,
+      sticker: { enabled: false },
+      getLlmConfig: () => ({ baseUrl: "https://codex.mintcat.work", model: "deepseek-v4.1-flash", apiKey: "k" }),
+      searchWeb: async (q) => {
+        cloudSearches.push(q);
+        return [];
+      },
+      fetchImpl: async (_url, init) => {
+        cloudBodies.push(JSON.parse(init.body));
+        return new Response(
+          JSON.stringify({ choices: [{ message: { content: JSON.stringify({ reply_mode: "reply", parts: ["我看过他的《三日间的幸福》"] }) } }] }),
+          { status: 200 },
+        );
+      },
+    });
+    await rtCloud.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+      ctx: { CommandSource: "qq", RawBody: "你知道三秋缒这个作家吗", Body: "你知道三秋缒这个作家吗", BodyForAgent: "你知道三秋缒这个作家吗" },
+      dispatcherOptions: { deliver: async () => {} },
+    });
+    assert.equal(cloudSearches.length, 0);
+    assert.equal(cloudBodies[0].frequency_penalty, 0.45);
+    assert.equal(cloudBodies[0].presence_penalty, 0.35);
+    assert.ok(!cloudBodies[0].messages[0].content.includes("本地模型专用规则"));
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
 });

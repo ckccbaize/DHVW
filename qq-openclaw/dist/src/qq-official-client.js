@@ -52,7 +52,7 @@ function decodeQqFaceExtText(extB64) {
  */
 export function normalizeQqInboundContent(raw) {
   if (typeof raw !== "string") return "";
-  let out = raw.trim();
+  let out = raw.replace(/\[不支持的元素类型\]/g, " ").trim();
   if (!out) return "";
   out = out.replace(/<faceType=[^>]*>/gi, (tag) => {
     const idMatch = /faceId="?(\d+)"?/i.exec(tag);

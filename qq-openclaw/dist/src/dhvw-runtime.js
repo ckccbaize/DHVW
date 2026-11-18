@@ -28,8 +28,37 @@ function isPrivateOrLoopbackHost(hostname) {
   return false;
 }
 
+function isLocalLlamaProvider(llm = {}) {
+  const model = String(llm.model || "");
+  const baseUrl = String(llm.baseUrl || "");
+  if (/nemotron|gemma/i.test(model)) return true;
+  if (String(llm.mode || "").toLowerCase() === "local") return true;
+  return /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)|\/(dhvw\/)?llm\/v1/i.test(baseUrl);
+}
+
+function looksLikeJsonText(text = "") {
+  const s = String(text || "").trim();
+  return /^[\{\[]|```(?:json)?|"(?:reply_mode|parts|sticker_id|bubble)"\s*:/i.test(s);
+}
+
+function extractPartialJsonParts(text = "") {
+  const m = /"parts"\s*:\s*\[([\s\S]*)/i.exec(String(text || ""));
+  if (!m) return [];
+  const out = [];
+  const re = /"((?:\\.|[^"\\])*)"/g;
+  let match;
+  while ((match = re.exec(m[1])) !== null) {
+    try {
+      const decoded = JSON.parse(`"${match[1]}"`).trim();
+      if (decoded) out.push(decoded);
+    } catch {}
+    if (out.length >= 3) break;
+  }
+  return out;
+}
+
 function extractJsonObject(text) {
-  const raw = String(text || "").trim();
+  const raw = String(text || "").replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
   if (!raw) return null;
   try {
     return JSON.parse(raw);
@@ -158,20 +187,24 @@ export function createDhvwRuntime({
   async function callLlm({ messages, json = true, maxTokens = 700, temperature = 0.85 }) {
     const llm = getLlmConfig() || {};
     if (!llm.baseUrl || !llm.model) throw new Error("LLM 未配置 (baseUrl/model)");
+    const localMode = isLocalLlamaProvider(llm);
     let includePenalties = llm.usePenalties !== false;
+    // llama.cpp --jinja 在启用 response_format: json_object 时会忽略 reasoning_effort=none，
+    // 导致模型先输出 ~600 token 英文思考并在 max_tokens 处把 JSON 截断。
+    let useJsonFormat = json && !(localMode && llm.reasoningEffort !== false);
     const buildBody = () => ({
       model: llm.model,
       messages,
       max_tokens: maxTokens,
-      temperature,
+      temperature: localMode ? Math.min(temperature, 0.72) : temperature,
       stream: false,
       ...(includePenalties
         ? {
-            frequency_penalty: llm.frequencyPenalty ?? 0.45,
-            presence_penalty: llm.presencePenalty ?? 0.35,
+            frequency_penalty: llm.frequencyPenalty ?? (localMode ? 0.15 : 0.45),
+            presence_penalty: llm.presencePenalty ?? (localMode ? 0.1 : 0.35),
           }
         : {}),
-      ...(json ? { response_format: { type: "json_object" } } : {}),
+      ...(useJsonFormat ? { response_format: { type: "json_object" } } : {}),
       ...(llm.reasoningEffort !== false ? { reasoning_effort: llm.reasoningEffort || "none" } : {}),
     });
     const useShellProxy = llm.useShellProxy === true;
@@ -204,8 +237,13 @@ export function createDhvwRuntime({
           throw new Error(`LLM HTTP ${res.status}: ${text.slice(0, 200)}`);
         }
         const data = JSON.parse(text);
-        const content = data?.choices?.[0]?.message?.content;
+        const choice = data?.choices?.[0];
+        const content = choice?.message?.content;
         if (typeof content !== "string") throw new Error("LLM 返回缺少 content");
+        if (json && !extractJsonObject(content) && attempt < 2) {
+          useJsonFormat = false;
+          continue;
+        }
         return content;
       } catch (err) {
         lastErr = err;
@@ -269,7 +307,7 @@ export function createDhvwRuntime({
     "- 主动找人聊 → 坏回答：“对了之前说互相推书来着\\n你随便推啥都行” → 好回答：“刚摸鱼刷到一个离谱猫咪视频，笑死我了”",
   ].join("\n");
 
-  function buildReplyStyleGuard(history) {
+  function buildReplyStyleGuard(history, { localMode = false } = {}) {
     const recentBot = history.filter((m) => m?.role === "assistant" && m.text).slice(-4);
     if (!recentBot.length) return "";
     const texts = recentBot.map((m) => String(m.text).replace(/\[表情包:[^\]]*\]/g, "").trim());
@@ -295,8 +333,8 @@ export function createDhvwRuntime({
 
     const rules = [];
     if (banWords.size) rules.push(`本轮严禁出现最近用腻的词/口头禅：${[...banWords].slice(0, 6).join("、")}`);
-    if (trailingQuestions >= 2) rules.push("最近几轮一直在反问，本轮【禁止以问句收尾】，直接用陈述/接梗/吐槽收住");
-    if (multiPartTurns >= 2) rules.push("最近两轮话太多太像模板，本轮请只发【1 条】简短口语（parts 仅填 1 句，<=25 字），不要拆多段");
+    if (!localMode && trailingQuestions >= 2) rules.push("最近几轮一直在反问，本轮【禁止以问句收尾】，直接用陈述/接梗/吐槽收住");
+    if (!localMode && multiPartTurns >= 2) rules.push("最近两轮话太多太像模板，本轮请只发【1 条】简短口语（parts 仅填 1 句，<=25 字），不要拆多段");
     return rules.length ? `【防机械对话约束】${rules.join("；")}` : "";
   }
 
@@ -500,7 +538,8 @@ export function createDhvwRuntime({
               if (summaryText?.trim()) await deliver({ text: summaryText.trim() });
               return;
             }
-            const userText = String(ctx.RawBody || ctx.Body || "").trim();
+            const userText = String(ctx.RawBody || ctx.Body || "").replace(/\[不支持的元素类型\]/g, " ").trim();
+            const localMode = isLocalLlamaProvider(getLlmConfig());
             const recentUsers = chatHistory.filter((m) => m?.role === "user").slice(-2);
             const isTopicShift =
               TOPIC_SHIFT_RE.test(userText) ||
@@ -519,15 +558,38 @@ export function createDhvwRuntime({
 
             const tMemStart = now();
             const QUICK_SEARCH_RE = /(?:查一下|搜一下|帮我查|什么梗|是什么意思|热搜|新闻|最新|查查)/;
-            const quickSearchPromise = QUICK_SEARCH_RE.test(userText)
+            const LOCAL_SEARCH_RE = /(?:去?看看.*?(?:小说|作家|书|电影|番|剧|游戏|作品|歌)|你知道.*?(?:吗|是谁|啥|作品)|认识.*?(?:吗)|.*?是谁|有什么(?:作品|代表作|书|梗)|推荐.*?(?:小说|书|剧|电影))/;
+            const buildSearchQuery = () => {
+              let clean = userText
+                .replace(/(?:你去看看那个|你去看看|帮我查一下|查一下|搜一下|你知道|你认识|吗|啊|呢|吧|[？?！!])/g, " ")
+                .replace(/\s+/g, " ")
+                .trim();
+              if (localMode && /(?:他|她|它|这个|那个)/.test(userText)) {
+                const prevClean = recentUsers
+                  .map((m) =>
+                    String(m?.text || "")
+                      .replace(/(?:你去看看那个|你去看看|你知道|这个|那个|吗|的|[？?！!])/g, " ")
+                      .trim(),
+                  )
+                  .filter(Boolean)
+                  .slice(-1)[0];
+                if (prevClean) {
+                  clean = `${prevClean} ${clean.replace(/(?:这个|那个|他|她|它|的)/g, " ").trim()}`.trim();
+                }
+              }
+              return clean.slice(0, 50) || userText.slice(0, 50);
+            };
+            const shouldSearch = QUICK_SEARCH_RE.test(userText) || (localMode && LOCAL_SEARCH_RE.test(userText));
+            const searchQuery = shouldSearch ? buildSearchQuery() : "";
+            const quickSearchPromise = shouldSearch
               ? Promise.race([
                   (async () => {
                     try {
                       let hits = [];
                       if (typeof searchWeb === "function") {
-                        hits = await searchWeb(userText.slice(0, 50));
+                        hits = await searchWeb(searchQuery);
                       } else {
-                        const r = await fetchImpl(`${shellUrl.replace(/\/+$/, "")}/__search?q=${encodeURIComponent(userText.slice(0, 50))}&n=3`);
+                        const r = await fetchImpl(`${shellUrl.replace(/\/+$/, "")}/__search?q=${encodeURIComponent(searchQuery)}&n=3`);
                         if (r.ok) {
                           const d = await r.json();
                           hits = Array.isArray(d?.results) ? d.results : [];
@@ -535,7 +597,7 @@ export function createDhvwRuntime({
                       }
                       return (hits || [])
                         .slice(0, 3)
-                        .map((h) => `- ${h?.title || ""}${h?.snippet ? `：${String(h.snippet).slice(0, 80)}` : ""}`)
+                        .map((h) => `- ${h?.title || ""}${h?.snippet ? `：${String(h.snippet).slice(0, localMode ? 120 : 80)}` : ""}`)
                         .filter((s) => s.length > 2)
                         .join("\n");
                     } catch {
@@ -572,7 +634,10 @@ export function createDhvwRuntime({
               ? `可用表情包库（极克制使用：大多数纯聊天回合请把 sticker_id 留空，仅在非常搞笑/撒娇/斗图时才偶尔填下列 id 之一）：\n${stickerStore.formatPromptBlock(stickerCandidates)}`
               : "";
             const searchHintBlock = quickSearchText ? `联网搜索参考：\n${quickSearchText}` : "";
-            const styleGuardBlock = buildReplyStyleGuard(chatHistory.slice(0, -1));
+            const styleGuardBlock = buildReplyStyleGuard(chatHistory.slice(0, -1), { localMode });
+            const localHonestyBlock = localMode
+              ? "【本地模型专用规则】1. 若上方有联网搜索参考，请直接结合真实作品名/人名/信息作答；2. 若未搜到且你确实不认识某个作家/作品，直接坦白说“这个我真没看过/不太了解”，严禁用“有点印象/听着耳熟/感觉有点模糊/好像挺新的”等空话打太极；3. 用具体自然的完整口语回应，别只甩四五个字糊弄。"
+              : "";
             const collectHint = inboundMedia.length && stickerStore.autoCollect
               ? "若对方发来的图片是适合日常斗图的表情包，请在 collect_sticker 中填 save:true 及 emotion/desc/tags 进行收藏。"
               : "";
@@ -588,12 +653,13 @@ export function createDhvwRuntime({
               `长期记忆与偏好：\n${formatMemoryBlock(mem)}`,
               ...(!isTopicShift ? [`熟人习惯与黑话：${formatSlangBlock()}`] : []),
               ...(topicShiftHint ? [topicShiftHint] : []),
+              ...(localHonestyBlock ? [localHonestyBlock] : []),
               ...(styleGuardBlock ? [styleGuardBlock] : []),
               FEW_SHOT_STYLE_BLOCK,
               ...(searchHintBlock ? [searchHintBlock] : []),
               ...(stickerHintBlock ? [stickerHintBlock] : []),
               `最近对话：\n${recentHistoryText}`,
-              `对方刚发来：\n${String(ctx.BodyForAgent || ctx.Body || "").replace(/^(?:\[[^\]]+\]\s*)?(?:主人|对方)\s*[:：]\s*/u, "")}`,
+              `对方刚发来：\n${String(ctx.BodyForAgent || ctx.Body || "").replace(/\[不支持的元素类型\]/g, " ").replace(/^(?:\[[^\]]+\]\s*)?(?:主人|对方)\s*[:：]\s*/u, "").trim()}`,
               "",
               "请像真人在 QQ 随手打字一样自然接话，严格输出 JSON（不要解释、不要 markdown 代码块）：",
               '{"reply_mode":"reply|short|skip","parts":["自然的一句话(必要时才补第2句)"],"sticker_id":"可选(多数留空)","sticker_only":false,"collect_sticker":{"save":false,"emotion":"","desc":"","tags":[]},"tone":"warm|playful|sleepy|needy|curious","bubble":"总观气泡(<=18字)","mood_delta":{"valence":0.05,"social":-0.06},"slang_note":"仅记录对方常说的独特黑话/新词，普通词留空","unknown_term":"可选想查意思的新词黑话","memory_fact":"可选一句话记住的新事实","thread":"可选后续可再聊的新线头","action":"可选轻动作如rest/read","send_edge_bg":false}',
@@ -624,7 +690,11 @@ export function createDhvwRuntime({
                 ? parsed.parts.map((s) => String(s || "").trim()).filter(Boolean).slice(0, 3)
                 : parsed
                   ? []
-                  : [rawReply.trim()].filter(Boolean);
+                  : extractPartialJsonParts(rawReply).length
+                    ? extractPartialJsonParts(rawReply)
+                    : !looksLikeJsonText(rawReply)
+                      ? [rawReply.trim()].filter(Boolean)
+                      : [];
 
             let edgeMedia = "";
             if (!isSkip && parsed?.send_edge_bg === true) {
