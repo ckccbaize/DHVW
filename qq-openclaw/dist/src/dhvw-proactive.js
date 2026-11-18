@@ -261,25 +261,36 @@ export function createProactiveRunner({
             new Promise((r) => setTimeout(r, 2000)),
           ]);
         }
+        const to = `snowluma:private:${openId}`;
+        const ledgerSnap = client.ledger?.snapshot?.(openId) || { active: false, remainingSeq: 0 };
+        const hasPassive = Boolean(ledgerSnap.active && ledgerSnap.remainingSeq >= 1);
+        const allowMultiBubble = hasPassive && ledgerSnap.remainingSeq >= 2;
+        const styleGuardBlock = typeof runtime.getStyleGuard === "function" ? runtime.getStyleGuard() : "";
+
         const stickerCandidates = runtime.stickerStore?.canSendThisTurn({ proactive: true })
-          ? runtime.stickerStore.selectCandidates({ query: decision.seed, mood: { band: world.band, dims: world.mood }, limit: 6 })
+          ? runtime.stickerStore.selectCandidates({ query: decision.seed, mood: { band: world.band, dims: world.mood }, limit: 4 })
           : [];
-        const stickerHint = stickerCandidates.length
-          ? `可用表情包库（情绪合适可在 sticker_id 填入下列 id 之一）：\n${runtime.stickerStore.formatPromptBlock(stickerCandidates)}`
+        const stickerHint = allowMultiBubble && stickerCandidates.length
+          ? `可用表情包库（多数时候留空即可，极偶尔可填 id）：\n${runtime.stickerStore.formatPromptBlock(stickerCandidates)}`
           : "";
         const worldNote = typeof runtime.formatWorldNote === "function"
           ? runtime.formatWorldNote(world, { forceWeather: decision.kind === "weather_shift" })
           : `当前状态：${world.phase || "日常"}，${world.place || "小屋"}`;
+        const bubbleRule = allowMultiBubble
+          ? 'STRICT JSON：{"speak":true,"parts":["短句1","可选极短补充第2句"],"sticker_id":"多数留空","bubble":"总观气泡(<=18字)","send_edge_bg":false}'
+          : 'STRICT JSON：{"speak":true,"parts":["仅1句自然的话(10~28字，不要分两句也不要换行)"],"sticker_id":"","bubble":"总观气泡(<=18字)","send_edge_bg":false}';
         const prompt = [
-          "你住在虚拟仓里，现在想起对方了，打算主动在 QQ 上发一句消息。",
+          "你住在虚拟仓里，想起对方了，打算随手在 QQ 上给他发一句话。",
           `触发原因：${decision.kind} - ${decision.reason} (${decision.seed})`,
           worldNote,
           `当前心情：${world.band || "calm"}`,
           `记忆：\n${runtime.formatMemoryBlock(mem)}`,
+          ...(styleGuardBlock ? [styleGuardBlock] : []),
+          ...(runtime.fewShotStyleBlock ? [runtime.fewShotStyleBlock] : []),
           ...(stickerHint ? [stickerHint] : []),
           `最近对话：\n${runtime.getHistoryText(6)}`,
-          '严格输出 JSON：{"speak":true,"parts":["主动第一句","可选补充短句"],"sticker_id":"可选表情包id","bubble":"总观气泡(<=18字)","send_edge_bg":false,"thread":"可选新线头"}',
-          "要求：自然口语短句；如果最近对话里刚刚反复聊过同一个梗或约定，这次必须主动换个新鲜话题（别继续死咬旧梗），除 weather_shift 外不要硬扯天气或刚醒套话。",
+          bubbleRule,
+          "要求：1. 像真人朋友忽然冒泡，禁止用“对了，之前说…”、“突然想起来，你之前说…”这类翻旧账套话；2. 别总揪着前天聊死的老话题（如看书/下饭剧/早茶）重复发问，多分享此刻的小发现、仓里动态或换个新鲜角度；3. 禁止说教关心与固定两段模板，越自然简短越好。",
         ].join("\n\n");
 
         const raw = await runtime.callLlm({ messages: [{ role: "user", content: prompt }], json: true, maxTokens: 500, temperature: 0.85 });
@@ -292,15 +303,12 @@ export function createProactiveRunner({
         }
         if (!parsed || parsed.speak === false) return { ok: false, reason: "model_silent" };
         const parts = (Array.isArray(parsed.parts) ? parsed.parts : []).map((s) => markdownToText(String(s || ""))).filter(Boolean).slice(0, 2);
-        const chosenSticker = parsed.send_edge_bg !== true && parsed.sticker_id
+        const chosenSticker = allowMultiBubble && parsed.send_edge_bg !== true && parsed.sticker_id
           ? runtime.stickerStore?.resolvePath(parsed.sticker_id)
           : null;
         if (!parts.length && !chosenSticker) return { ok: false, reason: "empty_parts" };
 
-        const to = `snowluma:private:${openId}`;
-        const ledgerSnap = client.ledger?.snapshot?.(openId) || { active: false, remainingSeq: 0 };
-        const hasPassive = Boolean(ledgerSnap.active && ledgerSnap.remainingSeq >= 1);
-        // 超出 60 分钟被动窗口（走主动/is_wakeup 配额）或被动余量仅 1 条时，合并为单条发，防止多段请求被平台配额拒发
+        // 超出 60 分钟被动窗口（走主动/is_wakeup 配额）或被动余量仅 1 条时，只发 1 条短气泡，不再拼接多段换行
         const sendParts =
           parts.length > 1 && (!hasPassive || ledgerSnap.remainingSeq < parts.length)
             ? [parts.join("\n")]
@@ -352,7 +360,6 @@ export function createProactiveRunner({
           if (decision.kind === "weather_shift") lastWeatherShared = decision.weather;
           if (decision.eventId) sharedEventIds.push(decision.eventId);
           if (decision.threadId) runtime.closeThread(decision.threadId);
-          if (typeof parsed.thread === "string" && parsed.thread.trim()) runtime.addThread(parsed.thread.trim());
           const histText = [
             ...sendParts.slice(0, sentTextCount),
             ...(sentMedia && chosenSticker ? [`[表情包:${chosenSticker.desc}]`] : []),

@@ -253,11 +253,21 @@ export function createDhvwRuntime({
     "讲真",
     "说实话",
     "话说回来",
+    "对了，之前说",
+    "突然想起来",
     "记小本本",
     "踩踩点",
     "踩点",
     "行吧",
   ];
+
+  const FEW_SHOT_STYLE_BLOCK = [
+    "说话节奏参考（只学真人打字的松弛感与长短变化，不要照抄具体内容）：",
+    "- 对方：2 点睡 → 坏回答（AI三段式）：“两点睡……你作息真铁打｜行吧我陪你熬｜不过说真的为啥这么晚？” → 好回答（真人短句）：“熬夜冠军归你了，明天不爬起来啦”",
+    "- 对方：为了开发你啊 → 好回答：“少拿我当熬夜借口啊，你自己快去眯会”",
+    "- 对方：每个人都该有个自己的世界 → 好回答：“听着还挺浪漫，那回头带我逛逛你的”",
+    "- 主动找人聊 → 坏回答：“对了之前说互相推书来着\\n你随便推啥都行” → 好回答：“刚摸鱼刷到一个离谱猫咪视频，笑死我了”",
+  ].join("\n");
 
   function buildReplyStyleGuard(history) {
     const recentBot = history.filter((m) => m?.role === "assistant" && m.text).slice(-4);
@@ -386,6 +396,8 @@ export function createDhvwRuntime({
     stateDir,
     stickerStore,
     formatWorldNote,
+    fewShotStyleBlock: FEW_SHOT_STYLE_BLOCK,
+    getStyleGuard: () => buildReplyStyleGuard(chatHistory),
     getThreads: () => threads.slice(),
     closeThread: (id) => {
       const t = threads.find((x) => x.id === id);
@@ -569,13 +581,6 @@ export function createDhvwRuntime({
               ? "【重要·话题切换指令】对方要求聊点别的（或让你自己起一个新话题）。本轮严禁再提刚才聊过的任何旧词、外号、承诺或约定（例如早茶/咖啡厅/旧称呼），立刻彻底翻篇，主动抛出一个全新且具体的轻松日常话题（比如音乐、美食、趣事、脑洞问题或记忆里的其他爱好），不要反问“你想聊啥”。"
               : "";
 
-            const fewShotStyleBlock = [
-              "说话节奏参考（只学真人打字的松弛感与长短变化，不要照抄具体内容）：",
-              "- 对方：2 点睡 → 坏回答（AI三段式）：“两点睡……你作息真铁打｜行吧我陪你熬｜不过说真的为啥这么晚？” → 好回答（真人短句）：“熬夜冠军归你了，明天不爬起来啦”",
-              "- 对方：为了开发你啊 → 好回答：“少拿我当熬夜借口啊，你自己快去眯会”",
-              "- 对方：每个人都该有个自己的世界 → 好回答：“听着还挺浪漫，那回头带我逛逛你的”",
-            ].join("\n");
-
             const prompt = [
               "你住在用户的移动虚拟仓里，正在用 QQ 单聊和对方发消息。",
               worldNote,
@@ -584,7 +589,7 @@ export function createDhvwRuntime({
               ...(!isTopicShift ? [`熟人习惯与黑话：${formatSlangBlock()}`] : []),
               ...(topicShiftHint ? [topicShiftHint] : []),
               ...(styleGuardBlock ? [styleGuardBlock] : []),
-              fewShotStyleBlock,
+              FEW_SHOT_STYLE_BLOCK,
               ...(searchHintBlock ? [searchHintBlock] : []),
               ...(stickerHintBlock ? [stickerHintBlock] : []),
               `最近对话：\n${recentHistoryText}`,
