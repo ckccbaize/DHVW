@@ -482,9 +482,22 @@ export function createLocalRuntime({
 
   async function hasLocalScene(placeId) {
     const id = String(placeId || "").trim();
-    if (!id || typeof fetch !== "function") return false;
+    if (!id) return false;
+    const rel = `assets/scenes/${encodeURIComponent(id)}/${encodeURIComponent(id)}.built.json`;
+    // 推送场景只落在 Cache Storage，不会写回 www 静态目录；只看 fetch 会误判为缺场景，
+    // 于是每天重新提交一次同名 sceneRequest。先查缓存，再回退静态包。
     try {
-      const res = await fetch(`assets/scenes/${encodeURIComponent(id)}/${encodeURIComponent(id)}.built.json`, { cache: "no-store" });
+      if (typeof caches !== "undefined") {
+        const cache = await caches.open("dhvw-scenes-v1");
+        const hit = await cache.match(new URL(rel, location.href).href);
+        if (hit) return true;
+      }
+    } catch {
+      /* Cache API 不可用时继续查静态资源 */
+    }
+    if (typeof fetch !== "function") return false;
+    try {
+      const res = await fetch(rel, { cache: "no-store" });
       return !!res?.ok;
     } catch {
       return false;
