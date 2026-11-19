@@ -35,13 +35,13 @@
   },
   {
    "path": "character/sheet.png",
-   "size": 5070,
-   "sha256": "65368c47ccb963243ebccd58c4351f11103324046273b54e6075c5679e31ea02"
+   "size": 278773,
+   "sha256": "906f92b3eb59c6322c058433104d1a003605e051f00fbb27c25517ea2efda8d1"
   },
   {
    "path": "character/sheet.json",
-   "size": 5286,
-   "sha256": "483bc8212627e18153f01b2681f095f0acbf7d978dcc4f1983aad2c474726a3d"
+   "size": 8413,
+   "sha256": "8d1efed4ab9b39d43421e8c49732e0fc6108669aafd32047965d2764e447cdc3"
   }
  ]
 }

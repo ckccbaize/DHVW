@@ -253,6 +253,14 @@ function watchShellHost(initialWsUrl) {
 }
 
 async function boot() {
+  // 巡演（宣传片）是完全独立的页面：先在 boot 最前面切走，不创建任何主线运行时。
+  if (new URLSearchParams(location.search).get("tour") === "1") {
+    const q = new URLSearchParams(location.search);
+    q.delete("tour");
+    const rest = q.toString();
+    location.replace(`tour.html${rest ? `?${rest}` : ""}`);
+    return;
+  }
   const cfg = await loadConfig();
   watchShellHost(cfg.host?.wsUrl);
   const sceneParam = new URLSearchParams(location.search).get("scene") || cfg.scene || "home";
@@ -720,6 +728,65 @@ async function boot() {
     return true;
   }
 
+  async function syncActiveCharacter(p, force = false) {
+    if (!p || typeof caches === "undefined") return false;
+    const cid = String(p.id || "").trim();
+    const updatedAt = Number(p.updatedAt || 0);
+    const sig = cid ? `${cid}:${updatedAt}` : "default:0";
+    try {
+      if (!force && localStorage.getItem("dhvw_char_sig") === sig) return false;
+    } catch {
+      /* ignore */
+    }
+    const cache = await caches.open("dhvw-scenes-v1");
+    if (!cid) {
+      await Promise.all([
+        cache.delete("assets/char/ojj_sheet.json"),
+        cache.delete("assets/char/ojj_sheet.png"),
+      ]);
+      try {
+        localStorage.setItem("dhvw_char_sig", sig);
+      } catch {}
+      await Promise.all([overview.reloadCharacter?.(), outerOverview.reloadCharacter?.()]);
+      store.emit("character_ready", { id: "" });
+      return true;
+    }
+    const raw = cfg.host.wsUrl || cfg.host.probeUrl || "";
+    if (!raw) return false;
+    const viaGateway = /\/ws\//.test(raw);
+    const jsonPath = String((viaGateway && p.gatewayJsonUrl) || p.jsonUrl || "").trim();
+    const sheetPath = String((viaGateway && p.gatewaySheetUrl) || p.sheetUrl || "").trim();
+    if (!jsonPath || !sheetPath) return false;
+    let origin = "";
+    let token = "";
+    try {
+      const u = new URL(raw);
+      u.protocol = u.protocol === "wss:" ? "https:" : "http:";
+      origin = u.origin;
+      token = u.searchParams.get("token") || "";
+    } catch {
+      return false;
+    }
+    const buildUrl = (rel) => {
+      const u = new URL(rel, origin);
+      if (token) u.searchParams.set("token", token);
+      return u;
+    };
+    const [jsonRes, sheetRes] = await Promise.all([
+      fetch(buildUrl(jsonPath), { cache: "no-store" }),
+      fetch(buildUrl(sheetPath), { cache: "no-store" }),
+    ]);
+    if (!jsonRes.ok || !sheetRes.ok) return false;
+    await cache.put("assets/char/ojj_sheet.json", jsonRes);
+    await cache.put("assets/char/ojj_sheet.png", sheetRes);
+    try {
+      localStorage.setItem("dhvw_char_sig", sig);
+    } catch {}
+    await Promise.all([overview.reloadCharacter?.(), outerOverview.reloadCharacter?.()]);
+    store.emit("character_ready", { id: cid, name: p.name || cid });
+    return true;
+  }
+
   function clockIsForward(c) {
     if (!c || !Number.isFinite(c.day) || !Number.isFinite(c.minute)) return false;
     const cur = store.state.clock;
@@ -731,6 +798,7 @@ async function boot() {
   let applyRemoteQqConfig = async () => {};
   let triggerRemoteQqRebind = async () => {};
   let pushQqLlmConfig = () => {};
+  let syncImageGenConfig = async () => {};
   let pendingRemoteBoost = null;
 
   function handleRemoteMessage(msg) {
@@ -746,6 +814,14 @@ async function boot() {
         if (typeof p.boost === "boolean") {
           pendingRemoteBoost = p.boost;
           void setQqBotBoost(p.boost, { persist: true });
+        }
+        if (p.active_character !== undefined) {
+          void syncActiveCharacter(p.active_character).catch((err) =>
+            console.warn("[remote] 同步像素角色失败", err),
+          );
+        }
+        if (p.image_gen !== undefined) {
+          void syncImageGenConfig(p.image_gen);
         }
         break;
       }
@@ -810,11 +886,21 @@ async function boot() {
         store.emit("switchScene", p);
         break;
       }
+      case "character:ready": {
+        void syncActiveCharacter(p, true).catch((err) =>
+          console.warn("[remote] 切换像素角色失败", err),
+        );
+        break;
+      }
       case "llm:config": {
         const resolved = resolveRemoteLlmConfig(p || {}, cfg.host?.wsUrl || "");
         cfg.llm = { ...(cfg.llm || {}), ...resolved };
         void local.setLlmConfig(resolved);
         pushQqLlmConfig();
+        break;
+      }
+      case "imagegen:config": {
+        void syncImageGenConfig(p || {});
         break;
       }
       case "boost:config": {
@@ -1359,6 +1445,64 @@ async function boot() {
         },
       });
     };
+    let cachedRef3dSig = "";
+    let cachedRef3dBase64 = "";
+
+    const pushImageGenConfig = () => {
+      if (!qqBridge || !cfg.imageGen) return;
+      qqBridge.send({
+        type: "qq:imagegen:config",
+        payload: {
+          enabled: cfg.imageGen.enabled === true,
+          protocol: cfg.imageGen.protocol || "openai-images",
+          baseUrl: cfg.imageGen.baseUrl || "",
+          apiKey: cfg.imageGen.apiKey || "",
+          model: cfg.imageGen.model || "",
+          ...(typeof cfg.imageGen.fusionStylePrompt === "string"
+            ? { fusionStylePrompt: cfg.imageGen.fusionStylePrompt }
+            : {}),
+          ref3dUpdatedAt: Number(cfg.imageGen.ref3dUpdatedAt || 0),
+          ...(cachedRef3dSig === String(cfg.imageGen.ref3dUpdatedAt || 0) ? { ref3dBase64: cachedRef3dBase64 } : {}),
+        },
+      });
+    };
+
+    syncImageGenConfig = async (p = {}) => {
+      if (!p || typeof p !== "object") return;
+      cfg.imageGen = { ...(cfg.imageGen || {}), ...p };
+      const ts = Number(p.ref3dUpdatedAt || 0);
+      if (ts === 0) {
+        cachedRef3dSig = "0";
+        cachedRef3dBase64 = "";
+      } else if (ts > 0 && cachedRef3dSig !== String(ts)) {
+        try {
+          const raw = cfg.host.wsUrl || cfg.host.probeUrl || "";
+          const viaGateway = /\/ws\//.test(raw);
+          const refPath = String((viaGateway && p.gatewayRef3dUrl) || p.ref3dUrl || "").trim();
+          if (raw && refPath) {
+            const u = new URL(raw);
+            u.protocol = u.protocol === "wss:" ? "https:" : "http:";
+            const token = u.searchParams.get("token") || "";
+            const target = new URL(refPath, u.origin);
+            if (token) target.searchParams.set("token", token);
+            const res = await fetch(target, { cache: "no-store" });
+            if (res.ok) {
+              const buf = new Uint8Array(await res.arrayBuffer());
+              let bin = "";
+              for (let i = 0; i < buf.length; i += 0x8000) {
+                bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+              }
+              cachedRef3dBase64 = btoa(bin);
+              cachedRef3dSig = String(ts);
+            }
+          }
+        } catch (err) {
+          console.warn("[remote] 拉取角色三维参考图失败", err);
+        }
+      }
+      pushImageGenConfig();
+    };
+
     const pushLlmConfig = () => {
       if (!qqBridge || !cfg.llm) return;
       qqBridge.send({
@@ -1367,6 +1511,7 @@ async function boot() {
           baseUrl: cfg.llm.baseUrl || "",
           apiKey: cfg.llm.apiKey || "",
           model: cfg.llm.model || "",
+          supportsVision: cfg.llm.supportsVision === true,
           reasoningEffort: cfg.llm.reasoningEffort,
           useShellProxy: cfg.llm.useShellProxy === true,
         },
@@ -1411,6 +1556,7 @@ async function boot() {
           onOpen: () => {
             qqBridge.send({ type: "qq:boost:state", payload: { enabled: true } });
             pushLlmConfig();
+            pushImageGenConfig();
             pushWorldState();
             qqAdapter.flushPendingFacts();
           },

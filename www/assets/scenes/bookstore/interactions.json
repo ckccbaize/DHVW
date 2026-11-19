@@ -1,0 +1,475 @@
+{
+ "schema_version": 1,
+ "acts": {
+  "rest_armchair": {
+   "label": "窝在椅子里",
+   "trigger": {
+    "props": [
+     "armchair"
+    ]
+   },
+   "perform": {
+    "animation": "rest",
+    "duration_min": 20,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": 0.15,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "rest_armchair"
+    }
+   ],
+   "cooldown_min": 60,
+   "priority": 4,
+   "bubble": "这里闻起来像旧纸。",
+   "tags": [
+    "quiet"
+   ]
+  },
+  "eat": {
+   "label": "配块蛋糕",
+   "trigger": {
+    "props": [
+     "cafe_table"
+    ]
+   },
+   "perform": {
+    "animation": "eat",
+    "duration_min": 15,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.12,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": 0.1,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "advance_time",
+     "minutes": 15
+    },
+    {
+     "kind": "event",
+     "name": "cake_break"
+    }
+   ],
+   "cooldown_min": 120,
+   "priority": 5,
+   "bubble": "今天的巴斯克不错。",
+   "tags": [
+    "social"
+   ]
+  },
+  "water_plants": {
+   "label": "浇花",
+   "trigger": {
+    "props": [
+     "plant",
+     "plant_big"
+    ]
+   },
+   "perform": {
+    "animation": "water",
+    "duration_min": 5,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.05,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "water_plant"
+    }
+   ],
+   "cooldown_min": 240,
+   "priority": 3,
+   "bubble": "别渴着。",
+   "tags": [
+    "quiet"
+   ]
+  },
+  "browse_shelf": {
+   "label": "翻书",
+   "trigger": {
+    "props": [
+     "shelf_wall",
+     "shelf_tall",
+     "shelf_island",
+     "shelf_spin"
+    ]
+   },
+   "perform": {
+    "animation": "browse",
+    "duration_min": 12,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.12,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "browse_book"
+    }
+   ],
+   "cooldown_min": 20,
+   "priority": 6,
+   "bubble": "这本的纸很好闻。",
+   "tags": [
+    "quiet"
+   ]
+  },
+  "read_here": {
+   "label": "坐下读",
+   "trigger": {
+    "props": [
+     "armchair",
+     "loveseat"
+    ]
+   },
+   "requires": [
+    {
+     "kind": "time",
+     "between": [
+      "08:00",
+      "23:00"
+     ]
+    }
+   ],
+   "perform": {
+    "animation": "sit_read",
+    "duration_min": 45,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.18,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": -0.02,
+     "apply": "per_minute"
+    },
+    {
+     "kind": "event",
+     "name": "read_book"
+    }
+   ],
+   "cooldown_min": 60,
+   "priority": 7,
+   "bubble": "就坐一会儿。",
+   "tags": [
+    "quiet"
+   ]
+  },
+  "rest_table": {
+   "label": "靠窗坐坐",
+   "trigger": {
+    "props": [
+     "low_table"
+    ]
+   },
+   "perform": {
+    "animation": "sit_sip",
+    "duration_min": 20,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.1,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "take_a_break"
+    }
+   ],
+   "cooldown_min": 45,
+   "priority": 4,
+   "bubble": "窗边最舒服。",
+   "tags": [
+    "quiet"
+   ]
+  },
+  "brew_coffee": {
+   "label": "煮咖啡",
+   "trigger": {
+    "props": [
+     "espresso",
+     "bar_counter"
+    ]
+   },
+   "requires": [
+    {
+     "kind": "place",
+     "in": [
+      "cafe"
+     ]
+    }
+   ],
+   "perform": {
+    "animation": "brew",
+    "duration_min": 8,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": 0.12,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "brew_coffee"
+    }
+   ],
+   "cooldown_min": 90,
+   "priority": 6,
+   "bubble": "豆子刚磨好。",
+   "tags": [
+    "social"
+   ]
+  },
+  "cafe_sit": {
+   "label": "咖啡配书",
+   "trigger": {
+    "props": [
+     "cafe_table",
+     "cafe_stool"
+    ]
+   },
+   "perform": {
+    "animation": "sit_sip",
+    "duration_min": 25,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.14,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": 0.08,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "cafe_break"
+    }
+   ],
+   "cooldown_min": 40,
+   "priority": 5,
+   "bubble": "拿铁配新书。",
+   "tags": [
+    "social"
+   ]
+  },
+  "serve_customer": {
+   "label": "结账",
+   "trigger": {
+    "props": [
+     "counter_shop"
+    ]
+   },
+   "requires": [
+    {
+     "kind": "time",
+     "between": [
+      "09:00",
+      "21:00"
+     ]
+    }
+   ],
+   "perform": {
+    "animation": "checkout",
+    "duration_min": 4,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.06,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "checkout"
+    }
+   ],
+   "cooldown_min": 15,
+   "priority": 6,
+   "bubble": "三本，帮你包起来。",
+   "tags": [
+    "social"
+   ]
+  },
+  "tidy_shelf": {
+   "label": "上新书",
+   "trigger": {
+    "props": [
+     "bookcart",
+     "crate_books",
+     "ladder"
+    ]
+   },
+   "perform": {
+    "animation": "restock",
+    "duration_min": 18,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": -0.06,
+     "apply": "per_minute"
+    },
+    {
+     "kind": "event",
+     "name": "restock_shelf"
+    }
+   ],
+   "cooldown_min": 60,
+   "priority": 5,
+   "bubble": "新到的书要上架。"
+  },
+  "window_display": {
+   "label": "换橱窗",
+   "trigger": {
+    "props": [
+     "display_console",
+     "easel"
+    ]
+   },
+   "requires": [
+    {
+     "kind": "place",
+     "in": [
+      "front"
+     ]
+    }
+   ],
+   "perform": {
+    "animation": "arrange",
+    "duration_min": 15,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.08,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "display_design"
+    }
+   ],
+   "cooldown_min": 120,
+   "priority": 4,
+   "bubble": "这套主题不错。"
+  },
+  "staff_work": {
+   "label": "理进货单",
+   "trigger": {
+    "props": [
+     "staff_desk",
+     "file_cabinet"
+    ]
+   },
+   "requires": [
+    {
+     "kind": "place",
+     "in": [
+      "back"
+     ]
+    }
+   ],
+   "perform": {
+    "animation": "desk_work",
+    "duration_min": 30,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": -0.08,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "paperwork"
+    }
+   ],
+   "cooldown_min": 180,
+   "priority": 4,
+   "bubble": "对一下这周的进货单。"
+  },
+  "lamp_on": {
+   "label": "调亮灯",
+   "trigger": {
+    "props": [
+     "reading_lamp"
+    ]
+   },
+   "perform": {
+    "animation": "lamp_light",
+    "duration_min": 3,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "set_flag",
+     "name": "reading_lamp_on"
+    },
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.04,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "lamp_on"
+    }
+   ],
+   "cooldown_min": 30,
+   "priority": 3,
+   "bubble": "灯光调暖一点。"
+  }
+ }
+}

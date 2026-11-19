@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="color-scheme" content="dark">
+<title>巡演 · 数字人虚拟仓</title>
+<link rel="stylesheet" href="assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.css">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/tour.css">
+</head>
+<body>
+<div id="tourStage">
+  <canvas id="tourScene" aria-label="巡演画面"></canvas>
+</div>
+
+<div id="tourOps" hidden>
+  <button id="btnRecord" class="tour-btn" type="button">开始录屏</button>
+  <span id="recState">准备中…</span>
+  <button id="btnReplay" class="tour-btn" type="button">重新巡演</button>
+  <span class="tour-hint">空格 重新巡演 · R 录屏 · H 操作条</span>
+</div>
+
+<div id="tourNote" hidden></div>
+<div id="tourError" hidden></div>
+
+<script type="module" src="js/tour.js"></script>
+</body>
+</html>
