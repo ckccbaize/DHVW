@@ -123,29 +123,63 @@ DHVW_BOOTSTRAP_SCRIPT = """<script>
     }
     if (underGateway) {
       try {
+        var libsBase = new URL('./libs/', location.href);
+        libsBase.search = '';
+        window.__DHVW_LIBS_BASE = libsBase.href;
         var tok = new URLSearchParams(location.search).get('token');
         if (tok) {
           var appendToken = function (u) {
-            if (typeof u !== 'string') return u;
-            if ((u.indexOf('./libs/') === 0 || u.indexOf('/olvt/libs/') === 0 || u.indexOf('/libs/') === 0) && u.indexOf('token=') === -1) {
-              return u + (u.indexOf('?') === -1 ? '?' : '&') + 'token=' + encodeURIComponent(tok);
-            }
+            if (typeof u !== 'string' || u.indexOf('blob:') === 0 || u.indexOf('data:') === 0) return u;
+            try {
+              var resolved = new URL(u, location.href);
+              if (resolved.origin !== location.origin) return u;
+              var p = resolved.pathname || '';
+              if ((p.indexOf('/olvt/') === 0 || p.indexOf('/libs/') === 0 || p.indexOf('/assets/') === 0 || p.indexOf('/live2d-models/') === 0 || p.indexOf('/bg/') === 0) && !resolved.searchParams.has('token')) {
+                resolved.searchParams.set('token', tok);
+                return resolved.href;
+              }
+            } catch (e) {}
             return u;
           };
           if (window.AudioWorklet && window.AudioWorklet.prototype && window.AudioWorklet.prototype.addModule) {
             var origAdd = window.AudioWorklet.prototype.addModule;
             window.AudioWorklet.prototype.addModule = function (u, opts) {
-              return origAdd.call(this, appendToken(u), opts);
+              var target = u instanceof URL ? appendToken(u.href) : appendToken(u);
+              return origAdd.call(this, target, opts);
             };
           }
           if (window.fetch) {
             var origFetch = window.fetch;
             window.fetch = function (input, init) {
-              if (typeof input === 'string') input = appendToken(input);
+              if (typeof input === 'string') {
+                input = appendToken(input);
+              } else if (input instanceof URL) {
+                input = appendToken(input.href);
+              } else if (input && typeof input === 'object' && typeof input.url === 'string') {
+                var nextUrl = appendToken(input.url);
+                if (nextUrl !== input.url && typeof Request === 'function') {
+                  input = new Request(nextUrl, input);
+                }
+              }
               return origFetch.call(this, input, init);
             };
           }
+          if (window.XMLHttpRequest && window.XMLHttpRequest.prototype && window.XMLHttpRequest.prototype.open) {
+            var origOpen = window.XMLHttpRequest.prototype.open;
+            window.XMLHttpRequest.prototype.open = function (method, url) {
+              var args = Array.prototype.slice.call(arguments);
+              if (typeof url === 'string') args[1] = appendToken(url);
+              else if (url instanceof URL) args[1] = appendToken(url.href);
+              return origOpen.apply(this, args);
+            };
+          }
         }
+      } catch (e) {}
+    } else {
+      try {
+        var directLibs = new URL('./libs/', location.href);
+        directLibs.search = '';
+        window.__DHVW_LIBS_BASE = directLibs.href;
       } catch (e) {}
     }
   } catch (e) {}
@@ -198,6 +232,12 @@ def _patch_olvt_main_bundle(rel_path: str) -> bytes | None:
     text = text.replace(
         "this.start=()=>{this.audioNodeVAD.start(),this.listening=!0}",
         "this.start=()=>{this.audioContext&&this.audioContext.state===\"suspended\"&&this.audioContext.resume().catch(()=>{}),this.audioNodeVAD.start(),this.listening=!0}",
+        1,
+    )
+    # 5. Point VAD / ORT assets to resolved absolute __DHVW_LIBS_BASE so Gateway / Blob workers resolve cleanly
+    text = text.replace(
+        'baseAssetPath:"./libs/",onnxWASMBasePath:"./libs/",',
+        'baseAssetPath:window.__DHVW_LIBS_BASE||"./libs/",onnxWASMBasePath:window.__DHVW_LIBS_BASE||"./libs/",',
         1,
     )
     data = text.encode("utf-8")
@@ -323,16 +363,21 @@ class WebSocketServer:
         yield
 
     def _install_activity_hook(self) -> None:
-        """任何客户端消息都算“有人在场”：主动说话据此复位节奏。"""
+        """区分真正用户输入与播报完成信号，正确维护主动说话的退避与空闲起点。"""
         if getattr(WebSocketHandler, "_dhvw_activity_hooked", False):
             return
         WebSocketHandler._dhvw_activity_hooked = True
         scheduler = self.proactive
         original = WebSocketHandler._route_message
+        user_types = {"text-input", "mic-audio-end", "mic-audio-data", "raw-audio-data", "interrupt-signal"}
 
         async def route_with_activity(self, websocket, client_uid, data):
             try:
-                scheduler.note_activity(client_uid)
+                mtype = data.get("type") if isinstance(data, dict) else ""
+                if mtype in user_types:
+                    scheduler.note_activity(client_uid)
+                elif mtype == "frontend-playback-complete":
+                    scheduler.note_ai_finished(client_uid)
             except Exception:
                 pass
             return await original(self, websocket, client_uid, data)

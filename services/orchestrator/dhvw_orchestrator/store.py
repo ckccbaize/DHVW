@@ -420,7 +420,7 @@ class Store:
                         text,
                         text,
                         tier,
-                        float(fact.get("conf") or 0.6),
+                        float(fact.get("conf") or fact.get("importance") or 0.6),
                         int(fact.get("t") or 0),
                         updated,
                         src,
@@ -434,7 +434,7 @@ class Store:
                 supersedes_id = str(fact.get("supersedes") or "").strip()
                 if supersedes_id:
                     self._memory.execute("update mem_meta set superseded_by=? where id=?", (fact_id, supersedes_id))
-                new_rows.append((rowid, text, fact_id, not bool(supersedes_id)))
+                new_rows.append((rowid, text, fact_id, tier != "L0" and not bool(supersedes_id)))
                 accepted.append(fact_id)
         if new_rows and self._vec_ready and self.embedder.available:
             vecs = self.embedder.encode([t for _, t, _, _ in new_rows])
@@ -689,6 +689,60 @@ class Store:
                 (int(limit),),
             ).fetchall()
         return [{"id": r["id"], "text": r["text"], "tier": r["tier"], "ts": int(r["t"] or 0)} for r in rows]
+
+    def list_facts(self, tier: str = "", limit: int = 100) -> list[dict]:
+        """按层级列出当前有效记忆事实，供 PC 侧人设/记忆界面管理。"""
+        limit = max(1, min(int(limit), 500))
+        with self._lock:
+            if tier:
+                rows = self._memory.execute(
+                    "select id, text, tier, src, stability, conf, t, updated_at from mem_meta"
+                    " where tier=? and (superseded_by is null or superseded_by='') and forgotten_at is null"
+                    " order by updated_at desc limit ?",
+                    (tier, limit),
+                ).fetchall()
+            else:
+                rows = self._memory.execute(
+                    "select id, text, tier, src, stability, conf, t, updated_at from mem_meta"
+                    " where (superseded_by is null or superseded_by='') and forgotten_at is null"
+                    " order by case tier when 'L0' then 0 when 'L1' then 1 else 2 end, updated_at desc limit ?",
+                    (limit,),
+                ).fetchall()
+        return [
+            {
+                "id": str(r["id"] or ""),
+                "text": str(r["text"] or ""),
+                "tier": str(r["tier"] or "L2"),
+                "src": str(r["src"] or ""),
+                "stability": float(r["stability"] or 1.0),
+                "importance": float(r["conf"] or 0.6),
+                "ts": int(r["t"] or 0),
+                "updatedAt": int(r["updated_at"] or 0),
+            }
+            for r in rows
+        ]
+
+    def delete_fact(self, fact_id: str) -> bool:
+        """从 mem_meta、mem_fts 和 mem_vec 彻底删除指定事实。"""
+        fid = str(fact_id or "").strip()
+        if not fid:
+            return False
+        with self._lock, self._memory:
+            row = self._memory.execute("select rowid from mem_meta where id=?", (fid,)).fetchone()
+            if not row:
+                return False
+            rowid = int(row["rowid"])
+            self._memory.execute("delete from mem_meta where rowid=?", (rowid,))
+            try:
+                self._memory.execute("delete from mem_fts where rowid=?", (rowid,))
+            except sqlite3.OperationalError:
+                pass
+            if self._vec_ready:
+                try:
+                    self._memory.execute("delete from mem_vec where rowid=?", (rowid,))
+                except sqlite3.OperationalError:
+                    pass
+        return True
 
     def memory_stats(self) -> dict:
         with self._lock:

@@ -50,6 +50,22 @@ export class HostSupervisor extends EventEmitter {
     return [...this.workers.values()]
   }
 
+  updateServices(services: ServiceDef[]): void {
+    this.opts.services = services
+    for (const svc of services) {
+      if (!this.workers.has(svc.id)) {
+        this.workers.set(svc.id, {
+          id: svc.id,
+          name: svc.name,
+          port: svc.port,
+          pid: null,
+          state: 'stopped',
+          restarts: 0,
+        })
+      }
+    }
+  }
+
   start(): void {
     if (this.child) return
     this.stopping = false

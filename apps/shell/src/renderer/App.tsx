@@ -49,7 +49,8 @@ function GatewayDialog({
 
   const browserUrl =
     browser?.ok && browser.wsUrl
-      ? `${armPreview ?? 'http://127.0.0.1:8080/'}?host=${encodeURIComponent(browser.wsUrl)}&remote=1`
+      ? browser.armUrl ??
+        `${armPreview ?? 'http://127.0.0.1:18080/'}?host=${encodeURIComponent(browser.wsUrl)}&remote=1`
       : ''
 
   const pairBrowser = async (): Promise<void> => {
@@ -328,6 +329,25 @@ export default function App(): React.ReactElement {
     )
   }
 
+  const refreshComponents = (): void => {
+    void window.dhvw.components().then(setComponents)
+  }
+
+  const activateLocalLlm = async (): Promise<{ ok: boolean; error?: string; baseUrl?: string }> => {
+    const res = await window.dhvw.activateLocalLlm()
+    if (res.settings) {
+      setSettings(res.settings)
+      setSnap((prev) =>
+        prev ? { ...prev, llm: { baseUrl: res.settings!.llm.baseUrl, model: res.settings!.llm.model } } : prev,
+      )
+    }
+    setTimeout(() => {
+      void refresh()
+      void window.dhvw.probeLlm().then(setProbe)
+    }, 1500)
+    return { ok: res.ok, error: res.error, baseUrl: res.baseUrl }
+  }
+
   const workers = snap?.workers ?? []
   const running = useMemo(() => workers.filter((w) => w.state === 'running').length, [workers])
 
@@ -389,7 +409,14 @@ export default function App(): React.ReactElement {
             busy={boostBusy}
           />
         )}
-        {tab === 'agent' && <AgentView />}
+        {tab === 'agent' && (
+          <AgentView
+            settings={settings}
+            onSettingsChange={(next) => {
+              setSettings(next)
+            }}
+          />
+        )}
         {tab === 'info' && (
           <ConfigView
             snap={snap}
@@ -406,6 +433,9 @@ export default function App(): React.ReactElement {
             onOpenGateway={() => setShowGateway(true)}
             onOpenArmConsole={() => setShowArmConsole(true)}
             onInstall={installComponent}
+            onRefreshComponents={refreshComponents}
+            onOpenComponentDir={(id) => void window.dhvw.openComponentDir(id)}
+            onActivateLocalLlm={activateLocalLlm}
             autoLaunch={snap?.autoLaunch ?? false}
             onAutoLaunch={(next) => void window.dhvw.setAutoLaunch(next).then(refresh)}
             onRestartHost={() => void window.dhvw.restartHost().then(() => setTimeout(() => void refresh(), 800))}

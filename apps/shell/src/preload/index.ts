@@ -3,19 +3,25 @@ import type {
   ActionRequest,
   AppSnapshot,
   ArmConsoleResult,
-  ArmDeviceView,
+  CharacterCardData,
   ComponentProgress,
+  ArmDeviceView,
   ComponentStatus,
   GatewayPairResult,
   GatewayStatusView,
   HostEvent,
+  LlmMode,
   LlmProtocol,
   SettingsPatch,
   SceneJobView,
   SceneOutputView,
   Live2dModelView,
   MemoryCurveView,
+  MemoryFactView,
   MemoryStatsView,
+  PersonaCardImportResult,
+  PersonaGenerateInput,
+  PersonaJobView,
   ProactiveStateView,
   PathPickArgs,
   PathPickResult,
@@ -142,7 +148,88 @@ const api = {
   gatewayClosePair: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:gatewayClosePair'),
   gatewayForget: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:gatewayForget'),
   gatewayRestart: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:gatewayRestart'),
+  personaImportCard: (filePath?: string): Promise<PersonaCardImportResult> =>
+    ipcRenderer.invoke('dhvw:personaImportCard', filePath),
+  personaAvatar: (): Promise<{ ok: boolean; avatarDataUrl?: string; error?: string }> =>
+    ipcRenderer.invoke('dhvw:personaAvatar'),
+  personaExportCard: (req: {
+    card: CharacterCardData
+    format?: 'png' | 'json'
+  }): Promise<{ ok: boolean; path?: string; canceled?: boolean; error?: string }> =>
+    ipcRenderer.invoke('dhvw:personaExportCard', req),
+  personaJobs: (): Promise<{ ok: boolean; jobs: PersonaJobView[]; error?: string }> =>
+    ipcRenderer.invoke('dhvw:personaJobs'),
+  personaGenerate: (input: PersonaGenerateInput): Promise<{ ok: boolean; job?: PersonaJobView; error?: string }> =>
+    ipcRenderer.invoke('dhvw:personaGenerate', input),
+  personaStopJob: (jobId: string): Promise<{ ok: boolean; job?: PersonaJobView; error?: string }> =>
+    ipcRenderer.invoke('dhvw:personaStopJob', jobId),
+  personaRetryJob: (jobId: string): Promise<{ ok: boolean; job?: PersonaJobView; error?: string }> =>
+    ipcRenderer.invoke('dhvw:personaRetryJob', jobId),
+  personaDeleteJob: (jobId: string): Promise<{ ok: boolean; deleted?: string; error?: string }> =>
+    ipcRenderer.invoke('dhvw:personaDeleteJob', jobId),
+  personaApply: (payload: {
+    card?: CharacterCardData | null
+    characterName: string
+    humanName?: string
+    personaPrompt: string
+    l0Facts?: Array<{ id?: string; text: string; importance?: number }>
+  }): Promise<{ ok: boolean; settings?: SettingsView; factsResult?: Record<string, unknown> | null; error?: string }> =>
+    ipcRenderer.invoke('dhvw:personaApply', payload),
+  memoryFacts: (tier = '', limit = 120): Promise<{ ok: boolean; facts: MemoryFactView[]; error?: string }> =>
+    ipcRenderer.invoke('dhvw:memoryFacts', tier, limit),
+  memoryAddFacts: (
+    facts: Array<{ id?: string; text: string; tier?: string; importance?: number }>,
+  ): Promise<{ ok: boolean; accepted?: string[]; merged?: string[]; rejected?: string[]; pushed?: number; error?: string }> =>
+    ipcRenderer.invoke('dhvw:memoryAddFacts', facts),
+  memoryDeleteFact: (factId: string): Promise<{ ok: boolean; deleted?: string; pushed?: number; error?: string }> =>
+    ipcRenderer.invoke('dhvw:memoryDeleteFact', factId),
   installComponent: (id: string): Promise<ComponentStatus> => ipcRenderer.invoke('dhvw:componentInstall', id),
+  openComponentDir: (id: string): Promise<{ ok: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke('dhvw:openComponentDir', id),
+  activateLocalLlm: (): Promise<{
+    ok: boolean
+    settings?: SettingsView
+    baseUrl?: string
+    model?: string
+    error?: string
+  }> => ipcRenderer.invoke('dhvw:activateLocalLlm'),
+  switchLlmMode: (
+    mode: LlmMode,
+  ): Promise<{
+    ok: boolean
+    settings?: SettingsView
+    mode?: LlmMode
+    baseUrl?: string
+    model?: string
+    error?: string
+  }> => ipcRenderer.invoke('dhvw:switchLlmMode', mode),
+  inspectAudio: (filePath: string, ttsDir?: string): Promise<{ ok: boolean; duration?: number | null; error?: string }> =>
+    ipcRenderer.invoke('dhvw:inspectAudio', filePath, ttsDir),
+  readRefAudio: (
+    filePath: string,
+    ttsDir?: string,
+  ): Promise<{ ok: boolean; duration?: number | null; mime?: string; audioBase64?: string; canClip?: boolean; error?: string }> =>
+    ipcRenderer.invoke('dhvw:readRefAudio', filePath, ttsDir),
+  clipRefAudio: (
+    filePath: string,
+    seconds?: number,
+    ttsDir?: string,
+  ): Promise<{ ok: boolean; path?: string; duration?: number; mime?: string; audioBase64?: string; error?: string }> =>
+    ipcRenderer.invoke('dhvw:clipRefAudio', filePath, seconds, ttsDir),
+  testTts: (req: {
+    refAudioPath: string
+    refText: string
+    refLang: string
+    textLang: string
+    sampleText?: string
+  }): Promise<{
+    ok: boolean
+    duration?: number | null
+    bytes?: number
+    audioBase64?: string
+    canClip?: boolean
+    error?: string
+  }> => ipcRenderer.invoke('dhvw:testTts', req),
   onComponentProgress: (cb: (p: ComponentProgress) => void): (() => void) => {
     const h = (_e: unknown, p: ComponentProgress): void => cb(p)
     ipcRenderer.on('dhvw:componentProgress', h)

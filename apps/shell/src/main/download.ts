@@ -74,7 +74,16 @@ function parseBytes(text: string): { downloaded: number; total: number } {
 
 function hashFile(file: string): string {
   const hash = createHash('sha256')
-  hash.update(fs.readFileSync(file))
+  const fd = fs.openSync(file, 'r')
+  const buf = Buffer.allocUnsafe(4 * 1024 * 1024)
+  try {
+    let bytesRead = 0
+    while ((bytesRead = fs.readSync(fd, buf, 0, buf.length, null)) > 0) {
+      hash.update(bytesRead === buf.length ? buf : buf.subarray(0, bytesRead))
+    }
+  } finally {
+    fs.closeSync(fd)
+  }
   return hash.digest('hex')
 }
 
@@ -172,13 +181,14 @@ async function viaFetch(urls: string[], dest: string, opts: DownloadOptions): Pr
     try {
       // 有半成品就带 Range 续传；服务端不支持（200）则从头覆盖
       const have = fs.existsSync(dest) ? fs.statSync(dest).size : 0
+      const defaultTimeout = (opts.minBytes ?? 0) >= 1_000_000_000 ? 2 * 60 * 60 * 1000 : 30 * 60 * 1000
       const res = await fetch(url, {
         redirect: 'follow',
         headers: {
           'User-Agent': 'dhvw-shell/0.1',
           ...(have > 0 ? { Range: `bytes=${have}-` } : {}),
         },
-        signal: AbortSignal.timeout(opts.timeoutMs ?? 30 * 60 * 1000),
+        signal: AbortSignal.timeout(opts.timeoutMs ?? defaultTimeout),
       })
       if (!res.ok && res.status !== 206) throw new Error(`HTTP ${res.status}`)
       const resuming = res.status === 206 && have > 0

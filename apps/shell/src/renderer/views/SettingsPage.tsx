@@ -1,5 +1,19 @@
-import React, { useEffect, useState } from 'react'
-import type { Live2dModelView, LlmProtocol, ProactiveStateView, QqBotStatusView, SettingsView } from '../../shared/types'
+import React, { useEffect, useRef, useState } from 'react'
+
+function base64ToBlobUrl(base64: string, mime = 'audio/wav'): string {
+  const bin = atob(base64)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return URL.createObjectURL(new Blob([bytes], { type: mime }))
+}
+import type {
+  Live2dModelView,
+  LlmMode,
+  LlmProtocol,
+  ProactiveStateView,
+  QqBotStatusView,
+  SettingsView,
+} from '../../shared/types'
 import { SaveBackupPanel } from './SaveBackupPanel'
 
 /** 独立设置页：按模型 / 角色语音 / QQ Bot / 运行 / 存档分类。 */
@@ -12,6 +26,7 @@ export function SettingsPage({
   onSaved: (next: SettingsView) => void
   onOpenQqGuide?: () => void
 }): React.ReactElement {
+  const [llmMode, setLlmMode] = useState<LlmMode>(value.llmMode ?? 'api')
   const [protocol, setProtocol] = useState<LlmProtocol>(value.llm.protocol)
   const [baseUrl, setBaseUrl] = useState(value.llm.baseUrl)
   const [model, setModel] = useState(value.llm.model)
@@ -21,6 +36,7 @@ export function SettingsPage({
   const [temperature, setTemperature] = useState(String(value.llm.temperature))
   const [olvtPort, setOlvtPort] = useState(String(value.ports.olvt))
   const [ttsPort, setTtsPort] = useState(String(value.ports.tts))
+  const [llamaPort, setLlamaPort] = useState(String(value.ports.llama ?? 8089))
   const [asr, setAsr] = useState(value.asr.enabled)
   const [live2dModel, setLive2dModel] = useState(value.live2d.model)
   const [autoPushScene, setAutoPushScene] = useState(value.scene.autoPush)
@@ -33,6 +49,45 @@ export function SettingsPage({
   const [ttsDir, setTtsDir] = useState(value.tts.backendDir)
   const [refAudio, setRefAudio] = useState(value.tts.refAudioPath)
   const [refText, setRefText] = useState(value.tts.refText)
+  const [refLang, setRefLang] = useState(value.tts.refLang || 'zh')
+  const [textLang, setTextLang] = useState(value.tts.textLang || 'zh')
+  const [sampleText, setSampleText] = useState('你好呀，我是你的数字伙伴，现在测试一下新的音色效果。')
+  const [audioDuration, setAudioDuration] = useState<number | null>(null)
+  const [refAudioSrc, setRefAudioSrc] = useState<string | null>(null)
+  const [synthAudioSrc, setSynthAudioSrc] = useState<string | null>(null)
+  const refAudioEl = useRef<HTMLAudioElement | null>(null)
+  const synthAudioEl = useRef<HTMLAudioElement | null>(null)
+
+  const updateRefAudioSrc = (next: string | null, autoPlay = false): void => {
+    setRefAudioSrc((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev)
+      return next
+    })
+    if (next && autoPlay) {
+      queueMicrotask(() => {
+        if (refAudioEl.current) {
+          refAudioEl.current.currentTime = 0
+          void refAudioEl.current.play().catch(() => {})
+        }
+      })
+    }
+  }
+  const updateSynthAudioSrc = (next: string | null, autoPlay = false): void => {
+    setSynthAudioSrc((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev)
+      return next
+    })
+    if (next && autoPlay) {
+      queueMicrotask(() => {
+        if (synthAudioEl.current) {
+          synthAudioEl.current.currentTime = 0
+          void synthAudioEl.current.play().catch(() => {})
+        }
+      })
+    }
+  }
+  const [ttsMsg, setTtsMsg] = useState<{ ok: boolean; text: string; canClip?: boolean } | null>(null)
+  const [testingTts, setTestingTts] = useState(false)
   const [key, setKey] = useState('')
   const [hasKey, setHasKey] = useState(value.llm.hasKey)
   const [qqAppId, setQqAppId] = useState(value.qqBot?.appId || '')
@@ -93,6 +148,44 @@ export function SettingsPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    setLlmMode(value.llmMode ?? 'api')
+    setProtocol(value.llm.protocol)
+    setBaseUrl(value.llm.baseUrl)
+    setModel(value.llm.model)
+    setTemperature(String(value.llm.temperature))
+    setOlvtPort(String(value.ports.olvt))
+    setTtsPort(String(value.ports.tts))
+    setLlamaPort(String(value.ports.llama ?? 8089))
+    setCharName(value.olvt.characterName)
+    setHumanName(value.olvt.humanName)
+    setPersona(value.olvt.personaPrompt)
+    setTtsDir(value.tts.backendDir)
+    setRefAudio(value.tts.refAudioPath)
+    setRefText(value.tts.refText)
+    setRefLang(value.tts.refLang || 'zh')
+    setTextLang(value.tts.textLang || 'zh')
+    setRefAudioSrc(null)
+    setSynthAudioSrc(null)
+  }, [
+    value.llmMode,
+    value.llm.protocol,
+    value.llm.baseUrl,
+    value.llm.model,
+    value.llm.temperature,
+    value.ports.olvt,
+    value.ports.tts,
+    value.ports.llama,
+    value.olvt.characterName,
+    value.olvt.humanName,
+    value.olvt.personaPrompt,
+    value.tts.backendDir,
+    value.tts.refAudioPath,
+    value.tts.refText,
+    value.tts.refLang,
+    value.tts.textLang,
+  ])
+
   const fetchModels = async (): Promise<void> => {
     setLoadingModels(true)
     setMsg(null)
@@ -133,13 +226,13 @@ export function SettingsPage({
       if (key.trim() && !hasKey) await window.dhvw.saveApiKey(key).then((r) => r.ok && setHasKey(true))
       const res = await window.dhvw.saveSettings({
         llm: { protocol, baseUrl, model, temperature: Number(temperature) },
-        ports: { olvt: Number(olvtPort), tts: Number(ttsPort) },
+        ports: { olvt: Number(olvtPort), tts: Number(ttsPort), llama: Number(llamaPort) },
         asr: { enabled: asr },
         live2d: { model: live2dModel },
         scene: { autoPush: autoPushScene },
         proactive,
         olvt: { characterName: charName, humanName, personaPrompt: persona },
-        tts: { backendDir: ttsDir, refAudioPath: refAudio, refText },
+        tts: { backendDir: ttsDir, refAudioPath: refAudio, refText, refLang, textLang },
       })
       if (!res.ok || !res.settings) {
         setMsg({ ok: false, text: res.error ?? '保存失败' })
@@ -147,6 +240,48 @@ export function SettingsPage({
       }
       onSaved(res.settings)
       setMsg({ ok: true, text: '已保存（端口类改动需重启宿主生效）' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const switchMode = async (target: LlmMode): Promise<void> => {
+    if (busy || target === llmMode) return
+    setBusy(true)
+    setMsg(null)
+    try {
+      if (llmMode === 'api' && target === 'local' && /^https?:\/\/[^\s]+$/.test(baseUrl.trim())) {
+        const dirty =
+          baseUrl.trim() !== value.llm.baseUrl ||
+          model.trim() !== value.llm.model ||
+          protocol !== value.llm.protocol ||
+          Number(temperature) !== value.llm.temperature
+        if (dirty) {
+          const tempNum = Number(temperature)
+          await window.dhvw.saveSettings({
+            llm: {
+              protocol,
+              baseUrl: baseUrl.trim(),
+              ...(model.trim() ? { model: model.trim() } : {}),
+              ...(Number.isFinite(tempNum) && tempNum >= 0 && tempNum <= 2 ? { temperature: tempNum } : {}),
+            },
+          })
+        }
+      }
+      const res = await window.dhvw.switchLlmMode(target)
+      if (!res.ok || !res.settings) {
+        setMsg({ ok: false, text: res.error ?? '切换失败' })
+        return
+      }
+      setModels([])
+      onSaved(res.settings)
+      setMsg({
+        ok: true,
+        text:
+          target === 'local'
+            ? `已切换至本地 llama (${res.model ?? value.localLlmModel})，并同步 PC 与 ARM 端`
+            : `已切换至云端 API (${res.baseUrl ?? res.settings.llm.baseUrl})，并同步 PC 与 ARM 端`,
+      })
     } finally {
       setBusy(false)
     }
@@ -169,12 +304,43 @@ export function SettingsPage({
       <section className="panel settings-section">
         <div className="section-head">
           <h2>模型与密钥</h2>
+          <div className="mode-switch" role="group" aria-label="LLM 调用模式">
+            <button
+              type="button"
+              className={llmMode === 'api' ? 'mode-btn active' : 'mode-btn'}
+              disabled={busy}
+              onClick={() => void switchMode('api')}
+            >
+              云端 API
+            </button>
+            <button
+              type="button"
+              className={llmMode === 'local' ? 'mode-btn active' : 'mode-btn'}
+              disabled={busy}
+              onClick={() => void switchMode('local')}
+            >
+              本地推理 (llama)
+            </button>
+          </div>
         </div>
+
+        {llmMode === 'local' ? (
+          <p className="hint" style={{ marginTop: 0 }}>
+            当前使用本机 llama-server（{baseUrl} · 模型 {model || value.localLlmModel}），已通过网关/编排器同步提交 ARM 侧代理调用。原有云端 API（
+            {value.llmApi.baseUrl || '未配置'}）已保留，点击上方「云端 API」可随时一键切回。
+          </p>
+        ) : !value.localLlmReady ? (
+          <p className="hint" style={{ marginTop: 0 }}>
+            如需一键切换本地推理，请先在「信息 → 组件」下载或放入 <code>llama-server.exe</code> 与 <code>{value.localLlmModel}</code> 模型文件。
+          </p>
+        ) : null}
+
         <div className="row2">
           <div className="field">
             <label>协议</label>
             <select
               value={protocol}
+              disabled={llmMode === 'local'}
               onChange={(e) => {
                 setProtocol(e.target.value as LlmProtocol)
                 setModels([])
@@ -194,16 +360,25 @@ export function SettingsPage({
         <div className="field">
           <label>调用端点（全局）</label>
           <div className="row2 tight">
-            <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} spellCheck={false} />
-            <button disabled={loadingModels || !baseUrl.trim()} onClick={() => void fetchModels()}>
-              {loadingModels ? '拉取中…' : '拉取模型'}
-            </button>
+            <input
+              value={baseUrl}
+              readOnly={llmMode === 'local'}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              spellCheck={false}
+            />
+            {llmMode === 'api' && (
+              <button disabled={loadingModels || !baseUrl.trim()} onClick={() => void fetchModels()}>
+                {loadingModels ? '拉取中…' : '拉取模型'}
+              </button>
+            )}
           </div>
         </div>
 
         <div className="field">
           <label>模型</label>
-          {!manualModel && models.length > 0 ? (
+          {llmMode === 'local' ? (
+            <input value={model} readOnly spellCheck={false} />
+          ) : !manualModel && models.length > 0 ? (
             <div className="row2 tight">
               <select value={model} onChange={(e) => setModel(e.target.value)}>
                 {models.map((m) => (
@@ -227,35 +402,37 @@ export function SettingsPage({
           )}
         </div>
 
-        <div className="field">
-          <label>
-            API Key
-            <span className={`pill ${hasKey ? 'ok' : ''}`}>{hasKey ? '已配置' : '未配置'}</span>
-          </label>
-          <div className="row2 tight">
-            <input
-              type="password"
-              placeholder={hasKey ? '输入新密钥可覆盖' : 'sk-...'}
-              value={key}
-              onChange={(e) => setKey(e.target.value)}
-              spellCheck={false}
-            />
-            <button disabled={!key.trim()} onClick={() => void saveKey()}>
-              保存密钥
-            </button>
-            <button
-              disabled={!hasKey}
-              onClick={() =>
-                void window.dhvw.clearApiKey().then(() => {
-                  setHasKey(false)
-                  setMsg({ ok: true, text: '密钥已清除' })
-                })
-              }
-            >
-              清除
-            </button>
+        {llmMode === 'api' && (
+          <div className="field">
+            <label>
+              API Key
+              <span className={`pill ${hasKey ? 'ok' : ''}`}>{hasKey ? '已配置' : '未配置'}</span>
+            </label>
+            <div className="row2 tight">
+              <input
+                type="password"
+                placeholder={hasKey ? '输入新密钥可覆盖' : 'sk-...'}
+                value={key}
+                onChange={(e) => setKey(e.target.value)}
+                spellCheck={false}
+              />
+              <button disabled={!key.trim()} onClick={() => void saveKey()}>
+                保存密钥
+              </button>
+              <button
+                disabled={!hasKey}
+                onClick={() =>
+                  void window.dhvw.clearApiKey().then(() => {
+                    setHasKey(false)
+                    setMsg({ ok: true, text: '密钥已清除' })
+                  })
+                }
+              >
+                清除
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </section>
 
       <section className="panel settings-section">
@@ -308,6 +485,9 @@ export function SettingsPage({
         <div className="field">
           <label>人设</label>
           <textarea value={persona} onChange={(e) => setPersona(e.target.value)} rows={4} spellCheck={false} />
+          <p className="hint">
+            需要导入/导出酒馆 PNG 角色卡、使用 Agent 联网编写人设或管理 L0 核心记忆，请前往顶部「Agent」→「角色人设与 L0 记忆」。
+          </p>
         </div>
         <div className="field">
           <label>语音合成后端目录（GPT-SoVITS，留空则用内置占位）</label>
@@ -321,25 +501,209 @@ export function SettingsPage({
           </div>
         </div>
         <div className="field">
-          <label>参考音色（GPT-SoVITS，留空则用服务默认）</label>
+          <label>参考音色（GPT-SoVITS 要求 3~10 秒，留空则用服务默认）</label>
           <div className="row2 tight">
-            <input value={refAudio} onChange={(e) => setRefAudio(e.target.value)} spellCheck={false} />
+            <input
+              value={refAudio}
+              onChange={(e) => {
+                setRefAudio(e.target.value)
+                setAudioDuration(null)
+                setRefAudioSrc(null)
+                setSynthAudioSrc(null)
+              }}
+              spellCheck={false}
+            />
             <button
               onClick={() =>
-                void pick('file', '选择参考音色音频', setRefAudio, {
-                  defaultPath: refAudio,
-                  filters: [{ name: '音频', extensions: ['wav', 'mp3', 'flac', 'ogg', 'm4a'] }],
-                })
+                void pick(
+                  'file',
+                  '选择参考音色音频',
+                  (picked) => {
+                    setRefAudio(picked)
+                    setTtsMsg(null)
+                    setRefAudioSrc(null)
+                    setSynthAudioSrc(null)
+                    void window.dhvw.inspectAudio(picked, ttsDir).then(async (info) => {
+                      const d = info.duration ?? null
+                      setAudioDuration(d)
+                      if (d !== null && (d < 3 || d > 10)) {
+                        setTtsMsg({
+                          ok: false,
+                          canClip: d > 10,
+                          text: `该参考音频时长 ${d.toFixed(2)}s，超出 GPT-SoVITS 允许的 3~10 秒范围，直接使用会报 400 失败`,
+                        })
+                        return
+                      }
+                      const raw = await window.dhvw.readRefAudio(picked, ttsDir)
+                      if (raw.ok && raw.audioBase64) {
+                        updateRefAudioSrc(base64ToBlobUrl(raw.audioBase64, raw.mime || 'audio/wav'))
+                      }
+                    })
+                  },
+                  {
+                    defaultPath: refAudio,
+                    filters: [{ name: '音频', extensions: ['wav', 'mp3', 'flac', 'ogg', 'm4a'] }],
+                  },
+                )
               }
             >
               选择文件
             </button>
           </div>
+          <div className="actions" style={{ marginTop: 6 }}>
+            <button
+              type="button"
+              disabled={!refAudio.trim()}
+              onClick={() =>
+                void (async () => {
+                  setTtsMsg(null)
+                  const raw = await window.dhvw.readRefAudio(refAudio, ttsDir)
+                  if (typeof raw.duration === 'number') setAudioDuration(raw.duration)
+                  if (!raw.ok || !raw.audioBase64) {
+                    updateRefAudioSrc(null)
+                    setTtsMsg({
+                      ok: false,
+                      canClip: raw.canClip,
+                      text: raw.error ?? '无法读取参考音频',
+                    })
+                    return
+                  }
+                  const src = base64ToBlobUrl(raw.audioBase64, raw.mime || 'audio/wav')
+                  updateRefAudioSrc(src, true)
+                  setTtsMsg({
+                    ok: true,
+                    text: '正在播放参考原音，请对照核对下方「参考音色文本」',
+                  })
+                })()
+              }
+            >
+              试听参考原音
+            </button>
+            <button
+              type="button"
+              disabled={testingTts || !refAudio.trim()}
+              onClick={() =>
+                void (async () => {
+                  setTestingTts(true)
+                  setTtsMsg(null)
+                  try {
+                    const res = await window.dhvw.testTts({
+                      refAudioPath: refAudio,
+                      refText,
+                      refLang,
+                      textLang,
+                      sampleText: sampleText.trim() || undefined,
+                    })
+                    if (typeof res.duration === 'number') setAudioDuration(res.duration)
+                    if (!res.ok) {
+                      setTtsMsg({
+                        ok: false,
+                        canClip: res.canClip,
+                        text: res.error ?? '音色测试失败',
+                      })
+                      return
+                    }
+                    setTtsMsg({
+                      ok: true,
+                      text: `试听合成成功（${Math.round((res.bytes ?? 0) / 1024)} KB），保存设置后显现模式立即生效`,
+                    })
+                    if (res.audioBase64) {
+                      updateSynthAudioSrc(base64ToBlobUrl(res.audioBase64, 'audio/wav'), true)
+                    }
+                  } finally {
+                    setTestingTts(false)
+                  }
+                })()
+              }
+            >
+              {testingTts ? '合成中…' : '试听合成音色'}
+            </button>
+          </div>
+          {audioDuration !== null && (
+            <p className="hint">
+              当前音频时长：{audioDuration.toFixed(2)} 秒（要求 3~10 秒）
+            </p>
+          )}
+          {refAudioSrc && (
+            <div style={{ marginTop: 6 }}>
+              <span className="hint">参考原音试听（请核对与下方文本一致）：</span>
+              <audio ref={refAudioEl} controls src={refAudioSrc} style={{ width: '100%', height: 32, marginTop: 4 }} />
+            </div>
+          )}
+          {synthAudioSrc && (
+            <div style={{ marginTop: 6 }}>
+              <span className="hint">合成试听效果：</span>
+              <audio ref={synthAudioEl} controls src={synthAudioSrc} style={{ width: '100%', height: 32, marginTop: 4 }} />
+            </div>
+          )}
         </div>
         <div className="field">
-          <label>参考音色文本</label>
+          <label>参考音色文本（需与剪切后或 3~10 秒参考音频的朗读内容一致）</label>
           <input value={refText} onChange={(e) => setRefText(e.target.value)} spellCheck={false} />
         </div>
+        <div className="field">
+          <label>试听合成台词（点“试听合成音色”时让角色念的文本）</label>
+          <input value={sampleText} onChange={(e) => setSampleText(e.target.value)} spellCheck={false} />
+        </div>
+        <div className="row2">
+          <div className="field">
+            <label>参考音频语种 (prompt_lang)</label>
+            <select value={refLang} onChange={(e) => setRefLang(e.target.value)}>
+              <option value="zh">zh（中文）</option>
+              <option value="all_zh">all_zh（纯中文）</option>
+              <option value="ja">ja（日语）</option>
+              <option value="all_ja">all_ja（纯日语）</option>
+              <option value="en">en（英语）</option>
+              <option value="yue">yue（粤语）</option>
+              <option value="ko">ko（韩语）</option>
+              <option value="auto">auto（自动）</option>
+            </select>
+          </div>
+          <div className="field">
+            <label>合成输出语种 (text_lang)</label>
+            <select value={textLang} onChange={(e) => setTextLang(e.target.value)}>
+              <option value="zh">zh（中文）</option>
+              <option value="all_zh">all_zh（纯中文）</option>
+              <option value="ja">ja（日语）</option>
+              <option value="en">en（英语）</option>
+              <option value="yue">yue（粤语）</option>
+              <option value="ko">ko（韩语）</option>
+              <option value="auto">auto（自动）</option>
+            </select>
+          </div>
+        </div>
+        {ttsMsg && (
+          <div className="field">
+            <p className={`msg ${ttsMsg.ok ? 'ok' : 'bad'}`}>{ttsMsg.text}</p>
+            {ttsMsg.canClip && (
+              <div className="actions">
+                <button
+                  type="button"
+                  onClick={() =>
+                    void window.dhvw.clipRefAudio(refAudio, 8.5, ttsDir).then((r) => {
+                      if (!r.ok || !r.path) {
+                        setTtsMsg({ ok: false, text: r.error ?? '裁剪失败' })
+                        return
+                      }
+                      setRefAudio(r.path)
+                      setAudioDuration(r.duration ?? 8.5)
+                      updateSynthAudioSrc(null)
+                      if (r.audioBase64) {
+                        updateRefAudioSrc(base64ToBlobUrl(r.audioBase64, r.mime || 'audio/wav'), true)
+                      }
+                      setTtsMsg({
+                        ok: true,
+                        text: `已裁剪前 ${(r.duration ?? 8.5).toFixed(2)} 秒并切换为 ${r.path}，已自动播放，请对照修改下方参考音色文本后点保存`,
+                      })
+                    })
+                  }
+                >
+                  一键截取前 8.5 秒存为 WAV 并选用
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         <label className="switch">
           <input type="checkbox" checked={asr} onChange={(e) => setAsr(e.target.checked)} />
           启用语音识别（ASR）{!value.asr.ready && asr ? '（模型未下载，需在信息页组件面板安装）' : ''}
@@ -431,6 +795,10 @@ export function SettingsPage({
           <div className="field">
             <label>TTS 端口（0 = 自动）</label>
             <input value={ttsPort} onChange={(e) => setTtsPort(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>本地 llama 端口（默认 8088）</label>
+            <input value={llamaPort} onChange={(e) => setLlamaPort(e.target.value)} />
           </div>
         </div>
         <label className="switch">

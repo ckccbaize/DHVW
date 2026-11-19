@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import type { SceneJobView, SceneOutputView, SceneRequestView } from '../../shared/types'
+import type { SceneJobView, SceneOutputView, SceneRequestView, SettingsView } from '../../shared/types'
+import { PersonaStudio } from './PersonaStudio'
 
 const KINDS = [
   { value: 'indoor', label: '室内场景' },
@@ -22,11 +23,19 @@ function pushStateOf(output: SceneOutputView): { text: string; cls: string } {
   return { text: '未推送', cls: '' }
 }
 
+type AgentSubTab = 'maps' | 'persona'
+
 /**
- * Agent 页：把「你自己设计的地图」交给场景任务（编排器拉起 agent + 地图 skill）。
- * 页面只负责收集参数、展示任务与产物；任何失败原因原样显示。
+ * Agent 页：含「地图绘制」与「角色人设与 L0 记忆」两个子导航页面。
  */
-export function AgentView(): React.ReactElement {
+export function AgentView({
+  settings,
+  onSettingsChange,
+}: {
+  settings?: SettingsView | null
+  onSettingsChange?: (next: SettingsView) => void
+}): React.ReactElement {
+  const [subTab, setSubTab] = useState<AgentSubTab>('maps')
   const [kind, setKind] = useState('indoor')
   const [name, setName] = useState('')
   const [seed, setSeed] = useState('')
@@ -43,9 +52,11 @@ export function AgentView(): React.ReactElement {
   const [listError, setListError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [deleteBusy, setDeleteBusy] = useState<string | null>(null)
   const [openLog, setOpenLog] = useState<string | null>(null)
   const [armPreview, setArmPreview] = useState<{ url: string | null; error?: string } | null>(null)
   const [previewScene, setPreviewScene] = useState<{ id: string; label: string } | null>(null)
+  const localLlm = settings?.llmMode === 'local'
 
   useEffect(() => {
     void window.dhvw.armPreview().then(setArmPreview)
@@ -113,6 +124,23 @@ export function AgentView(): React.ReactElement {
     await refresh()
   }
 
+  const deleteJob = async (id: string): Promise<void> => {
+    if (!window.confirm(`删除场景任务 ${id}？运行中的任务会先终止 agent。`)) return
+    setDeleteBusy(id)
+    setListError(null)
+    try {
+      const res = await window.dhvw.sceneDelete(id)
+      if (!res.ok) {
+        setListError(`${id}：${res.error ?? '删除失败'}`)
+        return
+      }
+      if (previewScene?.id === id) setPreviewScene(null)
+      await refresh()
+    } finally {
+      setDeleteBusy(null)
+    }
+  }
+
   const submit = async (): Promise<void> => {
     setBusy(true)
     setSubmitError(null)
@@ -140,14 +168,37 @@ export function AgentView(): React.ReactElement {
   }
 
   return (
-    <div className="agent-grid">
+    <div className="agent-wrap">
+      <div className="subnav" role="tablist" aria-label="Agent 功能子导航">
+        <button
+          type="button"
+          className={subTab === 'maps' ? 'active' : ''}
+          onClick={() => setSubTab('maps')}
+        >
+          地图绘制
+        </button>
+        <button
+          type="button"
+          className={subTab === 'persona' ? 'active' : ''}
+          onClick={() => setSubTab('persona')}
+        >
+          角色人设与 L0 记忆
+        </button>
+      </div>
+      {subTab === 'persona' ? (
+        <PersonaStudio settings={settings ?? null} onSettingsChange={onSettingsChange} />
+      ) : (
+        <div className="agent-grid">
       <section className="panel agent-form">
         <h2>设计一张地图</h2>
         <p className="hint">一个场景就是一张连续地图；生成走世界模式的同一套地图逻辑，PC 只出包、不渲染。</p>
+        {localLlm && (
+          <p className="msg bad">当前使用本地 LLM，地图生成不开放；切回云端 API 后可继续。</p>
+        )}
         <div className="row2">
           <div className="field">
             <label>场景类型</label>
-            <select value={kind} onChange={(e) => setKind(e.target.value)}>
+            <select value={kind} disabled={localLlm} onChange={(e) => setKind(e.target.value)}>
               {KINDS.map((k) => (
                 <option key={k.value} value={k.value}>
                   {k.label}
@@ -157,23 +208,24 @@ export function AgentView(): React.ReactElement {
           </div>
           <div className="field">
             <label>名称（留空由 agent 命名）</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} spellCheck={false} placeholder="如 小仓的家" />
+            <input value={name} disabled={localLlm} onChange={(e) => setName(e.target.value)} spellCheck={false} placeholder="如 小仓的家" />
           </div>
         </div>
         <div className="row2">
           <div className="field">
             <label>种子（可复现）</label>
-            <input value={seed} onChange={(e) => setSeed(e.target.value)} spellCheck={false} placeholder="留空随机" />
+            <input value={seed} disabled={localLlm} onChange={(e) => setSeed(e.target.value)} spellCheck={false} placeholder="留空随机" />
           </div>
           <div className="field">
             <label>距家距离（米，室外用）</label>
-            <input value={distance} onChange={(e) => setDistance(e.target.value)} inputMode="numeric" placeholder="如 200" />
+            <input value={distance} disabled={localLlm} onChange={(e) => setDistance(e.target.value)} inputMode="numeric" placeholder="如 200" />
           </div>
         </div>
         <div className="field">
           <label>额外要求</label>
           <textarea
             value={note}
+            disabled={localLlm}
             onChange={(e) => setNote(e.target.value)}
             rows={3}
             spellCheck={false}
@@ -182,7 +234,7 @@ export function AgentView(): React.ReactElement {
         </div>
         {submitError && <p className="msg bad">{submitError}</p>}
         <div className="actions">
-          <button className="primary" disabled={busy} onClick={() => void submit()}>
+          <button className="primary" disabled={busy || localLlm} onClick={() => void submit()}>
             {busy ? '提交中…' : '开始生成'}
           </button>
           <button onClick={() => void refresh()}>刷新任务</button>
@@ -245,7 +297,7 @@ export function AgentView(): React.ReactElement {
                   {STATE_TEXT[r.state] ?? r.state}
                 </span>
                 {r.job && <span className="job-meta mono">作业 {r.job}</span>}
-                <button disabled={r.state === 'running' || r.state === 'queued'} onClick={() => void retry(r.id)}>
+                <button disabled={localLlm || r.state === 'running' || r.state === 'queued'} onClick={() => void retry(r.id)}>
                   重试
                 </button>
               </div>
@@ -277,12 +329,15 @@ export function AgentView(): React.ReactElement {
                   </button>
                 )}
                 {j.state === 'failed' && (
-                  <button className="primary" onClick={() => void retryJob(j.id)}>
+                  <button className="primary" disabled={localLlm} onClick={() => void retryJob(j.id)}>
                     继续重试
                   </button>
                 )}
                 <button onClick={() => setOpenLog(openLog === j.id ? null : j.id)}>
                   {openLog === j.id ? '收起' : '日志'}
+                </button>
+                <button disabled={deleteBusy === j.id} onClick={() => void deleteJob(j.id)}>
+                  {deleteBusy === j.id ? '删除中…' : '删除'}
                 </button>
               </div>
               <div className="job-meta mono">
@@ -341,6 +396,8 @@ export function AgentView(): React.ReactElement {
               <div className="empty">{armPreview?.error ?? 'ARM 预览服务未就绪'}</div>
             )}
           </div>
+        </div>
+      )}
         </div>
       )}
     </div>

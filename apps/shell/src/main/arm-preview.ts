@@ -1,4 +1,5 @@
 import http, { createServer, type Server } from 'node:http'
+import https from 'node:https'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -20,6 +21,11 @@ const MIME: Record<string, string> = {
 let server: Server | null = null
 let baseUrl: string | null = null
 
+export function getArmPreviewPort(): number {
+  const addr = server?.address()
+  return addr && typeof addr === 'object' ? addr.port : 0
+}
+
 export function resolveArmWwwDir(candidates: string[]): string | null {
   for (const cand of candidates) {
     if (cand && fs.existsSync(path.join(cand, 'preview.html')) && fs.existsSync(path.join(cand, 'js', 'view', 'overview.js'))) {
@@ -32,6 +38,7 @@ export function resolveArmWwwDir(candidates: string[]): string | null {
 export async function startArmPreviewServer(
   root: string,
   getOrchestratorPort: () => number,
+  getCaPem?: () => string,
 ): Promise<string | null> {
   if (baseUrl) return baseUrl
   if (!fs.existsSync(path.join(root, 'preview.html'))) return null
@@ -39,6 +46,51 @@ export async function startArmPreviewServer(
   const resolvedRoot = path.resolve(root)
   server = createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1')
+    if (url.pathname === '/__llm/chat/completions' && req.method === 'POST') {
+      const chunks: Buffer[] = []
+      let size = 0
+      req.on('data', (c: Buffer) => {
+        size += c.length
+        if (size <= 8 << 20) chunks.push(c)
+      })
+      req.on('end', () => {
+        try {
+          const wrapper = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
+            baseUrl?: string
+            apiKey?: string
+            body?: unknown
+          }
+          const target = new URL(String(wrapper.baseUrl || '').replace(/\/+$/, '') + '/chat/completions')
+          const mod = target.protocol === 'https:' ? https : http
+          const ca = target.protocol === 'https:' ? getCaPem?.() || undefined : undefined
+          const payload = JSON.stringify(wrapper.body ?? {})
+          const up = mod.request(
+            target,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(payload),
+                ...(wrapper.apiKey ? { Authorization: `Bearer ${wrapper.apiKey}` } : {}),
+              },
+              ...(ca ? { ca } : {}),
+            },
+            (upRes) => {
+              res.writeHead(upRes.statusCode ?? 502, {
+                'content-type': upRes.headers['content-type'] ?? 'application/json',
+                'cache-control': 'no-store',
+              })
+              upRes.pipe(res)
+            },
+          )
+          up.on('error', () => res.writeHead(502, { 'content-type': 'application/json' }).end('{"error":"upstream_unreachable"}'))
+          up.end(payload)
+        } catch {
+          res.writeHead(400).end('bad request')
+        }
+      })
+      return
+    }
     // 根路径给完整 ARM 页面（浏览器一键配对测试），场景预览仍走 /preview.html
     const rel = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname)
     const file = path.resolve(resolvedRoot, '.' + rel)

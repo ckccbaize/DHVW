@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import path from 'node:path'
+import type { LlmMode, LlmProfile, LlmProtocol } from '../shared/types'
 import { dataDir } from './paths'
 import { log } from './logger'
 
@@ -7,12 +8,20 @@ export interface ShellConfig {
   pythonPath: string
   autoLaunch: boolean
   window: { width: number; height: number }
-  llm: { baseUrl: string; model: string; temperature: number; protocol: 'openai-compatible' | 'anthropic' }
+  llmMode: LlmMode
+  llmApi: LlmProfile
+  llm: { baseUrl: string; model: string; temperature: number; protocol: LlmProtocol }
   /** 固定端口（0 = 自动分配），用于对接外部工具或防火墙放行 */
-  ports: { olvt: number; tts: number; orchestrator: number }
+  ports: { olvt: number; tts: number; orchestrator: number; llama: number }
   asr: { enabled: boolean }
   /** OLVT 后端：dir 为空时用组件目录；其余项直接写进生成的 conf.yaml */
-  olvt: { dir: string; characterName: string; humanName: string; personaPrompt: string }
+  olvt: {
+    dir: string
+    characterName: string
+    humanName: string
+    personaPrompt: string
+    personaCard?: import('../shared/types').CharacterCardData | null
+  }
   /** GPT-SoVITS：backendDir 为本机后端目录（含 api_v2.py 与 runtime/python.exe），留空则用占位 worker */
   tts: { backendDir: string; refAudioPath: string; refText: string; refLang: string; textLang: string }
   /** 局域网网关：自签证书 + HTTPS/WSS 反代，端口固定便于设备记住地址 */
@@ -50,18 +59,32 @@ export interface ShellConfig {
   services: Record<string, { enabled: boolean }>
 }
 
+const DEFAULT_LLM: LlmProfile = {
+  baseUrl: 'https://codex.mintcat.work',
+  model: '',
+  temperature: 0.7,
+  protocol: 'openai-compatible',
+}
+
+const isLoopbackHostUrl = (url: string): boolean =>
+  /^https?:\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0)(:|\/|$)/i.test(url.trim())
+
 const DEFAULTS: ShellConfig = {
   pythonPath: '',
   autoLaunch: false,
   window: { width: 1020, height: 720 },
-  llm: { baseUrl: 'https://codex.mintcat.work', model: '', temperature: 0.7, protocol: 'openai-compatible' },
-  ports: { olvt: 0, tts: 0, orchestrator: 8877 },
+  llmMode: 'api',
+  llmApi: { ...DEFAULT_LLM },
+  llm: { ...DEFAULT_LLM },
+  ports: { olvt: 0, tts: 0, orchestrator: 8877, llama: 8089 },
   asr: { enabled: true },
   olvt: {
     dir: '',
     characterName: '小仓',
     humanName: '主人',
-    personaPrompt: '你是住在数字人虚拟仓里的小仓，语气自然、口语化，回答简短。不要使用 Markdown，不要输出括号里的动作描写。',
+    personaPrompt:
+      '你是住在数字人虚拟仓里的小仓，语气自然、口语化，回答简短。每次换不同开头接话，不固定用同一口癖或尾音，也不要主动重复提虚拟仓。不要使用 Markdown，不要输出括号里的动作描写。',
+    personaCard: null,
   },
   tts: { backendDir: '', refAudioPath: '', refText: '', refLang: 'ja', textLang: 'zh' },
   gateway: { enabled: true, port: 8443 },
@@ -118,11 +141,25 @@ export function loadConfig(): ShellConfig {
     const row = conn.prepare('select value from kv where key = ?').get('shell') as { value?: string } | undefined
     if (!row?.value) return structuredClone(DEFAULTS)
     const raw = JSON.parse(row.value) as Partial<ShellConfig>
+    const llm = { ...DEFAULTS.llm, ...raw.llm }
+    const llmMode: LlmMode =
+      raw.llmMode === 'local' || raw.llmMode === 'api'
+        ? raw.llmMode
+        : isLoopbackHostUrl(llm.baseUrl) && (llm.model.includes('nemotron') || Boolean(raw.llmApi))
+          ? 'local'
+          : 'api'
+    const llmApi: LlmProfile = raw.llmApi
+      ? { ...DEFAULTS.llmApi, ...raw.llmApi }
+      : llmMode === 'api'
+        ? { ...llm }
+        : { ...DEFAULTS.llmApi }
     return {
       ...DEFAULTS,
       ...raw,
       window: { ...DEFAULTS.window, ...raw.window },
-      llm: { ...DEFAULTS.llm, ...raw.llm },
+      llmMode,
+      llmApi,
+      llm,
       ports: { ...DEFAULTS.ports, ...raw.ports },
       asr: { ...DEFAULTS.asr, ...raw.asr },
       olvt: { ...DEFAULTS.olvt, ...raw.olvt },

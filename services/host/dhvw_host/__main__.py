@@ -248,6 +248,7 @@ class Worker:
         self.health_mode: str = spec.get("healthMode") or "http"
         # 慢启动服务（GPU 模型加载等）可以配更长；超时只告警一次，之后继续探测
         self.health_timeout: float = float(spec.get("healthTimeout") or HEALTH_TIMEOUT)
+        self.auto_start: bool = bool(spec.get("autoStart", True))
         self.healthy: bool | None = None
         self.services_root = services_root
         self.log_dir = log_dir
@@ -489,7 +490,8 @@ def main(argv: list[str]) -> int:
         return 2
 
     for w in workers:
-        w.start()
+        if w.auto_start:
+            w.start()
     emit({"ts": round(time.time() * 1000), "type": "host.ready", "shell_pid": ns.shell_pid,
           "workers": [w.snapshot() for w in workers]})
     log.write("info", "host ready", shell_pid=ns.shell_pid)

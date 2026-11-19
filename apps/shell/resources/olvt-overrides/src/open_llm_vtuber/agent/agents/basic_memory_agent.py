@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 from typing import (
     AsyncIterator,
     List,
@@ -57,6 +58,8 @@ class BasicMemoryAgent(AgentInterface):
         super().__init__()
         self._memory = []
         self._dhvw_extracted_idx = 0
+        self._dhvw_turn_count = 0
+        self._dhvw_last_proactive = False
         self._live2d_model = live2d_model
         self._tts_preprocessor_config = tts_preprocessor_config
         self._faster_first_response = faster_first_response
@@ -122,6 +125,19 @@ class BasicMemoryAgent(AgentInterface):
 
     def set_system(self, system: str):
         """Set the system prompt."""
+        # [DHVW 补丁] 当前模型 emotionMap 为空时，去掉 upstream 注入的 [expression1] 示例段，避免模型每句原样输出占位标签
+        emo_map = getattr(self._live2d_model, "emo_map", None) or {}
+        if not emo_map and system:
+            system = re.sub(
+                r"\n*##\s*Expressions[\s\S]*?Remember to include the brackets `\[\]`\s*",
+                "\n",
+                system,
+                flags=re.IGNORECASE,
+            ).strip()
+            system = (
+                f"{system}\n\n禁止在回复中输出任何方括号标签（例如 [expression1]、[happy] 等）。"
+            )
+
         logger.debug(f"Memory Agent: Setting system prompt: '''{system}'''")
 
         if self.interrupt_method == "user":
@@ -597,22 +613,32 @@ class BasicMemoryAgent(AgentInterface):
             return cur[:120]
         return f"{prev[-80:]} {cur}"[:120]
 
-    async def _fetch_dhvw_memory_block(self, query: str) -> Optional[str]:
-        """[DHVW 补丁] 从编排器向量库拉取本轮相关记忆与近况（ADR-PC-004）。"""
+    async def _fetch_dhvw_memory_block(
+        self, query: str, turn: int = 0, proactive: bool = False
+    ) -> Optional[str]:
+        """[DHVW 补丁] 从编排器向量库拉取本轮相关记忆与节流后的近况（ADR-PC-004）。"""
         base = (os.getenv("DHVW_ORCHESTRATOR_URL") or "http://127.0.0.1:8877").rstrip("/")
         q = query.strip()
         if not q:
             return None
         try:
             async with httpx.AsyncClient(timeout=0.35) as client:
-                resp = await client.get(f"{base}/dhvw/memory/context", params={"q": q, "k": 5})
+                resp = await client.get(
+                    f"{base}/dhvw/memory/context",
+                    params={
+                        "q": q,
+                        "k": 5,
+                        "turn": max(0, int(turn)),
+                        "proactive": 1 if proactive else 0,
+                    },
+                )
                 if resp.status_code != 200:
                     return None
                 data = resp.json()
                 block = str(data.get("block") or "").strip()
                 if not block:
                     return None
-                return f"[长期记忆与近况参考——仅供自然衔接，不要生硬复述]\n{block}"
+                return f"[长期记忆与背景参考——仅供自然衔接，不要生硬复述或强行改变当前话题]\n{block}"
         except Exception as exc:
             logger.debug(f"[DHVW] 记忆检索跳过: {exc}")
             return None
@@ -653,16 +679,26 @@ class BasicMemoryAgent(AgentInterface):
             self.reset_interrupt()
             self.prompt_mode_flag = False
 
+            meta = input_data.metadata or {}
+            is_proactive = bool(meta.get("proactive_speak", False))
+            skip_memory = bool(meta.get("skip_memory", False))
+            if not is_proactive:
+                self._dhvw_turn_count += 1
+                self._dhvw_last_proactive = False
+
             messages = self._to_messages(input_data)
             user_text = self._to_text_prompt(input_data)
-            query_text = self._build_dhvw_query(user_text) if user_text else ""
-            mem_block = await self._fetch_dhvw_memory_block(query_text) if query_text else None
-            if mem_block:
-                mem_msg = {"role": "user", "content": mem_block}
-                if messages and messages[-1].get("role") == "user":
-                    messages.insert(-1, mem_msg)
-                else:
-                    messages.append(mem_msg)
+            # 主动说话轮已有 ProactiveScheduler 独立编排上下文，避免再次向模型注入双份状态与 L0
+            mem_block: Optional[str] = None
+            if user_text and not is_proactive:
+                query_text = self._build_dhvw_query(user_text)
+                mem_block = await self._fetch_dhvw_memory_block(
+                    query_text,
+                    turn=self._dhvw_turn_count,
+                    proactive=False,
+                )
+            # 记忆/背景拼进本轮 system 提示，不再插成贴近用户输入的伪 user 消息（避免把状态当话题）
+            turn_system = f"{self._system}\n\n{mem_block}" if mem_block else self._system
             tools = None
             tool_mode = None
             llm_supports_native_tools = False
@@ -691,24 +727,36 @@ class BasicMemoryAgent(AgentInterface):
                 logger.debug(
                     f"Starting Claude tool interaction loop with {len(tools)} tools."
                 )
-                async for output in self._claude_tool_interaction_loop(
-                    messages, tools if tools else []
-                ):
-                    yield output
+                saved_sys = self._system
+                self._system = turn_system
+                try:
+                    async for output in self._claude_tool_interaction_loop(
+                        messages, tools if tools else []
+                    ):
+                        yield output
+                finally:
+                    self._system = saved_sys
                 return
             elif self._use_mcpp and tool_mode == "OpenAI":
                 logger.debug(
                     f"Starting OpenAI tool interaction loop with {len(tools)} tools."
                 )
-                async for output in self._openai_tool_interaction_loop(
-                    messages, tools if tools else []
-                ):
-                    yield output
+                saved_sys = self._system
+                self._system = turn_system
+                try:
+                    async for output in self._openai_tool_interaction_loop(
+                        messages, tools if tools else []
+                    ):
+                        yield output
+                finally:
+                    self._system = saved_sys
                 return
             else:
                 logger.info("Starting simple chat completion.")
-                token_stream = self._llm.chat_completion(messages, self._system)
+                token_stream = self._llm.chat_completion(messages, turn_system)
                 complete_response = ""
+                strip_fake_expr = not bool(getattr(self._live2d_model, "emo_map", None))
+                tag_buf = ""
                 async for event in token_stream:
                     text_chunk = ""
                     if isinstance(event, dict) and event.get("type") == "text_delta":
@@ -717,12 +765,74 @@ class BasicMemoryAgent(AgentInterface):
                         text_chunk = event
                     else:
                         continue
-                    if text_chunk:
+                    if not text_chunk:
+                        continue
+                    if strip_fake_expr:
+                        tag_buf += text_chunk
+                        # 仅当遇到 '[' 时短缓冲等待 ']'，其余文本零延迟直出
+                        while True:
+                            lbr = tag_buf.find("[")
+                            if lbr < 0:
+                                emit = tag_buf
+                                tag_buf = ""
+                                if emit:
+                                    yield emit
+                                    complete_response += emit
+                                break
+                            if lbr > 0:
+                                emit = tag_buf[:lbr]
+                                tag_buf = tag_buf[lbr:]
+                                yield emit
+                                complete_response += emit
+                            rbr = tag_buf.find("]")
+                            if rbr < 0:
+                                if len(tag_buf) > 24:
+                                    emit = tag_buf
+                                    tag_buf = ""
+                                    yield emit
+                                    complete_response += emit
+                                break
+                            candidate = tag_buf[: rbr + 1]
+                            tag_buf = tag_buf[rbr + 1 :]
+                            if re.fullmatch(r"\[(?:expression\d*|[a-zA-Z_]{1,18})\]", candidate, re.I):
+                                # 丢弃伪表情占位符及其紧跟的单空格
+                                if tag_buf.startswith(" "):
+                                    tag_buf = tag_buf[1:]
+                            else:
+                                yield candidate
+                                complete_response += candidate
+                    else:
                         yield text_chunk
                         complete_response += text_chunk
+                if tag_buf:
+                    cleaned_tail = (
+                        re.sub(r"\[(?:expression\d*|[a-zA-Z_]{1,18})\]\s*", "", tag_buf, flags=re.I)
+                        if strip_fake_expr
+                        else tag_buf
+                    )
+                    if cleaned_tail:
+                        yield cleaned_tail
+                        complete_response += cleaned_tail
                 if complete_response:
-                    self._add_message(complete_response, "assistant")
-                    self._schedule_dhvw_extract()
+                    if is_proactive or skip_memory:
+                        # 保持角色轮次严格交替，且连续未回应的主动发言只保留最新一条避免堆叠自言自语
+                        if (
+                            self._dhvw_last_proactive
+                            and len(self._memory) >= 2
+                            and self._memory[-1].get("role") == "assistant"
+                        ):
+                            self._memory[-1]["content"] = complete_response
+                        else:
+                            if self._memory and self._memory[-1].get("role") == "assistant":
+                                self._memory.append(
+                                    {"role": "user", "content": "[安静了一会儿，她自己随口找了个话头]"}
+                                )
+                            self._add_message(complete_response, "assistant")
+                            self._dhvw_last_proactive = True
+                    else:
+                        self._add_message(complete_response, "assistant")
+                        self._dhvw_last_proactive = False
+                        self._schedule_dhvw_extract()
 
         return chat_with_memory
 

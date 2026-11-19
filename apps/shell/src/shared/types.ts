@@ -65,6 +65,8 @@ export interface ServiceDef {
   healthMode?: 'http' | 'tcp'
   /** 就绪探测超时（秒）：慢启动服务可放宽，超时后仍继续探测 */
   healthTimeout?: number
+  /** false = 注册在服务表里但开机不自动拉起，按需手动或切换时启动 */
+  autoStart?: boolean
 }
 
 export type LlmProtocol = 'openai-compatible' | 'anthropic'
@@ -89,6 +91,15 @@ export interface QqBotStatusView {
   error?: string
 }
 
+export type LlmMode = 'api' | 'local'
+
+export interface LlmProfile {
+  baseUrl: string
+  model: string
+  temperature: number
+  protocol: LlmProtocol
+}
+
 export interface SettingsView {
   /** 老配置库没有这个键，渲染层必须按可选处理 */
   boost?: { enabled: boolean }
@@ -100,8 +111,12 @@ export interface SettingsView {
     stickerEagerness: number
     hasSecret: boolean
   }
+  llmMode: LlmMode
+  llmApi: LlmProfile
+  localLlmReady: boolean
+  localLlmModel: string
   llm: { baseUrl: string; model: string; temperature: number; protocol: LlmProtocol; hasKey: boolean }
-  ports: { olvt: number; tts: number }
+  ports: { olvt: number; tts: number; llama: number }
   asr: { enabled: boolean; ready: boolean }
   /** Live2D 模型 id：PC 舞台与 OLVT 共用（模型库见 resources/live2d/models 与组件的 live2d-models） */
   live2d: { model: string }
@@ -116,14 +131,21 @@ export interface SettingsView {
     quietStart: string
     quietEnd: string
   }
-  olvt: { characterName: string; humanName: string; personaPrompt: string }
+  olvt: {
+    characterName: string
+    humanName: string
+    personaPrompt: string
+    personaCard?: CharacterCardData | null
+  }
   tts: { backendDir: string; refAudioPath: string; refText: string; refLang: string; textLang: string }
   gateway: { enabled: boolean; port: number }
 }
 
 export interface SettingsPatch {
+  llmMode?: LlmMode
+  llmApi?: Partial<LlmProfile>
   llm?: Partial<{ baseUrl: string; model: string; temperature: number; protocol: LlmProtocol }>
-  ports?: Partial<{ olvt: number; tts: number }>
+  ports?: Partial<{ olvt: number; tts: number; llama: number }>
   asr?: Partial<{ enabled: boolean }>
   live2d?: Partial<{ model: string }>
   scene?: Partial<{ autoPush: boolean }>
@@ -136,7 +158,12 @@ export interface SettingsPatch {
     quietStart: string
     quietEnd: string
   }>
-  olvt?: Partial<{ characterName: string; humanName: string; personaPrompt: string }>
+  olvt?: Partial<{
+    characterName: string
+    humanName: string
+    personaPrompt: string
+    personaCard: CharacterCardData | null
+  }>
   tts?: Partial<{ backendDir: string; refAudioPath: string; refText: string; refLang: string; textLang: string }>
   gateway?: Partial<{ enabled: boolean; port: number }>
 }
@@ -156,6 +183,12 @@ export interface ComponentStatus {
   progress?: number
   path?: string
   error?: string
+  /** 附加说明（如本地 llama 引擎路径与调优参数摘要） */
+  detail?: string
+  /** 是否支持打开组件目录（方便手动放入模型文件） */
+  canOpenFolder?: boolean
+  /** 本地大模型是否已具备推理引擎并可一键切换为当前对话后端 */
+  canActivateLocalLlm?: boolean
 }
 
 export interface ComponentProgress {
@@ -186,6 +219,7 @@ export interface GatewayPairResult {
   ok: boolean
   token?: string
   wsUrl?: string
+  armUrl?: string
   name?: string
   error?: string
 }
@@ -414,4 +448,74 @@ export interface PathPickResult {
 export interface ActionRequest {
   id: string
   action: 'start' | 'stop' | 'restart'
+}
+
+/** 兼容酒馆（SillyTavern V1/V2/V3）的结构化角色卡数据 */
+export interface CharacterCardData {
+  name: string
+  description: string
+  personality: string
+  scenario: string
+  first_mes: string
+  mes_example: string
+  system_prompt: string
+  post_history_instructions: string
+  creator_notes: string
+  tags: string[]
+  creator: string
+  character_version: string
+  spec?: 'chara_card_v2' | 'chara_card_v3'
+  avatarDataUrl?: string
+  sources?: Array<{ title: string; url: string }>
+}
+
+export interface PersonaCardImportResult {
+  ok: boolean
+  error?: string
+  card?: CharacterCardData
+  compiledPrompt?: string
+  suggestedL0?: Array<{ id?: string; text: string; importance?: number }>
+  specDetected?: string
+}
+
+export interface PersonaGenerateInput {
+  query: string
+  humanName?: string
+  extraPrompt?: string
+  autoApply?: boolean
+}
+
+export interface PersonaJobResultView {
+  card: CharacterCardData
+  compiledPrompt: string
+  l0Memories: Array<{ id: string; text: string; tier: 'L0'; importance: number }>
+  summary: string
+  sources: Array<{ title: string; url: string }>
+}
+
+export interface PersonaJobView {
+  id: string
+  query: string
+  humanName: string
+  extraPrompt: string
+  autoApply: boolean
+  status: 'queued' | 'running' | 'done' | 'error'
+  stage: string
+  createdAt: number
+  startedAt: number | null
+  finishedAt: number | null
+  error: string | null
+  result: PersonaJobResultView | null
+  logTail: string[]
+}
+
+export interface MemoryFactView {
+  id: string
+  text: string
+  tier: 'L0' | 'L1' | 'L2' | string
+  src: string
+  stability: number
+  importance: number
+  ts: number
+  updatedAt: number
 }

@@ -14,14 +14,20 @@ import {
   modelUrlPath,
   type Live2dModelRef,
 } from './live2d-models'
-import { resolveArmWwwDir, startArmPreviewServer, stopArmPreviewServer } from './arm-preview'
+import { getArmPreviewPort, resolveArmWwwDir, startArmPreviewServer, stopArmPreviewServer } from './arm-preview'
 import type {
   ActionRequest,
   AppSnapshot,
   ArmConsoleResult,
+  CharacterCardData,
   Live2dModelView,
+  LlmMode,
   MemoryCurveView,
+  MemoryFactView,
   MemoryStatsView,
+  PersonaCardImportResult,
+  PersonaGenerateInput,
+  PersonaJobView,
   ProactiveStateView,
   PathPickArgs,
   QqBotStatusView,
@@ -36,6 +42,13 @@ import type {
   WorkTier,
   WorldView,
 } from '../shared/types'
+import {
+  buildTavernPng,
+  compilePersonaPrompt,
+  parseTavernJson,
+  parseTavernPng,
+  toSillyTavernV2Json,
+} from './persona-card'
 import { createTray } from './tray'
 import { applyNetworkHardening, hardenSessionSetup } from './hardening'
 import { listModels, probeLlm } from './network'
@@ -44,6 +57,16 @@ import { clearApiKey, hasApiKey, hasQqSecret, readApiKey, readQqSecret, saveApiK
 import { asrModelPaths, prepareOlvt, resolveOlvtDir, syncOlvtModel } from './olvt'
 import { Gateway, type GatewayTarget } from './gateway'
 import { pairArmDevice, scanArmDevices } from './arm-pair'
+import {
+  buildNemotronLlamaArgs,
+  isLoopbackUrl,
+  NEMOTRON_MODEL_ID,
+  NEMOTRON_RECOMMENDED_TEMP,
+  preferredLlamaDir,
+  resolveLlamaServer,
+  resolveNemotronMmproj,
+  resolveNemotronModel,
+} from './local-llm'
 
 applyNetworkHardening()
 
@@ -62,7 +85,12 @@ let quitting = false
 /** 编排器端口（0 = 还没分配）；设备通道与配置下发都靠它 */
 let orchestratorPort = 0
 let olvtServicePort = 0
+let llamaServicePort = 0
+let allocatedPorts: number[] = []
 let refreshTimer: NodeJS.Timeout | null = null
+
+const effectiveApiKey = (baseUrl: string): string =>
+  readApiKey() || (isLoopbackUrl(baseUrl) ? 'local-llama' : '')
 
 /**
  * 把外壳侧的事实推给编排器：TTS 是否就绪（决定 present:grant/deny）、LLM 端点与密钥
@@ -88,9 +116,10 @@ async function pushOrchestratorConfig(): Promise<boolean> {
     autoPushScene: config.scene.autoPush,
     proactive: { ...config.proactive },
     llm: {
+      mode: config.llmMode,
       baseUrl: config.llm.baseUrl,
       model: config.llm.model || undefined,
-      apiKey: readApiKey() || undefined,
+      apiKey: effectiveApiKey(config.llm.baseUrl) || undefined,
     },
   }
   try {
@@ -574,7 +603,79 @@ const SERVICE_CATALOG: Array<Omit<ServiceDef, 'port'>> = [
   { id: 'tts', name: '语音合成', module: 'dhvw_worker', args: ['--name', 'tts'], healthPath: '/health' },
   { id: 'waketrace', name: '唤醒词', module: 'dhvw_worker', args: ['--name', 'waketrace'], healthPath: '/health' },
   { id: 'orchestrator', name: '编排器', module: 'dhvw_orchestrator', args: [], healthPath: '/health' },
+  { id: 'llama', name: '本地推理 (llama)', module: 'dhvw_worker', args: ['--name', 'llama'], healthPath: '/health', autoStart: false },
 ]
+
+function buildRuntimeServices(ports: number[]): ServiceDef[] {
+  const olvtDir = resolveOlvtDir(config.sidecars.olvt?.cwd || config.olvt.dir)
+  const ttsOverride = config.sidecars.tts
+  const ttsDir = (ttsOverride?.cwd || config.tts.backendDir || '').trim()
+  const ttsPython = ttsDir ? path.join(ttsDir, 'runtime', 'python.exe') : ''
+  const llamaServer = resolveLlamaServer()
+  const nemotronModel = resolveNemotronModel()
+  const portOf = (id: string): number => ports[SERVICE_CATALOG.findIndex((s) => s.id === id)] ?? 0
+
+  return SERVICE_CATALOG.map((svc, i) => {
+    const override = config.sidecars[svc.id]
+    const port = ports[i] ?? 0
+    if (svc.id === 'tts' && ttsDir) {
+      return {
+        ...svc,
+        command: override?.command ?? [
+          fs.existsSync(ttsPython) ? ttsPython : resolvePython(),
+          'api_v2.py',
+          '-a',
+          '127.0.0.1',
+          '-p',
+          '{port}',
+        ],
+        cwd: ttsDir,
+        env: { ...override?.env },
+        healthMode: 'tcp',
+        healthPath: undefined,
+        // 模型加载 12–60 s，超时告警后继续探测
+        healthTimeout: 180,
+        port,
+      }
+    }
+    if (svc.id === 'olvt' && olvtDir) {
+      return {
+        ...svc,
+        command: override?.command ?? [resolvePython(), 'run_server.py'],
+        cwd: olvtDir,
+        env: {
+          ...override?.env,
+          PYTHONUNBUFFERED: '1',
+          // 思考模型默认带 reasoning_content，首字多 1–2 s 且内容无法出声
+          OLVT_LLM_EXTRA_BODY: '{"reasoning_effort":"none"}',
+          DHVW_ORCHESTRATOR_URL: `http://127.0.0.1:${portOf('orchestrator')}`,
+        },
+        healthMode: 'tcp',
+        healthPath: undefined,
+        healthTimeout: 180,
+        port,
+      }
+    }
+    if (svc.id === 'llama') {
+      const nemotronMmproj = resolveNemotronMmproj()
+      if (override?.command || (llamaServer && nemotronModel)) {
+        return {
+          ...svc,
+          command: override?.command ?? [llamaServer!.exe, ...buildNemotronLlamaArgs(nemotronModel!.path, nemotronMmproj?.path)],
+          cwd: override?.cwd ?? llamaServer?.dir,
+          env: { ...override?.env },
+          healthMode: 'http',
+          healthPath: '/health',
+          healthTimeout: 90,
+          autoStart: config.llmMode === 'local' || isLoopbackUrl(config.llm.baseUrl),
+          port,
+        }
+      }
+      return { ...svc, autoStart: false, port }
+    }
+    return { ...svc, ...(override ?? {}), port }
+  })
+}
 
 /** 随包内置的 CPython（scripts/fetch-runtime.mjs 产出）；不存在则退回系统 Python。 */
 function bundledPython(): string {
@@ -601,6 +702,10 @@ function settingsView(): SettingsView {
   return {
     boost: { ...config.boost },
     qqBot: { ...config.qqBot, hasSecret: hasQqSecret() },
+    llmMode: config.llmMode,
+    llmApi: { ...config.llmApi },
+    localLlmReady: Boolean(resolveLlamaServer() && resolveNemotronModel()),
+    localLlmModel: NEMOTRON_MODEL_ID,
     llm: { ...config.llm, hasKey: hasApiKey() },
     ports: { ...config.ports },
     asr: { ...config.asr, ready: Boolean(asrModelPaths(config.asr.enabled).modelPath) },
@@ -748,7 +853,17 @@ function registerIpc(): void {
     const device = gateway.createDevice(name || '浏览器测试')
     const wsUrl = gateway.wsUrlFor(device.token)
     if (!wsUrl) return { ok: false, error: '网关没有局域网地址' }
-    return { ok: true, token: device.token, wsUrl, name: device.name }
+    const armPort = getArmPreviewPort()
+    let armUrl: string | undefined
+    if (armPort > 0) {
+      try {
+        const u = new URL(wsUrl)
+        armUrl = `https://${u.host}/arm/?token=${encodeURIComponent(device.token)}&host=${encodeURIComponent(wsUrl)}&remote=1`
+      } catch {
+        armUrl = undefined
+      }
+    }
+    return { ok: true, token: device.token, wsUrl, armUrl, name: device.name }
   })
   ipcMain.handle('dhvw:gatewayScan', () => scanArmDevices())
   ipcMain.handle('dhvw:gatewayPairArm', async (_e, req: { host?: string; name?: string }) => {
@@ -759,7 +874,7 @@ function registerIpc(): void {
     const device = gateway.createDevice(req?.name || `ARM ${host}`)
     const wsUrl = gateway.wsUrlFor(device.token, host)
     if (!wsUrl) return { ok: false, error: '网关没有局域网地址' }
-    const result = await pairArmDevice(host, wsUrl, device.name)
+    const result = await pairArmDevice(host, wsUrl, device.name, gateway.caPem)
     if (!result.ok) {
       gateway.forgetDevice(device.token)
       return { ok: false, error: result.error || '设备配对失败' }
@@ -788,6 +903,184 @@ function registerIpc(): void {
   ipcMain.handle('dhvw:scenePush', (_e, id: string) => pushScene(id))
   ipcMain.handle('dhvw:sceneJobRetry', (_e, id: string) => retrySceneJob(id))
   ipcMain.handle('dhvw:sceneDelete', (_e, id: string) => deleteSceneOutput(id))
+  ipcMain.handle('dhvw:personaImportCard', async (_e, filePath?: string): Promise<PersonaCardImportResult> => {
+    let target = String(filePath ?? '').trim()
+    if (!target) {
+      const opts: Electron.OpenDialogOptions = {
+        title: '选择酒馆角色卡（PNG / JSON）',
+        properties: ['openFile'],
+        filters: [{ name: '角色卡（PNG / JSON）', extensions: ['png', 'json'] }],
+      }
+      const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+      target = res.canceled ? '' : (res.filePaths[0] ?? '')
+    }
+    if (!target) return { ok: false, error: '已取消选择' }
+    try {
+      const ext = path.extname(target).toLowerCase()
+      const parsed =
+        ext === '.png'
+          ? parseTavernPng(fs.readFileSync(target))
+          : parseTavernJson(fs.readFileSync(target, 'utf8'))
+      if (parsed.ok && parsed.card) {
+        parsed.compiledPrompt = compilePersonaPrompt(parsed.card, config.olvt.humanName)
+      }
+      return parsed
+    } catch (e) {
+      return { ok: false, error: String(e) }
+    }
+  })
+  ipcMain.handle('dhvw:personaAvatar', async () => {
+    const opts: Electron.OpenDialogOptions = {
+      title: '选择角色卡 PNG 立绘底图',
+      properties: ['openFile'],
+      filters: [{ name: 'PNG 图片', extensions: ['png'] }],
+    }
+    const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+    const target = res.canceled ? '' : (res.filePaths[0] ?? '')
+    if (!target) return { ok: false }
+    try {
+      const buf = fs.readFileSync(target)
+      if (buf.length < 8 || !buf.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) {
+        return { ok: false, error: '请选择有效的 PNG 图片文件' }
+      }
+      return { ok: true, avatarDataUrl: `data:image/png;base64,${buf.toString('base64')}` }
+    } catch (e) {
+      return { ok: false, error: String(e) }
+    }
+  })
+  ipcMain.handle(
+    'dhvw:personaExportCard',
+    async (_e, req: { card: CharacterCardData; format?: 'png' | 'json' }) => {
+      if (!req?.card) return { ok: false, error: '缺少角色卡数据' }
+      const fmt = req.format === 'json' ? 'json' : 'png'
+      const safeName = (req.card.name || 'character').replace(/[\\/:*?"<>|]/g, '_').trim() || 'character'
+      const opts: Electron.SaveDialogOptions = {
+        title: fmt === 'png' ? '导出酒馆角色卡（PNG）' : '导出角色卡（JSON）',
+        defaultPath: `${safeName}.${fmt}`,
+        filters: [fmt === 'png' ? { name: 'PNG 角色卡', extensions: ['png'] } : { name: 'JSON 角色卡', extensions: ['json'] }],
+      }
+      const res = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts)
+      if (res.canceled || !res.filePath) return { ok: false, canceled: true }
+      try {
+        if (fmt === 'json') {
+          fs.writeFileSync(res.filePath, JSON.stringify(toSillyTavernV2Json(req.card), null, 2), 'utf8')
+        } else {
+          let basePng: Buffer | undefined
+          const dataUrl = req.card.avatarDataUrl || ''
+          const m = /^data:image\/png;base64,(.+)$/i.exec(dataUrl)
+          if (m?.[1]) basePng = Buffer.from(m[1], 'base64')
+          fs.writeFileSync(res.filePath, buildTavernPng(req.card, basePng))
+        }
+        return { ok: true, path: res.filePath }
+      } catch (e) {
+        return { ok: false, error: String(e) }
+      }
+    },
+  )
+  ipcMain.handle('dhvw:personaJobs', async (): Promise<{ ok: boolean; jobs: PersonaJobView[]; error?: string }> => {
+    const r = await orchJson<{ ok?: boolean; jobs?: PersonaJobView[]; error?: string }>('/dhvw/persona/jobs')
+    return { ok: Boolean(r.ok), jobs: r.jobs ?? [], error: r.error }
+  })
+  ipcMain.handle(
+    'dhvw:personaGenerate',
+    async (_e, input: PersonaGenerateInput): Promise<{ ok: boolean; job?: PersonaJobView; error?: string }> =>
+      orchJson('/dhvw/persona/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input ?? {}),
+      }),
+  )
+  ipcMain.handle('dhvw:personaStopJob', async (_e, jobId: string) =>
+    orchJson(`/dhvw/persona/jobs/${encodeURIComponent(String(jobId || ''))}/stop`, { method: 'POST' }),
+  )
+  ipcMain.handle('dhvw:personaRetryJob', async (_e, jobId: string) =>
+    orchJson(`/dhvw/persona/jobs/${encodeURIComponent(String(jobId || ''))}/retry`, { method: 'POST' }),
+  )
+  ipcMain.handle('dhvw:personaDeleteJob', async (_e, jobId: string) =>
+    orchJson(`/dhvw/persona/jobs/${encodeURIComponent(String(jobId || ''))}`, { method: 'DELETE' }),
+  )
+  ipcMain.handle(
+    'dhvw:personaApply',
+    async (
+      _e,
+      payload: {
+        card?: CharacterCardData | null
+        characterName: string
+        humanName?: string
+        personaPrompt: string
+        l0Facts?: Array<{ id?: string; text: string; importance?: number }>
+      },
+    ) => {
+      const charName = String(payload?.characterName ?? '').trim() || config.olvt.characterName
+      const humanName =
+        payload?.humanName !== undefined ? String(payload.humanName).trim() || '主人' : config.olvt.humanName
+      const personaPrompt = String(payload?.personaPrompt ?? '').trim() || config.olvt.personaPrompt
+      const olvtChanged =
+        charName !== config.olvt.characterName ||
+        humanName !== config.olvt.humanName ||
+        personaPrompt !== config.olvt.personaPrompt
+
+      const next: ShellConfig = {
+        ...config,
+        olvt: {
+          ...config.olvt,
+          characterName: charName,
+          humanName,
+          personaPrompt,
+          personaCard: payload?.card !== undefined ? payload.card : config.olvt.personaCard ?? null,
+        },
+      }
+      saveConfig(next)
+      config = next
+      if (olvtChanged) syncOlvtConfig(false)
+      void pushOrchestratorConfig()
+
+      let factsResult: Record<string, unknown> | null = null
+      const facts = Array.isArray(payload?.l0Facts)
+        ? payload.l0Facts
+            .map((f) => ({
+              ...(f.id ? { id: String(f.id) } : {}),
+              text: String(f.text || '').trim(),
+              tier: 'L0',
+              importance: Number.isFinite(Number(f.importance)) ? Number(f.importance) : 0.95,
+            }))
+            .filter((f) => Boolean(f.text))
+        : []
+      if (facts.length) {
+        factsResult = await orchJson('/dhvw/facts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ facts }),
+        })
+      }
+      log('info', 'persona', '已应用角色人设与核心记忆', {
+        characterName: charName,
+        olvtRestarted: olvtChanged,
+        l0Count: facts.length,
+      })
+      return { ok: true, settings: settingsView(), factsResult }
+    },
+  )
+  ipcMain.handle(
+    'dhvw:memoryFacts',
+    async (_e, tier = '', limit = 120): Promise<{ ok: boolean; facts: MemoryFactView[]; error?: string }> => {
+      const q = new URLSearchParams({ tier: String(tier || ''), limit: String(limit || 120) }).toString()
+      const r = await orchJson<{ ok?: boolean; facts?: MemoryFactView[]; error?: string }>(`/dhvw/memory/facts?${q}`)
+      return { ok: Boolean(r.ok), facts: r.facts ?? [], error: r.error }
+    },
+  )
+  ipcMain.handle(
+    'dhvw:memoryAddFacts',
+    async (_e, facts: Array<{ id?: string; text: string; tier?: string; importance?: number }>) =>
+      orchJson('/dhvw/facts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ facts: Array.isArray(facts) ? facts : [] }),
+      }),
+  )
+  ipcMain.handle('dhvw:memoryDeleteFact', async (_e, factId: string) =>
+    orchJson(`/dhvw/memory/facts/${encodeURIComponent(String(factId || ''))}`, { method: 'DELETE' }),
+  )
   ipcMain.handle('dhvw:setBoost', (_e, enabled: boolean) => {
     config = { ...config, boost: { enabled: Boolean(enabled) } }
     saveConfig(config)
@@ -902,26 +1195,35 @@ function registerIpc(): void {
   })
   ipcMain.handle('dhvw:saveSettings', (_e, patch: SettingsPatch) => {
     const next = loadConfig()
+    let llmChanged = false
     if (patch.llm?.baseUrl !== undefined) {
       if (!/^https?:\/\/[^\s]+$/.test(patch.llm.baseUrl)) return { ok: false, error: '端点必须是 http(s) URL' }
-      next.llm.baseUrl = patch.llm.baseUrl.trim()
+      const url = patch.llm.baseUrl.trim()
+      if (url !== next.llm.baseUrl) llmChanged = true
+      next.llm.baseUrl = url
     }
     if (patch.llm?.model !== undefined) {
       const model = String(patch.llm.model).trim()
       if (!model) return { ok: false, error: '模型不能为空（可先拉取模型列表）' }
+      if (model !== next.llm.model) llmChanged = true
       next.llm.model = model
     }
     if (patch.llm?.protocol !== undefined) {
       if (!PROTOCOLS.includes(patch.llm.protocol)) return { ok: false, error: '不支持的协议' }
+      if (patch.llm.protocol !== next.llm.protocol) llmChanged = true
       next.llm.protocol = patch.llm.protocol
     }
     if (patch.llm?.temperature !== undefined) {
       const t = Number(patch.llm.temperature)
       if (!(t >= 0 && t <= 2)) return { ok: false, error: 'temperature 需在 0–2' }
+      if (t !== next.llm.temperature) llmChanged = true
       next.llm.temperature = t
     }
+    if (next.llmMode === 'api') {
+      next.llmApi = { ...next.llm }
+    }
     if (patch.ports) {
-      for (const key of ['olvt', 'tts'] as const) {
+      for (const key of ['olvt', 'tts', 'llama'] as const) {
         const v = patch.ports[key]
         if (v === undefined) continue
         if (!Number.isInteger(v) || v < 0 || v > 65535) return { ok: false, error: '端口需为 0–65535 的整数' }
@@ -961,13 +1263,30 @@ function registerIpc(): void {
       live2dModel = ref
       next.live2d.model = ref.id
     }
+    let olvtChanged = false
     for (const key of ['characterName', 'humanName', 'personaPrompt'] as const) {
       const v = patch.olvt?.[key]
-      if (v !== undefined) next.olvt[key] = String(v)
+      if (v !== undefined) {
+        const s = String(v)
+        if (s !== next.olvt[key]) olvtChanged = true
+        next.olvt[key] = s
+      }
     }
+    if (patch.olvt && 'personaCard' in patch.olvt) {
+      next.olvt.personaCard = patch.olvt.personaCard ?? null
+    }
+    let ttsChanged = false
+    let ttsBackendChanged = false
     for (const key of ['backendDir', 'refAudioPath', 'refText', 'refLang', 'textLang'] as const) {
       const v = patch.tts?.[key]
-      if (v !== undefined) next.tts[key] = String(v)
+      if (v !== undefined) {
+        const s = String(v)
+        if (s !== next.tts[key]) {
+          ttsChanged = true
+          if (key === 'backendDir') ttsBackendChanged = true
+        }
+        next.tts[key] = s
+      }
     }
     let gatewayChanged = false
     if (patch.gateway?.port !== undefined) {
@@ -988,7 +1307,12 @@ function registerIpc(): void {
       live2d: next.live2d.model,
       ports: next.ports,
     })
-    if (live2dChanged) applyLive2dModel()
+    if (ttsBackendChanged && supervisor && allocatedPorts.length) {
+      supervisor.updateServices(buildRuntimeServices(allocatedPorts))
+      void supervisor.stop('tts-backend-changed').then(() => supervisor?.start())
+    } else if (live2dChanged || olvtChanged || llmChanged || ttsChanged) {
+      syncOlvtConfig(live2dChanged)
+    }
     void pushOrchestratorConfig()
     if (gatewayChanged && gateway) {
       // 端口/开关变化需要重建监听；CA 与设备表不变
@@ -1021,6 +1345,103 @@ function registerIpc(): void {
   ipcMain.handle('dhvw:components', () =>
     COMPONENTS.map((c) => componentStatus(resolveSpec(c, config.componentUrls[c.id]))),
   )
+  ipcMain.handle('dhvw:openComponentDir', async (_e, id: string) => {
+    if (id === 'llama-runtime') {
+      const dir = preferredLlamaDir()
+      fs.mkdirSync(dir, { recursive: true })
+      const err = await electronShell.openPath(dir)
+      return err ? { ok: false, error: err } : { ok: true, path: dir }
+    }
+    const base = COMPONENTS.find((c) => c.id === id)
+    if (!base) return { ok: false, error: '未知组件' }
+    const st = componentStatus(resolveSpec(base, config.componentUrls[id]))
+    if (!st.path) return { ok: false, error: '组件目录未知' }
+    fs.mkdirSync(st.path, { recursive: true })
+    const err = await electronShell.openPath(st.path)
+    return err ? { ok: false, error: err } : { ok: true, path: st.path }
+  })
+  async function switchLlmMode(mode: LlmMode): Promise<{
+    ok: boolean
+    settings?: SettingsView
+    mode?: LlmMode
+    baseUrl?: string
+    model?: string
+    error?: string
+  }> {
+    if (mode === 'local') {
+      const llamaServer = resolveLlamaServer()
+      if (!llamaServer) {
+        return { ok: false, error: `未找到 llama-server.exe，请将推理程序放入 ${preferredLlamaDir()}` }
+      }
+      const nemotron = resolveNemotronModel()
+      if (!nemotron) return { ok: false, error: '未找到 Nemotron-3.5-Bolt-E4B 模型文件，请先一键下载或放入模型目录' }
+      const port = llamaServicePort || config.ports.llama || 8089
+      const baseUrl = `http://127.0.0.1:${port}`
+      const savedApi =
+        config.llmMode === 'api' && !isLoopbackUrl(config.llm.baseUrl) ? { ...config.llm } : { ...config.llmApi }
+      const next: ShellConfig = {
+        ...config,
+        llmMode: 'local',
+        llmApi: savedApi,
+        llm: {
+          protocol: 'openai-compatible',
+          baseUrl,
+          model: NEMOTRON_MODEL_ID,
+          temperature: NEMOTRON_RECOMMENDED_TEMP,
+        },
+      }
+      saveConfig(next)
+      config = next
+      if (supervisor && allocatedPorts.length) {
+        const services = buildRuntimeServices(allocatedPorts)
+        supervisor.updateServices(services)
+        const cur = supervisor.snapshots.find((w) => w.id === 'llama')
+        if (!cur?.pid || cur.state !== 'running') supervisor.send({ cmd: 'start', service: 'llama' })
+      }
+      syncOlvtConfig(false)
+      void pushOrchestratorConfigUntilReady(15)
+      log('info', 'llm', '已切换为本地 llama 模型并同步双端', {
+        exe: llamaServer.exe,
+        model: nemotron.path,
+        baseUrl,
+        temperature: NEMOTRON_RECOMMENDED_TEMP,
+      })
+      return { ok: true, settings: settingsView(), mode: 'local', baseUrl, model: NEMOTRON_MODEL_ID }
+    }
+
+    const restored = { ...config.llmApi }
+    const next: ShellConfig = {
+      ...config,
+      llmMode: 'api',
+      llm: restored,
+    }
+    saveConfig(next)
+    config = next
+    if (supervisor) {
+      const cur = supervisor.snapshots.find((w) => w.id === 'llama')
+      if (cur && (cur.state === 'running' || cur.state === 'starting')) {
+        supervisor.send({ cmd: 'stop', service: 'llama' })
+      }
+    }
+    syncOlvtConfig(false)
+    void pushOrchestratorConfigUntilReady(5)
+    log('info', 'llm', '已切换回云端 API 并同步双端', {
+      baseUrl: restored.baseUrl,
+      model: restored.model || '-',
+    })
+    return {
+      ok: true,
+      settings: settingsView(),
+      mode: 'api',
+      baseUrl: restored.baseUrl,
+      model: restored.model,
+    }
+  }
+
+  ipcMain.handle('dhvw:switchLlmMode', async (_e, mode: LlmMode) =>
+    switchLlmMode(mode === 'local' ? 'local' : 'api'),
+  )
+  ipcMain.handle('dhvw:activateLocalLlm', async () => switchLlmMode('local'))
   ipcMain.handle('dhvw:componentInstall', async (_e, id: string) => {
     const base = COMPONENTS.find((c) => c.id === id)
     if (!base) return { id, name: id, version: '-', state: 'failed', error: '未知组件' }
@@ -1033,6 +1454,17 @@ function registerIpc(): void {
       },
       config.pipIndex,
     )
+    if (
+      status.state === 'ready' &&
+      (spec.id === 'llm-nemotron-e4b' || spec.id === 'llm-nemotron-mmproj') &&
+      supervisor &&
+      allocatedPorts.length
+    ) {
+      supervisor.updateServices(buildRuntimeServices(allocatedPorts))
+      if (spec.id === 'llm-nemotron-mmproj' && config.llmMode === 'local') {
+        void supervisor.stop('mmproj-installed').then(() => supervisor?.start())
+      }
+    }
     log(status.state === 'ready' ? 'info' : 'error', 'component', status.state === 'ready' ? '组件就绪' : '组件下载失败', {
       id: spec.id,
       error: status.error,
@@ -1044,6 +1476,134 @@ function registerIpc(): void {
     log(result.ok ? 'info' : 'warn', 'network', 'LLM 端点探测', { ...result })
     return result
   })
+  ipcMain.handle('dhvw:inspectAudio', (_e, filePath: string, ttsBackendDir?: string) => {
+    const target = String(filePath ?? '').trim()
+    if (!target || !fs.existsSync(target)) return { ok: false, error: '音频文件不存在' }
+    const dur = probeAudioDuration(target, ttsBackendDir)
+    return { ok: true, duration: dur }
+  })
+  ipcMain.handle('dhvw:readRefAudio', (_e, filePath: string, ttsBackendDir?: string) => {
+    const target = String(filePath ?? '').trim()
+    if (!target || !fs.existsSync(target)) return { ok: false, error: '音频文件不存在' }
+    const dur = probeAudioDuration(target, ttsBackendDir)
+    if (dur !== null && (dur < 3 || dur > 10)) {
+      return {
+        ok: false,
+        duration: dur,
+        canClip: dur > 10,
+        error: `参考音频时长 ${dur.toFixed(2)}s，不在 3~10 秒要求范围内，请先裁剪或更换后再试听`,
+      }
+    }
+    const stat = fs.statSync(target)
+    if (stat.size > 20 * 1024 * 1024) {
+      return { ok: false, duration: dur, error: '参考音频文件超过 20 MB 上限' }
+    }
+    const ext = path.extname(target).toLowerCase()
+    const mimeMap: Record<string, string> = {
+      '.wav': 'audio/wav',
+      '.mp3': 'audio/mpeg',
+      '.flac': 'audio/flac',
+      '.ogg': 'audio/ogg',
+      '.m4a': 'audio/mp4',
+    }
+    const mime = mimeMap[ext] || 'audio/wav'
+    const buf = fs.readFileSync(target)
+    return { ok: true, duration: dur, mime, audioBase64: buf.toString('base64') }
+  })
+  ipcMain.handle('dhvw:clipRefAudio', (_e, filePath: string, seconds = 8.5, ttsBackendDir?: string) => {
+    const target = String(filePath ?? '').trim()
+    if (!target || !fs.existsSync(target)) return { ok: false, error: '音频文件不存在' }
+    const py = resolveTtsPython(ttsBackendDir)
+    if (!py) return { ok: false, error: '未找到 GPT-SoVITS Python 运行时，无法裁剪音频' }
+    const outDir = path.join(dataDir, 'voice')
+    fs.mkdirSync(outDir, { recursive: true })
+    const stem = path.basename(target, path.extname(target)).replace(/[^a-zA-Z0-9_\u4e00-\u9fa5-]/g, '_')
+    const outPath = path.join(outDir, `${stem}_clip${Math.round(seconds)}s.wav`)
+    const script =
+      "import sys, soundfile as sf; data, sr = sf.read(sys.argv[1]); n = int(float(sys.argv[3]) * sr); sf.write(sys.argv[2], data[:n], sr, subtype='PCM_16'); print(round(len(data[:n]) / sr, 3))"
+    const res = spawnSync(py, ['-c', script, target, outPath, String(seconds)], {
+      encoding: 'utf8',
+      windowsHide: true,
+      timeout: 20_000,
+    })
+    if (res.status !== 0 || !fs.existsSync(outPath)) {
+      return { ok: false, error: (res.stderr || res.stdout || '音频裁剪失败').trim().slice(-300) }
+    }
+    const dur = Number(res.stdout.trim()) || seconds
+    const audioBase64 = fs.readFileSync(outPath).toString('base64')
+    return { ok: true, path: outPath, duration: dur, mime: 'audio/wav', audioBase64 }
+  })
+  ipcMain.handle(
+    'dhvw:testTts',
+    async (
+      _e,
+      req: { refAudioPath: string; refText: string; refLang: string; textLang: string; sampleText?: string },
+    ) => {
+      const refAudioPath = String(req?.refAudioPath ?? '').trim()
+      if (!refAudioPath) return { ok: false, error: '请先选择参考音色音频路径' }
+      if (!fs.existsSync(refAudioPath)) return { ok: false, error: `参考音频不存在：${refAudioPath}` }
+      const duration = probeAudioDuration(refAudioPath)
+      if (duration !== null && (duration < 3 || duration > 10)) {
+        return {
+          ok: false,
+          duration,
+          canClip: duration > 10,
+          error: `参考音频时长 ${duration.toFixed(2)}s，超出 GPT-SoVITS 要求的 3~10 秒范围`,
+        }
+      }
+      const promptText = String(req.refText ?? '').trim()
+      if (!promptText) {
+        return {
+          ok: false,
+          duration,
+          error: '请先填写与当前参考音频一致的「参考音色文本」（可点“试听参考原音”直接播放核对内容）',
+        }
+      }
+      const tts = supervisor?.snapshots.find((w) => w.id === 'tts')
+      if (!tts?.port || tts.state !== 'running') {
+        return { ok: false, duration, error: 'TTS 服务尚未运行（请先启动语音合成服务）' }
+      }
+      const params = new URLSearchParams({
+        text: (req.sampleText || '你好呀，我是你的数字伙伴，现在测试一下新的音色效果。').trim(),
+        text_lang: (req.textLang || 'zh').trim(),
+        ref_audio_path: refAudioPath,
+        prompt_lang: (req.refLang || 'zh').trim(),
+        prompt_text: promptText,
+        text_split_method: 'cut5',
+        batch_size: '1',
+        media_type: 'wav',
+        streaming_mode: 'false',
+      })
+      try {
+        const res = await fetch(`http://127.0.0.1:${tts.port}/tts?${params.toString()}`, {
+          signal: AbortSignal.timeout(45_000),
+        })
+        if (!res.ok) {
+          const text = await res.text()
+          let detail = text
+          try {
+            const j = JSON.parse(text) as { Exception?: string; message?: string }
+            detail = j.Exception || j.message || text
+          } catch {}
+          return {
+            ok: false,
+            duration,
+            canClip: duration !== null && duration > 10,
+            error: `TTS 服务返回 ${res.status}：${detail}`,
+          }
+        }
+        const buf = Buffer.from(await res.arrayBuffer())
+        return {
+          ok: true,
+          duration,
+          bytes: buf.length,
+          audioBase64: buf.toString('base64'),
+        }
+      } catch (err) {
+        return { ok: false, duration, error: err instanceof Error ? err.message : String(err) }
+      }
+    },
+  )
   ipcMain.handle('dhvw:restartHost', async () => {
     if (!supervisor) return { ok: false }
     await supervisor.stop('manual-restart')
@@ -1052,20 +1612,59 @@ function registerIpc(): void {
   })
 }
 
-/** 换模型后：模型文件与 model_dict 同步进 OLVT，再重启 OLVT（conf 只在启动时读一次） */
-function applyLive2dModel(): void {
+/** 统一请求编排器 HTTP JSON 接口，避免各个 IPC 处理器重复 fetch/超时逻辑。 */
+function resolveTtsPython(overrideDir?: string): string {
+  const dir = (overrideDir?.trim() || config.sidecars.tts?.cwd || config.tts.backendDir || '').trim()
+  if (!dir) return ''
+  const py = path.join(dir, 'runtime', 'python.exe')
+  return fs.existsSync(py) ? py : ''
+}
+
+function probeAudioDuration(filePath: string, overrideTtsDir?: string): number | null {
+  const py = resolveTtsPython(overrideTtsDir)
+  if (!py) return null
+  const res = spawnSync(py, ['-c', 'import sys, soundfile as sf; print(round(sf.info(sys.argv[1]).duration, 3))', filePath], {
+    encoding: 'utf8',
+    windowsHide: true,
+    timeout: 8000,
+  })
+  if (res.status !== 0) return null
+  const val = Number(res.stdout.trim())
+  return Number.isFinite(val) ? val : null
+}
+
+async function orchJson<T extends Record<string, unknown>>(
+  urlPath: string,
+  init?: RequestInit,
+  timeoutMs = 5000,
+): Promise<T & { ok: boolean; error?: string }> {
+  if (!orchestratorPort) return { ok: false, error: '编排器尚未就绪' } as T & { ok: boolean; error?: string }
+  try {
+    const res = await fetch(`http://127.0.0.1:${orchestratorPort}${urlPath}`, {
+      ...init,
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+    const data = (await res.json()) as T & { ok?: boolean; error?: string }
+    return { ...data, ok: data.ok ?? res.ok }
+  } catch (e) {
+    return { ok: false, error: String(e) } as T & { ok: boolean; error?: string }
+  }
+}
+
+/** 换模型或人设后：按需同步模型进 OLVT，重写 conf.yaml 并重启 OLVT（conf 只在启动时读一次）。 */
+function syncOlvtConfig(withModelSync: boolean): void {
   const dir = resolveOlvtDir(config.sidecars.olvt?.cwd || config.olvt.dir)
   const snapshots = supervisor?.snapshots ?? []
   const olvt = snapshots.find((w) => w.id === 'olvt')
   const tts = snapshots.find((w) => w.id === 'tts')
-  log('info', 'live2d', '角色模型切换', { model: live2dModel?.id, olvtDir: dir || undefined })
+  if (withModelSync) log('info', 'live2d', '角色模型切换', { model: live2dModel?.id, olvtDir: dir || undefined })
   if (!dir) {
-    log('warn', 'live2d', 'OLVT 目录未就绪，模型只在本机舞台生效')
+    if (withModelSync) log('warn', 'live2d', 'OLVT 目录未就绪，模型只在本机舞台生效')
     return
   }
-  if (live2dModel) syncOlvtModel(dir, live2dModel)
+  if (withModelSync && live2dModel) syncOlvtModel(dir, live2dModel)
   if (!olvt?.port) {
-    log('warn', 'live2d', 'OLVT 未运行，下次启动时使用新模型')
+    log('warn', 'olvt', 'OLVT 未运行，下次启动时应用最新配置')
     return
   }
   prepareOlvt({
@@ -1075,7 +1674,8 @@ function applyLive2dModel(): void {
     characterName: config.olvt.characterName,
     humanName: config.olvt.humanName,
     personaPrompt: config.olvt.personaPrompt,
-    llm: { ...config.llm, apiKey: readApiKey() ?? 'missing-api-key' },
+    proxyUrl: orchestratorPort ? `http://127.0.0.1:${orchestratorPort}/dhvw/llm/v1` : undefined,
+    llm: { ...config.llm, apiKey: effectiveApiKey(config.llm.baseUrl) || 'missing-api-key' },
     tts: { apiUrl: `http://127.0.0.1:${tts?.port ?? 0}/tts`, ...config.tts },
     asr: { enabled: config.asr.enabled, ...asrModelPaths(config.asr.enabled) },
   })
@@ -1144,7 +1744,7 @@ async function boot(): Promise<void> {
     path.resolve(process.cwd(), '..', '..', 'arm', 'www'),
   ])
   if (armWww) {
-    armPreviewUrl = await startArmPreviewServer(armWww, () => orchestratorPort).catch((err) => {
+    armPreviewUrl = await startArmPreviewServer(armWww, () => orchestratorPort, () => gateway?.caPem ?? '').catch((err) => {
       log('warn', 'arm-preview', 'ARM 预览服务启动失败', { error: String(err) })
       return null
     })
@@ -1159,6 +1759,7 @@ async function boot(): Promise<void> {
     olvt: config.ports.olvt,
     tts: config.ports.tts,
     orchestrator: config.ports.orchestrator,
+    llama: config.ports.llama,
   }
   const ports = await Promise.all(
     SERVICE_CATALOG.map(async (svc, i) => {
@@ -1166,10 +1767,12 @@ async function boot(): Promise<void> {
       return want > 0 && (await isPortFree(want)) ? want : (dynamic[i] ?? 0)
     }),
   )
+  allocatedPorts = ports
   const portOf = (id: string): number => ports[SERVICE_CATALOG.findIndex((s) => s.id === id)] ?? 0
   const olvtDir = olvtRootDir
   const olvtPort = portOf('olvt')
   olvtServicePort = olvtPort
+  llamaServicePort = portOf('llama')
   if (olvtDir) {
     if (live2dModel) syncOlvtModel(olvtDir, live2dModel)
     const asr = asrModelPaths(config.asr.enabled)
@@ -1183,7 +1786,8 @@ async function boot(): Promise<void> {
       characterName: config.olvt.characterName,
       humanName: config.olvt.humanName,
       personaPrompt: config.olvt.personaPrompt,
-      llm: { ...config.llm, apiKey: readApiKey() ?? 'missing-api-key' },
+      proxyUrl: `http://127.0.0.1:${portOf('orchestrator')}/dhvw/llm/v1`,
+      llm: { ...config.llm, apiKey: effectiveApiKey(config.llm.baseUrl) || 'missing-api-key' },
       tts: { apiUrl: `http://127.0.0.1:${portOf('tts')}/tts`, ...config.tts },
       asr: { enabled: config.asr.enabled, ...asr },
     })
@@ -1193,56 +1797,11 @@ async function boot(): Promise<void> {
       hint: '在组件面板下载 OLVT，或在设置里指定已有目录',
     })
   }
-  // GPT-SoVITS：目录来自设置（或 sidecars.tts 覆盖），入口固定 api_v2.py
-  const ttsOverride = config.sidecars.tts
-  const ttsDir = (ttsOverride?.cwd || config.tts.backendDir || '').trim()
-  const ttsPython = ttsDir ? path.join(ttsDir, 'runtime', 'python.exe') : ''
+  const ttsDir = (config.sidecars.tts?.cwd || config.tts.backendDir || '').trim()
   if (ttsDir && !fs.existsSync(ttsDir)) {
     log('warn', 'tts', '设置的语音合成目录不存在', { dir: ttsDir })
   }
-  const services: ServiceDef[] = SERVICE_CATALOG.map((svc, i) => {
-    const override = config.sidecars[svc.id]
-    const port = ports[i] ?? 0
-    if (svc.id === 'tts' && ttsDir) {
-      return {
-        ...svc,
-        command: override?.command ?? [
-          fs.existsSync(ttsPython) ? ttsPython : resolvePython(),
-          'api_v2.py',
-          '-a',
-          '127.0.0.1',
-          '-p',
-          '{port}',
-        ],
-        cwd: ttsDir,
-        env: { ...override?.env },
-        healthMode: 'tcp',
-        healthPath: undefined,
-        // 模型加载 12–60 s，超时告警后继续探测
-        healthTimeout: 180,
-        port,
-      }
-    }
-    if (svc.id === 'olvt' && olvtDir) {
-      return {
-        ...svc,
-        command: override?.command ?? [resolvePython(), 'run_server.py'],
-        cwd: olvtDir,
-        env: {
-          ...override?.env,
-          PYTHONUNBUFFERED: '1',
-          // 思考模型默认带 reasoning_content，首字多 1–2 s 且内容无法出声
-          OLVT_LLM_EXTRA_BODY: '{"reasoning_effort":"none"}',
-          DHVW_ORCHESTRATOR_URL: `http://127.0.0.1:${portOf('orchestrator')}`,
-        },
-        healthMode: 'tcp',
-        healthPath: undefined,
-        healthTimeout: 180,
-        port,
-      }
-    }
-    return { ...svc, ...(override ?? {}), port }
-  })
+  const services = buildRuntimeServices(ports)
   const real = services.filter((s) => s.command).map((s) => s.id)
   if (real.length) log('info', 'sidecar', '使用真实 sidecar', { services: real })
   log('info', 'ports', '端口分配完成', { ports })
@@ -1262,10 +1821,13 @@ async function boot(): Promise<void> {
   refreshTimer.unref()
 
   // 局域网网关：证书与配对独立于 sidecar，服务端口就绪即可转发
+  const previewPort = getArmPreviewPort()
   gatewayTargets = [
     { name: 'olvt', port: portOf('olvt'), wsPath: '/client-ws' },
     { name: 'orchestrator', port: portOf('orchestrator'), wsPath: '/dhvw' },
     { name: 'waketrace', port: portOf('waketrace') },
+    { name: 'llm', port: portOf('llama') },
+    ...(previewPort > 0 ? [{ name: 'arm', port: previewPort }] : []),
   ]
   gateway = new Gateway({ port: config.gateway.port, targets: gatewayTargets })
   if (config.gateway.enabled) gateway.start()

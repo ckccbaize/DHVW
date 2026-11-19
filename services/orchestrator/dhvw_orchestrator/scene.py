@@ -393,6 +393,7 @@ class SceneRunner:
                 *args,
                 cwd=str(workdir),
                 env=env,
+                stdin=asyncio.subprocess.DEVNULL,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
                 # pi 的 --mode json 单行可以超 64 KiB，默认 stream limit 会直接抛 ValueError
@@ -481,24 +482,29 @@ class SceneRunner:
         return proc.returncode or 0, out.decode("utf-8", "replace")
 
     def _write_models_json(self) -> None:
-        target = self.home / ".pi/agent/models.json"
-        target.parent.mkdir(parents=True, exist_ok=True)
-        base = str(self.llm.get("baseUrl") or "").rstrip("/")
-        if not base.endswith("/v1"):
-            base = base + "/v1" if base and not base.endswith("/v1") else base
-        payload = {
-            "providers": {
-                "dhvw": {
-                    "api": "openai-completions",
-                    "baseUrl": base,
-                    "apiKey": str(self.llm.get("apiKey") or ""),
-                    # codex.mintcat.work 不认 developer 角色与 reasoning_effort
-                    "compat": {"supportsDeveloperRole": False, "supportsReasoningEffort": False},
-                    "models": [{"id": str(self.llm.get("model") or "")}],
-                }
+        write_pi_models_json(self.home, self.llm)
+
+
+def write_pi_models_json(home: Path, llm: dict[str, Any]) -> None:
+    """Write isolated pi CLI models.json using configured OpenAI-compatible LLM."""
+    target = home / ".pi/agent/models.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    base = str(llm.get("baseUrl") or "").rstrip("/")
+    if base and not base.endswith("/v1"):
+        base = base + "/v1"
+    payload = {
+        "providers": {
+            "dhvw": {
+                "api": "openai-completions",
+                "baseUrl": base,
+                "apiKey": str(llm.get("apiKey") or ""),
+                # codex.mintcat.work 不认 developer 角色与 reasoning_effort
+                "compat": {"supportsDeveloperRole": False, "supportsReasoningEffort": False},
+                "models": [{"id": str(llm.get("model") or "")}],
             }
         }
-        target.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    }
+    target.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def _prompt(self, job: dict[str, Any], toolchain: Path, py: str, workdir: Path) -> str:
         spec_file = f"{job['id']}.map.json"

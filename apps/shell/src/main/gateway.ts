@@ -201,6 +201,16 @@ export class Gateway {
     }
   }
 
+  /** 网关自签 CA 证书 PEM（供 ARM 配对时持久化验证 TLS） */
+  get caPem(): string {
+    if (!this.certs) {
+      const c = ensureCerts(path.join(dataDir, 'gateway'))
+      this.certs = c
+      this.urls = c.ips.map((ip) => `https://${ip}:${this.opts.port}`)
+    }
+    return this.certs.caPem
+  }
+
   /** 开一段配对窗口，返回 6 位配对码；再次调用会作废旧码 */
   openPairing(): { code: string; expiresAt: number } {
     this.pairing = {
@@ -313,6 +323,11 @@ export class Gateway {
     const url = new URL(req.url ?? '/', 'https://localhost')
     const header = req.headers['x-dhvw-token']
     if (typeof header === 'string' && header) return header
+    const auth = req.headers.authorization
+    if (typeof auth === 'string') {
+      const bearer = /^Bearer\s+(.+)$/i.exec(auth.trim())
+      if (bearer?.[1]) return bearer[1].trim()
+    }
     const query = url.searchParams.get('token')
     if (query) return query
     const cookie = req.headers.cookie
@@ -395,23 +410,30 @@ export class Gateway {
       return
     }
 
-    if (route === '/olvt') {
-      const targetLoc = `/olvt/${url.search}`
+    if (route === '/olvt' || route === '/arm') {
+      const targetLoc = `${route}/${url.search}`
       res.writeHead(302, { location: targetLoc, 'cache-control': 'no-store' })
       res.end()
       return
     }
 
-    const OLVT_ROOT_PREFIXES = new Set(['live2d-models', 'bg', 'avatars', 'cache', 'web-tool'])
+    const OLVT_ROOT_PREFIXES = new Set(['live2d-models', 'bg', 'avatars', 'cache', 'web-tool', 'libs'])
     const [, targetName, ...rest] = route.split('/')
     let target = this.opts.targets.find((t) => t.name === targetName)
     let suffix = '/' + rest.join('/')
+    const referer = String(req.headers.referer || '')
+    if (!target && targetName && referer.includes('/arm')) {
+      const armTarget = this.opts.targets.find((t) => t.name === 'arm')
+      if (armTarget) {
+        target = armTarget
+        suffix = route
+      }
+    }
     if (
       !target &&
       targetName &&
       (OLVT_ROOT_PREFIXES.has(targetName) ||
-        ((targetName === 'assets' || targetName === 'libs' || targetName === 'favicon.ico') &&
-          String(req.headers.referer || '').includes('/olvt')))
+        ((targetName === 'assets' || targetName === 'favicon.ico') && referer.includes('/olvt')))
     ) {
       target = this.opts.targets.find((t) => t.name === 'olvt')
       suffix = route
@@ -422,7 +444,7 @@ export class Gateway {
     }
     const queryToken = url.searchParams.get('token')
     const setCookie =
-      target.name === 'olvt' && queryToken
+      (target.name === 'olvt' || target.name === 'arm') && queryToken
         ? `dhvw_token=${encodeURIComponent(queryToken)}; Path=/; HttpOnly; SameSite=None; Secure; Partitioned`
         : undefined
     const cleanSearch = url.search.replace(/[?&]token=[^&]*/g, '').replace(/^&/, '?')
@@ -467,19 +489,28 @@ export class Gateway {
     suffix: string,
     setCookie?: string,
   ): void {
+    const upHeaders: Record<string, string | string[] | undefined> = {
+      ...req.headers,
+      host: `127.0.0.1:${target.port}`,
+      'x-forwarded-proto': 'https',
+    }
+    if (target.name === 'llm') {
+      delete upHeaders.authorization
+      delete upHeaders['x-dhvw-token']
+    }
     const upstream = http.request(
       {
         host: '127.0.0.1',
         port: target.port,
         method: req.method,
         path: suffix || '/',
-        headers: { ...req.headers, host: `127.0.0.1:${target.port}`, 'x-forwarded-proto': 'https' },
+        headers: upHeaders,
       },
       (up) => {
         const headers: Record<string, string | string[] | undefined> = {
           ...up.headers,
           'access-control-allow-origin': '*',
-          'access-control-allow-headers': 'content-type, x-dhvw-token',
+          'access-control-allow-headers': 'content-type, x-dhvw-token, authorization',
           'access-control-allow-methods': 'GET, POST, OPTIONS',
         }
         delete headers['x-frame-options']

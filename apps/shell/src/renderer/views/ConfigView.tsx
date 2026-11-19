@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { MemoryCard } from './MemoryCard'
 import { ArmConsoleCard } from './ArmConsole'
 import type {
@@ -46,6 +46,9 @@ export function ConfigView({
   onOpenGateway,
   onOpenArmConsole,
   onInstall,
+  onRefreshComponents,
+  onOpenComponentDir,
+  onActivateLocalLlm,
   autoLaunch,
   onAutoLaunch,
   onRestartHost,
@@ -67,6 +70,9 @@ export function ConfigView({
   onOpenGateway: () => void
   onOpenArmConsole: () => void
   onInstall: (id: string) => void
+  onRefreshComponents: () => void
+  onOpenComponentDir: (id: string) => void
+  onActivateLocalLlm: () => Promise<{ ok: boolean; error?: string; baseUrl?: string }>
   autoLaunch: boolean
   onAutoLaunch: (next: boolean) => void
   onRestartHost: () => void
@@ -74,86 +80,148 @@ export function ConfigView({
   probing: boolean
   probeOk: boolean | null
 }): React.ReactElement {
+  const [compMsg, setCompMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [activatingLlm, setActivatingLlm] = useState(false)
+
+  const handleActivateLocalLlm = (): void => {
+    setActivatingLlm(true)
+    setCompMsg(null)
+    void onActivateLocalLlm()
+      .then((res) =>
+        setCompMsg(
+          res.ok
+            ? { ok: true, text: `已切换至本地 Nemotron-3.5-Bolt (${res.baseUrl ?? '127.0.0.1'}) 并拉起 llama 推理服务` }
+            : { ok: false, text: res.error ?? '启用本地模型失败' },
+        ),
+      )
+      .finally(() => setActivatingLlm(false))
+  }
+
   return (
     <>
       <div className="config-grid">
-        <section className="panel services">
-          <h2>服务</h2>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>服务</th>
-                  <th>状态</th>
-                  <th>端口</th>
-                  <th className="col-optional">PID</th>
-                  <th className="col-optional">重启</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {workers.map((w) => (
-                  <tr key={w.id} className={w.state}>
-                    <td className="name">{w.name}</td>
-                    <td>
-                      <span className={`dot ${w.state === 'running' && w.healthy === false ? 'failed' : w.state}`} />
-                      {w.state === 'running' && w.healthy === false ? '无响应' : stateLabel[w.state]}
-                    </td>
-                    <td className="mono">{w.port || '—'}</td>
-                    <td className="mono col-optional">{w.pid ?? '—'}</td>
-                    <td className="mono col-optional">{w.restarts}</td>
-                    <td className="row-actions">
-                      <button disabled={busy} onClick={() => onAct(w.id, 'restart')}>
-                        重启
-                      </button>
-                      {w.state === 'running' ? (
-                        <button disabled={busy} onClick={() => onAct(w.id, 'stop')}>
-                          停止
-                        </button>
-                      ) : (
-                        <button disabled={busy} onClick={() => onAct(w.id, 'start')}>
-                          启动
-                        </button>
-                      )}
-                      <button onClick={() => onSelect(w.id)}>日志</button>
-                    </td>
+        <div className="col config-col-left">
+          <section className="panel services">
+            <h2>服务</h2>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>服务</th>
+                    <th>状态</th>
+                    <th>端口</th>
+                    <th className="col-optional">PID</th>
+                    <th className="col-optional">重启</th>
+                    <th />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="gw-strip">
-            <label className="switch">
-              <input type="checkbox" checked={autoLaunch} onChange={(e) => onAutoLaunch(e.target.checked)} />
-              开机自启
-            </label>
-            <button onClick={onRestartHost}>重启宿主</button>
-            <button disabled={probing} onClick={onProbe}>
-              {probeOk === null ? '检测端点' : probeOk ? '端点可达' : '端点不可达'}
-            </button>
-            <span className="pill mono">
-              <span className={`dot ${gateway?.running ? 'running' : 'failed'}`} />
-              设备接入 :{gateway?.port ?? '—'}
-            </span>
-            <code className="mono gw-strip-url">{gateway?.urls[0] ?? '未启动'}</code>
-            <button onClick={onOpenGateway}>配对设备</button>
-          </div>
-          <p className="hint">
-            数据目录：{snap?.dataDir ?? '…'} · Python：{snap?.pythonPath ?? '…'}
-          </p>
-        </section>
-
-        <div className="col">
-          <section className="panel events">
-            <h2>事件</h2>
-            <div className="scroll">
-              {events.length === 0 && <div className="empty">等待宿主事件…</div>}
-              {events.map((e, i) => (
-                <EventLine key={`${e.ts}-${i}`} e={e} />
-              ))}
+                </thead>
+                <tbody>
+                  {workers.map((w) => (
+                    <tr key={w.id} className={w.state}>
+                      <td className="name">{w.name}</td>
+                      <td>
+                        <span className={`dot ${w.state === 'running' && w.healthy === false ? 'failed' : w.state}`} />
+                        {w.state === 'running' && w.healthy === false ? '无响应' : stateLabel[w.state]}
+                      </td>
+                      <td className="mono">{w.port || '—'}</td>
+                      <td className="mono col-optional">{w.pid ?? '—'}</td>
+                      <td className="mono col-optional">{w.restarts}</td>
+                      <td className="row-actions">
+                        <button disabled={busy} onClick={() => onAct(w.id, 'restart')}>
+                          重启
+                        </button>
+                        {w.state === 'running' ? (
+                          <button disabled={busy} onClick={() => onAct(w.id, 'stop')}>
+                            停止
+                          </button>
+                        ) : (
+                          <button disabled={busy} onClick={() => onAct(w.id, 'start')}>
+                            启动
+                          </button>
+                        )}
+                        <button onClick={() => onSelect(w.id)}>日志</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+            <div className="gw-strip">
+              <label className="switch">
+                <input type="checkbox" checked={autoLaunch} onChange={(e) => onAutoLaunch(e.target.checked)} />
+                开机自启
+              </label>
+              <button onClick={onRestartHost}>重启宿主</button>
+              <button disabled={probing} onClick={onProbe}>
+                {probeOk === null ? '检测端点' : probeOk ? '端点可达' : '端点不可达'}
+              </button>
+              <span className="pill mono">
+                <span className={`dot ${gateway?.running ? 'running' : 'failed'}`} />
+                设备接入 :{gateway?.port ?? '—'}
+              </span>
+              <code className="mono gw-strip-url">{gateway?.urls[0] ?? '未启动'}</code>
+              <button onClick={onOpenGateway}>配对设备</button>
+            </div>
+            <p className="hint">
+              数据目录：{snap?.dataDir ?? '…'} · Python：{snap?.pythonPath ?? '…'}
+            </p>
           </section>
 
+          <section className="panel components">
+            <div className="comp-head">
+              <h2>组件</h2>
+              <button onClick={onRefreshComponents}>刷新状态</button>
+            </div>
+            {compMsg && <p className={`msg ${compMsg.ok ? 'ok' : 'bad'}`}>{compMsg.text}</p>}
+            {components.length === 0 && <div className="empty">读取中…</div>}
+            {components.map((c) => (
+              <div className="comp" key={c.id}>
+                <div className="comp-info">
+                  <span className="comp-name">{c.name}</span>
+                  <span className={`pill ${c.state === 'ready' ? 'ok' : c.state === 'failed' ? 'bad' : ''}`}>
+                    {c.state === 'ready'
+                      ? '就绪'
+                      : c.state === 'failed'
+                        ? '失败'
+                        : c.state === 'installing'
+                          ? '下载中'
+                          : '未安装'}
+                  </span>
+                  <span className="comp-ver mono">{c.version}</span>
+                </div>
+                <div className="comp-actions">
+                  {c.canOpenFolder && (
+                    <button onClick={() => onOpenComponentDir(c.id)}>
+                      {c.id === 'llm-nemotron-e4b' ? '打开模型目录' : '打开文件夹'}
+                    </button>
+                  )}
+                  {c.id === 'llm-nemotron-e4b' && !c.canActivateLocalLlm && (
+                    <button onClick={() => onOpenComponentDir('llama-runtime')}>打开引擎目录</button>
+                  )}
+                  {c.state !== 'ready' && c.state !== 'installing' && (
+                    <button className="primary" onClick={() => onInstall(c.id)}>
+                      {c.id === 'llm-nemotron-e4b' ? '一键下载 (4.7GB)' : '下载并安装'}
+                    </button>
+                  )}
+                  {c.canActivateLocalLlm && (
+                    <button className="primary" disabled={activatingLlm} onClick={handleActivateLocalLlm}>
+                      {activatingLlm ? '切换中…' : '启用本地模型'}
+                    </button>
+                  )}
+                </div>
+                {c.state === 'installing' && (
+                  <div className={`bar ${(c.progress ?? 0) === 0 ? 'indeterminate' : ''}`}>
+                    <div style={{ width: `${(c.progress ?? 0) === 0 ? 100 : c.progress}%` }} />
+                  </div>
+                )}
+                {c.detail && <div className="comp-detail mono">{c.detail}</div>}
+                {c.error && <div className="comp-err">{c.error}</div>}
+              </div>
+            ))}
+          </section>
+        </div>
+
+        <div className="col config-col-right">
           <section className="panel world">
             <h2>
               世界
@@ -225,35 +293,14 @@ export function ConfigView({
 
           <MemoryCard />
 
-          <section className="panel components">
-            <h2>组件</h2>
-            {components.length === 0 && <div className="empty">读取中…</div>}
-            {components.map((c) => (
-              <div className="comp" key={c.id}>
-                <div className="comp-info">
-                  <span className="comp-name">{c.name}</span>
-                  <span className={`pill ${c.state === 'ready' ? 'ok' : c.state === 'failed' ? 'bad' : ''}`}>
-                    {c.state === 'ready'
-                      ? '就绪'
-                      : c.state === 'failed'
-                        ? '失败'
-                        : c.state === 'installing'
-                          ? '下载中'
-                          : '未安装'}
-                  </span>
-                  <span className="comp-ver mono">v{c.version}</span>
-                </div>
-                {c.state === 'installing' && (
-                  <div className={`bar ${(c.progress ?? 0) === 0 ? 'indeterminate' : ''}`}>
-                    <div style={{ width: `${(c.progress ?? 0) === 0 ? 100 : c.progress}%` }} />
-                  </div>
-                )}
-                {c.error && <div className="comp-err">{c.error}</div>}
-                {c.state !== 'ready' && c.state !== 'installing' && (
-                  <button onClick={() => onInstall(c.id)}>下载并安装</button>
-                )}
-              </div>
-            ))}
+          <section className="panel events">
+            <h2>事件</h2>
+            <div className="scroll">
+              {events.length === 0 && <div className="empty">等待宿主事件…</div>}
+              {events.map((e, i) => (
+                <EventLine key={`${e.ts}-${i}`} e={e} />
+              ))}
+            </div>
           </section>
         </div>
       </div>

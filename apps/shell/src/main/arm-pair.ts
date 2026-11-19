@@ -47,6 +47,8 @@ function scanTargets(): string[] {
       }
     }
   }
+  // 同时探测本机回环模拟的 ARM 壳（restart-arm.bat）
+  out.add('127.0.0.1')
   return [...out]
 }
 
@@ -87,17 +89,18 @@ export async function scanArmDevices(timeoutMs = 350): Promise<ArmDevice[]> {
   return found.sort((a, b) => a.host.localeCompare(b.host))
 }
 
-/** 把网关 WS 地址推给 ARM；设备端写入 data/host.json，页面 3s 内自动续连。 */
+/** 把网关 WS 地址和 CA 证书推给 ARM；设备端写入 data/host.json 与 data/ca.crt.pem，页面 3s 内自动续连。 */
 export async function pairArmDevice(
   host: string,
   wsUrl: string,
   name: string,
+  caPem = '',
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await fetch(`http://${host}:${ARM_PAIR_PORT}/__pair`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ wsUrl, name }),
+      body: JSON.stringify({ wsUrl, name, caPem }),
       signal: AbortSignal.timeout(4000),
     })
     const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }

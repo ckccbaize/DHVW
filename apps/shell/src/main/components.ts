@@ -6,6 +6,21 @@ import { app } from 'electron'
 import { bundledResourceDir, componentsRoot, dataDir, resourcesRoot, runtimeDir } from './paths'
 import { downloadFile } from './download'
 import { log } from './logger'
+import {
+  NEMOTRON_FILE,
+  NEMOTRON_MIN_BYTES,
+  NEMOTRON_MMPROJ_FILE,
+  NEMOTRON_MMPROJ_MIN_BYTES,
+  NEMOTRON_MMPROJ_URLS,
+  NEMOTRON_SHA256,
+  NEMOTRON_TUNING_SUMMARY,
+  NEMOTRON_URLS,
+  preferredLlamaDir,
+  preferredModelsDir,
+  resolveLlamaServer,
+  resolveNemotronMmproj,
+  resolveNemotronModel,
+} from './local-llm'
 
 /**
  * 系统自带 bsdtar（Win10 1803+）：不能走 PATH —— Git for Windows 的 GNU tar 在 PATH 里
@@ -27,12 +42,16 @@ export interface ComponentSpec {
   id: string
   name: string
   version: string
-  /** 按优先级尝试的 zip 地址，`{version}` 会被替换 */
+  /** archive = zip/tar.bz2 需解压；file = 单文件（如 .gguf）直接落盘到目标目录 */
+  kind?: 'archive' | 'file'
+  /** 按优先级尝试的下载地址，`{version}` 会被替换 */
   urls: string[]
-  /** 解压后必须存在的相对路径，用于判定“已就绪” */
+  /** 落盘/解压后必须存在的相对路径，用于判定“已就绪” */
   entry: string
   sha256?: string
   minBytes?: number
+  /** 自定义组件安装目录（如根目录 local_ai\models） */
+  targetDir?: () => string
   /** 组件内的依赖清单（相对路径），安装到 runtime/site-packages */
   requirements?: string
   /** 随包的依赖清单（相对 resources/），存在时优先于组件自带的那份 */
@@ -47,6 +66,9 @@ export interface ComponentStatus {
   progress?: number
   path?: string
   error?: string
+  detail?: string
+  canOpenFolder?: boolean
+  canActivateLocalLlm?: boolean
 }
 
 const GITHUB_REPO = 'https://github.com/Open-LLM-VTuber/Open-LLM-VTuber'
@@ -85,6 +107,27 @@ export const COMPONENTS: ComponentSpec[] = [
     entry: 'model.int8.onnx',
     minBytes: 100_000_000,
   },
+  {
+    id: 'llm-nemotron-e4b',
+    name: '本地大模型 Nemotron-3.5-Bolt-E4B',
+    version: 'AD-Q4_K_M',
+    kind: 'file',
+    urls: NEMOTRON_URLS,
+    entry: NEMOTRON_FILE,
+    sha256: NEMOTRON_SHA256,
+    minBytes: NEMOTRON_MIN_BYTES,
+    targetDir: preferredModelsDir,
+  },
+  {
+    id: 'llm-nemotron-mmproj',
+    name: '本地视觉头 Nemotron-E4B mmproj',
+    version: 'F16',
+    kind: 'file',
+    urls: NEMOTRON_MMPROJ_URLS,
+    entry: NEMOTRON_MMPROJ_FILE,
+    minBytes: NEMOTRON_MMPROJ_MIN_BYTES,
+    targetDir: preferredModelsDir,
+  },
 ]
 
 /** uv 可执行文件：环境变量优先，其次随包 tools/uv.exe 与开发期的 build/tools/uv.exe */
@@ -108,8 +151,18 @@ export function componentDir(spec: ComponentSpec): string {
   return path.join(rootDir(), spec.id, spec.version)
 }
 
-/** 解析组件实际所在目录：优先使用受管 components 目录，兼容开发/测试期已预装的 vendor 目录 */
+/** 解析组件实际所在目录：优先使用受管 components 目录，或根目录 local_ai/models */
 export function resolveComponentDir(spec: ComponentSpec): string {
+  if (spec.id === 'llm-nemotron-e4b') {
+    const found = resolveNemotronModel()
+    if (found) return found.dir
+    return spec.targetDir?.() ?? preferredModelsDir()
+  }
+  if (spec.id === 'llm-nemotron-mmproj') {
+    const found = resolveNemotronMmproj()
+    if (found) return found.dir
+    return spec.targetDir?.() ?? preferredModelsDir()
+  }
   const primary = componentDir(spec)
   if (fs.existsSync(path.join(primary, spec.entry))) return primary
   if (spec.id === 'asr-sensevoice') {
@@ -133,16 +186,47 @@ function ensureWritable(dir: string): void {
 }
 
 function isReady(spec: ComponentSpec): boolean {
+  if (spec.id === 'llm-nemotron-e4b') return Boolean(resolveNemotronModel())
+  if (spec.id === 'llm-nemotron-mmproj') return Boolean(resolveNemotronMmproj())
   return fs.existsSync(path.join(resolveComponentDir(spec), spec.entry))
 }
 
 export function componentStatus(spec: ComponentSpec): ComponentStatus {
   const dir = resolveComponentDir(spec)
+  const ready = isReady(spec)
+  if (spec.id === 'llm-nemotron-e4b') {
+    const llama = resolveLlamaServer()
+    const mmproj = resolveNemotronMmproj()
+    const visionTag = mmproj ? '已挂载 mmproj 视觉' : '纯文本（未挂载 mmproj）'
+    return {
+      id: spec.id,
+      name: spec.name,
+      version: spec.version,
+      state: ready ? 'ready' : 'missing',
+      path: dir,
+      canOpenFolder: true,
+      canActivateLocalLlm: Boolean(ready && llama),
+      detail: llama
+        ? `引擎 ${llama.variant}（${visionTag}）· 调优参数：${NEMOTRON_TUNING_SUMMARY}`
+        : `未找到 llama-server.exe，请放入 ${preferredLlamaDir()}`,
+    }
+  }
+  if (spec.id === 'llm-nemotron-mmproj') {
+    return {
+      id: spec.id,
+      name: spec.name,
+      version: spec.version,
+      state: ready ? 'ready' : 'missing',
+      path: dir,
+      canOpenFolder: true,
+      detail: ready ? '已就绪，启动本地 llama 时自动通过 --mmproj 挂载视觉理解能力' : '可选组件：下载后为 Nemotron-3.5-Bolt-E4B 启用看图/视觉能力',
+    }
+  }
   return {
     id: spec.id,
     name: spec.name,
     version: spec.version,
-    state: isReady(spec) ? 'ready' : 'missing',
+    state: ready ? 'ready' : 'missing',
     path: dir,
   }
 }
@@ -175,13 +259,28 @@ export async function ensureComponent(
   indexUrl = 'https://mirrors.aliyun.com/pypi/simple',
 ): Promise<ComponentStatus> {
   if (isReady(spec)) return componentStatus(spec)
-  let dir = componentDir(spec)
+  let dir = spec.targetDir ? spec.targetDir() : componentDir(spec)
   try {
     ensureWritable(dir)
   } catch {
     fallbackRoot = path.join(dataDir, 'components')
-    dir = componentDir(spec)
+    dir = spec.kind === 'file' ? path.join(fallbackRoot, 'local-llm', 'models') : componentDir(spec)
     ensureWritable(dir)
+  }
+  if (spec.kind === 'file') {
+    const dest = path.join(dir, spec.entry)
+    try {
+      await download(spec.urls, dest, spec, onProgress)
+      if (!isReady(spec)) throw new Error(`下载完成后未检测到 ${spec.entry}`)
+      onProgress(100)
+      return componentStatus(spec)
+    } catch (err) {
+      return {
+        ...componentStatus(spec),
+        state: 'failed',
+        error: (err as Error).message,
+      }
+    }
   }
   const archive = path.join(dir, 'package.zip')
   try {

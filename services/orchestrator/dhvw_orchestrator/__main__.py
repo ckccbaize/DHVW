@@ -24,14 +24,17 @@ from datetime import datetime
 from pathlib import Path
 from typing import AsyncIterator
 
+import httpx
 import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 
 from . import APP_ID, service_version
 from . import actions
 from .memory_extract import extract_facts_from_events, extract_facts_from_turns
+from .olvt_proxy import BROWSER_UA, build_memory_context_block, sanitize_proxy_payload
+from .persona import PersonaRunner
 from .saves import SaveStore
 from .scene import SceneRunner
 from .store import Store
@@ -88,6 +91,19 @@ def log(level: str, message: str, **extra: object) -> None:
     print(json.dumps(line, ensure_ascii=False), flush=True)
 
 
+def _is_loopback_url(url: str) -> bool:
+    return bool(re.match(r"^https?://(127\.0\.0\.1|localhost|0\.0\.0\.0)(:|/|$)", (url or "").strip(), re.I))
+
+
+def _normalize_openai_base(url: str) -> str:
+    u = (url or "").strip().rstrip("/")
+    if not u:
+        return ""
+    if re.search(r"/v\d+$", u, re.I):
+        return u
+    return f"{u}/v1"
+
+
 class Orchestrator:
     def __init__(self, store: Store) -> None:
         self.store = store
@@ -115,6 +131,8 @@ class Orchestrator:
         self.scenes = SceneRunner(store, store.root, self._push_scene)
         self.scenes.on_done = self.handle_scene_done
         self.scenes.set_llm(self.llm)
+        self.personas = PersonaRunner(store, store.root)
+        self.personas.set_llm(self.llm)
         # 地图推送到设备：auto_push_scene 关时只生成、由人在产出验收里手动提交。
         # scene_pushes 记每条产出的推送状态，未推成功的在设备上线后重试。
         self.auto_push_scene = bool(store.get_kv("auto_push_scene", False))
@@ -132,6 +150,10 @@ class Orchestrator:
         self.console_waiters: dict[str, asyncio.Future] = {}
         # 档位迁移计数（本次进程内），首页状态机统计表直接读它
         self.tier_transitions: dict[str, int] = {}
+        # OLVT 世界近况注入节流状态（防每轮重复提示天气/地点）
+        self._world_ctx_sig: str = ""
+        self._world_ctx_at: float = 0.0
+        self._world_ctx_turns: int = 0
 
     async def _push_scene(self, kind: str, payload: dict) -> None:
         await self.broadcast(kind, payload)
@@ -704,13 +726,19 @@ class Orchestrator:
         }
 
     def llm_payload(self) -> dict:
+        raw_base = str(self.llm.get("baseUrl") or "").strip()
+        mode = str(self.llm.get("mode") or "").strip().lower()
+        if mode not in ("api", "local"):
+            mode = "local" if _is_loopback_url(raw_base) else "api"
         return {
-            "baseUrl": self.llm.get("baseUrl"),
+            "mode": mode,
+            "baseUrl": _normalize_openai_base(raw_base),
             "apiKey": self.llm.get("apiKey"),
             "model": self.llm.get("model"),
             "timeoutMs": self.llm.get("timeoutMs"),
             "maxAttempts": self.llm.get("maxAttempts"),
             "retryBaseMs": self.llm.get("retryBaseMs"),
+            "localProxyPath": "/dhvw/llm/v1",
         }
 
     async def apply_config(self, cfg: dict) -> dict:
@@ -761,6 +789,7 @@ class Orchestrator:
             self.llm = merged
             self.store.put_kv("llm", merged)
             self.scenes.set_llm(self.llm)
+            self.personas.set_llm(self.llm)
             await self.broadcast("llm:config", self.llm_payload())
             log("info", "下发 LLM 配置", baseUrl=merged.get("baseUrl"), model=merged.get("model"))
         return {
@@ -1257,6 +1286,21 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
         pushed = await orch.push_facts()
         return JSONResponse({"ok": True, **result, "pushed": pushed})
 
+    @app.get("/dhvw/memory/facts")
+    async def list_facts_route(tier: str = "", limit: int = 100) -> JSONResponse:
+        """按层级列出当前有效记忆事实。"""
+        items = store.list_facts(tier=tier.strip(), limit=limit)
+        return JSONResponse({"ok": True, "facts": items})
+
+    @app.delete("/dhvw/memory/facts/{fact_id}")
+    async def delete_fact_route(fact_id: str) -> JSONResponse:
+        """删除指定记忆事实并同步给在线设备。"""
+        deleted = store.delete_fact(fact_id)
+        if not deleted:
+            return JSONResponse({"ok": False, "error": "not_found"}, status_code=404)
+        pushed = await orch.push_facts()
+        return JSONResponse({"ok": True, "deleted": fact_id, "pushed": pushed})
+
     @app.post("/dhvw/memory/rebuild")
     async def rebuild_memory() -> JSONResponse:
         """删除并由 mem_meta 正文重建 FTS5 与 vec0 向量索引。"""
@@ -1346,33 +1390,35 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
         return "，".join(notes)
 
     @app.get("/dhvw/memory/context")
-    async def memory_context(q: str = "", k: int = 5) -> JSONResponse:
-        """供 OLVT 每轮对话前拉取相关向量记忆与设备近况（ADR-PC-004）。"""
+    async def memory_context(q: str = "", k: int = 5, turn: int = 0, proactive: int = 0) -> JSONResponse:
+        """供 OLVT 每轮对话前拉取相关向量记忆与节流后的设备近况（ADR-PC-004）。"""
         k = max(1, min(int(k), 12))
-        hits, semantic = store.search_hybrid(q, k, min_score=0.35, mood=orch.mood) if q.strip() else ([], False)
-        l0 = store.get_l0_facts(3)
-        hit_ids = {h["id"] for h in hits}
-        l0_extra = [f for f in l0 if f["id"] not in hit_ids]
-        ctx = store.get_kv("context", {}) or {}
         clock = (orch.digest or {}).get("clock") or {}
         _, weekday_name = orch._weekday(clock)
-        lines: list[str] = []
-        parts = [p for p in (weekday_name, clock.get("phase"), ctx.get("place"), ctx.get("weather")) if p]
-        if parts:
-            lines.append("当前状态：" + " / ".join(str(p) for p in parts))
         mood_desc = _describe_mood(orch.mood)
-        if mood_desc:
-            lines.append(f"当前心情：{mood_desc}")
-        if l0_extra:
-            lines.append("核心偏好（L0）：")
-            for f in l0_extra:
-                lines.append(f"- [L0] {f.get('text', '')}")
-        if hits:
-            lines.append("相关记忆：")
-            for h in hits:
-                tier = h.get("tier") or "L2"
-                lines.append(f"- [{tier}] {h.get('text', '')}")
-        block = "\n".join(lines)
+        (
+            block,
+            ctx,
+            hits,
+            l0_extra,
+            semantic,
+            orch._world_ctx_sig,
+            orch._world_ctx_at,
+            orch._world_ctx_turns,
+        ) = build_memory_context_block(
+            store=store,
+            digest=orch.digest or {},
+            mood=orch.mood or {},
+            mood_desc=mood_desc,
+            weekday_name=weekday_name,
+            q=q,
+            k=k,
+            turn=max(0, int(turn)),
+            proactive=bool(proactive),
+            last_sig=orch._world_ctx_sig,
+            last_at=orch._world_ctx_at,
+            turns_since_world=orch._world_ctx_turns,
+        )
         return JSONResponse({"ok": True, "semantic": semantic, "hits": hits, "l0": l0_extra, "context": ctx, "block": block})
 
     @app.get("/dhvw/qqbot/status")
@@ -1388,12 +1434,193 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
         log("info", "下发 QQ Bot 重新绑定指令", delivered=len(sent))
         return JSONResponse({"ok": True, "delivered": len(sent), **orch.qqbot_status_view()})
 
+    @app.get("/dhvw/persona/jobs")
+    async def persona_jobs_route() -> JSONResponse:
+        return JSONResponse({"ok": True, "jobs": orch.personas.list_jobs()})
+
+    @app.post("/dhvw/persona/generate")
+    async def persona_generate_route(request: Request) -> JSONResponse:
+        body = await request.json()
+        if not isinstance(body, dict):
+            return JSONResponse({"ok": False, "error": "bad_payload"}, status_code=400)
+        job, reason = orch.personas.submit(body)
+        if job is None:
+            status = 409 if orch.personas.busy else 400
+            return JSONResponse({"ok": False, "error": reason or "提交失败"}, status_code=status)
+        orch.personas.spawn(job)
+        log("info", "人设联网创作任务提交", job=job["id"], target=job["target"])
+        return JSONResponse({"ok": True, "job": orch.personas.public_job(job)})
+
+    @app.post("/dhvw/persona/jobs/{job_id}/stop")
+    async def persona_stop_job_route(job_id: str) -> JSONResponse:
+        job, reason = orch.personas.stop_job(job_id)
+        if job is None:
+            return JSONResponse({"ok": False, "error": reason or "not_found"}, status_code=404)
+        log("info", "暂停人设创作任务", job=job_id)
+        return JSONResponse({"ok": True, "job": orch.personas.public_job(job)})
+
+    @app.post("/dhvw/persona/jobs/{job_id}/retry")
+    async def persona_retry_job_route(job_id: str) -> JSONResponse:
+        job, reason = orch.personas.resume(job_id)
+        if job is None:
+            status = 409 if orch.personas.busy else 400
+            return JSONResponse({"ok": False, "error": reason or "重启失败"}, status_code=status)
+        orch.personas.spawn(job)
+        log("info", "重启/重试人设创作任务", job=job_id, target=job["target"])
+        return JSONResponse({"ok": True, "job": orch.personas.public_job(job)})
+
+    @app.delete("/dhvw/persona/jobs/{job_id}")
+    async def persona_delete_job_route(job_id: str) -> JSONResponse:
+        removed = orch.personas.delete_job(job_id)
+        if not removed:
+            return JSONResponse({"ok": False, "error": "not_found"}, status_code=404)
+        log("info", "删除人设创作任务", job=job_id)
+        return JSONResponse({"ok": True, "deleted": job_id})
+
     @app.post("/dhvw/config")
     async def config(request: Request) -> JSONResponse:
         body = await request.json()
         if not isinstance(body, dict):
             return JSONResponse({"ok": False, "error": "bad_payload"}, status_code=400)
         return JSONResponse(await orch.apply_config(body))
+
+    @app.post("/dhvw/llm/v1/chat/completions")
+    async def llm_proxy_chat(request: Request) -> Response:
+        """统一 OpenAI 兼容转发代理（兼顾 ARM 与 OLVT SSE 流式请求 + 防复读调控）。"""
+        for _ in range(10):
+            if _normalize_openai_base(str(orch.llm.get("baseUrl") or "")):
+                break
+            await asyncio.sleep(0.2)
+        base = _normalize_openai_base(str(orch.llm.get("baseUrl") or ""))
+        if not base:
+            return JSONResponse({"error": "llm_not_configured"}, status_code=503)
+        raw_body = await request.body()
+        if not raw_body:
+            return JSONResponse({"error": "empty_body"}, status_code=400)
+        try:
+            payload = json.loads(raw_body)
+        except json.JSONDecodeError:
+            return JSONResponse({"error": "invalid_json"}, status_code=400)
+        if not isinstance(payload, dict):
+            return JSONResponse({"error": "invalid_payload"}, status_code=400)
+
+        target = f"{base}/chat/completions"
+        api_key = str(orch.llm.get("apiKey") or "").strip()
+        is_local = _is_loopback_url(base)
+        mode_str = str(orch.llm.get("mode") or "").strip().lower()
+        if mode_str == "local":
+            is_local = True
+        if not payload.get("model") and orch.llm.get("model"):
+            payload["model"] = str(orch.llm.get("model"))
+
+        forward_payload, injected_penalties = sanitize_proxy_payload(payload, is_local=is_local)
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": BROWSER_UA,
+        }
+        if api_key and api_key not in ("local-llama", "dhvw-proxy", "missing-api-key"):
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        is_stream = bool(forward_payload.get("stream"))
+        timeout = httpx.Timeout(connect=12.0, read=120.0, write=15.0, pool=12.0)
+
+        if not is_stream:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                for attempt in range(1, 4):
+                    try:
+                        resp = await client.post(target, json=forward_payload, headers=headers)
+                        if (
+                            resp.status_code == 400
+                            and injected_penalties
+                            and any(k in resp.text for k in ("frequency_penalty", "presence_penalty"))
+                        ):
+                            forward_payload.pop("frequency_penalty", None)
+                            forward_payload.pop("presence_penalty", None)
+                            injected_penalties = False
+                            resp = await client.post(target, json=forward_payload, headers=headers)
+                        ct = resp.headers.get("Content-Type", "application/json; charset=utf-8")
+                        return Response(
+                            content=resp.content,
+                            status_code=resp.status_code,
+                            media_type=ct.split(";")[0].strip() or "application/json",
+                        )
+                    except (httpx.ConnectError, httpx.ConnectTimeout) as err:
+                        if attempt < 3:
+                            await asyncio.sleep(0.5 * attempt)
+                            continue
+                        err_body = json.dumps({"error": "upstream_unreachable", "detail": str(err)}).encode("utf-8")
+                        return Response(content=err_body, status_code=502, media_type="application/json")
+                    except Exception as err:
+                        err_body = json.dumps({"error": "upstream_unreachable", "detail": str(err)}).encode("utf-8")
+                        return Response(content=err_body, status_code=502, media_type="application/json")
+
+        # SSE 流式透传：在发出首包前捕获上游连接/400 参数拒绝错误，首包开始后逐块零缓冲转发
+        client = httpx.AsyncClient(timeout=timeout)
+        stream_cm = None
+        upstream_resp = None
+        for attempt in range(1, 4):
+            try:
+                stream_cm = client.stream("POST", target, json=forward_payload, headers=headers)
+                upstream_resp = await stream_cm.__aenter__()
+                if (
+                    upstream_resp.status_code == 400
+                    and injected_penalties
+                ):
+                    err_bytes = await upstream_resp.aread()
+                    await stream_cm.__aexit__(None, None, None)
+                    stream_cm = None
+                    err_txt = err_bytes.decode("utf-8", errors="ignore")
+                    if any(k in err_txt for k in ("frequency_penalty", "presence_penalty")):
+                        forward_payload.pop("frequency_penalty", None)
+                        forward_payload.pop("presence_penalty", None)
+                        injected_penalties = False
+                        stream_cm = client.stream("POST", target, json=forward_payload, headers=headers)
+                        upstream_resp = await stream_cm.__aenter__()
+                    else:
+                        await client.aclose()
+                        return Response(content=err_bytes, status_code=400, media_type="application/json")
+                if upstream_resp.status_code >= 400:
+                    err_bytes = await upstream_resp.aread()
+                    ct = upstream_resp.headers.get("Content-Type", "application/json")
+                    status = upstream_resp.status_code
+                    await stream_cm.__aexit__(None, None, None)
+                    await client.aclose()
+                    return Response(content=err_bytes, status_code=status, media_type=ct.split(";")[0].strip() or "application/json")
+                break
+            except (httpx.ConnectError, httpx.ConnectTimeout) as err:
+                if stream_cm is not None:
+                    await stream_cm.__aexit__(type(err), err, err.__traceback__)
+                    stream_cm = None
+                if attempt < 3:
+                    await asyncio.sleep(0.5 * attempt)
+                    continue
+                await client.aclose()
+                err_body = json.dumps({"error": "upstream_unreachable", "detail": str(err)}).encode("utf-8")
+                return Response(content=err_body, status_code=502, media_type="application/json")
+            except Exception as err:
+                if stream_cm is not None:
+                    await stream_cm.__aexit__(type(err), err, err.__traceback__)
+                await client.aclose()
+                err_body = json.dumps({"error": "upstream_unreachable", "detail": str(err)}).encode("utf-8")
+                return Response(content=err_body, status_code=502, media_type="application/json")
+
+        async def _iter_sse() -> AsyncIterator[bytes]:
+            try:
+                assert upstream_resp is not None
+                async for chunk in upstream_resp.aiter_raw():
+                    if chunk:
+                        yield chunk
+            finally:
+                if stream_cm is not None:
+                    await stream_cm.__aexit__(None, None, None)
+                await client.aclose()
+
+        return StreamingResponse(
+            _iter_sse(),
+            status_code=200,
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
 
     @app.websocket("/dhvw")
     async def device_ws(ws: WebSocket) -> None:

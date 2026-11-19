@@ -17,14 +17,14 @@
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 import random
+import re
 import time
 from datetime import datetime
 from typing import Any
 
 from loguru import logger
-
-from prompts import prompt_loader
 
 from .conversations.conversation_utils import EMOJI_LIST
 from .conversations.single_conversation import process_single_conversation
@@ -75,6 +75,9 @@ class ProactiveScheduler:
         self.last_error = ""
         self.last_reason = "尚未启动"
         self.spoken_total = 0
+        self._recent_openers: deque[str] = deque(maxlen=6)
+        self._speak_seq = 0
+        self._last_world_seq = -2
         self._task: asyncio.Task | None = None
         # 自己记一份在途任务：上游在链路里会清 handler.current_conversation_tasks，
         # 只信那张表会导致上一轮还在合成语音时又开下一轮。
@@ -88,6 +91,14 @@ class ProactiveScheduler:
         self.unanswered = 0
         self.gap = float(self.cfg["gapSeconds"])
         if client_uid:
+            self.last_client = client_uid
+
+    def note_ai_finished(self, client_uid: str = "") -> None:
+        """AI 一轮回复/播报完成时刷新空闲起点，避免长回复还没说完就开始倒数 idle。"""
+        now = self._clock()
+        if now > self.last_activity:
+            self.last_activity = now
+        if client_uid and not self.last_client:
             self.last_client = client_uid
 
     def configure(self, patch: dict[str, Any]) -> dict[str, Any]:
@@ -192,22 +203,54 @@ class ProactiveScheduler:
             return self.last_client
         return next(iter(conns.keys()), "")
 
+    def _extract_world_snippets(self) -> list[str]:
+        raw = str(self.cfg.get("context") or "").strip()
+        if not raw or "还没有回报状态" in raw:
+            return []
+        snippets: list[str] = []
+        for line in raw.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            # 不把干巴巴的心率/数值条直接当话题，只保留动作、地点、天气、日程等鲜活细节
+            if line.startswith(("正在做：", "接下来的计划：", "角色所在地点：", "天气：")):
+                snippets.append(line)
+        return snippets
+
     def _compose_prompt(self) -> str:
-        try:
-            base = prompt_loader.load_util("proactive_speak_prompt").strip()
-        except Exception:
-            base = ""
-        if not base:
-            base = "Please say something that would be engaging and appropriate for the current context."
-        lines = [
-            base,
-            "",
-            "以下是角色此刻所在世界的真实状态（由主机端提供）：",
-            str(self.cfg.get("context") or "（无）").strip(),
-            "",
-            "要求：用角色自己的口吻只说一到两句，不列举状态、不复述设定、不要 Markdown；"
-            "如果刚才已经说过类似的话就换个话题，实在没什么可说就保持沉默。",
+        self._speak_seq += 1
+        casual_seeds = [
+            "话题方向：纯日常闲聊（不提虚拟仓、不提天气、不提吃饭）——随口问问对方此刻在忙什么、摸鱼看啥或待会打算干嘛。",
+            "话题方向：生活作息与饮品（不提虚拟仓、不提天气）——聊聊现在这个点是该喝点东西、伸个懒腰还是准备休息。",
+            "话题方向：承接人情味陪伴（不提虚拟仓、不提白饭）——顺着你们刚刚聊过的人/事/书/游戏轻轻接一嘴，或者抛出一个好玩的小选择。",
+            "话题方向：随口分享一个小念头（不提天气、不提心情数值）——用轻快自然的语气自顾自嘀咕一句带点吐槽感的话，等对方搭腔。",
+            "话题方向：轻度撒娇/刷存在感（不要固定‘嗯哼’开头）——装作刚好发完呆回过神来，简短喊对方一声或找个新鲜小话题。",
         ]
+        world_snippets = self._extract_world_snippets()
+        can_use_world = bool(world_snippets) and (self._speak_seq - self._last_world_seq >= 3)
+        use_world = can_use_world and (random.random() < 0.30)
+
+        if use_world:
+            self._last_world_seq = self._speak_seq
+            pick = random.choice(world_snippets)
+            seed_block = (
+                f"话题方向：轻量世界近况点缀——可以顺嘴带一嘴「{pick}」，"
+                "当成随口唠家常一样一笔带过，不要列数据，也不要反问对方那边的天气。"
+            )
+        else:
+            seed_block = random.choice(casual_seeds)
+
+        lines = [
+            "[主动找话题指令] 现在你主动对用户说 1 到 2 句简短口语，像真人在微信/语音里突然搭话一样自然。",
+            seed_block,
+        ]
+        if self._recent_openers:
+            recent_str = " / ".join(f"「{item}」" for item in list(self._recent_openers)[-4:])
+            lines.append(f"最近已经说过的开头与话头（本轮禁止重复）：{recent_str}")
+        lines.append(
+            "硬性约束：禁止用“嗯哼”或固定同一词开头；禁止用“猜猜我最想干嘛”“聊聊书还是换话题”“心情不错/心情正好”“雾散了没”；"
+            "不要自报时间数字，不要输出 Markdown 或方括号标签。"
+        )
         return "\n".join(lines)
 
     # ---- 执行 ----
@@ -224,17 +267,32 @@ class ProactiveScheduler:
             self.last_reason = "客户端上下文还没准备好"
             return {"ok": False, "reason": self.last_reason}
         prompt = self._compose_prompt()
-        task = asyncio.create_task(
-            process_single_conversation(
-                context=context,
-                websocket_send=websocket.send_text,
-                client_uid=client_uid,
-                user_input=prompt,
-                images=None,
-                session_emoji=random.choice(EMOJI_LIST),
-                metadata={"proactive_speak": True, "skip_memory": True, "skip_history": True},
-            )
-        )
+
+        async def _run_proactive() -> str:
+            try:
+                reply = await process_single_conversation(
+                    context=context,
+                    websocket_send=websocket.send_text,
+                    client_uid=client_uid,
+                    user_input=prompt,
+                    images=None,
+                    session_emoji=random.choice(EMOJI_LIST),
+                    metadata={"proactive_speak": True, "skip_memory": True, "skip_history": True},
+                )
+                clean_reply = re.sub(r"\s+", " ", str(reply or "")).strip()
+                if clean_reply:
+                    self._recent_openers.append(clean_reply[:48])
+                self.last_error = ""
+                return clean_reply
+            except asyncio.CancelledError:
+                raise
+            except Exception as err:
+                self.last_error = str(err)
+                raise
+            finally:
+                self.note_ai_finished(client_uid)
+
+        task = asyncio.create_task(_run_proactive())
         self.handler.current_conversation_tasks[client_uid] = task
         self._inflight = task
         now = self._clock()

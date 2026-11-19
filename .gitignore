@@ -4,6 +4,9 @@ dist-electron/
 /runtime/
 apps/shell/runtime/
 /components/
+/local_ai/*
+!/local_ai/README.md
+*.gguf
 
 # --- Node ---
 node_modules/
