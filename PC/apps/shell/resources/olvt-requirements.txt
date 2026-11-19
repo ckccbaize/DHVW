@@ -1,0 +1,46 @@
+# DHVW 精简依赖（替代 OLVT 上游 requirements.txt）
+#
+# 上游 pyproject 把全部 TTS/ASR/Agent 后端的 SDK 都列为必装（anthropic / azure-speech /
+# elevenlabs / cartesia / edge-tts / pyttsx3 / letta / groq-infra / torch ...），实测
+# 只用「openai_compatible LLM + sherpa-onnx ASR + GPT-SoVITS HTTP TTS」路径时：
+#   - 重型导入都藏在各后端模块内部，由工厂函数按需 import，不会在启动时触发；
+#   - torch 只被 silero VAD 与 coqui/funasr 使用，我们关掉了 VAD、不用这两个后端。
+# 因此这里只保留启动与上述路径真实需要的包。
+#
+# 例外：
+#   - groq 仅为「ASR 未启用/模型未下载」时的占位后端（conf 里 asr_model=groq_whisper_asr），
+#     不加载模型、不会被调用，包本身很小；
+#   - anthropic / letta-client 是 basic_memory_agent 在模块级导入的（agent_factory 会提前拉起来），
+#     即使只选 openai_compatible 也躲不掉；
+#   - pywin32 是 mcp 在 Windows 上的句柄实现依赖。
+
+fastapi[standard]>=0.115.8
+uvicorn[standard]>=0.33.0
+openai>=1.57.4
+httpx>=0.28.1
+pydantic>=2.0
+mcp[cli]>=1.6.0
+# mcp 的 Windows 标准输入/句柄实现依赖 pywin32，缺失时 import 直接失败
+pywin32>=306; sys_platform == 'win32'
+anthropic>=0.40.0
+letta-client>=0.1.100
+aiohttp>=3.9.0
+jinja2>=3.1.0
+groq>=0.13.0
+
+sherpa-onnx>=1.10.39
+onnxruntime>=1.20.1
+numpy>=1.26.4,<2
+scipy>=1.14.1
+soundfile>=0.12.1
+pydub>=0.25.1
+
+pysbd>=0.3.4
+pyyaml>=6.0.2
+ruamel-yaml>=0.18.10
+tomli>=2.2.1
+chardet>=5.2.0
+langdetect>=1.0.9
+loguru>=0.7.2
+tqdm>=4.67.1
+requests>=2.32.3

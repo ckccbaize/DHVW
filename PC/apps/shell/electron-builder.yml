@@ -1,0 +1,73 @@
+appId: com.dhvw.host
+productName: DigitalHuman
+copyright: DHVW
+directories:
+  output: ../../release
+  buildResources: build
+files:
+  - dist-electron/**/*
+  - dist/**/*
+  - package.json
+extraResources:
+  - from: ../../services
+    to: services
+    filter:
+      - '**/*.py'
+      - '!**/__pycache__/**'
+  - from: runtime
+    to: runtime
+    filter:
+      - '**/*'
+      - '!**/__pycache__/**'
+      # 组件依赖是首次使用时下载安装的（ADR-PC-018），不随安装包
+      - '!site-packages/**'
+  - from: build/tools
+    to: tools
+  # 角色舞台：页面 + pixi/live2d 库 + 模型（本机 http 静态服务读取）
+  - from: resources/live2d
+    to: live2d
+  # 中文句向量模型（bge-small-zh-v1.5 量化 ONNX，运行期零联网）
+  - from: resources/models
+    to: models
+  - from: build/icon.png
+    to: icon.png
+  # 上游 OLVT 未开放 UA / extra_body，随包带两个补丁文件覆盖过去
+  - from: resources/olvt-overrides
+    to: olvt-overrides
+  # 精简后的 OLVT 依赖清单（替代上游 requirements.txt）
+  - from: resources/olvt-requirements.txt
+    to: olvt-requirements.txt
+  # 地图生成工具链（与 scene.py find_toolchain() 对齐）
+  - from: ../../docs/MAP-SCENE-DESIGN.md
+    to: map-toolchain/docs/MAP-SCENE-DESIGN.md
+  - from: ../../scripts
+    to: map-toolchain/scripts
+    filter:
+      - 'paint_home.py'
+      - 'paint_custom.py'
+      - 'pack_scene.py'
+      - 'validate_scene.py'
+  - from: ../../assets/scenes/_shared/acts.json
+    to: map-toolchain/assets/scenes/_shared/acts.json
+  - from: ../../assets/scenes/home/home.map.json
+    to: map-toolchain/assets/scenes/home/home.map.json
+  - from: ../../assets/scenes/office/office.map.json
+    to: map-toolchain/assets/scenes/office/office.map.json
+  # ARM 渲染预览资源（Agent 页产出验收使用）
+  - from: ../../../arm/www
+    to: arm-www
+asar: true
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: ${productName}-${version}-setup.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: DHVW 主机端
+  deleteAppDataOnUninstall: false

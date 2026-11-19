@@ -1,0 +1,70 @@
+# --- Electron / 打包产物 ---
+release/
+dist-electron/
+/runtime/
+apps/shell/runtime/
+/components/
+/local_ai/*
+!/local_ai/README.md
+*.gguf
+
+# --- Node ---
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# --- 密钥与运行时配置：一律不入库 ---
+conf.yaml
+conf.yaml.*
+.env
+.env.*
+*.key
+*.pem
+*.pfx
+secrets/
+certs/
+
+# --- 构建产物 ---
+packaging/out/
+build/
+!apps/shell/build/
+!apps/shell/build/**
+apps/shell/build/tools/
+*.exe
+*.dll
+*.pyd
+*.so
+*.dylib
+*.msi
+*.nsi.tmp
+
+# --- 运行期数据：绝不入库（运行期在 %APPDATA%，此处仅防误放）---
+/data/
+/logs/
+/models/
+/scenes/
+/backgrounds/
+/plots/
+*.db
+*.db-wal
+*.db-shm
+*.onnx
+
+# --- 编辑器 / 系统 ---
+.tmp/
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store
+desktop.ini

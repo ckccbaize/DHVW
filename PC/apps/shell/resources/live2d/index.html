@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>角色形象</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+        font-family: 'Inter', 'Microsoft YaHei', sans-serif;
+      }
+      #stage {
+        position: absolute;
+        inset: 0;
+      }
+      #msg {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #1a1a2e;
+        font-size: 13px;
+        letter-spacing: 0.06em;
+        background: repeating-linear-gradient(45deg, transparent 0 10px, rgba(26, 26, 46, 0.05) 10px 20px);
+      }
+      #msg.hidden {
+        display: none;
+      }
+    </style>
+    <script src="lib/pixi.min.js"></script>
+    <script src="lib/live2dcubismcore.min.js"></script>
+    <script src="lib/cubism4.min.js"></script>
+  <script src="lib/cubism4-color-fix.js"></script>
+  </head>
+  <body>
+    <div id="stage"></div>
+    <div id="msg">正在加载角色…</div>
+    <script>
+      const msg = document.getElementById('msg')
+      const fail = (text) => {
+        msg.textContent = text
+        msg.classList.remove('hidden')
+      }
+
+      const params = new URLSearchParams(location.search)
+      const modelPath = params.get('model') || '/model/mao_pro/runtime/mao_pro.model3.json'
+
+      // Cubism 4 核心是全局对象；缺它时 pixi-live2d-display 会静默失败，这里先查一次
+      if (!window.Live2DCubismCore) {
+        fail('Live2D 核心未加载（lib/live2dcubismcore.min.js）')
+      } else {
+        const app = new PIXI.Application({
+          view: undefined,
+          resizeTo: window,
+          backgroundAlpha: 0,
+          antialias: true,
+          autoStart: true,
+        })
+        document.getElementById('stage').appendChild(app.view)
+
+        const half = new PIXI.Container()
+        app.stage.addChild(half)
+        const stageCenter = { x: window.innerWidth / 2, y: window.innerHeight / 2 }
+
+        PIXI.live2d.Live2DModel.from(modelPath, { autoInteract: false })
+          .then((model) => {
+            model.anchor.set(0.5, 1)
+            half.addChild(model)
+
+            const fit = () => {
+              const w = window.innerWidth
+              const h = window.innerHeight
+              // 留一点下边距：有的模型（如带书桌的 shizuku）自身画面比人物大，贴底会被裁
+              const scale = Math.min((w * 0.92) / model.internalModel.width, (h * 0.94) / model.internalModel.height)
+              stageCenter.x = w / 2
+              stageCenter.y = h * 0.98
+              half.scale.set(scale)
+              half.position.set(stageCenter.x, stageCenter.y)
+              model.scale.set(1)
+            }
+            fit()
+            window.__dbg = {
+              model: modelPath,
+              internal: [model.internalModel.width, model.internalModel.height],
+              canvas: [app.view.width, app.view.height],
+              scale: half.scale.x,
+            }
+            window.addEventListener('resize', fit)
+
+            // 待机动作循环：模型自带 idle 组，缺组时保持默认姿势
+            const idleGroup = model.internalModel.motionManager.groups.idle
+            if (idleGroup) {
+              model.motion(idleGroup)
+              setInterval(() => model.motion(idleGroup), 12000)
+            }
+
+            // 眼随鼠标，仅在本机舞台内生效
+            window.addEventListener('mousemove', (e) => {
+              model.focus(e.clientX, e.clientY)
+            })
+
+            msg.classList.add('hidden')
+          })
+          .catch((err) => {
+            window.__dbg = { error: String(err && err.message ? err.message : err) }
+            fail('角色模型加载失败：' + (err && err.message ? err.message : err))
+          })
+      }
+    </script>
+  </body>
+</html>
