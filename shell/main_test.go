@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"encoding/pem"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -331,5 +332,67 @@ func TestLlmConfigReadsApikeyFile(t *testing.T) {
 	}
 	if out["baseUrl"] != "https://example.test" || out["apiKey"] != "sk-abc" || out["model"] != "model-x" {
 		t.Fatalf("bad config: %v", out)
+	}
+}
+
+func TestPairStoresCAAndLLMProxyTrustsSelfSigned(t *testing.T) {
+	var seenAuth string
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"ok"}}]}`))
+	}))
+	defer upstream.Close()
+
+	caPem := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: upstream.Certificate().Raw}))
+	s, _ := newTestServer(t)
+
+	// 配对写入自签 CA 后，/__llm/chat/completions 必须信任该网关证书并透传 Bearer token
+	pairBody, _ := json.Marshal(map[string]string{
+		"wsUrl": "wss://192.168.1.10:8443/ws/orchestrator?token=tok-1",
+		"name":  "arm-board",
+		"caPem": caPem,
+	})
+	pairReq := httptest.NewRequest(http.MethodPost, "/__pair", strings.NewReader(string(pairBody)))
+	pairReq.RemoteAddr = "192.168.1.10:5555"
+	pairRec := httptest.NewRecorder()
+	s.pairHandler().ServeHTTP(pairRec, pairReq)
+	if pairRec.Code != http.StatusOK {
+		t.Fatalf("__pair → %d %s", pairRec.Code, pairRec.Body.String())
+	}
+	if _, err := os.Stat(s.caFile); err != nil {
+		t.Fatalf("caFile missing: %v", err)
+	}
+
+	proxyBody, _ := json.Marshal(map[string]any{
+		"baseUrl": upstream.URL + "/llm/v1",
+		"apiKey":  "tok-1",
+		"body":    map[string]any{"model": "nemotron-3.5-bolt-e4b", "messages": []any{}},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/__llm/chat/completions", strings.NewReader(string(proxyBody)))
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("TLS proxy → %d body=%s", rec.Code, rec.Body.String())
+	}
+	if seenAuth != "Bearer tok-1" {
+		t.Fatalf("Authorization mismatch: got %q", seenAuth)
+	}
+}
+
+func TestDefaultWSFallbackWhenUnpaired(t *testing.T) {
+	s, _ := newTestServer(t)
+	s.defaultWS = "ws://127.0.0.1:8877/dhvw"
+
+	rec := get(t, s, "/__host")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /__host → %d", rec.Code)
+	}
+	var out map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out["ok"] != true || out["wsUrl"] != "ws://127.0.0.1:8877/dhvw" {
+		t.Fatalf("expected defaultWS fallback, got %v", out)
 	}
 }

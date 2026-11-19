@@ -20,6 +20,7 @@ import { createPerfOverlay } from "./view/perf-overlay.js";
 import { normalizePresentUrl, probePresent } from "./view/present-host.js";
 import { createBlockTransition } from "./view/transition.js";
 import { collectConsoleSnapshot } from "./runtime/console-bridge.js";
+import { resolveRemoteLlmConfig } from "./core/llm/resolve.js";
 
 const DEFAULTS = {
   host: { wsUrl: "", probeUrl: "", ttsUrl: "" },
@@ -132,14 +133,15 @@ async function loadConfig() {
         auto = null;
       }
     }
+    const host = { ...DEFAULTS.host, ...(raw.host || {}) };
     return {
       ...DEFAULTS,
       ...raw,
-      host: { ...DEFAULTS.host, ...(raw.host || {}) },
+      host,
       life,
       display: { ...DEFAULTS.display, ...(raw.display || {}) },
       present: { ...DEFAULTS.present, ...(raw.present || {}) },
-      llm: { ...DEFAULTS.llm, ...(raw.llm || {}), ...(auto || {}), ...(saved || {}) },
+      llm: resolveRemoteLlmConfig({ ...DEFAULTS.llm, ...(raw.llm || {}), ...(auto || {}), ...(saved || {}) }, host.wsUrl),
       qqBot: { ...DEFAULTS.qqBot, ...(raw.qqBot || {}) },
       scene: raw.scene || DEFAULTS.scene,
     };
@@ -809,8 +811,9 @@ async function boot() {
         break;
       }
       case "llm:config": {
-        cfg.llm = { ...(cfg.llm || {}), ...(p || {}) };
-        void local.setLlmConfig(p);
+        const resolved = resolveRemoteLlmConfig(p || {}, cfg.host?.wsUrl || "");
+        cfg.llm = { ...(cfg.llm || {}), ...resolved };
+        void local.setLlmConfig(resolved);
         pushQqLlmConfig();
         break;
       }
@@ -1365,6 +1368,7 @@ async function boot() {
           apiKey: cfg.llm.apiKey || "",
           model: cfg.llm.model || "",
           reasoningEffort: cfg.llm.reasoningEffort,
+          useShellProxy: cfg.llm.useShellProxy === true,
         },
       });
     };

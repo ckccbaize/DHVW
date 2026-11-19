@@ -13,6 +13,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -89,6 +91,8 @@ type server struct {
 	root       string
 	dataDir    string
 	hostFile   string
+	caFile     string
+	defaultWS  string
 	apikeyDir  string
 	noCache    bool
 	version    string
@@ -97,8 +101,50 @@ type server struct {
 	verifyHash bool
 	hits       atomic.Int64
 	httpClient *http.Client
+	llmMu      sync.RWMutex
+	llmClient  *http.Client
 	qqMu       sync.Mutex
 	qqCmd      *exec.Cmd
+}
+
+func (s *server) rebuildLLMClient() {
+	pool, err := x509.SystemCertPool()
+	if err != nil || pool == nil {
+		pool = x509.NewCertPool()
+	}
+	hasExtra := false
+	for _, p := range []string{s.caFile, strings.TrimSpace(os.Getenv("DHVW_GATEWAY_CA"))} {
+		if p == "" {
+			continue
+		}
+		if pemBytes, err := os.ReadFile(p); err == nil && len(pemBytes) > 0 {
+			if pool.AppendCertsFromPEM(pemBytes) {
+				hasExtra = true
+			}
+		}
+	}
+	client := &http.Client{Timeout: 120 * time.Second}
+	if hasExtra {
+		client.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{
+				RootCAs:    pool,
+				MinVersion: tls.VersionTLS12,
+			},
+		}
+	}
+	s.llmMu.Lock()
+	s.llmClient = client
+	s.llmMu.Unlock()
+}
+
+func (s *server) getLLMClient() *http.Client {
+	s.llmMu.RLock()
+	c := s.llmClient
+	s.llmMu.RUnlock()
+	if c != nil {
+		return c
+	}
+	return s.httpClient
 }
 
 func newServer(root, ver string, verifyHash bool, apikeyDir string) (*server, error) {
@@ -110,16 +156,19 @@ func newServer(root, ver string, verifyHash bool, apikeyDir string) (*server, er
 	if err != nil || !st.IsDir() {
 		return nil, fmt.Errorf("root 不是目录: %s", abs)
 	}
+	dataDir := filepath.Join(filepath.Dir(abs), "data")
 	s := &server{
 		root:       abs,
-		dataDir:    filepath.Join(filepath.Dir(abs), "data"),
-		hostFile:   filepath.Join(filepath.Dir(abs), "data", "host.json"),
+		dataDir:    dataDir,
+		hostFile:   filepath.Join(dataDir, "host.json"),
+		caFile:     filepath.Join(dataDir, "ca.crt.pem"),
 		apikeyDir:  apikeyDir,
 		version:    ver,
 		started:    time.Now(),
 		verifyHash: verifyHash,
 		httpClient: &http.Client{Timeout: 120 * time.Second},
 	}
+	s.rebuildLLMClient()
 	s.pack = s.checkPack()
 	return s, nil
 }
@@ -349,7 +398,7 @@ func (s *server) writeHostConfig(cfg hostConfig) error {
 	return os.Rename(tmp, s.hostFile)
 }
 
-// serveHost 只服务本机回环，页面用它读取 PC 配对结果。
+// serveHost 只服务本机回环，页面用它读取 PC 配对结果；本机模拟模式可通过 -default-ws 提供默认直连地址。
 func (s *server) serveHost(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET")
@@ -360,6 +409,14 @@ func (s *server) serveHost(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	cfg := s.readHostConfig()
 	if cfg == nil {
+		if strings.TrimSpace(s.defaultWS) != "" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"ok":    true,
+				"wsUrl": s.defaultWS,
+				"name":  "local-sim",
+			})
+			return
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false})
 		return
 	}
@@ -421,12 +478,13 @@ func (s *server) pairHandler() http.Handler {
 				s.pairJSON(w, http.StatusMethodNotAllowed, map[string]any{"ok": false, "error": "POST only"})
 				return
 			}
-			r.Body = http.MaxBytesReader(w, r.Body, 8<<10)
+			r.Body = http.MaxBytesReader(w, r.Body, 32<<10)
 			var req struct {
 				WSURL    string `json:"wsUrl"`
 				ProbeURL string `json:"probeUrl"`
 				Token    string `json:"token"`
 				Name     string `json:"name"`
+				CAPEM    string `json:"caPem"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 				s.pairJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "bad json"})
@@ -454,6 +512,12 @@ func (s *server) pairHandler() http.Handler {
 				s.pairJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": err.Error()})
 				return
 			}
+			caPem := strings.TrimSpace(req.CAPEM)
+			if strings.Contains(caPem, "BEGIN CERTIFICATE") {
+				_ = os.MkdirAll(s.dataDir, 0o755)
+				_ = os.WriteFile(s.caFile, []byte(caPem+"\n"), 0o644)
+				s.rebuildLLMClient()
+			}
 			s.pairJSON(w, http.StatusOK, map[string]any{"ok": true})
 		case "/__unpair":
 			if r.Method != http.MethodPost {
@@ -461,6 +525,8 @@ func (s *server) pairHandler() http.Handler {
 				return
 			}
 			_ = os.Remove(s.hostFile)
+			_ = os.Remove(s.caFile)
+			s.rebuildLLMClient()
 			s.pairJSON(w, http.StatusOK, map[string]any{"ok": true})
 		default:
 			s.pairJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "not found"})
@@ -615,7 +681,7 @@ func (s *server) serveLLMProxy(w http.ResponseWriter, r *http.Request) {
 		hr.Header.Set("Authorization", "Bearer "+req.APIKey)
 	}
 
-	resp, err := s.httpClient.Do(hr)
+	resp, err := s.getLLMClient().Do(hr)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(http.StatusBadGateway)
@@ -813,6 +879,7 @@ func defaultApikeyDir() string {
 func main() {
 	addr := flag.String("addr", "127.0.0.1:8080", "监听地址（只允许回环）")
 	pairAddr := flag.String("pair-addr", "0.0.0.0:8081", "局域网配对监听地址（空=关闭）")
+	defaultWS := flag.String("default-ws", "", "未配对时的默认编排器 WS 地址（本机模拟用，如 ws://127.0.0.1:8877/dhvw）")
 	apikeyDir := flag.String("apikey", defaultApikeyDir(), "本机 LLM 配置目录（读取第一个 *.txt）")
 	root := flag.String("root", "./www", "资源包根目录")
 	verifyHash := flag.Bool("verify-hash", false, "启动时校验 manifest 的 sha256（较慢，仅排障用）")
@@ -830,6 +897,7 @@ func main() {
 	srv, err := newServer(*root, version, *verifyHash, *apikeyDir)
 	if srv != nil {
 		srv.noCache = *dev
+		srv.defaultWS = strings.TrimSpace(*defaultWS)
 	}
 	if err != nil {
 		log.Fatalf("初始化失败: %v", err)

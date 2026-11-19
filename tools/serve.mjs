@@ -1,6 +1,7 @@
 // 开发用静态服务：路径规则与 shell/main.go 保持一致（MIME / 缓存 / SPA 回退 / 无目录列表）。
 // 设备上跑的是 Go 壳，这里只用于本机验证与浏览器实测。
 import http from "node:http";
+import https from "node:https";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
@@ -9,8 +10,12 @@ import { fileURLToPath } from "node:url";
 import { createNetProxy } from "./net-proxy.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "www");
+const EXPLICIT_PORT = Boolean(process.env.PORT);
 const PORT = Number(process.env.PORT || 8080);
+const FALLBACK_PORT = 18080;
 const HOST = process.env.HOST || "127.0.0.1";
+const HOST_FILE = path.resolve(ROOT, "..", "data", "host.json");
+const DEFAULT_WS_URL = process.env.DHVW_HOST_WS || "ws://127.0.0.1:8877/dhvw";
 const netProxy = createNetProxy();
 
 const MIME = {
@@ -73,6 +78,45 @@ function readBody(req, limit = 1 << 20) {
   });
 }
 
+const CA_FILE = path.resolve(ROOT, "..", "data", "ca.crt.pem");
+
+function postJsonUpstream(targetUrl, headers, payloadText) {
+  const u = new URL(targetUrl);
+  const mod = u.protocol === "https:" ? https : http;
+  const ca = u.protocol === "https:" && fs.existsSync(CA_FILE) ? fs.readFileSync(CA_FILE) : undefined;
+  return new Promise((resolve, reject) => {
+    const req = mod.request(
+      u,
+      {
+        method: "POST",
+        headers: { ...headers, "Content-Length": Buffer.byteLength(payloadText) },
+        ...(ca ? { ca } : {}),
+        timeout: 120_000,
+      },
+      (up) => {
+        const chunks = [];
+        let size = 0;
+        up.on("data", (c) => {
+          if (size < 4 << 20) {
+            chunks.push(c);
+            size += c.length;
+          }
+        });
+        up.on("end", () => {
+          resolve({
+            status: up.statusCode || 502,
+            contentType: up.headers["content-type"] || "application/json",
+            text: Buffer.concat(chunks).toString("utf8").slice(0, 4 << 20),
+          });
+        });
+      },
+    );
+    req.on("timeout", () => req.destroy(new Error("timeout")));
+    req.on("error", reject);
+    req.end(payloadText);
+  });
+}
+
 // 开发环境等价于 Go 壳的 /__llm 代理：页面同源请求，服务端转发到服务商。
 async function proxyLlm(req, res) {
   if (req.method !== "POST") {
@@ -92,21 +136,21 @@ async function proxyLlm(req, res) {
   }
   if (!/^https?:$/.test(u.protocol) || !u.host) return void res.writeHead(400).end("bad baseUrl");
   try {
-    const upstream = await fetch(String(wrapper.baseUrl).replace(/\/+$/, "") + "/chat/completions", {
-      method: "POST",
-      headers: {
+    const targetUrl = String(wrapper.baseUrl).replace(/\/+$/, "") + "/chat/completions";
+    const upstream = await postJsonUpstream(
+      targetUrl,
+      {
         "Content-Type": "application/json",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36",
         ...(wrapper.apiKey ? { Authorization: `Bearer ${wrapper.apiKey}` } : {}),
       },
-      body: JSON.stringify(wrapper.body ?? {}),
-    });
-    const text = await upstream.text();
+      JSON.stringify(wrapper.body ?? {}),
+    );
     res.writeHead(upstream.status, {
-      "Content-Type": upstream.headers.get("content-type") || "application/json",
+      "Content-Type": upstream.contentType,
       "Cache-Control": "no-store",
     });
-    res.end(text.slice(0, 4 << 20));
+    res.end(upstream.text);
   } catch {
     res.writeHead(502, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "upstream_unreachable" }));
@@ -206,6 +250,14 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
       return void res.end(JSON.stringify({ ok: true, server: "node-dev", root: ROOT }));
     }
+    if (urlPath === "/__host") {
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+      try {
+        const raw = JSON.parse(fs.readFileSync(HOST_FILE, "utf8"));
+        if (raw?.wsUrl) return void res.end(JSON.stringify({ ok: true, ...raw }));
+      } catch {}
+      return void res.end(JSON.stringify({ ok: true, wsUrl: DEFAULT_WS_URL, name: "local-dev" }));
+    }
     if (await netProxy.handle(req, res, urlPath)) return;
     const r = resolve(urlPath);
     if (!r) return void res.writeHead(404).end("not found");
@@ -232,8 +284,19 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(`dhvw dev shell → http://${HOST}:${PORT}  (root=${ROOT})`);
+let activePort = PORT;
+server.on("error", (err) => {
+  if (!EXPLICIT_PORT && err.code === "EADDRINUSE" && activePort === PORT && activePort !== FALLBACK_PORT) {
+    console.warn(`[dhvw dev shell] 端口 ${activePort} 已被占用（可能为 llama 服务），自动改用 ${FALLBACK_PORT}`);
+    activePort = FALLBACK_PORT;
+    server.listen(activePort, HOST);
+    return;
+  }
+  throw err;
+});
+
+server.listen(activePort, HOST, () => {
+  console.log(`dhvw dev shell → http://${HOST}:${activePort}  (root=${ROOT}, host=${DEFAULT_WS_URL})`);
   try {
     const cfgPath = path.join(QQ_STATE_DIR, "bot-config.json");
     if (fs.existsSync(cfgPath)) {

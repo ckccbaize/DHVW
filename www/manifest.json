@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-17T13:49:31.448Z",
+ "built_at": "2026-11-18T12:16:33.228Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -789,8 +789,8 @@
   },
   {
    "path": "js/app.js",
-   "size": 55687,
-   "sha256": "df301b0d30a0981b331dd99c62df4e417ebc864ee99242ff2cd7532dec1dce4e"
+   "size": 55948,
+   "sha256": "b58f7dbf607831a14c0b129231d9703c0e95b685ae6da9c2bee20fd634c31198"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -934,13 +934,18 @@
   },
   {
    "path": "js/core/llm/client.js",
-   "size": 5380,
-   "sha256": "ff478e45c54a4ff08c9fcd64b9928089acf38ff58df95277b9b6625b47d740f2"
+   "size": 5857,
+   "sha256": "258a8376c1bb747003c6a02ae74ffe9d7d6197870939717509fb826786667110"
   },
   {
    "path": "js/core/llm/provider.js",
    "size": 2971,
    "sha256": "ad25c4cb6f2f774b2177a6930028d3f377472225712fd3557b484d4043385c78"
+  },
+  {
+   "path": "js/core/llm/resolve.js",
+   "size": 2331,
+   "sha256": "3ed7dfed1aa3276d4b9f430c20fca93a5e7e6d1c1aabd4fb1d2d671cc16ac4e1"
   },
   {
    "path": "js/core/log/events.js",
@@ -1074,8 +1079,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 59212,
-   "sha256": "9421b85d3cef7db66d7fda18c97b96a2367d0f225e4bf70719f801d9a14cedad"
+   "size": 59836,
+   "sha256": "d0c08469ee35b8d89291066889d4d579e16ebba8d155431e222b9733997b30b1"
   },
   {
    "path": "js/runtime/qq-bridge.js",

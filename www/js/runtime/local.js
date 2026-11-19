@@ -1377,7 +1377,7 @@ export function createLocalRuntime({
     },
     async setLlmConfig(payload = {}) {
       const next = { ...(config.llm || {}) };
-      for (const key of ["baseUrl", "apiKey", "model", "reasoningEffort"]) {
+      for (const key of ["baseUrl", "apiKey", "model", "reasoningEffort", "useShellProxy"]) {
         if (payload[key] !== undefined && payload[key] !== null) next[key] = payload[key];
       }
       for (const key of ["timeoutMs", "maxAttempts", "retryBaseMs"]) {
@@ -1396,6 +1396,7 @@ export function createLocalRuntime({
             apiKey: next.apiKey || "",
             model: next.model || "",
             reasoningEffort: next.reasoningEffort,
+            useShellProxy: next.useShellProxy === true,
           }),
         );
       } catch {}

@@ -1,6 +1,14 @@
 // LLM 客户端（W11）：OpenAI 兼容 /chat/completions。
 // 失败重试：网络/超时/429/5xx/JSON 解析失败 → 指数退避重试；4xx（除 429）不重试。
 
+function isLocalLlamaProvider(provider = {}) {
+  const model = String(provider.model || "");
+  const baseUrl = String(provider.baseUrl || "");
+  if (/nemotron|gemma/i.test(model)) return true;
+  if (String(provider.mode || "").toLowerCase() === "local") return true;
+  return /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)|\/(dhvw\/)?llm\/v1/i.test(baseUrl);
+}
+
 export const TRANSIENT_STATUS = (status) => status === 429 || status >= 500;
 
 export function createLlmClient({
@@ -102,7 +110,8 @@ export function createLlmClient({
       temperature,
       stream: false,
     };
-    if (json) body.response_format = { type: "json_object" };
+    const useJsonFormat = json && !(isLocalLlamaProvider(provider) && provider.reasoningEffort !== false);
+    if (useJsonFormat) body.response_format = { type: "json_object" };
     if (provider.reasoningEffort !== false) body.reasoning_effort = provider.reasoningEffort || "none";
 
     const attempts = Math.max(1, Number(provider.maxAttempts) || 1);
