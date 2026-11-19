@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="color-scheme" content="dark">
+<title>数字人虚拟仓</title>
+<link rel="stylesheet" href="assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.css">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/cel.css">
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="scene" class="scene-canvas" aria-label="里：角色当前场景"></canvas>
+    <canvas id="sceneOuter" class="scene-canvas" aria-label="外：办公室" hidden></canvas>
+
+    <header id="hud">
+      <div class="hud-left">
+        <span id="tierBadge" class="tier idle"></span>
+        <span class="conn"><i id="connDot" class="dot off"></i><span id="connText">主机未连接</span></span>
+        <span id="qqBoostPill" class="qq-boost-pill" hidden>BOOST · QQ</span>
+      </div>
+      <div class="hud-right">
+        <span id="clock">第 1 天 08:00</span>
+        <span id="fps">0 fps</span>
+      </div>
+    </header>
+
+    <div id="agentCard" class="agent-card offline">
+      <div class="agent-title">PC 工作 Agent</div>
+      <div id="agentCardBody">主机未连接</div>
+    </div>
+
+    <div id="assetCounts" class="asset-counts">场景 0 / 剧情 0 / 背景 0</div>
+
+    <div id="consolePanel" class="console-panel" hidden>
+      <header class="console-head">
+        <strong>生活控制台</strong>
+        <button id="btnCloseConsole" class="dock-btn" type="button">关闭</button>
+      </header>
+      <iframe id="consoleFrame" class="console-frame" src="debug-life.html" title="生活调试台"></iframe>
+    </div>
+
+    <div id="dock" class="dock" aria-hidden="true">
+      <div class="dock-row">
+        <button id="btnViewInner" class="dock-btn active" type="button">里</button>
+        <button id="btnViewOuter" class="dock-btn" type="button">外</button>
+      </div>
+    </div>
+  </div>
+
+  <section id="present" hidden>
+    <iframe id="present-frame" class="present-frame" hidden allow="microphone; autoplay; fullscreen" referrerpolicy="same-origin"></iframe>
+    <div class="present-bg"></div>
+    <div class="present-portrait">
+      <div class="portrait-card">
+        <div class="portrait-face"></div>
+        <div class="portrait-note">静态立绘占位 · Live2D 资源待交付</div>
+      </div>
+    </div>
+    <div class="present-name">她</div>
+    <div class="present-subtitle"></div>
+    <div class="present-hint"></div>
+  </section>
+
+  <div id="switch" class="switch" role="switch" aria-label="总观 / 显现" aria-checked="false" tabindex="0">
+    <span class="switch-label">总观</span>
+    <span class="switch-track"><span id="switchKnob" class="knob"></span></span>
+    <span class="switch-label">显现</span>
+  </div>
+
+  <div id="blockTransition" class="block-transition" hidden aria-hidden="true">
+    <canvas id="blockTransitionCanvas" class="block-transition-canvas"></canvas>
+    <div id="blockTransitionLabel" class="block-transition-label"></div>
+  </div>
+
+  <div id="bootError" hidden></div>
+</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

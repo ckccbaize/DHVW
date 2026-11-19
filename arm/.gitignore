@@ -1,0 +1,23 @@
+# 构建产物
+/dist/
+/shell/dhvw-shell
+/shell/dhvw-shell.exe
+*.exe
+
+# 依赖
+node_modules/
+
+# 运行时/临时
+/data/
+/.tmp/
+*.log
+*.pid
+
+# 编辑器
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 资源包生成物（由 tools/pack.mjs 重建，可复现）
+# www/manifest.json 入版本库：它是部署校验的基准

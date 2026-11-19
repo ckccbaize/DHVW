@@ -1,0 +1,27 @@
+{
+  "name": "dhvw-arm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "数字人虚拟仓 · 设备端（RK3566 / Armbian / Chromium kiosk）：离线壳 + 总观 + 端侧自治",
+  "type": "module",
+  "scripts": {
+    "serve": "node tools/serve.mjs",
+    "pack": "node tools/pack.mjs",
+    "verify": "node tools/verify.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "shell:test": "cd shell && go test ./...",
+    "shell:build": "sh shell/build.sh",
+    "validate": "node tools/validate-scene.mjs",
+    "spike:fsm": "node spikes/fsm/compare.mjs",
+    "build:agent": "node tools/build-agent.mjs",
+    "check:agent": "node tools/build-agent.mjs --check",
+    "golden:terrain": "node tools/paint-terrain.mjs ../assets/scenes/home/home.map.json .tmp/terrain-js.png && python tools/compare-terrain.py .tmp/terrain-js.png ../assets/scenes/home/dist/terrain.png --max-diff=5 --max-channel=1",
+    "golden:custom": "node tools/paint-custom.mjs tests/fixtures/custom-furniture.json .tmp/custom-js.png && python tools/paint-custom.py tests/fixtures/custom-furniture.json .tmp/custom-py.png && python tools/compare-terrain.py .tmp/custom-js.png .tmp/custom-py.png",
+    "golden:light": "node tools/paint-light.mjs ../assets/scenes/home/home.map.json .tmp/light-js.png && python tools/compare-terrain.py .tmp/light-js.png ../assets/scenes/home/dist/light_day.png --max-diff=30000 --max-channel=1",
+    "golden:furniture": "node tools/paint-furniture.mjs ../assets/scenes/home/home.map.json .tmp/furniture-js.png && python tools/compare-terrain.py .tmp/furniture-js.png ../assets/scenes/home/dist/furniture.png --max-diff=1200 --max-channel=255",
+    "golden:scene": "node tools/build-scene.mjs ../assets/scenes/home/home.map.json .tmp/scene-js && python tools/compare-terrain.py .tmp/scene-js/home.png ../assets/scenes/home/dist/home.png --ignore-channel=1 --max-diff=1200 --max-channel=255"
+  },
+  "devDependencies": {
+    "xstate": "5.33.4"
+  }
+}

@@ -1,0 +1,28 @@
+[Unit]
+Description=DHVW device shell (read-only static server on 127.0.0.1:8080)
+Documentation=https://github.com/../arm/docs/DEVICE-DESIGN.md
+After=network.target
+Before=dhvw-kiosk.service
+
+[Service]
+Type=simple
+User=dhvw
+Group=dhvw
+ExecStart=/usr/local/bin/dhvw-shell -addr 127.0.0.1:8080 -pair-addr 0.0.0.0:8081 -root /opt/dhvw/www
+Restart=always
+RestartSec=2
+MemoryMax=64M
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+ReadOnlyPaths=/opt/dhvw/www
+ReadWritePaths=/opt/dhvw/data
+# 日志走 journald；data 目录仅用于 state/digest/host 配对
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

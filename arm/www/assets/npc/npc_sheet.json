@@ -1,0 +1,77 @@
+{
+ "schema_version": 1,
+ "image": "people_1.png",
+ "frame": {
+  "w": 32,
+  "h": 32
+ },
+ "anchor": {
+  "x": 16,
+  "y": 31
+ },
+ "directions": [
+  "N",
+  "S",
+  "E",
+  "W"
+ ],
+ "animations": {
+  "idle": {
+   "fps": 1,
+   "loop": true,
+   "frameCount": 1,
+   "frames": {
+    "N": [
+     0
+    ],
+    "S": [
+     0
+    ],
+    "E": [
+     0
+    ],
+    "W": [
+     0
+    ]
+   }
+  },
+  "sit": {
+   "fps": 1,
+   "loop": true,
+   "frameCount": 1,
+   "frames": {
+    "N": [
+     0
+    ],
+    "S": [
+     0
+    ],
+    "E": [
+     0
+    ],
+    "W": [
+     0
+    ]
+   }
+  },
+  "walk": {
+   "fps": 1,
+   "loop": true,
+   "frameCount": 1,
+   "frames": {
+    "N": [
+     0
+    ],
+    "S": [
+     0
+    ],
+    "E": [
+     0
+    ],
+    "W": [
+     0
+    ]
+   }
+  }
+ }
+}

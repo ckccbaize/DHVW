@@ -1,0 +1,797 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>核心机骨架（W1/W3–W11）</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 18px; background: #0f1218; color: #e6e9f0;
+         font: 13px/1.6 "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif; }
+  h1 { font-size: 16px; margin: 0 0 12px; font-weight: 600; }
+  h2 { font-size: 13px; margin: 14px 0 6px; color: #98a1ae; font-weight: 500; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  button { font: inherit; padding: 6px 12px; border-radius: 8px; border: 1px solid #2b3242;
+           background: #1b2130; color: #e6e9f0; cursor: pointer; }
+  button:active { background: #263044; }
+  pre { background: #141a24; border: 1px solid #232b3a; border-radius: 8px;
+        padding: 10px 12px; overflow: auto; max-height: 32vh; margin: 0; }
+  .ok { color: #6fcaa5; } .bad { color: #e07a7a; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .machine { display: flex; gap: 16px; font-variant-numeric: tabular-nums; }
+  .machine b { color: #e0b070; font-weight: 600; }
+</style>
+</head>
+<body>
+<h1>核心机骨架（W1/W3–W11）· <span id="status">启动中…</span></h1>
+<p><a href="debug-life.html">→ 生活调试台（LLM 调用 / 本地记忆 / 创作产出）</a></p>
+
+<div class="machine" id="machine">display=— conn=— tier=— illegal=0 transitions=0</div>
+<div class="machine" id="life">minute=— phase=— band=—</div>
+<div class="machine" id="logstats">log seq=— count=— dropped=—</div>
+<div class="machine" id="snap">snapshot ts=— lastSeq=— resumed=—</div>
+<div class="machine" id="host">host conn=— offset=—</div>
+<div class="machine" id="memory">memory count=— terms=—</div>
+<div class="machine" id="sched">sched queued=— done=—</div>
+<div class="machine" id="llm">llm configured=— model=—</div>
+<div class="machine" id="budget">budget calls=— out=— alert=—</div>
+<div class="machine" id="agent">agent skills=— prompts=—</div>
+<div class="machine" id="bg">bg —</div>
+<div class="machine" id="eventpool">eventPool —</div>
+<div class="machine" id="outing">outing —</div>
+<div class="machine" id="digest">digest —</div>
+<div class="machine" id="map">map —</div>
+<div class="machine" id="governor">governor —</div>
+<div class="machine" id="observe">observe —</div>
+<div class="machine" id="moodpanel">mood —</div>
+<div class="machine" id="wake">wake —</div>
+<div class="machine" id="behavior">behavior —</div>
+<div class="machine" id="wakeruntime">wakeRuntime —</div>
+<div class="machine" id="place">place —</div>
+<div class="machine" id="doctor">doctor —</div>
+<canvas id="moodCanvas" width="480" height="120" style="width:480px;height:120px;border:1px solid #444"></canvas>
+
+<h2>世界事件（点击即派发）</h2>
+<div class="row">
+  <button data-ev="HOST_UP">HOST_UP</button>
+  <button data-ev="HOST_DOWN">HOST_DOWN</button>
+  <button data-ev="PRESENT_REQUEST">PRESENT_REQUEST</button>
+  <button data-ev="PRESENT_EXIT">PRESENT_EXIT</button>
+  <button data-ev="WORLD_START">WORLD_START</button>
+  <button data-ev="WORLD_STOP">WORLD_STOP</button>
+  <button data-ev="EDGE_START">EDGE_START</button>
+  <button data-ev="TAKEOVER">TAKEOVER</button>
+</div>
+
+<h2>生活（W4）</h2>
+<div class="row">
+  <button id="btnLife1h">+1 小时</button>
+  <button id="btnLife3h">+3 小时</button>
+  <button id="btnMoodUp">心情 +0.2</button>
+  <button id="btnPick">选一个热点</button>
+</div>
+
+<h2>Agent 注册表（W12）</h2>
+<div class="row">
+  <button id="btnAgentSkills">列出 skills</button>
+  <button id="btnAgentPrompt">渲染 character-wake</button>
+</div>
+<div class="row">
+  <input id="agentIntent" value="回应雨停" />
+  <button id="btnAgentRun">跑一次 agent</button>
+  <button id="btnAgentPlot">跑一次剧情</button>
+  <button id="btnPoolRefresh">刷新事件池</button>
+  <button id="btnPoolList">看事件池</button>
+  <button id="btnOutingCheck">检查出门</button>
+  <button id="btnOutingGo">强制出门</button>
+  <button id="btnSceneRequests">地图申请</button>
+  <button id="btnDigestWrite">写摘要</button>
+  <button id="btnPcAction">PC 生成地图</button>
+  <button id="btnGovernorCheck">检查治理</button>
+  <button id="btnObserve">看观测</button>
+  <button id="btnMood">取心情曲线</button>
+  <button id="btnWake">醒一次</button>
+  <button id="btnWakeInteract">交互</button>
+  <button id="btnBehaviorList">行为池</button>
+  <button id="btnBehaviorCook">做点吃的</button>
+  <button id="btnBehaviorBrowse">上网看看</button>
+  <button id="btnWakeRun">严格唤醒</button>
+  <button id="btnWakeEvent">加世界事件</button>
+  <button id="btnTravelCafe">去咖啡馆</button>
+  <button id="btnTravelHome">回家</button>
+  <button id="btnDoctor">自检</button>
+  <button id="btnMoodGuide">心情引导</button>
+  <button id="btnMoodPolicy">策略状态</button>
+  <button id="btnMerge">合并测试</button>
+  <button id="btnMemoryPipeline">记忆管线</button>
+</div>
+
+<h2>背景（W15）</h2>
+<div class="row">
+  <input id="bgQuery" value="rain window night" />
+  <button id="btnBgSearch">搜背景</button>
+  <button id="btnBgGenerate">生成背景</button>
+</div>
+
+<h2>LLM 服务商（W11）</h2>
+<div class="row">
+  <input id="llmBase" placeholder="baseUrl (https://.../v1)" style="flex:1;min-width:260px;padding:6px;border-radius:8px;border:1px solid #2b3242;background:#141a24;color:#e6e9f0">
+  <input id="llmModel" placeholder="model" style="width:180px;padding:6px;border-radius:8px;border:1px solid #2b3242;background:#141a24;color:#e6e9f0">
+  <input id="llmKey" placeholder="apiKey" style="width:200px;padding:6px;border-radius:8px;border:1px solid #2b3242;background:#141a24;color:#e6e9f0">
+  <button id="btnLlmSave">保存配置</button>
+  <button id="btnLlmTest">测试调用</button>
+</div>
+
+<h2>调度（W10）</h2>
+<div class="row">
+  <button id="btnSchedAdd">入队 3 个</button>
+  <button id="btnSchedIdle">activity=idle</button>
+  <button id="btnSchedActive">activity=active</button>
+  <button id="btnSchedPresent">present 切换</button>
+  <button id="btnSchedPause">pause/resume</button>
+</div>
+
+<h2>本地记忆（W7）</h2>
+<div class="row">
+  <button id="btnMemAdd">添加一条记忆</button>
+  <button id="btnMemSearch">搜索「京都枫叶」</button>
+  <button id="btnMemClear">清空记忆</button>
+  <button id="btnMemQuery">查询（PC 优先）</button>
+</div>
+
+<h2>事件日志（W5）</h2>
+<div class="row">
+  <button id="btnLogAppend">append 一条</button>
+  <button id="btnLogLatest">latest 5</button>
+  <button id="btnLogClear">clear</button>
+</div>
+
+<h2>基础</h2>
+<div class="row">
+  <button id="btnSnapshot">snapshot</button>
+  <button id="btnSnapSave">保存快照</button>
+  <button id="btnPause">pause</button>
+  <button id="btnResume">resume</button>
+  <button id="btnBadType">未知 type</button>
+  <button id="btnBadVersion">错版本</button>
+</div>
+
+<div class="grid">
+  <div><h2>state</h2><pre id="state">{}</pre></div>
+  <div><h2>health</h2><pre id="health">{}</pre></div>
+</div>
+<h2>消息（最近 20 条）</h2>
+<pre id="log"></pre>
+
+<script type="module">
+import { createCoreClient } from "./js/core/client.js";
+import { makeMsg } from "./js/core/bus.js";
+
+const $ = (s) => document.querySelector(s);
+const logEl = $("#log");
+const lines = [];
+const stateEl = $("#state");
+const healthEl = $("#health");
+const machineEl = $("#machine");
+
+function pushLine(text) {
+  lines.unshift(`${new Date().toLocaleTimeString()}  ${text}`);
+  if (lines.length > 20) lines.pop();
+  logEl.textContent = lines.join("\n");
+}
+
+function drawMood(v) {
+  const cv = document.querySelector("#moodCanvas");
+  const ctx = cv.getContext("2d");
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  const colors = { energy: "#e0b050", valence: "#7fc97f", social: "#7fb3d5", focus: "#c39bd3" };
+  const series = v.series || [];
+  for (const [dim, color] of Object.entries(colors)) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    series.forEach((p, i) => {
+      const x = series.length <= 1 ? 0 : (i / (series.length - 1)) * cv.width;
+      const y = cv.height - p.mood[dim] * cv.height;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+}
+
+function renderDoctor(d) {
+  if (!d) return;
+  document.querySelector("#doctor").innerHTML =
+    `doctor status=<b>${d.status || "—"}</b> issues=<b>${(d.issues || []).length}</b> last=${d.lastCheck || "—"}`;
+}
+
+function renderPlace(p) {
+  if (!p) return;
+  document.querySelector("#place").innerHTML = `place current=<b>${p.current}</b> count=<b>${p.count}</b>`;
+}
+
+function renderWakeRuntime(w) {
+  if (!w) return;
+  document.querySelector("#wakeruntime").innerHTML =
+    `wakeRuntime events=<b>${w.events}</b> threads=<b>${w.threads}</b> residue=${w.residue || "—"} next=${w.nextWakeAt || "—"}`;
+}
+
+function renderBehavior(b) {
+  if (!b) return;
+  const last = b.recent?.[0];
+  document.querySelector("#behavior").innerHTML =
+    `behavior count=<b>${b.count}</b> custom=<b>${b.custom}</b> last=<b>${last ? last.id + "/" + (last.ok ? "ok" : "fail") : "—"}</b>${last?.record?.summary ? " · " + last.record.summary : ""}`;
+}
+
+function renderWake(w) {
+  if (!w) return;
+  document.querySelector("#wake").innerHTML =
+    `wake last=${w.lastWakeAt || "—"} next=${w.nextWakeAt || "—"} today=<b>${w.wakesToday}</b> hour=<b>${w.wakesThisHour}</b> streak=${w.noResponseStreak}`;
+}
+
+function renderMoodPanel(v) {
+  if (!v) return;
+  document.querySelector("#moodpanel").innerHTML =
+    `mood band=<b>${v.band}</b> energy=${v.dims.energy.toFixed(2)} valence=${v.dims.valence.toFixed(2)} social=${v.dims.social.toFixed(2)} focus=${v.dims.focus.toFixed(2)} series=${v.series ? v.series.length : "—"}`;
+}
+
+function renderObserve(o) {
+  if (!o) return;
+  document.querySelector("#observe").innerHTML =
+    `observe stateLog=<b>${o.stateLog?.count ?? "—"}</b> tasks=<b>${o.ledger?.done ?? 0}/${o.ledger?.failed ?? 0}</b> heap=${o.heap ? (o.heap.ratio * 100).toFixed(0) + "%" : "—"}`;
+}
+
+function renderGovernor(g) {
+  if (!g) return;
+  const m = g.metrics || {};
+  document.querySelector("#governor").innerHTML =
+    `governor tier=<b>${g.tier}</b> heap=${m.heapRatio != null ? m.heapRatio.toFixed(2) : "—"} events=${m.eventCount ?? "—"} queue=${m.queue ?? "—"}`;
+}
+
+function renderMap(m) {
+  if (!m) return;
+  document.querySelector("#map").innerHTML =
+    `map scenes=<b>${m.scenes}</b> last=<b>${m.last || "—"}</b>`;
+}
+
+
+
+function renderDigest(d) {
+  if (!d) return;
+  document.querySelector("#digest").innerHTML =
+    `digest agenda=<b>${d.agenda}</b> scenes=<b>${d.scenes}</b> pcActions=<b>${d.pcActions}</b> ts=${d.ts || "—"}`;
+}
+
+function renderOuting(o) {
+  if (!o) return;
+  const d = o.plan?.destination;
+  document.querySelector("#outing").innerHTML =
+    `outing count=<b>${o.count}</b> last=${o.lastAt || "—"} plan=<b>${d ? d.name + "/" + o.plan.reason : "—"}</b>`;
+}
+
+function renderPool(p) {
+  if (!p) return;
+  document.querySelector("#eventpool").innerHTML =
+    `eventPool total=<b>${p.total}</b> updatedAt=${p.updatedAt || "—"}`;
+}
+
+function renderBg(b) {
+  if (!b) return;
+  document.querySelector("#bg").innerHTML =
+    `bg <b>${b.width}x${b.height}</b> ${Math.round((b.size || 0) / 1024)}KB source=${b.sourceName || "—"}`;
+}
+
+function renderAgent(a) {
+  if (!a) return;
+  document.querySelector("#agent").innerHTML =
+    `agent loaded=<b>${a.loaded}</b> skills=<b>${a.skills}</b> prompts=<b>${a.prompts}</b>`;
+}
+
+function renderBudget(b) {
+  if (!b) return;
+  document.querySelector("#budget").innerHTML =
+    `budget calls=<b>${b.calls}</b> ok=<b>${b.ok}</b> failed=<b>${b.failed}</b> ` +
+    `in=<b>${b.inTokens}</b> out=<b>${b.outTokens}</b> softAlert=<b>${b.softAlert}</b>`;
+}
+
+function renderLlm(l) {
+  if (!l) return;
+  document.querySelector("#llm").innerHTML =
+    `llm configured=<b>${l.configured}</b> model=<b>${l.model || "-"}</b> key=<b>${l.maskedKey || "-"}</b> ` +
+    `attempts=<b>${l.maxAttempts}</b> calls=<b>${l.stats?.calls ?? 0}</b> retries=<b>${l.stats?.retries ?? 0}</b>`;
+}
+
+function renderSched(s) {
+  if (!s) return;
+  document.querySelector("#sched").innerHTML =
+    `sched queued=<b>${s.queued}</b> done=<b>${s.done}</b> failed=<b>${s.failed}</b> ` +
+    `activity=<b>${s.activity}</b> present=<b>${s.present}</b> paused=<b>${s.paused}</b>`;
+}
+
+function renderMemory(m) {
+  if (!m) return;
+  document.querySelector("#memory").innerHTML =
+    `memory count=<b>${m.count}</b> terms=<b>${m.terms}</b>`;
+}
+
+function renderHost(h) {
+  if (!h) return;
+  document.querySelector("#host").innerHTML =
+    `host conn=<b>${h.conn}</b> offset=<b>${h.offsetMs ?? 0}ms</b> session=<b>${h.session || "-"}</b>`;
+}
+
+function renderSnap(s) {
+  if (!s) return;
+  document.querySelector("#snap").innerHTML =
+    `snapshot ts=<b>${s.ts || 0}</b> lastSeq=<b>${s.lastSeq || 0}</b> resumed=<b>${!!s.resumed}</b>`;
+}
+
+function renderLog(l) {
+  if (!l) return;
+  document.querySelector("#logstats").innerHTML =
+    `log seq=<b>${l.lastSeq}</b> count=<b>${l.count}</b> dropped=<b>${l.dropped}</b>`;
+}
+
+function renderLife(l) {
+  if (!l) return;
+  const hh = String(Math.floor(l.minute / 60)).padStart(2, "0");
+  const mm = String(Math.floor(l.minute % 60)).padStart(2, "0");
+  document.querySelector("#life").innerHTML =
+    `minute=<b>${hh}:${mm}</b> phase=<b>${l.phase}</b> band=<b>${l.band}</b> ` +
+    `energy=<b>${l.mood.energy.toFixed(2)}</b> valence=<b>${l.mood.valence.toFixed(2)}</b> ` +
+    `social=<b>${l.mood.social.toFixed(2)}</b> focus=<b>${l.mood.focus.toFixed(2)}</b>`;
+}
+
+function renderMachine(m) {
+  if (!m) return;
+  machineEl.innerHTML =
+    `display=<b>${m.display}</b> conn=<b>${m.conn}</b> tier=<b>${m.tier}</b> ` +
+    `illegal=<b>${m.illegal}</b> transitions=<b>${m.transitions ?? 0}</b>`;
+}
+
+const client = createCoreClient({
+  workerUrl: new URL(`./js/core/worker.js?v=${Date.now()}`, import.meta.url),
+  onMessage(msg) {
+    if (msg.type === "core:state") {
+      const p = msg.payload.patch;
+      stateEl.textContent = JSON.stringify(p, null, 1);
+      if (p.machine) renderMachine({ ...p.machine, transitions: p.transitions });
+      if (p.life) renderLife(p.life);
+      if (p.log) renderLog(p.log);
+      if (p.snapshot) renderSnap(p.snapshot);
+      if (p.host) renderHost(p.host);
+      if (p.memory) renderMemory(p.memory);
+      if (p.sched) renderSched(p.sched);
+      if (p.llm) renderLlm(p.llm);
+      if (p.budget) renderBudget(p.budget);
+      if (p.agent) renderAgent(p.agent);
+      if (p.bg) renderBg(p.bg);
+      if (p.eventPool) renderPool(p.eventPool);
+      if (p.outing) renderOuting(p.outing);
+      if (p.digest) renderDigest(p.digest);
+      if (p.map) renderMap(p.map);
+      if (p.governor) renderGovernor(p.governor);
+      if (p.observe) renderObserve(p.observe);
+      if (p.moodView) renderMoodPanel({ ...p.moodView, series: [] });
+      if (p.wake) renderWake(p.wake);
+      if (p.behaviors) renderBehavior(p.behaviors);
+      if (p.wakeRuntime) renderWakeRuntime(p.wakeRuntime);
+      if (p.places) renderPlace(p.places);
+      if (p.doctor) renderDoctor(p.doctor);
+      if (p.display || p.conn || p.tier) {
+        renderMachine({ ...(p.machine || {}), display: p.display ?? p.machine?.display, conn: p.conn ?? p.machine?.conn, tier: p.tier ?? p.machine?.tier, transitions: p.transitions });
+      }
+    }
+    if (msg.type === "core:health") {
+      healthEl.textContent = JSON.stringify(msg.payload, null, 1);
+      renderMachine({ ...msg.payload.world, transitions: msg.payload.transitions });
+      renderLife(msg.payload.life);
+      renderLog(msg.payload.log);
+      renderSnap(msg.payload.snapshot);
+      renderHost(msg.payload.host);
+      renderMemory(msg.payload.memory);
+      renderSched(msg.payload.sched);
+      renderLlm(msg.payload.llm);
+      renderBudget(msg.payload.budget);
+      renderAgent(msg.payload.agent);
+      renderBg(msg.payload.bg);
+      renderPool(msg.payload.eventPool);
+      renderOuting(msg.payload.outing);
+      renderDigest(msg.payload.digest);
+      renderMap(msg.payload.map);
+      renderGovernor(msg.payload.governor);
+      renderObserve(msg.payload.observe);
+    }
+    if (msg.type === "core:event" && msg.payload.ev?.kind === "scene_request") {
+      const r = msg.payload.ev.request;
+      pushLine(`地图申请 → ${r.mapSpec?.name || r.id} (${r.mapSpec?.kind || "?"}, ${r.status})`);
+      return;
+    }
+    if (msg.type === "core:event" && msg.payload.ev?.kind === "world_transition") {
+      const r = msg.payload.ev.payload;
+      pushLine(`world ${r.event}${r.illegal ? " (illegal)" : ""} → ${r.to.display}/${r.to.conn}/${r.to.tier}`);
+      return;
+    }
+    pushLine(`${msg.type}${msg.replyTo ? " (reply)" : ""}`);
+  },
+  onError(err) {
+    pushLine(`error: ${err.message}`);
+  },
+});
+
+async function dispatch(type) {
+  try {
+    const r = await client.request("core:command", { name: "world", args: { event: { type } } });
+    if (r.illegal) pushLine(`${type} 被拒绝（illegal）`);
+  } catch (e) {
+    pushLine(`${type} 失败: ${e.message}`);
+  }
+}
+
+try {
+  client.start();
+setInterval(() => {
+  const m = performance.memory;
+  if (!m) return;
+  client.request("core:command", { name: "heap_report", args: { used: m.usedJSHeapSize, limit: m.jsHeapSizeLimit } }).catch(() => {});
+}, 10000);
+  const hostUrl = new URLSearchParams(location.search).get("host") || "";
+  const init = await client.request("core:init", {
+    scene: { id: "home" },
+    clock: { day: 1, minute: 480 },
+    config: { host: { wsUrl: hostUrl } },
+  });
+  pushLine(`core:init → ${JSON.stringify(init.world)}`);
+  await client.request("core:snapshot", {});
+  $("#status").textContent = "运行中";
+  $("#status").className = "ok";
+} catch (err) {
+  $("#status").textContent = `失败：${err.message}`;
+  $("#status").className = "bad";
+}
+
+for (const btn of document.querySelectorAll("[data-ev]")) {
+  btn.onclick = () => dispatch(btn.dataset.ev);
+}
+let presentToggle = false;
+$("#btnAgentSkills").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "agent_skills" });
+    pushLine(`agent skills → ${r.skills.map((s) => s.name + "(" + s.class + ")").join(", ")}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnAgentPrompt").onclick = async () => {
+  try {
+    const r = await client.request("core:command", {
+      name: "agent_prompt",
+      args: { name: "character-wake", vars: { now: "2026-11-12 22:00", seed: "雨停了", mood: "calm" } },
+    });
+    pushLine(`prompt 渲染 → ${r.text.slice(0, 40)}…`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnAgentRun").onclick = async () => {
+  try {
+    const intent = $("#agentIntent").value || "回应雨停";
+    const r = await client.request("core:command", { name: "agent_run", args: { intent } });
+    pushLine(r.ok
+      ? `agent ok → ${r.tasks.length} tasks: ${r.tasks.map((t) => t.skill + "=" + (t.ok ? "ok" : t.error)).join(", ")}`
+      : `agent rejected → ${r.reason || (r.tasks || []).map((t) => t.skill + ":" + t.error).join(", ")}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnAgentPlot").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "agent_plot", args: { input: "雨停了", place: "客厅", mood: "平静" } });
+    pushLine(r.ok
+      ? `plot ok(${r.attempts}) → [${r.event}/${r.place}] ${r.text}`
+      : `plot rejected → ${r.reason}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnMemoryPipeline").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "memory_pipeline" });
+    pushLine(r.ok ? `memory pipeline → ${r.facts.length} facts (${r.scanned} events)` : `memory pipeline → ${r.reason}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnMerge").onclick = async () => {
+  try {
+    const r = await client.request("core:command", {
+      name: "merge_record",
+      args: {
+        local: { id: "m1", updated_at: 100, origin: "device", fields: { mood: 0.2, text: "old" } },
+        incoming: { id: "m1", updated_at: 200, origin: "pc", fields: { mood: 0.9, text: "new" } },
+      },
+    });
+    pushLine(`merge → ${r.decision} mood=${r.record.fields.mood} text=${r.record.fields.text}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnMoodGuide").onclick = async () => {
+  try {
+    const r = await client.request("core:command", {
+      name: "mood_apply",
+      args: { source: "user", reason: "手动引导", setpoint: { valence: 0.8, energy: 0.7 }, ttlMs: 60000 },
+    });
+    pushLine(r.ok ? `mood guide → ${r.mode}` : `mood guide rejected → ${r.reason}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnMoodPolicy").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "mood_policy" });
+    pushLine(`moodPolicy effects=${r.stats.effects} log=${r.stats.log}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnDoctor").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "doctor_check" });
+    pushLine(`doctor → ${r.issues.length} issues${r.diagnosis?.diagnosis ? "：" + r.diagnosis.diagnosis : ""}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnTravelCafe").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "travel_go", args: { to: "cafe" } });
+    pushLine(r.ok ? `travel → ${r.currentPlace} (+${r.plan.minutes}min${r.plan.crossesNight ? ", 跨夜" : ""})` : `travel failed → ${r.reason}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnTravelHome").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "travel_go", args: { to: "home" } });
+    pushLine(r.ok ? `travel → ${r.currentPlace} (+${r.plan.minutes}min)` : `travel failed → ${r.reason}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnWakeRun").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "wake_run", args: { context: { mood: "calm", place: "living" } } });
+    pushLine(r.ok ? `wake_run → ${r.wake.outcome} (${r.seed})` : `wake_run failed → ${r.reason}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnWakeEvent").onclick = async () => {
+  try {
+    await client.request("core:command", { name: "wake_event_add", args: { id: "ev-" + Date.now(), dueAt: 0, text: "窗外有人搬东西" } });
+    pushLine("wake event added");
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnBehaviorList").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "behavior_list" });
+    pushLine(`behaviors → ${r.behaviors.map((b) => b.id).join(", ")}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnBehaviorCook").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "behavior_run", args: { id: "cook" } });
+    pushLine(`behavior cook → ${r.result.ok ? "ok" : r.result.reason}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnBehaviorBrowse").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "behavior_run", args: { id: "browse" } });
+    pushLine(r.result.ok ? `browse → ${r.result.excerpt.slice(0, 40)}…` : `browse failed → ${r.result.reason}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnWake").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "wake_tick", args: { text: "她醒了一下" } });
+    pushLine(`wake → ${r.kind} (${r.reason})`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnWakeInteract").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "wake_interaction" });
+    pushLine(`wake interaction → streak=${r.state.noResponseStreak}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnMood").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "mood_state", args: { limit: 120 } });
+    drawMood(r.mood);
+    renderMoodPanel(r.mood);
+    pushLine(`mood → ${r.mood.band} series=${r.mood.series.length}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnObserve").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "observe_health" });
+    pushLine(`observe → stateLog=${r.health.stateLog.count} tasks=${r.health.ledger.done}/${r.health.ledger.failed} heap=${r.health.heap ? r.health.heap.ratio.toFixed(2) : "—"}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnGovernorCheck").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "governor_check" });
+    pushLine(`governor → ${r.tier} (${r.reasons.join(",") || "ok"})`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnDigestWrite").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "digest_write" });
+    pushLine(`digest → agenda=${r.digest.agenda.length} scenes=${r.digest.sceneRequests.length} pc=${r.digest.pcActions.length}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnPcAction").onclick = async () => {
+  try {
+    const r = await client.request("core:command", {
+      name: "pc_action",
+      args: { action: "map.generate", args: { kind: "street", name: "集市" } },
+    });
+    pushLine(r.ok ? `pc action → ${r.action.status}` : `pc action 拒绝 → ${r.reason}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnOutingCheck").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "outing_check" });
+    pushLine(r.go ? `outing → ${r.destination.name} (${r.reason}, boredom=${r.boredom.toFixed(2)})` : `outing → 不出门 (${r.reason})`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnOutingGo").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "outing_go" });
+    const req = r.request ? ` · 已提交 ${r.request.id}` : "";
+    pushLine(`outing 强制 → ${r.destination?.name} (${r.reason}, ${r.mode || "existing"})${req}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnSceneRequests").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "agenda_list" });
+    if (!r.scenes?.length) { pushLine("地图申请：无"); return; }
+    for (const s of r.scenes) {
+      pushLine(`地图申请 ${s.id} → ${s.mapSpec?.name || "?"} (${s.mapSpec?.kind || "?"}, ${s.status}) ${s.mode || ""}`);
+    }
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnPoolRefresh").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "event_pool_refresh", args: { count: 4 } });
+    pushLine(r.ok ? `eventPool +${r.events.length} (rejected ${r.rejected.length})` : `eventPool failed → ${r.reason}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnPoolList").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "event_pool_list" });
+    pushLine(`eventPool ${r.events.length} 条：${r.events.map((e) => e.text).join(" / ").slice(0, 80)}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnBgSearch").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "bg_search", args: { query: $("#bgQuery").value, n: 5 } });
+    pushLine(`bg search → ${r.source} ${r.items.length} 张`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnBgGenerate").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "bg_generate", args: { query: $("#bgQuery").value, n: 5 } });
+    pushLine(r.ok ? `bg ok → ${r.width}x${r.height} ${Math.round(r.size / 1024)}KB` : `bg failed → ${r.reason}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnLlmSave").onclick = async () => {
+  try {
+    const r = await client.request("core:command", {
+      name: "llm_config_set",
+      args: {
+        baseUrl: document.querySelector("#llmBase").value.trim(),
+        model: document.querySelector("#llmModel").value.trim(),
+        apiKey: document.querySelector("#llmKey").value.trim(),
+      },
+    });
+    pushLine(`llm config → configured=${r.masked.configured} model=${r.masked.model}`);
+  } catch (e) { pushLine(`llm config 失败: ${e.message}`); }
+};
+$("#btnLlmTest").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "llm_complete", args: { text: "ping", maxTokens: 20 } });
+    pushLine(`llm ok → ${String(r.text).slice(0, 40)} (attempts=${r.attempts})`);
+  } catch (e) { pushLine(`llm 调用失败: ${e.code || e.message}`); }
+};
+$("#btnSchedAdd").onclick = async () => {
+  for (let i = 0; i < 3; i++) {
+    await client.request("core:command", {
+      name: "sched_enqueue",
+      args: { kind: "debug", priority: i + 1, payload: { ms: 120 } },
+    });
+  }
+  pushLine("sched enqueue ×3");
+};
+$("#btnSchedIdle").onclick = async () => {
+  const r = await client.request("core:command", { name: "sched_activity", args: { level: "idle" } });
+  pushLine(`activity → ${r.stats.activity}`);
+};
+$("#btnSchedActive").onclick = async () => {
+  const r = await client.request("core:command", { name: "sched_activity", args: { level: "active" } });
+  pushLine(`activity → ${r.stats.activity}`);
+};
+$("#btnSchedPresent").onclick = async () => {
+  presentToggle = !presentToggle;
+  const r = await client.request("core:command", { name: "sched_present", args: { on: presentToggle } });
+  pushLine(`present → ${r.stats.present}`);
+};
+$("#btnSchedPause").onclick = async () => {
+  const r = await client.request("core:command", { name: "sched_pause" });
+  pushLine(`paused → ${r.stats.paused}`);
+  if (r.stats.paused) await client.request("core:command", { name: "sched_resume" });
+};
+$("#btnMemAdd").onclick = async () => {
+  try {
+    const r = await client.request("core:command", {
+      name: "memory_add",
+      args: { id: "m-" + Date.now(), text: "京都看枫叶，穿了米色风衣", t: Date.now() - 7 * 864e5, tier: "L2" },
+    });
+    pushLine(`memory add → count=${r.stats.count} terms=${r.stats.terms}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnMemSearch").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "memory_search", args: { text: "京都枫叶", k: 3 } });
+    pushLine(`memory search → ${r.hits.map((h) => h.id + ":" + h.score).join(", ") || "无命中"}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnMemQuery").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "memory_query", args: { text: "京都枫叶", k: 3 } });
+    pushLine(`memory query → source=${r.source} semantic=${r.semantic} hits=${r.hits.length}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnMemClear").onclick = async () => {
+  try {
+    await client.request("core:command", { name: "memory_clear" });
+    pushLine("memory cleared");
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnLogAppend").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "log_append", args: { kind: "debug", payload: { t: Date.now() } } });
+    pushLine(`log append → seq=${r.record?.seq ?? "dup"}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnLogLatest").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "log_latest", args: { n: 5 } });
+    pushLine(`log latest → ${r.events.map((e) => e.seq + ":" + e.kind).join(", ")}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnLogClear").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "log_clear" });
+    pushLine(`log clear → seq=${r.stats.lastSeq}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnLife1h").onclick = () => client.request("core:command", { name: "life_advance", args: { minutes: 60 } }).catch((e) => pushLine(e.message));
+$("#btnLife3h").onclick = () => client.request("core:command", { name: "life_advance", args: { minutes: 180 } }).catch((e) => pushLine(e.message));
+$("#btnMoodUp").onclick = () => client.request("core:command", { name: "life_mood", args: { deltas: { valence: 0.2 } } }).catch((e) => pushLine(e.message));
+$("#btnPick").onclick = async () => {
+  const hotspots = [
+    { x: 2, y: 2, act: "read", room: "living" },
+    { x: 6, y: 4, act: "cook", room: "living" },
+    { x: 1, y: 1, act: "sleep", room: "bedroom" },
+    { x: 8, y: 8, act: "watch", room: "living" },
+    { x: 4, y: 6, act: "play", room: "living" },
+  ];
+  try {
+    const r = await client.request("core:command", { name: "life_pick", args: { hotspots, from: { x: 5, y: 5 } } });
+    pushLine(`pick → ${r.chosen ? r.chosen.act + "@" + r.chosen.x + "," + r.chosen.y : "null"} (${r.life.phase}/${r.life.band})`);
+  } catch (e) {
+    pushLine(e.message);
+  }
+};
+$("#btnSnapSave").onclick = async () => {
+  try {
+    const r = await client.request("core:command", { name: "snapshot_save" });
+    pushLine(`snapshot saved → ts=${r.snapshot.ts} lastSeq=${r.snapshot.lastSeq}`);
+  } catch (e) { pushLine(e.message); }
+};
+$("#btnSnapshot").onclick = () => client.request("core:snapshot", {}).catch((e) => pushLine(e.message));
+$("#btnPause").onclick = () => client.request("core:pause", {}).catch((e) => pushLine(e.message));
+$("#btnResume").onclick = () => client.request("core:resume", {}).catch((e) => pushLine(e.message));
+$("#btnBadType").onclick = () => client.request("core:no_such_type", {}).catch((e) => pushLine(`预期 error: ${e.code}`));
+
+$("#btnBadVersion").onclick = () => {
+  const w = new Worker(new URL("./js/core/worker.js", import.meta.url), { type: "module" });
+  const msg = { ...makeMsg("core:snapshot", {}), v: 99 };
+  w.onmessage = (e) => {
+    if (e.data.type !== "error") return;
+    pushLine(`bad_version → ${e.data.payload?.code}`);
+    w.terminate();
+  };
+  w.postMessage(msg);
+};
+
+window.__core = { client, lines };
+</script>
+</body>
+</html>

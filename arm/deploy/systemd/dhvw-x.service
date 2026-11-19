@@ -1,0 +1,24 @@
+[Unit]
+Description=DHVW X server (:0, local kiosk only)
+After=systemd-user-sessions.service
+Before=dhvw-kiosk.service
+Conflicts=getty@tty1.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/Xorg :0 -ac -nolisten tcp -keeptty vt1
+# 某些内核/X 组合会把 fbcon 留成 blank，导致面板黑屏；X 起来后显式 unblank
+# 同时关闭 X 屏保/DPMS，避免 10 分钟后黑屏（kiosk 用户没有 sysfs 写权限）
+ExecStartPost=/bin/sh -c 'sleep 1; echo 0 > /sys/class/graphics/fb0/blank 2>/dev/null || true; DISPLAY=:0 xset s off 2>/dev/null || true; DISPLAY=:0 xset s noblank 2>/dev/null || true; DISPLAY=:0 xset s 0 0 2>/dev/null || true; DISPLAY=:0 xset dpms force on 2>/dev/null || true; DISPLAY=:0 xset -dpms 2>/dev/null || true; DISPLAY=:0 xset dpms 0 0 0 2>/dev/null || true'
+Restart=always
+RestartSec=2
+PAMName=login
+TTYPath=/dev/tty1
+StandardInput=tty
+StandardOutput=tty
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+
+[Install]
+WantedBy=graphical.target

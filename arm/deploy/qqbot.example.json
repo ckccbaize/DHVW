@@ -1,0 +1,29 @@
+{
+  "enabled": false,
+  "followBoost": true,
+  "appId": "",
+  "clientSecret": "",
+  "sandbox": true,
+  "ownerOpenId": "",
+  "allowOpenIds": [],
+  "listenAddr": "127.0.0.1:8088",
+  "shellUrl": "http://127.0.0.1:8080",
+  "stateDir": "/var/lib/dhvw/qq-openclaw",
+  "mediaDir": "/tmp/dhvw-qq-media",
+  "proactive": true,
+  "debounceMs": 800,
+  "maxWindowMs": 3000,
+  "maxCoalesceMsgs": 10,
+  "maxCoalesceChars": 8000,
+  "maxImagesPerMsg": 3,
+  "mediaMaxBytes": 4194304,
+  "partDelayMs": 450,
+  "proactiveCooldownMin": 90,
+  "proactiveDailyMax": 6,
+  "sticker": {
+    "enabled": true,
+    "autoCollect": true,
+    "eagerness": 2,
+    "maxStickers": 200
+  }
+}

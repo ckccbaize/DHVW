@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>核心机观测</title>
+<link rel="stylesheet" href="assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.css">
+<link rel="stylesheet" href="css/tokens.css">
+<style>
+  :root {
+    color-scheme: light;
+    --ink: #1a1a2e; --cel: #fafaf5; --red: #e63946; --aqua: #4ea8de; --grass: #2ecc71; --sunset: #f1c40f;
+    --pixel: "Fusion Pixel 12px Proportional Simplified Chinese", "Noto Sans CJK SC", monospace;
+  }
+  body { margin: 0; background: var(--cel); color: var(--ink); font: 13px/1.5 var(--pixel); font-weight: 700; }
+  header { padding: 10px 16px; border-bottom: 3px solid var(--ink); display: flex; gap: 16px; align-items: center; background: var(--cel); }
+  h1 { font-size: 16px; margin: 0; font-weight: 900; letter-spacing: 0.04em; }
+  #status { color: var(--red); }
+  main { display: grid; grid-template-columns: 1.1fr 1fr; gap: 12px; padding: 12px; max-width: 1120px; margin: 0 auto; }
+  section { background: var(--cel); border: 3px solid var(--ink); border-radius: 0; box-shadow: 4px 4px 0 var(--ink); padding: 10px 12px; }
+  h2 { font-size: 13px; margin: 0 0 8px; color: var(--ink); font-weight: 900; letter-spacing: 0.04em; }
+  button { font: inherit; font-weight: 900; min-height: var(--touch-min); padding: 6px 12px; border: 3px solid var(--ink); border-radius: 0;
+           background: var(--red); color: var(--cel); box-shadow: 3px 3px 0 var(--ink); cursor: pointer; }
+  button:active { transform: scaleX(1.1) scaleY(0.9) translate(3px, 6px); box-shadow: none; }
+  .graph { display: flex; gap: 12px; flex-wrap: wrap; }
+  .region { border: 3px solid var(--ink); border-radius: 0; padding: 8px; min-width: 110px; background: var(--cel); }
+  .region .name { font-size: 11px; color: var(--ink); margin-bottom: 6px; letter-spacing: 0.04em; }
+  .state { padding: 3px 8px; border: 2px solid var(--ink); margin: 3px 0; background: var(--cel); color: var(--ink); }
+  .state.active { background: var(--grass); color: var(--ink); box-shadow: 2px 2px 0 var(--ink); }
+  .trans { margin-top: 8px; font-size: 11px; color: var(--ink); }
+  .trans div { padding: 2px 0; }
+  #timeline { max-height: 260px; overflow: auto; font-family: var(--pixel); font-size: 11px; }
+  #timeline div { padding: 2px 0; border-bottom: 2px solid var(--ink); }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 12px; }
+  .kv b { color: var(--ink); font-weight: 900; }
+  canvas { width: 100%; height: 120px; display: block; background: var(--cel); border: 3px solid var(--ink); border-radius: 0; }
+  .wide { grid-column: 1 / -1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>核心机观测</h1>
+  <span id="status">连接中…</span>
+  <span id="clock"></span>
+  <button id="btnAdvance">推进 1h</button>
+  <button id="btnEvent">写一条事件</button>
+</header>
+<main>
+  <section>
+    <h2>世界状态机</h2>
+    <div id="graph" class="graph"></div>
+    <div id="trans" class="trans"></div>
+  </section>
+  <section>
+    <h2>生活 / 心情</h2>
+    <div id="life" class="kv"></div>
+    <canvas id="mood" width="480" height="120"></canvas>
+  </section>
+  <section>
+    <h2>事件时间线</h2>
+    <div id="timeline"></div>
+  </section>
+  <section>
+    <h2>队列 / 预算 / 治理</h2>
+    <div id="stats" class="kv"></div>
+  </section>
+</main>
+<script type="module">
+import { createCoreClient } from "./js/core/client.js";
+
+const $ = (s) => document.querySelector(s);
+const client = createCoreClient({
+  workerUrl: new URL(`./js/core/worker.js?v=${Date.now()}`, import.meta.url),
+  onMessage(msg) {
+    if (msg.type === "core:event") addEvent(msg.payload.ev);
+    if (msg.type === "core:state") {
+      const p = msg.payload.patch;
+      if (p.life) renderLife(p.life);
+      if (p.machine) renderGraph(p.machine);
+      if (p.governor) renderGovernor(p.governor);
+    }
+  },
+  onError(err) { $("#status").textContent = `错误：${err.message}`; },
+});
+
+const events = [];
+function addEvent(ev) {
+  if (!ev || !ev.kind) return;
+  events.unshift(ev);
+  if (events.length > 60) events.pop();
+  renderTimeline();
+}
+
+function renderTimeline() {
+  $("#timeline").innerHTML = events
+    .slice(0, 40)
+    .map((e) => `<div>${new Date(e.t_local || Date.now()).toLocaleTimeString()} <b>${e.kind}</b> ${JSON.stringify(e.payload || {}).slice(0, 120)}</div>`)
+    .join("");
+}
+
+function renderGraph(m) {
+  const g = m.graph || m;
+  if (!g?.regions) return;
+  const current = m.state || m;
+  $("#graph").innerHTML = Object.entries(g.regions)
+    .map(([name, r]) => `<div class="region"><div class="name">${name}</div>${r.states
+      .map((s) => `<div class="state${current?.[name] === s ? " active" : ""}">${s}</div>`)
+      .join("")}</div>`)
+    .join("");
+  $("#trans").innerHTML = (g.transitions || [])
+    .map((t) => `<div>${t.event}：${t.display || t.conn || t.tier || (t.effects || []).join(", ")}${t.guard ? ` [${t.guard}]` : ""}</div>`)
+    .join("");
+}
+
+function renderLife(l) {
+  $("#life").innerHTML = `
+    <span>阶段</span><b>${l.phase}</b>
+    <span>心情带</span><b>${l.band}</b>
+    <span>时间</span><b>${String(Math.floor(l.minute / 60)).padStart(2, "0")}:${String(l.minute % 60).padStart(2, "0")}</b>
+    <span>energy</span><b>${l.mood.energy.toFixed(2)}</b>
+    <span>valence</span><b>${l.mood.valence.toFixed(2)}</b>
+    <span>social</span><b>${l.mood.social.toFixed(2)}</b>
+    <span>focus</span><b>${l.mood.focus.toFixed(2)}</b>`;
+}
+
+function drawMood(v) {
+  const cv = $("#mood");
+  const ctx = cv.getContext("2d");
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  const colors = { energy: "#e0b050", valence: "#7fc97f", social: "#7fb3d5", focus: "#c39bd3" };
+  const series = v.series || [];
+  for (const [dim, color] of Object.entries(colors)) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    series.forEach((p, i) => {
+      const x = series.length <= 1 ? 0 : (i / (series.length - 1)) * cv.width;
+      const y = cv.height - p.mood[dim] * cv.height;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+}
+
+function renderGovernor(g) {
+  const m = g.metrics || {};
+  $("#stats").innerHTML = `
+    <span>治理档位</span><b>${g.tier}</b>
+    <span>堆占用</span><b>${m.heapRatio != null ? (m.heapRatio * 100).toFixed(1) + "%" : "—"}</b>
+    <span>事件数</span><b>${m.eventCount ?? "—"}</b>
+    <span>队列</span><b>${m.queue ?? "—"}</b>`;
+}
+
+async function refresh() {
+  try {
+    const snap = await client.request("core:snapshot", {});
+    renderGraph({ graph: snap.graph, state: snap.world });
+    renderLife(snap.life);
+    $("#clock").textContent = `第 ${snap.life.minute >= 0 ? "1" : "?"} 天`;
+    const mood = await client.request("core:command", { name: "mood_state", args: { limit: 120 } });
+    drawMood(mood.mood);
+    const latest = await client.request("core:command", { name: "log_latest", args: { n: 20 } });
+    events.length = 0;
+    for (const ev of latest.events || []) events.push(ev);
+    renderTimeline();
+    const h = await client.request("core:command", { name: "observe_health" });
+    const s = h.health;
+    $("#stats").innerHTML = `
+      <span>治理档位</span><b>${s.governor?.tier || "—"}</b>
+      <span>队列</span><b>${s.sched?.queued ?? "—"}</b>
+      <span>预算 out</span><b>${s.budget?.outTokens ?? "—"}</b>
+      <span>事件</span><b>${s.log?.count ?? "—"}</b>
+      <span>记忆</span><b>${s.stateLog?.count ?? "—"}</b>`;
+    $("#status").textContent = "运行中";
+  } catch (err) {
+    $("#status").textContent = `离线：${err.message}`;
+  }
+}
+
+$("#btnAdvance").onclick = async () => {
+  try {
+    await client.request("core:command", { name: "life_advance", args: { minutes: 60 } });
+    await refresh();
+  } catch (err) { $("#status").textContent = err.message; }
+};
+$("#btnEvent").onclick = async () => {
+  try {
+    await client.request("core:command", { name: "log_append", args: { kind: "observe:test", payload: { t: Date.now() } } });
+  } catch (err) { $("#status").textContent = err.message; }
+};
+client.start();
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

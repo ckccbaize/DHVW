@@ -1,0 +1,1156 @@
+{
+ "version": "0.1.0",
+ "built_at": "2026-11-18T12:16:33.228Z",
+ "files": [
+  {
+   "path": "agent/registry.json",
+   "size": 16012,
+   "sha256": "80d4f9666ccd9ac454c24607df1bac7f7a660bbbd0510708efeed943f50cd23d"
+  },
+  {
+   "path": "assets/char/ojj_sheet.json",
+   "size": 7725,
+   "sha256": "ae926639c980e11f3064b0a15246a44a1d99a860fe77a399a7ac9aa288251ace"
+  },
+  {
+   "path": "assets/char/ojj_sheet.png",
+   "size": 292333,
+   "sha256": "8cca703acd587387551b2496ddf29f08819b03becf1e24a12b30aef3d27b272b"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Arrows.woff2",
+   "size": 2720,
+   "sha256": "2d633979a491ae92adcdb6db82ca4e470bc130b4231cf30487703f0fbe21b275"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Basic-Latin.woff2",
+   "size": 2312,
+   "sha256": "5e9530cc7e424fa63d6f19dca8c22f83f1f4de166627b9e05320d407c05621d5"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Block-Elements.woff2",
+   "size": 896,
+   "sha256": "7048863b9230619f8b080d0165999167162c2a0c04fa1ed94e00415b2f0b3bb6"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Bopomofo.woff2",
+   "size": 1512,
+   "sha256": "515e5fd87245473c30aa282cad4bc239c83727771d03212f1d3e558a3ad2822a"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Box-Drawing.woff2",
+   "size": 1940,
+   "sha256": "ba59b4db9b2dfffa1cc4dd5166539961ca63d3227248c7753f08ec1b52137dd6"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Braille-Patterns.woff2",
+   "size": 2300,
+   "sha256": "d79e89a6f48883b014be53a2aaf1f7bad6233ceb6287e20d25c2bf3d3aa4b2c4"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Compatibility-Forms.woff2",
+   "size": 1068,
+   "sha256": "ede82ed6fc6eba4f36376f89755fe80388d8ba01721126a4906279be341059a0"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Compatibility.woff2",
+   "size": 1920,
+   "sha256": "46a8573dd85c274bec925d025887a5f3120da78b20ac0e520177e80ceb3e5e75"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Radicals-Supplement.woff2",
+   "size": 3564,
+   "sha256": "9e1647b8a3689c51aa4d758e05b59636b565bd6d8b4f65e5133f5eeceeac9db3"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Symbols-and-Punctuation.woff2",
+   "size": 1916,
+   "sha256": "2dbd50ea36ceb08cc35fb15aeb3d2f29d475f1a63de46c125fc67e79af8675cc"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-001.woff2",
+   "size": 26208,
+   "sha256": "15a8345cc15ae5d02c92da9de4446f8dc6c0889a89c541be7b9699f4e06b7a06"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-002.woff2",
+   "size": 27968,
+   "sha256": "c9d50fb56e30c826f3c4dbfafd21f783381c83bcb2f7a56b8dd9bf7ede1e8cf0"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-003.woff2",
+   "size": 27792,
+   "sha256": "46e378f518702605128da1425731cad5734c136c74eecc393f8f58839b2fbe0f"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-004.woff2",
+   "size": 29156,
+   "sha256": "0b346ad2787afc826bd9b0ec5bac51c5e8de80d00e2a150be8792abbccb7e26c"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-005.woff2",
+   "size": 28112,
+   "sha256": "29be0ee3bd6ad45d2eb52e259d9c1ac5115b62a161920adc5bd1f87bae72bd7c"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-006.woff2",
+   "size": 29288,
+   "sha256": "177dae473df3157134334b62c8cec66c5935b9e38b1750125df51b63a8ec508f"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-007.woff2",
+   "size": 29460,
+   "sha256": "53914b1bdcec05c283a1a06601f017c1ee385aef6b477201dc1d334328b20aac"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-008.woff2",
+   "size": 30092,
+   "sha256": "3537a43e349f0fc9509dffaa544966fcc9e87549baa1a9a37c7687342c404b2e"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-009.woff2",
+   "size": 29628,
+   "sha256": "01c8a044fbec455f83f688107f960d17cbd2efff8e77b39b99522d4af38e247c"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-010.woff2",
+   "size": 30180,
+   "sha256": "d39cb21d65a0cf7cf2bc3c995a3722d21162e964337d1745c80f201d94b8c201"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-011.woff2",
+   "size": 29952,
+   "sha256": "e1d5f98757c658333cc54194f673d152d9551fb1acedc8b53c0049c8fb7700ad"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-012.woff2",
+   "size": 30524,
+   "sha256": "8ac76bdd64613feddb7977f4cc9dba307340e381b47e3f14cc8a704119cd95c2"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-013.woff2",
+   "size": 29060,
+   "sha256": "0a6db8c0b93a2a24c07b61626d7c6a630307092bf0d21da4045805446fe78699"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-014.woff2",
+   "size": 30524,
+   "sha256": "40ef6a94f11fc36214c888ddf9021f443d35fc73a20a80dd578528fb2304ca40"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-015.woff2",
+   "size": 30832,
+   "sha256": "4ebca75d687f7246f036bb99052fa17f6c73b6367b7c1d38960f7430f4f1d356"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-016.woff2",
+   "size": 29892,
+   "sha256": "890799ec650a1f2e2def9c4a33a3e6b98afbc09f24bc9b9a7e5bf97b5614c2ad"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-017.woff2",
+   "size": 30020,
+   "sha256": "658f22f1ecb28250b96de9aa7da41cdc2d00d5c89c7cc874041967404a994727"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-018.woff2",
+   "size": 31760,
+   "sha256": "3f97ea18b0d36edbc5aadba12090fb2e70dac37afd2a05381ded5cf9fc31dd78"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-019.woff2",
+   "size": 24904,
+   "sha256": "c9c97457ec4f2d12095167f7d02698e151a6d72728692942ff7d9ad237e3421e"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-Extension-A-001.woff2",
+   "size": 33160,
+   "sha256": "e66e4dc0d7fa5293d16ef5c573bad7afe3b17ea42a7c2b06ce17e7c5499d1872"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-Extension-A-002.woff2",
+   "size": 17776,
+   "sha256": "3190856cd1970701aa985383f81fe05c422f7078c6748494d7b176c6c333ebbc"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-Extension-B-001.woff2",
+   "size": 36288,
+   "sha256": "6f93a5cdba21a889fe4b4bccf8998a5f34f2bf57372fde90d7ac8e37c33d2f4a"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-Extension-B-002.woff2",
+   "size": 6204,
+   "sha256": "de46d537ca87ad8362930604d6a6ef8154dd82a55be9c7ad0968ac4dd0b388e9"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-Extension-C.woff2",
+   "size": 2332,
+   "sha256": "0835d12cb0f60606aac4f271d5d10342fc9f549ce6b716c737b55ffde1e8264c"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-Extension-D.woff2",
+   "size": 1200,
+   "sha256": "df928aae1f512a4bfae08166b03bf03b67e2c2234b56cbb2fc7c9564bd273e34"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-Extension-E.woff2",
+   "size": 2456,
+   "sha256": "a9162b8399c24d898636d6d089f97886c595fc05246b2c2bb7614dd80ab2386f"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-Extension-F.woff2",
+   "size": 784,
+   "sha256": "48b4d4d326cccdd6ebc64cdf5c956fb4f93654d6337b207724dc08264c77d65b"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.CJK-Unified-Ideographs-Extension-G.woff2",
+   "size": 884,
+   "sha256": "5de98b8dacd53f53d7429d03b0205fca57514876b315e39c5d727a5df8f02fca"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Cyrillic.woff2",
+   "size": 2920,
+   "sha256": "3d933b380a28180943afde5b7f54425ae18161f2ac4c4122d5ce75b766223449"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Dingbats.woff2",
+   "size": 1288,
+   "sha256": "8e169bef36569d11e9cf7daf2511539acb74e1a1aca1e920a1184015a7ecced0"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Enclosed-Alphanumeric-Supplement.woff2",
+   "size": 2864,
+   "sha256": "cc2159d0ab5aa68b5bcd8f6a5c04dfb6c83bceb2c40ddd49c51b0584cea05fd1"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Enclosed-Alphanumerics.woff2",
+   "size": 3644,
+   "sha256": "af5cf75fbd7e80cff6869ebec36b7fff1a71448349b2da88e04c8c5421433c97"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Enclosed-CJK-Letters-and-Months.woff2",
+   "size": 2956,
+   "sha256": "6cd994faade0e003d4866f295e0a769b70829f6044b33811861d0e616b7fea32"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.General-Punctuation.woff2",
+   "size": 1240,
+   "sha256": "f53eb6fc36479844f77eb9a19bba26b9cc042bf944ccd563346abb8bd80e94b4"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Geometric-Shapes.woff2",
+   "size": 2128,
+   "sha256": "6ff1ab3e4d8f28c0a2cabfc88c728024eedf20b7b310ccf9233c0fdd8f149beb"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Greek-and-Coptic.woff2",
+   "size": 2232,
+   "sha256": "53241cde8396ef60587b8b140e3de20e81c6f6f50f5eea93d6be598c92f70fd9"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Halfwidth-and-Fullwidth-Forms.woff2",
+   "size": 3400,
+   "sha256": "4da6988a1d54baf60ed0224b842ea63fe60e5d9991ec0947b32f4249d7d7f7a0"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Compatibility-Jamo.woff2",
+   "size": 2076,
+   "sha256": "a9f4b735aaec5af070779319829ec17d6ecc07b7a0274312869b4d9984b82467"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Syllables-001.woff2",
+   "size": 10620,
+   "sha256": "2f9fc13ab155cd745924279ab0366c6577f63b9688b8df6b1fa7949b3569e8b5"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Syllables-002.woff2",
+   "size": 10924,
+   "sha256": "d562052fcea1b24d50c72cea78b97d02315a68c3051a0e628fdb10b01d1e3768"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Syllables-003.woff2",
+   "size": 10124,
+   "sha256": "8070755376a94e327e20f6fbf095715f387cc9b9b7dc675f770ee8fe39b52396"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Syllables-004.woff2",
+   "size": 10788,
+   "sha256": "1d21fe1c34f14d0d75293e6d5dc160127b7699a94891747a4a509734365319b5"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Syllables-005.woff2",
+   "size": 11320,
+   "sha256": "58b3846dfc22fde0670dd16b29e2f6ca1ab7155d346f038a31db4925e598932f"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Syllables-006.woff2",
+   "size": 11216,
+   "sha256": "7a6d6bdd17bdf2532bdbd12a173215dcf3d3b8afb3f07c3fb6323d90f668232f"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Syllables-007.woff2",
+   "size": 11580,
+   "sha256": "0a192d2d36e348a5a7c94c1effa0a7080c4d8363421270eab599effa1d4a54f0"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Syllables-008.woff2",
+   "size": 10892,
+   "sha256": "9c82d198998c8706bcf14924731dc4c0a769d67770e5776d623bc127158f13c6"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Syllables-009.woff2",
+   "size": 12132,
+   "sha256": "3775444cd6d3ca985a4ff0fab133f09e2a517ca493b41b6b7674a2687758edd2"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Syllables-010.woff2",
+   "size": 11536,
+   "sha256": "4959be66c494f265333b674fd97ddbf7563ddd094be6936d1b2f53b9f1d980f6"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hangul-Syllables-011.woff2",
+   "size": 10184,
+   "sha256": "c2296d3f70d94173baa77430124182be1942e37311985a5091924fbe618b2c06"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Hiragana.woff2",
+   "size": 2780,
+   "sha256": "de874d594bd9f9f666d600f8b83851b3ecf50ec828c3317ef9dc8492117b5ef7"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Ideographic-Description-Characters.woff2",
+   "size": 944,
+   "sha256": "80b78212201649d9706b16afbf8ac13eaf72c98ae10117e146bf18c87c563f17"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Ideographic-Symbols-and-Punctuation.woff2",
+   "size": 696,
+   "sha256": "215140c00ca1c6f9705fd919ffb246edae7af7f37e806a6779f15862ff8f6c81"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Kangxi-Radicals.woff2",
+   "size": 6292,
+   "sha256": "44aa3486b1b2dd376a601e509897c15b5598a120fc3f95427ca5da01efceaa83"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Katakana.woff2",
+   "size": 2524,
+   "sha256": "8f5843f48165349044f3ad02c5163e9069e04c7dbc6523a97a5c784f9e4a5aa9"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Latin-1-Supplement.woff2",
+   "size": 2280,
+   "sha256": "28fd3bca4110e42505ad2325ff4acf13d340697ca3a4ad8390cc2bba997579fe"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Latin-Extended-A.woff2",
+   "size": 2772,
+   "sha256": "115de8fcda48fe33debe569e1e2f742d98ede6a0a35efa37a580b3118fe0ba26"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Latin-Extended-Additional.woff2",
+   "size": 560,
+   "sha256": "d20521c3392b25a387eb10bc4cb3615d9c370716b4a8a0357ba396e2f8e1be48"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Latin-Extended-B.woff2",
+   "size": 3104,
+   "sha256": "2567dd6acd1d94fe0d0d885c0138f33bf3edd79d8d65f947feea960d8570da99"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Latin-Extended-C.woff2",
+   "size": 672,
+   "sha256": "7697f08ba8dd0a71fe8fbb49883fe6fbbcaea1cc9001ed5be0a36b092b5559de"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Latin-Extended-D.woff2",
+   "size": 756,
+   "sha256": "0a2458c992ced79e2876ed48cb6d6714947e4201ef0833221ddd4cfff4da47af"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Letterlike-Symbols.woff2",
+   "size": 900,
+   "sha256": "84aa6a8aa905799cd5c712c19d6bcf18a56163d1a07ff9b093667c5d46de4263"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Miscellaneous-Symbols.woff2",
+   "size": 5180,
+   "sha256": "309b0c18f23c49c67c474ad33eed429f966e21127328c5793d6246ecd962d60d"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Miscellaneous-Technical.woff2",
+   "size": 1604,
+   "sha256": "d588d8604b189a911fef71d9d878ddd650d1ed9586d5f13ea667a53e0cc5a1ec"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Number-Forms.woff2",
+   "size": 1740,
+   "sha256": "a84b49d95e60306232e6e6365eeae5c64ae8edc012adb718533a4758bcbe1f59"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Private-Use-Area.woff2",
+   "size": 5228,
+   "sha256": "6a1fdf7228c929aefd475d0adebd43339a0967df83fad22dbe32964f005b2a9a"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Specials.woff2",
+   "size": 648,
+   "sha256": "9d9d5458bba22a6ba9dcbf3ef8777f925c71328f74f4d1773191867fc9068775"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Superscripts-and-Subscripts.woff2",
+   "size": 1156,
+   "sha256": "f4843490bfbcb8c35969362ba0feb792a2e3bd50efc5c7260c1bb9c069d43b84"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Vertical-Forms.woff2",
+   "size": 756,
+   "sha256": "373938b93bb26424ac3bad526439367a893277ebfbafe605ba08ff017a41e5b3"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.css",
+   "size": 70892,
+   "sha256": "dce616e375aa6abe5e64e4401253f9471a4c9245964eafa58f2a6dc84e5d5f3a"
+  },
+  {
+   "path": "assets/fonts/fusion-pixel/LICENSE.txt",
+   "size": 1062,
+   "sha256": "8751c869c91bc13ba06dffadaf0c276f662917228f18072b28498b08c1e59ee6"
+  },
+  {
+   "path": "assets/npc/ATTRIBUTION.md",
+   "size": 495,
+   "sha256": "52ac49f402601dd6a0898ba59c5f08424ab31a1d1374132d5136514b26bb75c0"
+  },
+  {
+   "path": "assets/npc/npc_sheet.json",
+   "size": 826,
+   "sha256": "5c768694cefd3d0a123950185c1a0bb5da2029ecba142fab8be30ea84746bafb"
+  },
+  {
+   "path": "assets/npc/people_1.png",
+   "size": 2217,
+   "sha256": "c547f03729166b53c0275c4aeef3dd8bbd7782a90cea1ff6a6405ee6e45a9489"
+  },
+  {
+   "path": "assets/npc/people_2.png",
+   "size": 2293,
+   "sha256": "4ff752e8a09788c402c3112097abdede89d00370c4b831352a76a2e4d7734d75"
+  },
+  {
+   "path": "assets/npc/people_3.png",
+   "size": 2042,
+   "sha256": "78471e552f2b687f873315d3be03a8a5492582f35c9b6ddc538d157ca79d0ebb"
+  },
+  {
+   "path": "assets/npc/people_4.png",
+   "size": 2057,
+   "sha256": "47c31ec5f23e488a3360a5d370851cdd344aee36c39923a9361cff6277534015"
+  },
+  {
+   "path": "assets/npc/people_5.png",
+   "size": 2365,
+   "sha256": "8f4c6f4e026ce687f87879964bc9f2133438202dafab1f7945e3d31b1a595bcc"
+  },
+  {
+   "path": "assets/npc/people_6.png",
+   "size": 2084,
+   "sha256": "17472f161dba050c30cfcd6871804e1c33ed7442acadd739a944f3dd45c8c864"
+  },
+  {
+   "path": "assets/npc/people_boss.png",
+   "size": 2865,
+   "sha256": "f452d2f45590bb2e5066db82547a7fc0242d077bdca6275875b75a37b45cfeaa"
+  },
+  {
+   "path": "assets/scenes/cafe/cafe.built.json",
+   "size": 20048,
+   "sha256": "31ddf89658124a1f669e880aec5cfc3a4fb33d9940a9360b24b3efb8f194c71d"
+  },
+  {
+   "path": "assets/scenes/cafe/cafe.bundle.js",
+   "size": 12568,
+   "sha256": "df4c91ea96753d7fd2dcbe5181050241294c4a0357eafb4a12080bbc324b5172"
+  },
+  {
+   "path": "assets/scenes/cafe/cafe.png",
+   "size": 80688,
+   "sha256": "fd43d139766af1527c019a2578c9d35836e533f33460a8b04f2f0dd38fea1c42"
+  },
+  {
+   "path": "assets/scenes/cafe/cafe@2x.png",
+   "size": 99250,
+   "sha256": "5c494e069f3072fde11feb46cd2854e2c3e4808ee5e6bfefd19e1eb9acb232e9"
+  },
+  {
+   "path": "assets/scenes/cafe/character/sheet.json",
+   "size": 5286,
+   "sha256": "483bc8212627e18153f01b2681f095f0acbf7d978dcc4f1983aad2c474726a3d"
+  },
+  {
+   "path": "assets/scenes/cafe/character/sheet.png",
+   "size": 5070,
+   "sha256": "65368c47ccb963243ebccd58c4351f11103324046273b54e6075c5679e31ea02"
+  },
+  {
+   "path": "assets/scenes/cafe/furniture.png",
+   "size": 28747,
+   "sha256": "4fbbc9b26a9f2c352672125288c372bb87f16fcf6e860fa381c9939308a45d32"
+  },
+  {
+   "path": "assets/scenes/cafe/interactions.json",
+   "size": 11521,
+   "sha256": "b7e6822a9f702b45db1bfd764f0670c33e933860b6c30f8319f3ecb7c4bb7b91"
+  },
+  {
+   "path": "assets/scenes/cafe/intgrid.bin",
+   "size": 532,
+   "sha256": "df0c999b510b420058854b940ced40f79746af86907156c54c2d44cdb1325fb8"
+  },
+  {
+   "path": "assets/scenes/cafe/light_day.png",
+   "size": 3521,
+   "sha256": "957868a4898d9c6d78a8926b0b202971b5b3f2180e08bba421ae247fd7735c19"
+  },
+  {
+   "path": "assets/scenes/cafe/manifest.json",
+   "size": 1238,
+   "sha256": "c6a43f1317dbf9b8d6ab27759f988f91eff92aeedcec1a0938f78e72f0045d27"
+  },
+  {
+   "path": "assets/scenes/cafe/scene.json",
+   "size": 31658,
+   "sha256": "1cd63461a443f6bdcacaa825c0aeb4e4f3cac0ba582a32c56d1111f4b8adfbaa"
+  },
+  {
+   "path": "assets/scenes/cafe/sprites.png",
+   "size": 390,
+   "sha256": "df131de780de8fb2f8aa3a37a9ec3fabf751488fcabc2c453e4de798dbd49f9f"
+  },
+  {
+   "path": "assets/scenes/cafe/terrain.png",
+   "size": 56844,
+   "sha256": "a58d1cf364b795c31ab6b71a47570a247cf7d0852b0b7ceec2f7512f8c42e6ee"
+  },
+  {
+   "path": "assets/scenes/home/character/sheet.json",
+   "size": 7725,
+   "sha256": "ae926639c980e11f3064b0a15246a44a1d99a860fe77a399a7ac9aa288251ace"
+  },
+  {
+   "path": "assets/scenes/home/character/sheet.png",
+   "size": 292333,
+   "sha256": "8cca703acd587387551b2496ddf29f08819b03becf1e24a12b30aef3d27b272b"
+  },
+  {
+   "path": "assets/scenes/home/furniture.png",
+   "size": 13242,
+   "sha256": "87604d208efdd9ae9b3e14c7144800aefafb57426f644d28da1e499c6fa448cb"
+  },
+  {
+   "path": "assets/scenes/home/home.built.json",
+   "size": 8479,
+   "sha256": "c5f827d56b7da2da7aa39448ff824a4147fea29339e61d39119da1b0ba707282"
+  },
+  {
+   "path": "assets/scenes/home/home.bundle.js",
+   "size": 6222,
+   "sha256": "7e0a511bb13135beb3cecdf2df4c586ad1c782a360143530bcfedb9fca9b13e0"
+  },
+  {
+   "path": "assets/scenes/home/home.ldtk",
+   "size": 66351,
+   "sha256": "c220c4133cf771eaccf8c81ddaa78b622b9588a4cc094a7a70c0c79e01a9bf9c"
+  },
+  {
+   "path": "assets/scenes/home/home.png",
+   "size": 32357,
+   "sha256": "9c5ba3f021e117fdfde4660fe42fbc58c40483c95527827228d2eacc6c1b2824"
+  },
+  {
+   "path": "assets/scenes/home/home@2x.png",
+   "size": 40067,
+   "sha256": "0e2568d57d9cc3f6b73fadc14cbbde281e0efcb8eaaa667dc2334244e42f7314"
+  },
+  {
+   "path": "assets/scenes/home/interactions.json",
+   "size": 10159,
+   "sha256": "2b529d2d80b888ce352d1b3ed7838f168c3802cbac15f01301bfb03c614aabed"
+  },
+  {
+   "path": "assets/scenes/home/intgrid.bin",
+   "size": 300,
+   "sha256": "992d5784e496fb936ba9fdcaf4ca68cd0d9065572ffe765ebc4de8f2eccdd718"
+  },
+  {
+   "path": "assets/scenes/home/light_day.png",
+   "size": 2842,
+   "sha256": "02c4272c8a62244c187049d1c6ff4522aca8950feff5f85e095ed660d2e1abf8"
+  },
+  {
+   "path": "assets/scenes/home/manifest.json",
+   "size": 1232,
+   "sha256": "17b9d7b77c808922b514224af13e4e9a73e54f96d8a2e41b8c0d2442517be891"
+  },
+  {
+   "path": "assets/scenes/home/scene.json",
+   "size": 12156,
+   "sha256": "6c799fbcfa2a4d9249cb551c3d2e15927d38fb7a83b158a59b40ac55ca5e6451"
+  },
+  {
+   "path": "assets/scenes/home/sprites.png",
+   "size": 390,
+   "sha256": "df131de780de8fb2f8aa3a37a9ec3fabf751488fcabc2c453e4de798dbd49f9f"
+  },
+  {
+   "path": "assets/scenes/home/terrain.png",
+   "size": 23876,
+   "sha256": "53c35fb0390b0413b8dc0f3aaafcb99dfe64a7b065946242a7958a2d0c81a3fd"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/character/sheet.json",
+   "size": 5286,
+   "sha256": "483bc8212627e18153f01b2681f095f0acbf7d978dcc4f1983aad2c474726a3d"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/character/sheet.png",
+   "size": 5070,
+   "sha256": "65368c47ccb963243ebccd58c4351f11103324046273b54e6075c5679e31ea02"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/furniture.png",
+   "size": 28747,
+   "sha256": "4fbbc9b26a9f2c352672125288c372bb87f16fcf6e860fa381c9939308a45d32"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/indoor-66500.built.json",
+   "size": 17033,
+   "sha256": "ddf7a8de15881289986c86e273c104bf8bef32b53bbd9934a7a3ff5317969b54"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/indoor-66500.bundle.js",
+   "size": 12568,
+   "sha256": "df4c91ea96753d7fd2dcbe5181050241294c4a0357eafb4a12080bbc324b5172"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/indoor-66500.png",
+   "size": 80688,
+   "sha256": "fd43d139766af1527c019a2578c9d35836e533f33460a8b04f2f0dd38fea1c42"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/indoor-66500@2x.png",
+   "size": 99250,
+   "sha256": "5c494e069f3072fde11feb46cd2854e2c3e4808ee5e6bfefd19e1eb9acb232e9"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/interactions.json",
+   "size": 11521,
+   "sha256": "b7e6822a9f702b45db1bfd764f0670c33e933860b6c30f8319f3ecb7c4bb7b91"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/intgrid.bin",
+   "size": 532,
+   "sha256": "df0c999b510b420058854b940ced40f79746af86907156c54c2d44cdb1325fb8"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/light_day.png",
+   "size": 3521,
+   "sha256": "957868a4898d9c6d78a8926b0b202971b5b3f2180e08bba421ae247fd7735c19"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/manifest.json",
+   "size": 1238,
+   "sha256": "c6a43f1317dbf9b8d6ab27759f988f91eff92aeedcec1a0938f78e72f0045d27"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/scene.json",
+   "size": 27060,
+   "sha256": "7bee574a28826f8f8fa74195a0c74258fa8c2da37f11a78171e7c978ebf739f4"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/sprites.png",
+   "size": 390,
+   "sha256": "df131de780de8fb2f8aa3a37a9ec3fabf751488fcabc2c453e4de798dbd49f9f"
+  },
+  {
+   "path": "assets/scenes/indoor-66500/terrain.png",
+   "size": 56844,
+   "sha256": "a58d1cf364b795c31ab6b71a47570a247cf7d0852b0b7ceec2f7512f8c42e6ee"
+  },
+  {
+   "path": "assets/scenes/office/character/sheet.json",
+   "size": 7725,
+   "sha256": "ae926639c980e11f3064b0a15246a44a1d99a860fe77a399a7ac9aa288251ace"
+  },
+  {
+   "path": "assets/scenes/office/character/sheet.png",
+   "size": 292333,
+   "sha256": "8cca703acd587387551b2496ddf29f08819b03becf1e24a12b30aef3d27b272b"
+  },
+  {
+   "path": "assets/scenes/office/furniture.png",
+   "size": 16684,
+   "sha256": "cb018ff76d715d95555992a685eed356ab329256889cc918d708100352758157"
+  },
+  {
+   "path": "assets/scenes/office/interactions.json",
+   "size": 7793,
+   "sha256": "c474235e5faa6e309e8f4efaecb8e637ff506198fab8bbe05e966a0dcc75fd47"
+  },
+  {
+   "path": "assets/scenes/office/intgrid.bin",
+   "size": 468,
+   "sha256": "6a72d328dcb333afbd937f243dd8d26c56d382a320e3222df83bb9234b1e782a"
+  },
+  {
+   "path": "assets/scenes/office/light_day.png",
+   "size": 3596,
+   "sha256": "2eb89c30f267d917ea75d3601d68ca8d256e9dc933dfe978255560afaae2bd78"
+  },
+  {
+   "path": "assets/scenes/office/manifest.json",
+   "size": 1233,
+   "sha256": "fe014c44490b07f4706f1b4feefa90a4d5d9d7e6db36965b460ce6197695304c"
+  },
+  {
+   "path": "assets/scenes/office/office.built.json",
+   "size": 12148,
+   "sha256": "66fdb2ad70e8500e03fafe21dbf45a7e1f55c1fb7c100ec39ee16e3e99ffd588"
+  },
+  {
+   "path": "assets/scenes/office/office.bundle.js",
+   "size": 9008,
+   "sha256": "3f6ffd0bae83a3235596f72f34f0c20d33d5753f5691eddd38a5a489bd1237d6"
+  },
+  {
+   "path": "assets/scenes/office/office.ldtk",
+   "size": 97180,
+   "sha256": "b5689773f144546d272c8255ce95a2fdfa42fb606cb4a3e358911e2aaed346e0"
+  },
+  {
+   "path": "assets/scenes/office/office.png",
+   "size": 46482,
+   "sha256": "2d04b0b23a50477ae75633f41be86adcc146f090f4e2042231dca2ab30491f43"
+  },
+  {
+   "path": "assets/scenes/office/office@2x.png",
+   "size": 58145,
+   "sha256": "fafa0b17d953036ab41eea54ca1acfe12344b0b0fdf2a4b1e2df6d9bac0b04e1"
+  },
+  {
+   "path": "assets/scenes/office/scene.json",
+   "size": 21541,
+   "sha256": "9b3a4f186c4ad1c5b76a3bb0be5168d4d0fbd62b7b99a7377ca75b8c6c3db214"
+  },
+  {
+   "path": "assets/scenes/office/sprites.png",
+   "size": 390,
+   "sha256": "df131de780de8fb2f8aa3a37a9ec3fabf751488fcabc2c453e4de798dbd49f9f"
+  },
+  {
+   "path": "assets/scenes/office/terrain.png",
+   "size": 31882,
+   "sha256": "8ecb16d8b9adeb04f303fd7d70082f61888ba5824402c6a779070ab5237a6053"
+  },
+  {
+   "path": "config.json",
+   "size": 603,
+   "sha256": "ba46bdec2d4618f54cefa9cbf39eed1c3f5db74881ebdb7485c4f0bbf170fced"
+  },
+  {
+   "path": "css/app.css",
+   "size": 8001,
+   "sha256": "86580a08e5fee932ada836810c2f9a291662f4ea6b6ac45c909e15bc2a2fc5f2"
+  },
+  {
+   "path": "css/cel.css",
+   "size": 9073,
+   "sha256": "ba37d9f1e9515a898dbfc573096013aa2161a89491e5ab30b9d2d0d3b6194f44"
+  },
+  {
+   "path": "css/tokens.css",
+   "size": 1232,
+   "sha256": "be85176fef6d2144f9eb9a266b5f59512d2b2736e239edb46dfa1c508a9c3f71"
+  },
+  {
+   "path": "debug-core.html",
+   "size": 33842,
+   "sha256": "84d4686ff6a984571dad6d63d596e72fd9d9229834084a52c0977881d16956a8"
+  },
+  {
+   "path": "debug-life.html",
+   "size": 22891,
+   "sha256": "069a54322ca51c67c5dc3853bd8c0cd551b69abf97fa07099430121b786b6214"
+  },
+  {
+   "path": "index.html",
+   "size": 3254,
+   "sha256": "133b50fa446c6cd9d0a28d99bbd6fac11b8d1ce1e0a78bb0cadf58836f879050"
+  },
+  {
+   "path": "js/app.js",
+   "size": 55948,
+   "sha256": "b58f7dbf607831a14c0b129231d9703c0e95b685ae6da9c2bee20fd634c31198"
+  },
+  {
+   "path": "js/core/actions/browse.js",
+   "size": 4281,
+   "sha256": "41314db1e607104ee21bcbf84bb56850aa4e91c45e38be8d2bf8f24f94983410"
+  },
+  {
+   "path": "js/core/actions/plan.js",
+   "size": 1628,
+   "sha256": "ae13f3a68926aa37c551c4de9f108d00adec96599ab37ad99da3792d6aca3147"
+  },
+  {
+   "path": "js/core/actions/registry.js",
+   "size": 3698,
+   "sha256": "4c4b12de4b8c81f1c78ecfbcbb1af6174407d2c41cdd24855373453dbd83d14c"
+  },
+  {
+   "path": "js/core/agent/json.js",
+   "size": 949,
+   "sha256": "ae91ca8dcb8a57351355c2b127a0721015bd65e708b702bba239e89814ef5850"
+  },
+  {
+   "path": "js/core/agent/manager.js",
+   "size": 5537,
+   "sha256": "b2157a4d9202d9004b9277164fdb8d0435c4d1b55abd91e5fb41b5f599eed51e"
+  },
+  {
+   "path": "js/core/agent/registry.js",
+   "size": 2104,
+   "sha256": "d181a94fb551031077db44b650f6a44cfdb5f9b2507181b33a91ceac4641d7c5"
+  },
+  {
+   "path": "js/core/agent/subs/bg.js",
+   "size": 3709,
+   "sha256": "6769455f9f183d19964d3c341ba1e7e5b4d3df97ba6fb74bd55e38ec3d90a1c8"
+  },
+  {
+   "path": "js/core/agent/subs/events.js",
+   "size": 3207,
+   "sha256": "88f92f573a00f8fb9bf5d1d4d25e0d4cd4796f459dad26b66144956f696eeab2"
+  },
+  {
+   "path": "js/core/agent/subs/plot.js",
+   "size": 10235,
+   "sha256": "9b3b94cef36bb5f97d6bf58d97610d280fc6ad8616d6f759fd02d3ad5b2bf94d"
+  },
+  {
+   "path": "js/core/agent/subs/record.js",
+   "size": 2089,
+   "sha256": "94fc64e5d06394de07a5524a0060e9383fd74a9473051586076200d60b6789d0"
+  },
+  {
+   "path": "js/core/assetstore.js",
+   "size": 1657,
+   "sha256": "bafbf845c88d932c54f6c6b86faa1d2f23368e2d1b8559588e60c0ac825739d9"
+  },
+  {
+   "path": "js/core/bus.js",
+   "size": 3023,
+   "sha256": "761157a2fe6599fd6122c6d549f02f8a4e2c2a6c39921b508aa60d42127f5a02"
+  },
+  {
+   "path": "js/core/client.js",
+   "size": 1534,
+   "sha256": "ac710d8bb48b5e056c4992a7b3c1ac18f9d8b077a28ba2eaf3b0a8a9f4993c60"
+  },
+  {
+   "path": "js/core/clock.js",
+   "size": 2711,
+   "sha256": "c8f6a89c4555856eb78a7ecd0656ea928f85603b5e03541fc08f019ca260c4eb"
+  },
+  {
+   "path": "js/core/digest.js",
+   "size": 1492,
+   "sha256": "3c1d276fd838f7c909e037c71672c5affc2ee29d1534972422a7579da2cefacd"
+  },
+  {
+   "path": "js/core/doctor.js",
+   "size": 4663,
+   "sha256": "e0168e196f60a350d045509c13b5f017cd3c4b9a50e03be7022608d7696f08b8"
+  },
+  {
+   "path": "js/core/governor.js",
+   "size": 2578,
+   "sha256": "688c7b790e77024a2d2796bcdeb91d88cd550f509a296654d9efc393f34d9703"
+  },
+  {
+   "path": "js/core/grid.js",
+   "size": 6636,
+   "sha256": "31a32c9aaca7edcccbda344112838f1e93787abd7b02a50a224e2bbe146b13f0"
+  },
+  {
+   "path": "js/core/host.js",
+   "size": 5258,
+   "sha256": "c150be90ad5c5ed06208497af55f627e8e404d2fd24dfd2c5a6352256182c42a"
+  },
+  {
+   "path": "js/core/interactions.js",
+   "size": 4564,
+   "sha256": "a2fa32725b2e1a39c72ac2d13163182b824342029e29cb610e4d8b56ab1ff498"
+  },
+  {
+   "path": "js/core/kv.js",
+   "size": 937,
+   "sha256": "e8b28063a75c7300859e24ef25753baa471934cb9c92914855645ecf673745dc"
+  },
+  {
+   "path": "js/core/life/acts.js",
+   "size": 559,
+   "sha256": "fcde6a1884b8bf74950e4e8df8842de571c1705352da282a7f1438901e4d6874"
+  },
+  {
+   "path": "js/core/life/lines.js",
+   "size": 3882,
+   "sha256": "607a4a6ecd97419085f0e6f525541a080532c492376b7c39a6e3dcd02c1a8404"
+  },
+  {
+   "path": "js/core/life/outing.js",
+   "size": 5048,
+   "sha256": "03b658e9f410ad808bf788b71b220cb3f14ec361f1c8070e74341bfbd833a61b"
+  },
+  {
+   "path": "js/core/life/plan.js",
+   "size": 3781,
+   "sha256": "9b8c4e8588428600aaa464e1912db7b1f38d135bc7322450d39189910d5ab506"
+  },
+  {
+   "path": "js/core/lifestore.js",
+   "size": 1169,
+   "sha256": "92a788706a08d7003ef98df28337a1bfe7b8d9608e557871633b59899555e56c"
+  },
+  {
+   "path": "js/core/light.js",
+   "size": 471,
+   "sha256": "31f938845c47e2eaa1f3f0ecd8b61d198f13f870a9b78380b97a56f37ad99a40"
+  },
+  {
+   "path": "js/core/llm/budget.js",
+   "size": 3286,
+   "sha256": "98d8f19820ffb53af3b476e0d01126b6f84a3577455eecff4b525d232f556789"
+  },
+  {
+   "path": "js/core/llm/client.js",
+   "size": 5857,
+   "sha256": "258a8376c1bb747003c6a02ae74ffe9d7d6197870939717509fb826786667110"
+  },
+  {
+   "path": "js/core/llm/provider.js",
+   "size": 2971,
+   "sha256": "ad25c4cb6f2f774b2177a6930028d3f377472225712fd3557b484d4043385c78"
+  },
+  {
+   "path": "js/core/llm/resolve.js",
+   "size": 2331,
+   "sha256": "3ed7dfed1aa3276d4b9f430c20fca93a5e7e6d1c1aabd4fb1d2d671cc16ac4e1"
+  },
+  {
+   "path": "js/core/log/events.js",
+   "size": 3693,
+   "sha256": "ca70197818417cd511e3bc65228b6bfd9f6a0fec334eff28ac8e23f41ba17254"
+  },
+  {
+   "path": "js/core/log/idb.js",
+   "size": 3236,
+   "sha256": "0629ddc80fc56b5a2dff98f8a9e8ed6121488f9661841828c7b320f790cabc3c"
+  },
+  {
+   "path": "js/core/machine/life.js",
+   "size": 11374,
+   "sha256": "0c26b73bbe58102ef6483d2b0d57b9dae0285a145ca406cc97f3b09a35aa01ac"
+  },
+  {
+   "path": "js/core/machine/world.js",
+   "size": 5932,
+   "sha256": "83be342eb6599aada6d45420be5cdbda07a3a4ac41915ac23cfeab985756c9a9"
+  },
+  {
+   "path": "js/core/memory/index.js",
+   "size": 3295,
+   "sha256": "0556778c324c86229cc441d0e66831c47fccd71c7ba3f628f31cae95492d6f58"
+  },
+  {
+   "path": "js/core/memory/local.js",
+   "size": 2499,
+   "sha256": "e0e57047fae9c8a3b4858a446cc613a27a0ce0a740b0619ac9cf30f49e0893f1"
+  },
+  {
+   "path": "js/core/memory/pipeline.js",
+   "size": 4387,
+   "sha256": "9fc7d91107d39d579e5557b7486ca0292ec8b7cc4a6d2e5a5ecc9065040b537f"
+  },
+  {
+   "path": "js/core/memory/remote.js",
+   "size": 2192,
+   "sha256": "d71a979106561fea2eb8494f7e5111e598e9cf88747d006919eb5d73f42f7085"
+  },
+  {
+   "path": "js/core/mood.js",
+   "size": 2408,
+   "sha256": "f6bdc4e6c6b30920b09093f3e03c2b6d62fa0f2921f90803a28c32cadfd783f5"
+  },
+  {
+   "path": "js/core/mood/describe.js",
+   "size": 1820,
+   "sha256": "b4540cf0b4e1a423a6d62bd4fa3120c1a04153c6a89c1f2fc2cdc901b4e7ec7e"
+  },
+  {
+   "path": "js/core/mood/policy.js",
+   "size": 3118,
+   "sha256": "e8985884fe20a2726fd2a4aeca78dbc56236eb06df2e45f3329845ffdbb59065"
+  },
+  {
+   "path": "js/core/observe.js",
+   "size": 3333,
+   "sha256": "f7b47422e3f1c6993fbf0186cbcf58d06c0a9e46a41484e0b24d1de44deb43a2"
+  },
+  {
+   "path": "js/core/pathagent.js",
+   "size": 3329,
+   "sha256": "4249212bf055ee42f9d0e64ddb5af6e2c0ebc1ffffec6745e88148cf2c1b9692"
+  },
+  {
+   "path": "js/core/places/graph.js",
+   "size": 2563,
+   "sha256": "179e9127b0d2ba2b57bf29a5e2cadba6d98c287c213e187794930da00fc4b47e"
+  },
+  {
+   "path": "js/core/ringbuffer.js",
+   "size": 796,
+   "sha256": "dfa4c98e57c85102d903532341cc18b848bee2965c46035a781e58ed94ebbdac"
+  },
+  {
+   "path": "js/core/sched/scheduler.js",
+   "size": 6748,
+   "sha256": "33270c83cdd6ca753e0adcce0f98a65bfedc723eef0663ef52cb55eb54b3a840"
+  },
+  {
+   "path": "js/core/snapshot.js",
+   "size": 1495,
+   "sha256": "2f160f70d0ea4c1157e5aaf78dc864ff223ecfc0290c71b1c657ecd830fe22c8"
+  },
+  {
+   "path": "js/core/sync.js",
+   "size": 3116,
+   "sha256": "64c423d13e014a0b5cb17a0e5ea932ffab867ed4e13ee1a774388c819e3d080e"
+  },
+  {
+   "path": "js/core/sync/merge.js",
+   "size": 3337,
+   "sha256": "4e9472dc0c9c3f75a513ae726330477e6d12a115c9175a27348f84bfdf587872"
+  },
+  {
+   "path": "js/core/wake/engine.js",
+   "size": 4782,
+   "sha256": "b3dcb46d2aaa4ff8533c4fe5a0cdc87a5b1dd04a71d68e03261d2e8a6b2d51d0"
+  },
+  {
+   "path": "js/core/wake/gate.js",
+   "size": 1591,
+   "sha256": "b154e6a1aed08a6ee20d37fdb91fe469aa183f2df43b300b6a6c6e81a5714d7a"
+  },
+  {
+   "path": "js/core/wake/runtime.js",
+   "size": 8888,
+   "sha256": "62267d87ad99f50db776302820c3dd0e488e4967fef0abbe148022c17ed6545c"
+  },
+  {
+   "path": "js/core/weather.js",
+   "size": 1176,
+   "sha256": "e9d0b1217cbc5c07d27f4d78cb95ab12e2d1754067c615348a58abf14034804f"
+  },
+  {
+   "path": "js/core/worker.js",
+   "size": 72794,
+   "sha256": "ffcace47f04526d2f5148b45227a6794af4d11970cd44d3cc50c7d3bd69f2f86"
+  },
+  {
+   "path": "js/forge/grammar.js",
+   "size": 6318,
+   "sha256": "e31d2262a9801344828391833ae8a1b5a220d25df5a7de08593054c6a6335255"
+  },
+  {
+   "path": "js/runtime/console-bridge.js",
+   "size": 4011,
+   "sha256": "087acc9911c1fba050df48444de223d616661c846b687a10f4ceffe9a3fd2386"
+  },
+  {
+   "path": "js/runtime/local.js",
+   "size": 59836,
+   "sha256": "d0c08469ee35b8d89291066889d4d579e16ebba8d155431e222b9733997b30b1"
+  },
+  {
+   "path": "js/runtime/qq-bridge.js",
+   "size": 8155,
+   "sha256": "6d4eda15b9c3486385fb86f7324ad650c6a921a1643bd0604507a6d473b6bb97"
+  },
+  {
+   "path": "js/runtime/remote.js",
+   "size": 4431,
+   "sha256": "4908d90cb36033115eed82a91645fd5b09e067e1e6d2ad3bf9387017ce4b3c8f"
+  },
+  {
+   "path": "js/view/hud.js",
+   "size": 2601,
+   "sha256": "cd10c13956354d0cad7ad91d9f022212bc29b300a6b67c3c8edd9e19afbad6e4"
+  },
+  {
+   "path": "js/view/overview.js",
+   "size": 12531,
+   "sha256": "88d849cf7831a2efcd240f254b2d89f8ba85c7d771b5cf98a9d3d5995b4032c4"
+  },
+  {
+   "path": "js/view/perf-overlay.js",
+   "size": 1156,
+   "sha256": "6309532a7745d380fae199bf99bfa8593997f62f19b1432b3054e3ae8af35e29"
+  },
+  {
+   "path": "js/view/present-host.js",
+   "size": 1570,
+   "sha256": "1fd33667121e692bfaea91074cd0b8bd7e5656a668e4bb4ca2875844e0b999e6"
+  },
+  {
+   "path": "js/view/present.js",
+   "size": 4081,
+   "sha256": "da7f6d3b5a431d031ee6511bfe288c727d5fb38c0fa6f77338f6b901ef8d988d"
+  },
+  {
+   "path": "js/view/scene-loader.js",
+   "size": 1386,
+   "sha256": "e05f5f8f1e33d4a62339f5d37951bd9d0dcd7cec56dd355aecff130fe1da81f4"
+  },
+  {
+   "path": "js/view/switch.js",
+   "size": 2261,
+   "sha256": "04215f2299723831b6d27c30aa516dc82b8a5d1dc616b959f3059cacf4fa62e6"
+  },
+  {
+   "path": "js/view/transition.js",
+   "size": 4862,
+   "sha256": "3d9a47af30acf62c81c5351e1a35c7af091a2aaf1a4c16e992203a8121da41aa"
+  },
+  {
+   "path": "observe.html",
+   "size": 8232,
+   "sha256": "3e57ea8f632e64a60d44cc8671e452ced8ad703cdeeaefcbc75738568d676ec9"
+  },
+  {
+   "path": "preview.html",
+   "size": 6717,
+   "sha256": "34202ee6d9b8280e834587609a57377c0711304ffa54512b0b803ef11f481fce"
+  },
+  {
+   "path": "workers/forge.worker.js",
+   "size": 9486,
+   "sha256": "71ee9233f5474e649a6dc2f9b52573ee3cab028f876c4b231d8f5abbf1344c69"
+  },
+  {
+   "path": "workers/life.worker.js",
+   "size": 35205,
+   "sha256": "1a89fa4c8c4a5d0f1f4eb119334a075412f29fe3e9a0238b93ad117924ce9c30"
+  }
+ ]
+}

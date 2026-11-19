@@ -1,0 +1,110 @@
+{
+ "version": 1,
+ "built_at": "2026-11-15T13:29:38.867Z",
+ "skills": {
+  "behavior-record": {
+   "name": "behavior-record",
+   "description": "行为留档：由角色 LLM 写一条含\"做了什么 + 心情变化\"的短记录",
+   "class": "character",
+   "prompt": "behavior-record",
+   "maxTokens": 220,
+   "temperature": 0.7,
+   "tools": [],
+   "output": "json",
+   "body": "# 使用时机\n\n每次自主行为执行完（出门/上网/居家/休息）后调用，结果写入 behavior_log 与事件日志。\n\n# 约束\n\n- 20-60 字，包含做了什么与心情变化；\n- 不写台词，不解释系统；\n- 只输出 JSON：summary / mood / evidence（可选）。\n"
+  },
+  "browse-plan": {
+   "name": "browse-plan",
+   "description": "决定这次上网看什么：给出主题与一个可抓取的 URL",
+   "class": "work",
+   "prompt": "browse-plan",
+   "maxTokens": 300,
+   "temperature": 0.8,
+   "tools": [],
+   "output": "json",
+   "body": "# 使用时机\n\n`browse` 行为执行前调用；由角色兴趣、开放线头、最近浏览与心情决定目标。\n\n# 约束\n\n- 只输出一个目标，优先给 `url`；没有具体页面就给 `topic`，由核心机拼搜索页；\n- 只能访问公网 http(s)，禁止内网/元数据/凭据；\n- 域名必须在设备白名单内（天气、Bing、维基、新闻等）；\n- 给出 `reason`，说明为什么想看这个。\n"
+  },
+  "doctor": {
+   "name": "doctor",
+   "description": "自检诊断：根据问题与日志给出白名单修复动作",
+   "class": "work",
+   "prompt": "doctor",
+   "maxTokens": 400,
+   "temperature": 0.2,
+   "tools": [],
+   "output": "json",
+   "body": "# 使用时机\n\nDoctor 周期自检发现异常时调用；只允许白名单动作，不允许执行任意代码。\n\n# 约束\n\n- 只输出 JSON：diagnosis / actions / safeMode；\n- actions 只能从白名单选：clear_event_log、trim_memory、pause_agent、resume_agent、reset_budget、enter_safe_mode、exit_safe_mode、snapshot_save；\n- 最多 3 个动作；无法判断时 actions 为空。\n"
+  },
+  "event-pool": {
+   "name": "event-pool",
+   "description": "生成新的日常事件，扩展剧情事件池",
+   "class": "work",
+   "prompt": "event-pool",
+   "maxTokens": 600,
+   "temperature": 0.9,
+   "tools": [],
+   "output": "json",
+   "body": "# 使用时机\n\n事件池剩余可用事件不足，或距上次刷新超过 6 小时时，由调度器在 idle/asleep 执行。\n\n# 约束\n\n- 一次 4-8 条，具体、可拍成画面；\n- 与已有事件相似度 <0.6；\n- 字段与内置事件一致：text/hours/place/mood/imageQuery。\n"
+  },
+  "memory-summarize": {
+   "name": "memory-summarize",
+   "description": "把事件归纳成稳定事实，供本地记忆与 PC 向量库",
+   "class": "work",
+   "prompt": "memory-summarize",
+   "maxTokens": 800,
+   "temperature": 0.3,
+   "tools": [],
+   "output": "json",
+   "body": "# 使用时机\n\n记忆管线（W23）攒够事件后调用；一次 3–8 条事实。\n\n# 约束\n\n- 只输出 JSON `{\"facts\":[{\"text\":\"...\",\"tier\":\"L2\"}]}`；\n- 每条 10–60 字，写稳定事实，不写对话/情绪/系统日志；\n- 与已有事实重复的不要输出。\n"
+  },
+  "plot-writer": {
+   "name": "plot-writer",
+   "description": "工作层：根据生活事件生成 30-80 字剧情",
+   "class": "work",
+   "prompt": "plot",
+   "maxTokens": 400,
+   "temperature": 0.5,
+   "tools": [],
+   "output": "json",
+   "body": "# 使用时机\n\n端侧/主机档需要新剧情，且本地文法未命中时调用。\n\n# 工艺（提炼自 howells/fiction、alt-code fiction-writing-story-development）\n\n- 一次只写一个微小变化，落在动作或物件上；\n- 具体名词与感官优先，不用抽象情绪词；\n- 不写台词、不解释系统、不总结道理；\n- 必须有与时段一致的时间锚点。\n\n# 校验\n\n- JSON 字段：text / event / place / scene / mood / imageQuery；\n- text 30-80 字、含时间词、无引号台词、与最近 20 条相似度 <0.6；\n- place/scene 必须是 living/hall/bedroom/bath/balcony/kitchen；\n- mood 只允许 energy/valence/social/focus，单项 ±0.3；\n- 不合格由子 Agent 带原因重写，最多 3 次。\n"
+  },
+  "wake": {
+   "name": "wake",
+   "description": "设备档醒来：严格 JSON 三结局，产出 fact/content/share/residue",
+   "class": "character",
+   "prompt": "wake",
+   "maxTokens": 600,
+   "temperature": 0.8,
+   "tools": [],
+   "output": "json",
+   "body": "# 使用时机\n\n设备档唤醒运行时（W26）每次醒来调用；显现期间不调用（归 OLVT）。\n\n# 约束\n\n- outcome 只能是 silent / trace / message；\n- message 必须有非空 share（≤20 字）；silent 不得带 share；\n- fact 简短，供下次醒来读；residue 覆盖上一条；\n- next_wake 受宿主 45–90 分钟约束；\n- artifact 只有在真实工具调用时才允许。\n"
+  },
+  "wake-character": {
+   "name": "wake-character",
+   "description": "角色层唤醒：根据生活种子生成 1-2 句口语",
+   "class": "character",
+   "prompt": "character-wake",
+   "maxTokens": 200,
+   "temperature": 0.8,
+   "tools": [],
+   "output": "text",
+   "body": "# 使用时机\n\n设备档唤醒机产出 `message` 意图时调用；PC 在线时由 PC 链路负责，设备静音。\n\n# 约束\n\n- 只输出 1-2 句口语，≤60 字；\n- 不复述记录、不说\"我注意到\"、不提问式追问；\n- 沉默由闸门在调用前决定，不在这里输出 `[silent]`。\n"
+  }
+ },
+ "prompts": {
+  "behavior-record": "她刚做了：{{name}}（{{kind}}）\n地点：{{place}}\n事件细节：{{detail}}\n心情变化：{{before}} → {{after}}\n\n写一条 20-60 字的留档，包含\"做了什么\"和\"心情变化\"，只输出 JSON：\n{\"summary\":\"...\",\"mood\":\"...\",\"evidence\":\"可选证据\"}\n\n要求：具体、克制；不写台词；不解释系统；evidence 只在有真实抓取/产物时填写。\n",
+  "browse-plan": "她的兴趣/线头：{{threads}}\n最近看过：{{recent}}\n当前心情：{{mood}}\n可访问域名：{{hosts}}\n\n决定这次上网看什么，只输出 JSON：\n{\"query\":\"搜索词\",\"reason\":\"为什么想看\"}\n\n规则：\n- 只输出 query，让搜索引擎去找，不要猜具体 URL；\n- 只给一个目标；\n- 禁止内网/凭据。\n",
+  "character-wake": "现在：{{now}}\n你刚经历：{{input}}\n你此刻的心情：{{mood}}\n\n开口要求：1-2 句口语，接着这个片段说；不要解释你在做什么，不要说\"我注意到\"，不要提问式追问，不要提及记录或系统。\n",
+  "doctor": "问题：{{issues}}\n状态：{{state}}\n最近日志：{{logs}}\n\n只输出 JSON：\n{\"diagnosis\":\"一句话判断\",\"actions\":[{\"type\":\"动作\",\"args\":{}}],\"safeMode\":false}\n\n动作只能从这些里选：clear_event_log、trim_memory、pause_agent、resume_agent、reset_budget、enter_safe_mode、exit_safe_mode、snapshot_save。\n最多 3 个；不确定就留空。\n",
+  "event-pool": "已有事件（不要重复）：{{existing}}\n\n生成 {{count}} 条新的日常生活事件，只输出 JSON：\n{\"events\":[{\"text\":\"4-24字事件\",\"hours\":[8,9],\"place\":\"kitchen\",\"mood\":{\"valence\":0.05},\"imageQuery\":\"英文检索词\"}]}\n\n要求：\n- 具体、能拍成一个画面，写她正在做的一件小事；\n- hours 用 0-23 的整数数组，覆盖不同时段；\n- place 只能是 living/hall/bedroom/bath/balcony/kitchen；\n- mood 只允许 energy/valence/social/focus，单项 ±0.3；\n- 不要与已有事件重复，也不要写台词或抽象情绪。\n",
+  "manager-plan": "你是设备端任务编排器。可用技能：\n{{skills}}\n\n目标：{{intent}}\n当前时间：{{now}}\n\n只输出严格 JSON，不要解释：\n{\"tasks\":[{\"skill\":\"<技能名>\",\"input\":\"<给该技能的一句话输入>\",\"reason\":\"<为什么>\"}]}\n规则：最多 3 个任务；没有合适技能就输出 {\"tasks\":[]}。\n",
+  "memory-summarize": "事件：\n{{events}}\n\n已有事实：\n{{existing}}\n\n归纳 3-8 条稳定事实，并指出印象最深的一件事。只输出 JSON：\n{\"facts\":[{\"text\":\"事实\",\"tier\":\"L2\"}],\"highlight\":{\"text\":\"最有印象的事\",\"reason\":\"为什么记得\"},\"summary\":\"这一段生活的摘要\"}\n\n规则：\n- 每条 fact 10-120 字；写发生了什么/她喜欢什么/固定习惯/写过的内容/看过什么；\n- 可以概括日记、小说、浏览记录；\n- highlight 只给 1 条，10-120 字，必须是这段里最有情绪重量或最特别的事；\n- summary 60-150 字，按时间顺序概括这一段，不要罗列系统日志；\n- 不写对话、不写系统日志；与已有事实重复的不要输出。\n",
+  "outing": "她现在在「{{current}}」。\n心情：{{mood}}\n无聊度：{{boredom}}（0–1，越高越想出门）\n最近行为：{{recent}}\n深层记忆：\n{{memory}}\n\n已有场景池（不能选 home / office）：\n{{map_pool}}\n\n请决定这次出门去哪里。只输出一个 JSON：\n- 去已有场景：\n  {\"mode\":\"existing\",\"placeId\":\"场景 id\",\"reason\":\"为什么去这里\"}\n- 新建场景：\n  {\"mode\":\"new\",\"kind\":\"indoor|street\",\"name\":\"场景名（≤20 字）\",\"description\":\"场景描述，包含空间、家具、光线、气氛\",\"distance\":3,\"reason\":\"为什么需要新场景\"}\n\n规则：\n- 优先已有场景；只有记忆/愿望明确需要新环境时才新建。\n- 已有场景只能从 map_pool 里选，不能选 home / office。\n- 新场景必须和记忆里的愿望或最近经历有关，不要随机编造。\n- 只输出 JSON，不要解释。\n",
+  "plot-repair": "上一稿不合格：{{reason}}\n上一稿：{{draft}}\n最近写过（不要重复）：{{recent}}\n\n重写并只输出 JSON：\n{\"text\":\"30-80字第三人称小记\",\"event\":\"事件短语\",\"place\":\"living|hall|bedroom|bath|balcony|kitchen\",\"mood\":{\"valence\":0.05},\"imageQuery\":\"背景图检索词\"}\n\n必须包含与当前时段一致的时间词；只写动作与具体物件；不写台词；不总结道理。\n",
+  "plot": "时间：{{now}}（{{period}}）\n地点：{{place}}\n日常事件：{{input}}\n心情：{{mood}}\n最近写过（不要重复）：{{recent}}\n记忆：{{memory}}\n她的愿望：{{desires}}\n最近行为：{{behaviors}}\n最近几天（避免重复）：{{history}}\n地图资源：{{map}}\n地图池（已有场景）：{{map_pool}}\n\n为第二天生成一个完整的生活计划，并决定是否发生突发状况。只输出 JSON：\n{\"text\":\"小记\",\"event\":\"事件短语\",\"place\":\"living|hall|bedroom|bath|balcony|kitchen\",\"act\":\"read|cook|write|rest|watch|bath|sleep|sit\",\"mood\":{\"valence\":0.05,\"energy\":-0.02,\"social\":0.0,\"focus\":0.0},\"sleepAt\":\"22:30\",\"wakeAt\":\"07:10\",\"desires\":[\"...\"],\"behaviors\":[{\"time\":\"08:30\",\"act\":\"read\",\"place\":\"living\",\"why\":\"...\",\"durationMin\":45,\"overnight\":false}],\"sudden\":{\"enabled\":false,\"time\":\"15:00\",\"text\":\"\"}}\n\n要求：\n- text 30-80 字第三人称小记，落在动作/物件/感官上，不写台词；\n- sleepAt/wakeAt 用 HH:MM，决定第二天作息；\n- behaviors 3-8 条，时间递增，act/place 必须来自上面枚举或「地图池」；\n- place 可以是「地图资源」里的房间 id，也可以是「地图池」里的场景 id；why 只描述该地点内可见的家具和动作；\n- 每个行为都要判断“要不要去、去多久”：外部场景必须写 durationMin（15-240 分钟），表示到达后停留多久；不要默认整天；\n- 停留时长由你根据场景自行判断：咖啡馆 45-90 分钟、公园 30-60 分钟、图书馆 60-120 分钟、书店 30-60 分钟；不要所有场景都用同一个时长；\n- 只有确实需要停留才把外部场景写进 behaviors；只是路过、不打算停留就不要写；\n- overnight 默认 false：外部场景不可过夜时必须当天回家，且回家时间要早于 sleepAt；不要安排“睡在咖啡馆/公园”；\n- 只有「地图池」条目明确写了 overnight:true 才能把 overnight 设为 true；当前没有可过夜场景，所以一律 false；\n- 禁止编造「地图池」里没有的地点；咖啡馆/公园/书店等必须使用地图池给出的 id，不能自己写新名字；\n- 记忆或愿望里出现的地图外地点只能写成回忆、联想或“在阳台/窗边看外面”，不能写成“去某店/某地”；\n- write 每天最多 1 次，且只能安排在书桌/桌边；不要连续两天都写；\n- sudden 只在确实需要时 enabled=true，text 20-50 字；\n- 结合记忆、愿望、最近行为和地图资源；\n- 必须至少有一个和最近几天不同的新元素（新活动/新家具/新时段），不要新增地图外地点，也不要重复最近写过的小记或日程。\n",
+  "wake": "世界事件：{{seed}}\n上下文：{{context}}\n开放线头：{{threads}}\n上一条余念：{{residue}}\n\n严格输出 JSON，不要解释：\n{\"outcome\":\"silent|trace|message\",\"fact\":\"简短事实\",\"content\":\"完整经历\",\"share\":\"给用户的一句话\",\"residue\":\"一句轻余念\",\"next_wake\":{\"min_minutes\":45,\"max_minutes\":90,\"reason\":\"...\"},\"thread\":\"可选的新线头\"}\n\n规则：\n- message 必须有非空 share（≤20 字）；silent 不得带 share；\n- fact 描述发生了什么，不复制表达性正文；\n- residue 覆盖上一条，不要追加；\n- next_wake 在 45-90 分钟内，按心情与事件调整；\n- 只有真实工具调用才可带 artifact。\n",
+  "writing-diary": "写一篇角色日记，第一人称「我」，120–200 字。\n\n时间：第{{day}}天（第{{week}}周 {{weekday}}） {{clock}}\n地点：{{room}}\n她现在的状态：{{mood}}；{{tone}}\n她记得：{{memory}}\n今天发生的剧情：{{plot}}\n\n要求：\n- 只输出日记正文，不要标题、不要解释。\n- 必须用第一人称「我」，写“我今天/我刚才/我想到”，不要写成第三人称“她”。\n- 只写一件具体的事：一个动作、一个物件、一个念头，写清楚前因后果。\n- 可以提到今天剧情，但不要复述成流水账；要写成“我”的感受和反应。\n- 不写台词，不总结道理，不写“我明白了……”这类空话。\n- 语言自然、口语化，允许不完整句。\n",
+  "writing-novel": "写一篇完整的短篇小说，第三人称，150–250 字。\n\n时间：第{{day}}天 {{clock}}\n地点：{{room}}\n角色状态：{{mood}}；{{tone}}\n可用素材：{{memory}}；今天剧情：{{plot}}\n\n要求：\n- 只输出小说正文，不要标题、不要解释。\n- 不要写“她正在写小说/她写道/笔尖/笔记本/划掉/继续写”这类写作过程；直接写故事本身。\n- 一个场景、一个主角、一个明确变化：开头交代时间地点，中间有因果，结尾有落点。\n- 人物动作和对话必须能解释前因后果；不要突然出现没有铺垫的新人物。\n- 对话用引号，简短；不要大段议论，不要总结道理。\n- 素材只作为灵感，必须改写成连贯故事；宁可简单，不要堆砌无关细节。\n- 语言具体、克制，避免“她觉得一切都很美好”这类空泛句。\n",
+  "writing-weekly": "写一篇角色周记总结，第一人称「我」，150–260 字。\n\n时间：第{{day}}天（第{{week}}周 {{weekday}}） {{clock}}\n地点：{{room}}\n她现在的状态：{{mood}}；{{tone}}\n本周记忆：{{memory}}\n本周日记与片段：{{recent_diaries}}\n\n要求：\n- 只输出周记正文，不要标题、不要解释。\n- 必须用第一人称「我」，回顾这一周的生活节奏、情绪变化与印象深的小事。\n- 不写台词，不写说教或空洞大道理。\n- 语言自然、温柔、有时间流动感。\n"
+ }
+}

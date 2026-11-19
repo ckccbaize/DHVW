@@ -1,0 +1,3180 @@
+{
+ "__header__": {
+  "fileType": "LDtk Project JSON",
+  "app": "LDtk",
+  "doc": "https://ldtk.io/json",
+  "schema": "https://ldtk.io/files/JSON_SCHEMA.json",
+  "appAuthor": "DHVW",
+  "appVersion": "1.5.3",
+  "url": ""
+ },
+ "jsonVersion": "1.5.3",
+ "appBuildId": 0,
+ "nextUid": 200,
+ "identifierStyle": "Free",
+ "toc": [],
+ "worldLayout": "Free",
+ "worldGridWidth": 256,
+ "worldGridHeight": 256,
+ "defaultLevelWidth": 20,
+ "defaultLevelHeight": 15,
+ "defaultPivotX": 0,
+ "defaultPivotY": 0,
+ "defaultGridSize": 16,
+ "defaultEntityWidth": 16,
+ "defaultEntityHeight": 16,
+ "defaultLevelBgColor": "#1A1C22",
+ "bgColor": "#1A1C22",
+ "externalLevels": false,
+ "iid": "aec970d6-cccf-509d-9d99-c8568e01c0ba",
+ "dummyWorldIid": "0a933caa-3ad7-5b7b-bf74-7cd7e95e2055",
+ "backupLimit": 10,
+ "backupOnSave": false,
+ "customCommands": [],
+ "exportLevelBg": true,
+ "exportTiled": false,
+ "flags": [],
+ "imageExportMode": "None",
+ "levelNamePattern": "Level_%idx",
+ "minifyJson": false,
+ "simplifiedExport": false,
+ "defs": {
+  "layers": [
+   {
+    "__type": "IntGrid",
+    "identifier": "Collision",
+    "type": "IntGrid",
+    "uid": 1,
+    "gridSize": 16,
+    "displayOpacity": 0.45,
+    "pxOffsetX": 0,
+    "pxOffsetY": 0,
+    "parallaxFactorX": 0,
+    "parallaxFactorY": 0,
+    "parallaxScaling": true,
+    "intGridValues": [
+     {
+      "value": 0,
+      "identifier": "Empty",
+      "color": "#00000000",
+      "groupUid": 0
+     },
+     {
+      "value": 1,
+      "identifier": "Wall",
+      "color": "#3A2E24FF",
+      "groupUid": 0
+     },
+     {
+      "value": 2,
+      "identifier": "Door",
+      "color": "#5FBF6AFF",
+      "groupUid": 0
+     },
+     {
+      "value": 3,
+      "identifier": "Window",
+      "color": "#86C5E8FF",
+      "groupUid": 0
+     }
+    ],
+    "intGridValuesGroups": [],
+    "autoRuleGroups": [],
+    "autoSourceLayerDefUid": null,
+    "tilesetDefUid": null,
+    "autoTilesetDefUid": null,
+    "tilePivotX": 0,
+    "tilePivotY": 0,
+    "canSelectWhenInactive": true,
+    "excludedTags": [],
+    "guideGridHei": 0,
+    "guideGridWid": 0,
+    "hideFieldsWhenInactive": false,
+    "hideInList": false,
+    "inactiveOpacity": 0.5,
+    "renderInWorldView": true,
+    "requiredTags": [],
+    "uiFilterTags": [],
+    "useAsyncRender": false
+   },
+   {
+    "__type": "Entities",
+    "identifier": "Markers",
+    "type": "Entities",
+    "uid": 2,
+    "gridSize": 16,
+    "displayOpacity": 1,
+    "pxOffsetX": 0,
+    "pxOffsetY": 0,
+    "parallaxFactorX": 0,
+    "parallaxFactorY": 0,
+    "parallaxScaling": true,
+    "intGridValues": [],
+    "intGridValuesGroups": [],
+    "autoRuleGroups": [],
+    "autoSourceLayerDefUid": null,
+    "tilesetDefUid": null,
+    "autoTilesetDefUid": null,
+    "tilePivotX": 0,
+    "tilePivotY": 0,
+    "canSelectWhenInactive": true,
+    "excludedTags": [],
+    "guideGridHei": 0,
+    "guideGridWid": 0,
+    "hideFieldsWhenInactive": false,
+    "hideInList": false,
+    "inactiveOpacity": 0.5,
+    "renderInWorldView": true,
+    "requiredTags": [],
+    "uiFilterTags": [],
+    "useAsyncRender": false
+   }
+  ],
+  "entities": [
+   {
+    "identifier": "Room",
+    "uid": 10,
+    "width": 16,
+    "height": 16,
+    "color": "#E0B070",
+    "pivotX": 0,
+    "pivotY": 0,
+    "tileRenderMode": "FitInside",
+    "nineSliceBorders": [],
+    "allowOutOfBounds": false,
+    "exportToToc": false,
+    "fillOpacity": 0.35,
+    "hollow": false,
+    "keepAspectRatio": true,
+    "limitBehavior": "DiscardOldOnes",
+    "limitScope": "PerLevel",
+    "lineOpacity": 1,
+    "maxCount": 0,
+    "renderMode": "Rectangle",
+    "resizableX": false,
+    "resizableY": false,
+    "showName": true,
+    "tags": [],
+    "tileOpacity": 1,
+    "fieldDefs": [
+     {
+      "__type": "String",
+      "identifier": "name",
+      "uid": 100,
+      "type": "String",
+      "canBeNull": false,
+      "isArray": false,
+      "allowOutOfLevelRef": false,
+      "allowedRefTags": [],
+      "allowedRefs": "Any",
+      "autoChainRef": true,
+      "editorAlwaysShow": false,
+      "editorCutLongValues": true,
+      "editorDisplayMode": "NameAndValue",
+      "editorDisplayPos": "Above",
+      "editorDisplayScale": 1,
+      "editorLinkStyle": "ZigZag",
+      "editorShowInWorld": true,
+      "exportToToc": false,
+      "searchable": true,
+      "symmetricalRef": true,
+      "useForSmartColor": false
+     }
+    ]
+   },
+   {
+    "identifier": "Door",
+    "uid": 11,
+    "width": 16,
+    "height": 16,
+    "color": "#5FBF6A",
+    "pivotX": 0,
+    "pivotY": 0,
+    "tileRenderMode": "FitInside",
+    "nineSliceBorders": [],
+    "allowOutOfBounds": false,
+    "exportToToc": false,
+    "fillOpacity": 0.35,
+    "hollow": false,
+    "keepAspectRatio": true,
+    "limitBehavior": "DiscardOldOnes",
+    "limitScope": "PerLevel",
+    "lineOpacity": 1,
+    "maxCount": 0,
+    "renderMode": "Rectangle",
+    "resizableX": false,
+    "resizableY": false,
+    "showName": true,
+    "tags": [],
+    "tileOpacity": 1,
+    "fieldDefs": [
+     {
+      "__type": "String",
+      "identifier": "to",
+      "uid": 110,
+      "type": "String",
+      "canBeNull": false,
+      "isArray": false,
+      "allowOutOfLevelRef": false,
+      "allowedRefTags": [],
+      "allowedRefs": "Any",
+      "autoChainRef": true,
+      "editorAlwaysShow": false,
+      "editorCutLongValues": true,
+      "editorDisplayMode": "NameAndValue",
+      "editorDisplayPos": "Above",
+      "editorDisplayScale": 1,
+      "editorLinkStyle": "ZigZag",
+      "editorShowInWorld": true,
+      "exportToToc": false,
+      "searchable": true,
+      "symmetricalRef": true,
+      "useForSmartColor": false
+     }
+    ]
+   },
+   {
+    "identifier": "Window",
+    "uid": 12,
+    "width": 16,
+    "height": 16,
+    "color": "#86C5E8",
+    "pivotX": 0,
+    "pivotY": 0,
+    "tileRenderMode": "FitInside",
+    "nineSliceBorders": [],
+    "allowOutOfBounds": false,
+    "exportToToc": false,
+    "fillOpacity": 0.35,
+    "hollow": false,
+    "keepAspectRatio": true,
+    "limitBehavior": "DiscardOldOnes",
+    "limitScope": "PerLevel",
+    "lineOpacity": 1,
+    "maxCount": 0,
+    "renderMode": "Rectangle",
+    "resizableX": false,
+    "resizableY": false,
+    "showName": true,
+    "tags": [],
+    "tileOpacity": 1,
+    "fieldDefs": []
+   },
+   {
+    "identifier": "Prop",
+    "uid": 13,
+    "width": 16,
+    "height": 16,
+    "color": "#C08A4A",
+    "pivotX": 0,
+    "pivotY": 0,
+    "tileRenderMode": "FitInside",
+    "nineSliceBorders": [],
+    "allowOutOfBounds": false,
+    "exportToToc": false,
+    "fillOpacity": 0.35,
+    "hollow": false,
+    "keepAspectRatio": true,
+    "limitBehavior": "DiscardOldOnes",
+    "limitScope": "PerLevel",
+    "lineOpacity": 1,
+    "maxCount": 0,
+    "renderMode": "Rectangle",
+    "resizableX": false,
+    "resizableY": false,
+    "showName": true,
+    "tags": [],
+    "tileOpacity": 1,
+    "fieldDefs": [
+     {
+      "__type": "String",
+      "identifier": "id",
+      "uid": 130,
+      "type": "String",
+      "canBeNull": false,
+      "isArray": false,
+      "allowOutOfLevelRef": false,
+      "allowedRefTags": [],
+      "allowedRefs": "Any",
+      "autoChainRef": true,
+      "editorAlwaysShow": false,
+      "editorCutLongValues": true,
+      "editorDisplayMode": "NameAndValue",
+      "editorDisplayPos": "Above",
+      "editorDisplayScale": 1,
+      "editorLinkStyle": "ZigZag",
+      "editorShowInWorld": true,
+      "exportToToc": false,
+      "searchable": true,
+      "symmetricalRef": true,
+      "useForSmartColor": false
+     },
+     {
+      "__type": "String",
+      "identifier": "w",
+      "uid": 131,
+      "type": "String",
+      "canBeNull": false,
+      "isArray": false,
+      "allowOutOfLevelRef": false,
+      "allowedRefTags": [],
+      "allowedRefs": "Any",
+      "autoChainRef": true,
+      "editorAlwaysShow": false,
+      "editorCutLongValues": true,
+      "editorDisplayMode": "NameAndValue",
+      "editorDisplayPos": "Above",
+      "editorDisplayScale": 1,
+      "editorLinkStyle": "ZigZag",
+      "editorShowInWorld": true,
+      "exportToToc": false,
+      "searchable": true,
+      "symmetricalRef": true,
+      "useForSmartColor": false
+     },
+     {
+      "__type": "String",
+      "identifier": "h",
+      "uid": 132,
+      "type": "String",
+      "canBeNull": false,
+      "isArray": false,
+      "allowOutOfLevelRef": false,
+      "allowedRefTags": [],
+      "allowedRefs": "Any",
+      "autoChainRef": true,
+      "editorAlwaysShow": false,
+      "editorCutLongValues": true,
+      "editorDisplayMode": "NameAndValue",
+      "editorDisplayPos": "Above",
+      "editorDisplayScale": 1,
+      "editorLinkStyle": "ZigZag",
+      "editorShowInWorld": true,
+      "exportToToc": false,
+      "searchable": true,
+      "symmetricalRef": true,
+      "useForSmartColor": false
+     },
+     {
+      "__type": "String",
+      "identifier": "facing",
+      "uid": 133,
+      "type": "String",
+      "canBeNull": false,
+      "isArray": false,
+      "allowOutOfLevelRef": false,
+      "allowedRefTags": [],
+      "allowedRefs": "Any",
+      "autoChainRef": true,
+      "editorAlwaysShow": false,
+      "editorCutLongValues": true,
+      "editorDisplayMode": "NameAndValue",
+      "editorDisplayPos": "Above",
+      "editorDisplayScale": 1,
+      "editorLinkStyle": "ZigZag",
+      "editorShowInWorld": true,
+      "exportToToc": false,
+      "searchable": true,
+      "symmetricalRef": true,
+      "useForSmartColor": false
+     }
+    ]
+   },
+   {
+    "identifier": "Decor",
+    "uid": 14,
+    "width": 16,
+    "height": 16,
+    "color": "#8B93A8",
+    "pivotX": 0,
+    "pivotY": 0,
+    "tileRenderMode": "FitInside",
+    "nineSliceBorders": [],
+    "allowOutOfBounds": false,
+    "exportToToc": false,
+    "fillOpacity": 0.35,
+    "hollow": false,
+    "keepAspectRatio": true,
+    "limitBehavior": "DiscardOldOnes",
+    "limitScope": "PerLevel",
+    "lineOpacity": 1,
+    "maxCount": 0,
+    "renderMode": "Rectangle",
+    "resizableX": false,
+    "resizableY": false,
+    "showName": true,
+    "tags": [],
+    "tileOpacity": 1,
+    "fieldDefs": [
+     {
+      "__type": "String",
+      "identifier": "id",
+      "uid": 140,
+      "type": "String",
+      "canBeNull": false,
+      "isArray": false,
+      "allowOutOfLevelRef": false,
+      "allowedRefTags": [],
+      "allowedRefs": "Any",
+      "autoChainRef": true,
+      "editorAlwaysShow": false,
+      "editorCutLongValues": true,
+      "editorDisplayMode": "NameAndValue",
+      "editorDisplayPos": "Above",
+      "editorDisplayScale": 1,
+      "editorLinkStyle": "ZigZag",
+      "editorShowInWorld": true,
+      "exportToToc": false,
+      "searchable": true,
+      "symmetricalRef": true,
+      "useForSmartColor": false
+     }
+    ]
+   }
+  ],
+  "tilesets": [],
+  "enums": [],
+  "externalEnums": [],
+  "levelFields": []
+ },
+ "levels": [
+  {
+   "identifier": "home",
+   "iid": "4f350228-13ca-5595-9b34-70a3829d05aa",
+   "uid": 0,
+   "worldX": 0,
+   "worldY": 0,
+   "worldDepth": 0,
+   "pxWid": 320,
+   "pxHei": 240,
+   "__bgColor": "#1A1C22",
+   "bgColor": null,
+   "useAutoIdentifier": false,
+   "bgRelPath": null,
+   "bgPos": null,
+   "bgPivotX": 0.5,
+   "bgPivotY": 0.5,
+   "__smartColor": "#1A1C22",
+   "__bgPos": null,
+   "externalRelPath": null,
+   "__neighbours": [],
+   "fieldInstances": [],
+   "layerInstances": [
+    {
+     "__identifier": "Collision",
+     "__type": "IntGrid",
+     "__cWid": 20,
+     "__cHei": 15,
+     "__gridSize": 16,
+     "__opacity": 1,
+     "__pxTotalOffsetX": 0,
+     "__pxTotalOffsetY": 0,
+     "__tilesetDefUid": null,
+     "__tilesetRelPath": null,
+     "iid": "4f0d5fce-e66a-5ca5-9efc-1fd06c2d5139",
+     "levelId": 0,
+     "layerDefUid": 1,
+     "pxOffsetX": 0,
+     "pxOffsetY": 0,
+     "visible": true,
+     "intGridCsv": [
+      1,
+      1,
+      3,
+      1,
+      3,
+      1,
+      1,
+      1,
+      1,
+      3,
+      1,
+      3,
+      1,
+      1,
+      1,
+      1,
+      3,
+      1,
+      1,
+      1,
+      1,
+      0,
+      1,
+      1,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      0,
+      1,
+      1,
+      1,
+      1,
+      0,
+      1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      3,
+      1,
+      1,
+      1,
+      1,
+      2,
+      3,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     "autoLayerTiles": [],
+     "gridTiles": [],
+     "entityInstances": [],
+     "optionalRules": [],
+     "seed": 0
+    },
+    {
+     "__identifier": "Markers",
+     "__type": "Entities",
+     "__cWid": 20,
+     "__cHei": 15,
+     "__gridSize": 16,
+     "__opacity": 1,
+     "__pxTotalOffsetX": 0,
+     "__pxTotalOffsetY": 0,
+     "__tilesetDefUid": null,
+     "__tilesetRelPath": null,
+     "iid": "f6cad8e5-1791-5690-a475-014506f324f4",
+     "levelId": 0,
+     "layerDefUid": 2,
+     "pxOffsetX": 0,
+     "pxOffsetY": 0,
+     "visible": true,
+     "intGridCsv": [],
+     "autoLayerTiles": [],
+     "gridTiles": [],
+     "entityInstances": [
+      {
+       "__identifier": "Room",
+       "__grid": [
+        1,
+        1
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "4a268b30-836e-5bf5-b000-a63e57fab2af",
+       "width": 80,
+       "height": 96,
+       "defUid": 10,
+       "px": [
+        16,
+        16
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "name",
+         "__type": "String",
+         "__value": "客厅",
+         "defUid": 100,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Room",
+       "__grid": [
+        6,
+        1
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "a08285a3-3871-5daf-a57f-2ada09dc2467",
+       "width": 112,
+       "height": 208,
+       "defUid": 10,
+       "px": [
+        96,
+        16
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "name",
+         "__type": "String",
+         "__value": "餐厅与厨房",
+         "defUid": 100,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Room",
+       "__grid": [
+        1,
+        9
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "a4172766-9a43-5950-ad59-54c618de4802",
+       "width": 64,
+       "height": 80,
+       "defUid": 10,
+       "px": [
+        16,
+        144
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "name",
+         "__type": "String",
+         "__value": "卧室",
+         "defUid": 100,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Room",
+       "__grid": [
+        14,
+        1
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "fd6a3393-4539-5383-9647-3382a2f67dd1",
+       "width": 80,
+       "height": 80,
+       "defUid": 10,
+       "px": [
+        224,
+        16
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "name",
+         "__type": "String",
+         "__value": "卫生间",
+         "defUid": 100,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Room",
+       "__grid": [
+        13,
+        7
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "39e8bac5-cc38-5ba6-8b5d-9adb07074314",
+       "width": 80,
+       "height": 112,
+       "defUid": 10,
+       "px": [
+        208,
+        112
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "name",
+         "__type": "String",
+         "__value": "阳台",
+         "defUid": 100,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Door",
+       "__grid": [
+        5,
+        11
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "e2bbc52c-b227-5dd4-8190-befd623dddf6",
+       "width": 16,
+       "height": 16,
+       "defUid": 11,
+       "px": [
+        80,
+        176
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "to",
+         "__type": "String",
+         "__value": "hall",
+         "defUid": 110,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Door",
+       "__grid": [
+        13,
+        5
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "76ab5090-400a-50a5-86c6-9c78ca1b9d5b",
+       "width": 16,
+       "height": 16,
+       "defUid": 11,
+       "px": [
+        208,
+        80
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "to",
+         "__type": "String",
+         "__value": "hall",
+         "defUid": 110,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Door",
+       "__grid": [
+        8,
+        14
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "ae86dbc8-5616-5530-9089-9186008fd4e0",
+       "width": 16,
+       "height": 16,
+       "defUid": 11,
+       "px": [
+        128,
+        224
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "to",
+         "__type": "String",
+         "__value": "outside",
+         "defUid": 110,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Window",
+       "__grid": [
+        2,
+        0
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "90780806-9ee8-5cbf-be4a-ec21b34676cb",
+       "width": 16,
+       "height": 16,
+       "defUid": 12,
+       "px": [
+        32,
+        0
+       ],
+       "fieldInstances": []
+      },
+      {
+       "__identifier": "Window",
+       "__grid": [
+        4,
+        0
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "4bfcedaf-0f2c-51e5-8755-610b39e8597f",
+       "width": 16,
+       "height": 16,
+       "defUid": 12,
+       "px": [
+        64,
+        0
+       ],
+       "fieldInstances": []
+      },
+      {
+       "__identifier": "Window",
+       "__grid": [
+        9,
+        0
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "aff79c94-67db-50c5-9c8a-b80e08b9734b",
+       "width": 16,
+       "height": 16,
+       "defUid": 12,
+       "px": [
+        144,
+        0
+       ],
+       "fieldInstances": []
+      },
+      {
+       "__identifier": "Window",
+       "__grid": [
+        11,
+        0
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "f465b11c-532e-53be-a0bb-287d316f44da",
+       "width": 16,
+       "height": 16,
+       "defUid": 12,
+       "px": [
+        176,
+        0
+       ],
+       "fieldInstances": []
+      },
+      {
+       "__identifier": "Window",
+       "__grid": [
+        16,
+        0
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "986df6f5-77f4-548a-97be-9ee14e9a8223",
+       "width": 16,
+       "height": 16,
+       "defUid": 12,
+       "px": [
+        256,
+        0
+       ],
+       "fieldInstances": []
+      },
+      {
+       "__identifier": "Window",
+       "__grid": [
+        3,
+        14
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "ca9b9b11-e245-5394-b70a-a4f39a4c8cbe",
+       "width": 16,
+       "height": 16,
+       "defUid": 12,
+       "px": [
+        48,
+        224
+       ],
+       "fieldInstances": []
+      },
+      {
+       "__identifier": "Window",
+       "__grid": [
+        9,
+        14
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "cb378768-be20-51e0-a128-3119fa139cd1",
+       "width": 16,
+       "height": 16,
+       "defUid": 12,
+       "px": [
+        144,
+        224
+       ],
+       "fieldInstances": []
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        2,
+        1
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "6cb219e8-86ce-53a5-ae6e-afb9e9011ef9",
+       "width": 32,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        32,
+        16
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "tv",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "2",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "S",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        2,
+        6
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "175ccd40-430e-5bf7-bf88-b5b0db711a20",
+       "width": 48,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        32,
+        96
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "sofa",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "3",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "N",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        1,
+        2
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "0821c354-1b70-589b-b059-abfdf4ee1c81",
+       "width": 64,
+       "height": 64,
+       "defUid": 13,
+       "px": [
+        16,
+        32
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "rug",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "4",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "4",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        2,
+        4
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "08596be7-5b53-5a3c-8fa5-9d7ef407afa2",
+       "width": 32,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        32,
+        64
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "coffee_table",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "2",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        5,
+        6
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "a8ee16a2-e9a3-5381-a224-f290cb46c56b",
+       "width": 16,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        80,
+        96
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "lamp",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        5,
+        4
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "92b847d0-d3ae-5f20-be31-7dde3f99165b",
+       "width": 16,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        80,
+        64
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "plant",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        7,
+        1
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "a2d04adb-3c05-5412-b7d5-2bfe74d916cb",
+       "width": 48,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        112,
+        16
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "counter",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "3",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "S",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        10,
+        1
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "9dbefd9a-f012-53a1-aa02-5c2ade969499",
+       "width": 32,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        160,
+        16
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "stove",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "2",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "S",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        12,
+        1
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "519f4dbc-f928-504f-a0c8-bfcac8210b12",
+       "width": 16,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        192,
+        16
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "fridge",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "S",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        8,
+        6
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "30b8a5b2-85fc-57af-99c7-b2682313288c",
+       "width": 32,
+       "height": 32,
+       "defUid": 13,
+       "px": [
+        128,
+        96
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "table",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "2",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "2",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        7,
+        6
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "a61b31e5-8052-5cc3-bafb-415a3bb6b34a",
+       "width": 16,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        112,
+        96
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "chair",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "E",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        10,
+        6
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "346a9513-83f3-59fe-9157-d512153a582d",
+       "width": 16,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        160,
+        96
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "chair",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "W",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        7,
+        4
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "7f4cf197-1f53-576f-8a0b-b6c6334834da",
+       "width": 64,
+       "height": 48,
+       "defUid": 13,
+       "px": [
+        112,
+        64
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "rug",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "4",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "3",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        7,
+        8
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "41769e40-ed59-5d37-acf1-493b52c66cd2",
+       "width": 64,
+       "height": 64,
+       "defUid": 13,
+       "px": [
+        112,
+        128
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "rug",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "4",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "4",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        6,
+        8
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "cd8cf63d-67b7-53f1-be99-d447d947f763",
+       "width": 16,
+       "height": 32,
+       "defUid": 13,
+       "px": [
+        96,
+        128
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "shelf",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "2",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        11,
+        10
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "056a00e6-5907-535f-98d7-72728da9568e",
+       "width": 16,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        176,
+        160
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "plant",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        10,
+        13
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "deffa342-8692-5440-8d89-709b30a464d4",
+       "width": 32,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        160,
+        208
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "door_mat",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "2",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        12,
+        12
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "fcd839e2-70c5-5556-a4c3-8df86497144b",
+       "width": 16,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        192,
+        192
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "coat_rack",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        1,
+        9
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "9422ca71-055a-521d-8697-430ebaa86dea",
+       "width": 32,
+       "height": 48,
+       "defUid": 13,
+       "px": [
+        16,
+        144
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "bed",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "2",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "3",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "E",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        3,
+        9
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "82b810a3-8eb0-58c7-b93e-95c9fdbd7e9f",
+       "width": 16,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        48,
+        144
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "nightstand",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        3,
+        13
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "cfdb8136-8cb5-5687-a375-d099e70537a0",
+       "width": 32,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        48,
+        208
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "wardrobe",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "2",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "N",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        1,
+        13
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "443e0a22-bb59-5852-adf0-0f4ead70ec5d",
+       "width": 32,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        16,
+        208
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "dresser",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "2",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "N",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        2,
+        11
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "b27d6460-0110-5887-a165-3ff0a0380284",
+       "width": 48,
+       "height": 32,
+       "defUid": 13,
+       "px": [
+        32,
+        176
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "rug",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "3",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "2",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        5,
+        2
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "a3cde030-3690-577a-bf1d-50b37b7fa651",
+       "width": 16,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        80,
+        32
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "plant",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        14,
+        1
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "dd38c421-8315-5962-9cd7-179fd869c15c",
+       "width": 32,
+       "height": 32,
+       "defUid": 13,
+       "px": [
+        224,
+        16
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "bathtub",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "2",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "2",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "S",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        16,
+        1
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "5c168663-66e5-5eb7-bac7-185097c77418",
+       "width": 16,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        256,
+        16
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "sink",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "S",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        18,
+        1
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "ac486c3a-c4ec-5aa2-a686-505dbd0db5f5",
+       "width": 16,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        288,
+        16
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "toilet",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "W",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        18,
+        3
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "6bff1e0f-a935-5973-9a36-4d48c1b38bf8",
+       "width": 16,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        288,
+        48
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "washer",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "W",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        16,
+        4
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "3d909f89-91e4-5482-97c5-8ad40c2c1f66",
+       "width": 32,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        256,
+        64
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "bath_mat",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "2",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        14,
+        8
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "6fd75446-58b1-55ce-bd03-4d41ebb4a7ca",
+       "width": 32,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        224,
+        128
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "bench",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "2",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "S",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        17,
+        7
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "b633ed5d-fc6f-5802-add6-23110fcb1fae",
+       "width": 16,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        272,
+        112
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "plant_big",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        14,
+        10
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "7673bccf-4b92-5ce4-b0ff-29b5f947a4bb",
+       "width": 48,
+       "height": 32,
+       "defUid": 13,
+       "px": [
+        224,
+        160
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "rug",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "3",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "2",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        17,
+        11
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "cc56ab90-7db3-51f6-9a24-ae1d8e5ce285",
+       "width": 16,
+       "height": 32,
+       "defUid": 13,
+       "px": [
+        272,
+        176
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "cat_tree",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "2",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Prop",
+       "__grid": [
+        13,
+        13
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "03bf24d8-84c5-57fa-a917-88198325644e",
+       "width": 16,
+       "height": 16,
+       "defUid": 13,
+       "px": [
+        208,
+        208
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "plant",
+         "defUid": 130,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "w",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 131,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "h",
+         "__type": "String",
+         "__value": "1",
+         "defUid": 132,
+         "realEditorValues": []
+        },
+        {
+         "__identifier": "facing",
+         "__type": "String",
+         "__value": "",
+         "defUid": 133,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Decor",
+       "__grid": [
+        3,
+        12
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "05cbb90a-2f73-52fc-8498-9e7680ba3bd4",
+       "width": 16,
+       "height": 16,
+       "defUid": 14,
+       "px": [
+        48,
+        192
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "slippers",
+         "defUid": 140,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Decor",
+       "__grid": [
+        9,
+        7
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "3892b94b-dbf3-56bd-8533-b8d94868a04d",
+       "width": 16,
+       "height": 16,
+       "defUid": 14,
+       "px": [
+        144,
+        112
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "mug",
+         "defUid": 140,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Decor",
+       "__grid": [
+        6,
+        12
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "b1ba1ae0-94d3-5138-a22c-14e3045e1594",
+       "width": 16,
+       "height": 16,
+       "defUid": 14,
+       "px": [
+        96,
+        192
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "keys",
+         "defUid": 140,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Decor",
+       "__grid": [
+        5,
+        4
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "0a9b187e-c703-567a-9cfd-a905e68a827d",
+       "width": 16,
+       "height": 16,
+       "defUid": 14,
+       "px": [
+        80,
+        64
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "book",
+         "defUid": 140,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Decor",
+       "__grid": [
+        16,
+        8
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "c0637c7f-27c0-52eb-a4fc-f711a8f7437c",
+       "width": 16,
+       "height": 16,
+       "defUid": 14,
+       "px": [
+        256,
+        128
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "watering_can",
+         "defUid": 140,
+         "realEditorValues": []
+        }
+       ]
+      },
+      {
+       "__identifier": "Decor",
+       "__grid": [
+        15,
+        12
+       ],
+       "__pivot": [
+        0,
+        0
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#E0B070",
+       "iid": "9b3f42d8-9cb6-5aab-9c1d-3821a5c12a03",
+       "width": 16,
+       "height": 16,
+       "defUid": 14,
+       "px": [
+        240,
+        192
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "id",
+         "__type": "String",
+         "__value": "yarn",
+         "defUid": 140,
+         "realEditorValues": []
+        }
+       ]
+      }
+     ],
+     "optionalRules": [],
+     "seed": 0
+    }
+   ]
+  }
+ ],
+ "worlds": []
+}

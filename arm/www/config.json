@@ -1,0 +1,35 @@
+{
+  "host": {
+    "wsUrl": "",
+    "probeUrl": "",
+    "ttsUrl": ""
+  },
+  "life": {
+    "tickMs": 1000,
+    "startMinute": 480,
+    "roamMin": 30,
+    "thoughtMin": 240,
+    "timeScale": 1
+  },
+  "assetQuotaBytes": 524288000,
+  "display": {
+    "backToOverviewMs": 0,
+    "hostLostGraceMs": 10000,
+    "hysteresisMs": 20000,
+    "switchSource": "virtual"
+  },
+  "forgeIntervalMs": 45000,
+  "present": {
+    "url": ""
+  },
+  "llm": {
+    "baseUrl": "",
+    "apiKey": "",
+    "model": ""
+  },
+  "qqBot": {
+    "enabled": false,
+    "bridgeWsUrl": "ws://127.0.0.1:8088/qq/ws",
+    "proactive": true
+  }
+}

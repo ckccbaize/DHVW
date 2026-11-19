@@ -1,0 +1,47 @@
+{
+ "schema_version": 1,
+ "scene": "home",
+ "generated_by": "scripts/pack_scene.py",
+ "files": [
+  {
+   "path": "scene.json",
+   "size": 12156,
+   "sha256": "6c799fbcfa2a4d9249cb551c3d2e15927d38fb7a83b158a59b40ac55ca5e6451"
+  },
+  {
+   "path": "intgrid.bin",
+   "size": 300,
+   "sha256": "992d5784e496fb936ba9fdcaf4ca68cd0d9065572ffe765ebc4de8f2eccdd718"
+  },
+  {
+   "path": "terrain.png",
+   "size": 23876,
+   "sha256": "53c35fb0390b0413b8dc0f3aaafcb99dfe64a7b065946242a7958a2d0c81a3fd"
+  },
+  {
+   "path": "furniture.png",
+   "size": 13242,
+   "sha256": "87604d208efdd9ae9b3e14c7144800aefafb57426f644d28da1e499c6fa448cb"
+  },
+  {
+   "path": "light_day.png",
+   "size": 2842,
+   "sha256": "02c4272c8a62244c187049d1c6ff4522aca8950feff5f85e095ed660d2e1abf8"
+  },
+  {
+   "path": "interactions.json",
+   "size": 10159,
+   "sha256": "2b529d2d80b888ce352d1b3ed7838f168c3802cbac15f01301bfb03c614aabed"
+  },
+  {
+   "path": "character/sheet.png",
+   "size": 292333,
+   "sha256": "8cca703acd587387551b2496ddf29f08819b03becf1e24a12b30aef3d27b272b"
+  },
+  {
+   "path": "character/sheet.json",
+   "size": 7725,
+   "sha256": "ae926639c980e11f3064b0a15246a44a1d99a860fe77a399a7ac9aa288251ace"
+  }
+ ]
+}

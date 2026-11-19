@@ -1,0 +1,1668 @@
+{
+  "schema_version": 1,
+  "id": "cafe",
+  "tier": "host",
+  "origin": "forge-procedural",
+  "seed": "indoor-66500/v1",
+  "title": "日落水磨石咖啡厅",
+  "grid": {
+    "w": 28,
+    "h": 19,
+    "cell": 16
+  },
+  "layers": {
+    "terrain": "terrain.png",
+    "furniture": "furniture.png",
+    "light": {
+      "day": "light_day.png"
+    },
+    "lightMode": "additive"
+  },
+  "intGrid": "intgrid.bin",
+  "interactions": "interactions.json",
+  "character": "character/sheet.json",
+  "start": "hall",
+  "rooms": [
+    {
+      "id": "hall",
+      "name": "大堂与吧台",
+      "rect": [
+        1,
+        8,
+        26,
+        10
+      ],
+      "floor": "terrazzo"
+    },
+    {
+      "id": "lounge",
+      "name": "窗边憩座",
+      "rect": [
+        10,
+        1,
+        8,
+        7
+      ],
+      "floor": "terrazzo"
+    },
+    {
+      "id": "kitchen",
+      "name": "开放后厨",
+      "rect": [
+        1,
+        1,
+        8,
+        6
+      ],
+      "floor": "terrazzo"
+    },
+    {
+      "id": "wc",
+      "name": "盥洗室",
+      "rect": [
+        19,
+        1,
+        8,
+        6
+      ],
+      "floor": "terrazzo"
+    }
+  ],
+  "zones": [
+    {
+      "name": "吧台操作区",
+      "rect": [
+        1,
+        8,
+        6,
+        1
+      ],
+      "floor": "concrete"
+    },
+    {
+      "name": "门口铺石",
+      "rect": [
+        15,
+        16,
+        3,
+        2
+      ],
+      "floor": "stone"
+    }
+  ],
+  "props": [
+    {
+      "id": "bar_counter",
+      "name": "大堂-吧台-1",
+      "x": 1,
+      "y": 9,
+      "w": 6,
+      "h": 2,
+      "room": "hall",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "stool",
+      "name": "大堂-吧凳-1",
+      "x": 2,
+      "y": 11,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "N",
+      "blocking": true
+    },
+    {
+      "id": "stool",
+      "name": "大堂-吧凳-2",
+      "x": 5,
+      "y": 11,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "N",
+      "blocking": true
+    },
+    {
+      "id": "communal_table",
+      "name": "大堂-共享长桌-1",
+      "x": 11,
+      "y": 9,
+      "w": 6,
+      "h": 2,
+      "room": "hall",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-长桌椅北-1",
+      "x": 11,
+      "y": 8,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "N",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-长桌椅北-2",
+      "x": 13,
+      "y": 8,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "N",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-长桌椅北-3",
+      "x": 15,
+      "y": 8,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "N",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-长桌椅南-1",
+      "x": 11,
+      "y": 11,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-长桌椅南-2",
+      "x": 16,
+      "y": 11,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "bookshelf",
+      "name": "大堂-书墙-1",
+      "x": 20,
+      "y": 8,
+      "w": 4,
+      "h": 1,
+      "room": "hall",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "lamp",
+      "name": "大堂-落地灯-1",
+      "x": 20,
+      "y": 10,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "blocking": true
+    },
+    {
+      "id": "armchair",
+      "name": "大堂-扶手椅-1",
+      "x": 21,
+      "y": 10,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "low_table",
+      "name": "大堂-边几-1",
+      "x": 23,
+      "y": 10,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "blocking": true
+    },
+    {
+      "id": "plant_big",
+      "name": "大堂-大绿植-1",
+      "x": 26,
+      "y": 11,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "blocking": true
+    },
+    {
+      "id": "plant_big",
+      "name": "大堂-大绿植-2",
+      "x": 9,
+      "y": 10,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "blocking": true
+    },
+    {
+      "id": "cafe_table",
+      "name": "大堂-圆桌-1",
+      "x": 2,
+      "y": 13,
+      "w": 2,
+      "h": 2,
+      "room": "hall",
+      "blocking": true
+    },
+    {
+      "id": "cafe_table",
+      "name": "大堂-圆桌-2",
+      "x": 7,
+      "y": 13,
+      "w": 2,
+      "h": 2,
+      "room": "hall",
+      "blocking": true
+    },
+    {
+      "id": "cafe_table",
+      "name": "大堂-圆桌-3",
+      "x": 11,
+      "y": 13,
+      "w": 2,
+      "h": 2,
+      "room": "hall",
+      "blocking": true
+    },
+    {
+      "id": "cafe_table",
+      "name": "大堂-圆桌-4",
+      "x": 15,
+      "y": 13,
+      "w": 2,
+      "h": 2,
+      "room": "hall",
+      "blocking": true
+    },
+    {
+      "id": "cafe_table",
+      "name": "大堂-圆桌-5",
+      "x": 19,
+      "y": 13,
+      "w": 2,
+      "h": 2,
+      "room": "hall",
+      "blocking": true
+    },
+    {
+      "id": "cafe_table",
+      "name": "大堂-圆桌-6",
+      "x": 23,
+      "y": 13,
+      "w": 2,
+      "h": 2,
+      "room": "hall",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-3-12",
+      "x": 3,
+      "y": 12,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-2-15",
+      "x": 2,
+      "y": 15,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "N",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-3-15",
+      "x": 3,
+      "y": 15,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "N",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-7-12",
+      "x": 7,
+      "y": 12,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-8-12",
+      "x": 8,
+      "y": 12,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-7-15",
+      "x": 7,
+      "y": 15,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "N",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-8-15",
+      "x": 8,
+      "y": 15,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "N",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-11-12",
+      "x": 11,
+      "y": 12,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-12-12",
+      "x": 12,
+      "y": 12,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-11-15",
+      "x": 11,
+      "y": 15,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "N",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-12-15",
+      "x": 12,
+      "y": 15,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "N",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-15-12",
+      "x": 15,
+      "y": 12,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-16-12",
+      "x": 16,
+      "y": 12,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-15-15",
+      "x": 15,
+      "y": 15,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "N",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-16-15",
+      "x": 16,
+      "y": 15,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "N",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-19-12",
+      "x": 19,
+      "y": 12,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-20-12",
+      "x": 20,
+      "y": 12,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-19-15",
+      "x": 19,
+      "y": 15,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "N",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-20-15",
+      "x": 20,
+      "y": 15,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "N",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-23-12",
+      "x": 23,
+      "y": 12,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-24-12",
+      "x": 24,
+      "y": 12,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-23-15",
+      "x": 23,
+      "y": 15,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "N",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "大堂-圆桌椅-24-15",
+      "x": 24,
+      "y": 15,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "facing": "N",
+      "blocking": true
+    },
+    {
+      "id": "waste_bin",
+      "name": "大堂-垃圾桶-1",
+      "x": 2,
+      "y": 16,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "blocking": true
+    },
+    {
+      "id": "menu_sign",
+      "name": "大堂-菜单立牌-1",
+      "x": 11,
+      "y": 16,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "blocking": true
+    },
+    {
+      "id": "coat_rack",
+      "name": "大堂-衣帽架-1",
+      "x": 16,
+      "y": 17,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "blocking": true
+    },
+    {
+      "id": "plant",
+      "name": "大堂-绿植-1",
+      "x": 6,
+      "y": 17,
+      "w": 1,
+      "h": 1,
+      "room": "hall",
+      "blocking": true
+    },
+    {
+      "id": "window_bench",
+      "name": "窗边-长凳-1",
+      "x": 11,
+      "y": 1,
+      "w": 6,
+      "h": 1,
+      "room": "lounge",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "cafe_table",
+      "name": "窗边-小圆桌-1",
+      "x": 11,
+      "y": 3,
+      "w": 2,
+      "h": 2,
+      "room": "lounge",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "窗边-椅子-1-北1",
+      "x": 11,
+      "y": 2,
+      "w": 1,
+      "h": 1,
+      "room": "lounge",
+      "facing": "N",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "窗边-椅子-1-北2",
+      "x": 12,
+      "y": 2,
+      "w": 1,
+      "h": 1,
+      "room": "lounge",
+      "facing": "N",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "窗边-椅子-1-南1",
+      "x": 11,
+      "y": 5,
+      "w": 1,
+      "h": 1,
+      "room": "lounge",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "窗边-椅子-1-南2",
+      "x": 12,
+      "y": 5,
+      "w": 1,
+      "h": 1,
+      "room": "lounge",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "cafe_table",
+      "name": "窗边-小圆桌-2",
+      "x": 15,
+      "y": 3,
+      "w": 2,
+      "h": 2,
+      "room": "lounge",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "窗边-椅子-2-北1",
+      "x": 15,
+      "y": 2,
+      "w": 1,
+      "h": 1,
+      "room": "lounge",
+      "facing": "N",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "窗边-椅子-2-北2",
+      "x": 16,
+      "y": 2,
+      "w": 1,
+      "h": 1,
+      "room": "lounge",
+      "facing": "N",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "窗边-椅子-2-南1",
+      "x": 15,
+      "y": 5,
+      "w": 1,
+      "h": 1,
+      "room": "lounge",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "chair",
+      "name": "窗边-椅子-2-南2",
+      "x": 16,
+      "y": 5,
+      "w": 1,
+      "h": 1,
+      "room": "lounge",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "kitchen_counter",
+      "name": "后厨-洗菜台-1",
+      "x": 1,
+      "y": 1,
+      "w": 4,
+      "h": 1,
+      "room": "kitchen",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "range",
+      "name": "后厨-灶台-1",
+      "x": 5,
+      "y": 1,
+      "w": 2,
+      "h": 1,
+      "room": "kitchen",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "dish_shelf",
+      "name": "后厨-碗碟架-1",
+      "x": 7,
+      "y": 1,
+      "w": 2,
+      "h": 1,
+      "room": "kitchen",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "prep_island",
+      "name": "后厨-备餐岛-1",
+      "x": 2,
+      "y": 3,
+      "w": 5,
+      "h": 2,
+      "room": "kitchen",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "fridge",
+      "name": "后厨-冰箱-1",
+      "x": 1,
+      "y": 6,
+      "w": 1,
+      "h": 1,
+      "room": "kitchen",
+      "facing": "E",
+      "blocking": true
+    },
+    {
+      "id": "wc_cubicle",
+      "name": "盥洗室-隔间-1",
+      "x": 19,
+      "y": 1,
+      "w": 2,
+      "h": 2,
+      "room": "wc",
+      "facing": "S",
+      "blocking": true
+    },
+    {
+      "id": "wash_basin",
+      "name": "盥洗室-洗手台-1",
+      "x": 22,
+      "y": 1,
+      "w": 3,
+      "h": 1,
+      "room": "wc",
+      "facing": "S",
+      "blocking": true
+    }
+  ],
+  "entities": [
+    {
+      "type": "spawn",
+      "x": 13,
+      "y": 13,
+      "room": "hall"
+    },
+    {
+      "type": "door",
+      "x": 13,
+      "y": 18,
+      "to": "outside",
+      "anchor": "north"
+    },
+    {
+      "type": "interior_door",
+      "x": 8,
+      "y": 7,
+      "to_room": "kitchen"
+    },
+    {
+      "type": "interior_door",
+      "x": 25,
+      "y": 7,
+      "to_room": "wc"
+    },
+    {
+      "type": "hotspot",
+      "x": 1,
+      "y": 11,
+      "prop": "bar_counter",
+      "propName": "大堂-吧台-1",
+      "act": "brew_espresso",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 3,
+      "y": 11,
+      "prop": "bar_counter",
+      "propName": "大堂-吧台-1",
+      "act": "wipe_bar",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 2,
+      "y": 12,
+      "prop": "stool",
+      "propName": "大堂-吧凳-1",
+      "act": "sit_chair",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 5,
+      "y": 12,
+      "prop": "stool",
+      "propName": "大堂-吧凳-2",
+      "act": "sit_chair",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 12,
+      "y": 11,
+      "prop": "communal_table",
+      "propName": "大堂-共享长桌-1",
+      "act": "long_table_work",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 11,
+      "y": 7,
+      "prop": "chair",
+      "propName": "大堂-长桌椅北-1",
+      "act": "sit_chair",
+      "face": "S"
+    },
+    {
+      "type": "hotspot",
+      "x": 13,
+      "y": 7,
+      "prop": "chair",
+      "propName": "大堂-长桌椅北-2",
+      "act": "sit_chair",
+      "face": "S"
+    },
+    {
+      "type": "hotspot",
+      "x": 15,
+      "y": 7,
+      "prop": "chair",
+      "propName": "大堂-长桌椅北-3",
+      "act": "sit_chair",
+      "face": "S"
+    },
+    {
+      "type": "hotspot",
+      "x": 10,
+      "y": 11,
+      "prop": "chair",
+      "propName": "大堂-长桌椅南-1",
+      "act": "sit_chair",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 15,
+      "y": 11,
+      "prop": "chair",
+      "propName": "大堂-长桌椅南-2",
+      "act": "sit_chair",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 20,
+      "y": 9,
+      "prop": "bookshelf",
+      "propName": "大堂-书墙-1",
+      "act": "read",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 20,
+      "y": 11,
+      "prop": "lamp",
+      "propName": "大堂-落地灯-1",
+      "act": "toggle_lamp",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 21,
+      "y": 11,
+      "prop": "armchair",
+      "propName": "大堂-扶手椅-1",
+      "act": "rest_armchair",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 26,
+      "y": 10,
+      "prop": "plant_big",
+      "propName": "大堂-大绿植-1",
+      "act": "water_plants",
+      "face": "S"
+    },
+    {
+      "type": "hotspot",
+      "x": 9,
+      "y": 9,
+      "prop": "plant_big",
+      "propName": "大堂-大绿植-2",
+      "act": "water_plants",
+      "face": "S"
+    },
+    {
+      "type": "hotspot",
+      "x": 1,
+      "y": 13,
+      "prop": "cafe_table",
+      "propName": "大堂-圆桌-1",
+      "act": "eat",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 1,
+      "y": 14,
+      "prop": "cafe_table",
+      "propName": "大堂-圆桌-1",
+      "act": "drink_latte",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 6,
+      "y": 13,
+      "prop": "cafe_table",
+      "propName": "大堂-圆桌-2",
+      "act": "eat",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 6,
+      "y": 14,
+      "prop": "cafe_table",
+      "propName": "大堂-圆桌-2",
+      "act": "drink_latte",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 10,
+      "y": 13,
+      "prop": "cafe_table",
+      "propName": "大堂-圆桌-3",
+      "act": "eat",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 10,
+      "y": 14,
+      "prop": "cafe_table",
+      "propName": "大堂-圆桌-3",
+      "act": "drink_latte",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 14,
+      "y": 13,
+      "prop": "cafe_table",
+      "propName": "大堂-圆桌-4",
+      "act": "eat",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 14,
+      "y": 14,
+      "prop": "cafe_table",
+      "propName": "大堂-圆桌-4",
+      "act": "drink_latte",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 18,
+      "y": 13,
+      "prop": "cafe_table",
+      "propName": "大堂-圆桌-5",
+      "act": "eat",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 18,
+      "y": 14,
+      "prop": "cafe_table",
+      "propName": "大堂-圆桌-5",
+      "act": "drink_latte",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 22,
+      "y": 13,
+      "prop": "cafe_table",
+      "propName": "大堂-圆桌-6",
+      "act": "eat",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 22,
+      "y": 14,
+      "prop": "cafe_table",
+      "propName": "大堂-圆桌-6",
+      "act": "drink_latte",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 4,
+      "y": 12,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-3-12",
+      "act": "sit_chair",
+      "face": "W"
+    },
+    {
+      "type": "hotspot",
+      "x": 1,
+      "y": 15,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-2-15",
+      "act": "sit_chair",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 3,
+      "y": 16,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-3-15",
+      "act": "sit_chair",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 7,
+      "y": 11,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-7-12",
+      "act": "sit_chair",
+      "face": "S"
+    },
+    {
+      "type": "hotspot",
+      "x": 8,
+      "y": 11,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-8-12",
+      "act": "sit_chair",
+      "face": "S"
+    },
+    {
+      "type": "hotspot",
+      "x": 7,
+      "y": 16,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-7-15",
+      "act": "sit_chair",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 8,
+      "y": 16,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-8-15",
+      "act": "sit_chair",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 10,
+      "y": 12,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-11-12",
+      "act": "sit_chair",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 13,
+      "y": 12,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-12-12",
+      "act": "sit_chair",
+      "face": "W"
+    },
+    {
+      "type": "hotspot",
+      "x": 10,
+      "y": 15,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-11-15",
+      "act": "sit_chair",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 12,
+      "y": 16,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-12-15",
+      "act": "sit_chair",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 14,
+      "y": 12,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-15-12",
+      "act": "sit_chair",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 17,
+      "y": 12,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-16-12",
+      "act": "sit_chair",
+      "face": "W"
+    },
+    {
+      "type": "hotspot",
+      "x": 15,
+      "y": 16,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-15-15",
+      "act": "sit_chair",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 16,
+      "y": 16,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-16-15",
+      "act": "sit_chair",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 19,
+      "y": 11,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-19-12",
+      "act": "sit_chair",
+      "face": "S"
+    },
+    {
+      "type": "hotspot",
+      "x": 21,
+      "y": 12,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-20-12",
+      "act": "sit_chair",
+      "face": "W"
+    },
+    {
+      "type": "hotspot",
+      "x": 19,
+      "y": 16,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-19-15",
+      "act": "sit_chair",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 20,
+      "y": 16,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-20-15",
+      "act": "sit_chair",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 23,
+      "y": 11,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-23-12",
+      "act": "sit_chair",
+      "face": "S"
+    },
+    {
+      "type": "hotspot",
+      "x": 24,
+      "y": 11,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-24-12",
+      "act": "sit_chair",
+      "face": "S"
+    },
+    {
+      "type": "hotspot",
+      "x": 23,
+      "y": 16,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-23-15",
+      "act": "sit_chair",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 24,
+      "y": 16,
+      "prop": "chair",
+      "propName": "大堂-圆桌椅-24-15",
+      "act": "sit_chair",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 11,
+      "y": 17,
+      "prop": "menu_sign",
+      "propName": "大堂-菜单立牌-1",
+      "act": "read_menu",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 15,
+      "y": 17,
+      "prop": "coat_rack",
+      "propName": "大堂-衣帽架-1",
+      "act": "hang_coat",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 6,
+      "y": 16,
+      "prop": "plant",
+      "propName": "大堂-绿植-1",
+      "act": "water_plants",
+      "face": "S"
+    },
+    {
+      "type": "hotspot",
+      "x": 13,
+      "y": 2,
+      "prop": "window_bench",
+      "propName": "窗边-长凳-1",
+      "act": "sit_window",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 10,
+      "y": 3,
+      "prop": "cafe_table",
+      "propName": "窗边-小圆桌-1",
+      "act": "eat",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 10,
+      "y": 4,
+      "prop": "cafe_table",
+      "propName": "窗边-小圆桌-1",
+      "act": "drink_latte",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 10,
+      "y": 2,
+      "prop": "chair",
+      "propName": "窗边-椅子-1-北1",
+      "act": "sit_chair",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 13,
+      "y": 2,
+      "prop": "chair",
+      "propName": "窗边-椅子-1-北2",
+      "act": "sit_chair",
+      "face": "W"
+    },
+    {
+      "type": "hotspot",
+      "x": 11,
+      "y": 6,
+      "prop": "chair",
+      "propName": "窗边-椅子-1-南1",
+      "act": "sit_chair",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 12,
+      "y": 6,
+      "prop": "chair",
+      "propName": "窗边-椅子-1-南2",
+      "act": "sit_chair",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 14,
+      "y": 3,
+      "prop": "cafe_table",
+      "propName": "窗边-小圆桌-2",
+      "act": "eat",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 14,
+      "y": 4,
+      "prop": "cafe_table",
+      "propName": "窗边-小圆桌-2",
+      "act": "drink_latte",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 14,
+      "y": 2,
+      "prop": "chair",
+      "propName": "窗边-椅子-2-北1",
+      "act": "sit_chair",
+      "face": "E"
+    },
+    {
+      "type": "hotspot",
+      "x": 17,
+      "y": 2,
+      "prop": "chair",
+      "propName": "窗边-椅子-2-北2",
+      "act": "sit_chair",
+      "face": "W"
+    },
+    {
+      "type": "hotspot",
+      "x": 15,
+      "y": 6,
+      "prop": "chair",
+      "propName": "窗边-椅子-2-南1",
+      "act": "sit_chair",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 16,
+      "y": 6,
+      "prop": "chair",
+      "propName": "窗边-椅子-2-南2",
+      "act": "sit_chair",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 1,
+      "y": 2,
+      "prop": "kitchen_counter",
+      "propName": "后厨-洗菜台-1",
+      "act": "wash_dishes",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 5,
+      "y": 2,
+      "prop": "range",
+      "propName": "后厨-灶台-1",
+      "act": "cook_order",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 2,
+      "y": 5,
+      "prop": "prep_island",
+      "propName": "后厨-备餐岛-1",
+      "act": "prep_food",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 2,
+      "y": 6,
+      "prop": "fridge",
+      "propName": "后厨-冰箱-1",
+      "act": "snack",
+      "face": "W"
+    },
+    {
+      "type": "hotspot",
+      "x": 19,
+      "y": 3,
+      "prop": "wc_cubicle",
+      "propName": "盥洗室-隔间-1",
+      "act": "use_wc",
+      "face": "N"
+    },
+    {
+      "type": "hotspot",
+      "x": 22,
+      "y": 2,
+      "prop": "wash_basin",
+      "propName": "盥洗室-洗手台-1",
+      "act": "wash_hands",
+      "face": "N"
+    },
+    {
+      "type": "light",
+      "x": 3,
+      "y": 0,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 4,
+      "y": 0,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 5,
+      "y": 0,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 11,
+      "y": 0,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 12,
+      "y": 0,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 13,
+      "y": 0,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 14,
+      "y": 0,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 15,
+      "y": 0,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 16,
+      "y": 0,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 17,
+      "y": 0,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 24,
+      "y": 0,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 1,
+      "y": 18,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 2,
+      "y": 18,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 3,
+      "y": 18,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 4,
+      "y": 18,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 6,
+      "y": 18,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 7,
+      "y": 18,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 8,
+      "y": 18,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 9,
+      "y": 18,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 11,
+      "y": 18,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 16,
+      "y": 18,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 17,
+      "y": 18,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 18,
+      "y": 18,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 19,
+      "y": 18,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 20,
+      "y": 18,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 22,
+      "y": 18,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 23,
+      "y": 18,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 24,
+      "y": 18,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 25,
+      "y": 18,
+      "key": "day"
+    },
+    {
+      "type": "light",
+      "x": 26,
+      "y": 18,
+      "key": "day"
+    }
+  ],
+  "meta": {
+    "arch": "indoor-66500",
+    "palette": "terrazzo_warm",
+    "light": "day",
+    "created_at": 0,
+    "consumed_at": null,
+    "size": 138576
+  }
+}
