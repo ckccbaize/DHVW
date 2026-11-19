@@ -1,0 +1,39 @@
+﻿# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Node / Build
+node_modules/
+dist/
+dist-electron/
+release/
+.vite/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Binaries / Models / Local AI weights
+*.gguf
+*.onnx
+*.exe
+*.dll
+*.so
+*.dylib
+*.pyd
+
+# Temporary & Data
+.tmp/
+*.log
+*.db
+*.db-wal
+*.db-shm
