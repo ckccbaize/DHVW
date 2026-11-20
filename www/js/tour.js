@@ -12,7 +12,7 @@ import { lightFor } from "./core/light.js";
 import { loadScene } from "./view/scene-loader.js";
 import { loadCachedImage, loadCachedJSON } from "./view/pixmap.js";
 import { createLightPlate } from "./view/lightplate.js";
-import { layoutTour, cameraTarget, CELL_DEFAULT } from "./core/tourlayout.js";
+import { layoutTour, cameraTarget, pickExit, CELL_DEFAULT } from "./core/tourlayout.js";
 
 const CELLS_PER_SEC = 1 / 0.35;        // 与 pathagent 同步：0.35s/格
 const CLOCK_START_MIN = 6 * 60 + 20;   // 06:20 夜色未尽
@@ -63,6 +63,8 @@ const tour = {
   act: null,
   frame: 0,
   pts: [],
+  runLeft: 0,              // 街景段剩余里程（px）；>0 时走里程模式
+  runDone: null,
   done: null,
   finished: false,
 };
@@ -84,9 +86,7 @@ function resize() {
 
 function layout() {
   const out = layoutTour(world.entries.map((e) => e.scene), view);
-  world.stripK = out.stripK;
-  world.totalW = out.totalW;
-  out.rooms.forEach((r, i) => Object.assign(world.entries[i], r));
+  out.segs.forEach((s, i) => Object.assign(world.entries[i], s));
 }
 
 function entryOf(i = world.cur) {
@@ -97,13 +97,21 @@ function cellNow() {
   return entryOf()?.scene.grid.cell || CELL_DEFAULT;
 }
 
-/** 摄像机：街景带里让角色停在屏幕 40% 处；房间模式下整屋居中不跟随。 */
-function updateCamera(dt) {
-  if (world.mode !== "strip") return;
+/**
+ * 摄像机：walk 段把角色固定在屏幕 CAM_RATIO 处随行走滚动；room 段不跟随。
+ *
+ * 直接赋值、不做插值：位置由 cameraTarget 完全确定，插值只会让 camX 滞后于角色，
+ * 导致"走满里程时摄像机还没饱和"，换图瞬间屏幕坐标就跳（2026-11-19 实测差 30~100px）。
+ * 角色本身的移动已经是逐帧平滑的，摄像机跟随它自然平滑。
+ */
+function updateCamera() {
   const e = entryOf();
-  const gx = e.x0 + tour.pos.x * e.stripK;
-  const want = cameraTarget(gx, Math.max(0, world.totalW - view.w), view.w);
-  world.camX += (want - world.camX) * Math.min(1, dt * 8);
+  if (!e || e.mode !== "walk") return;
+  world.camX = cameraTarget(tour.pos.x * e.k, e.camMax, view.w);
+}
+
+function snapCamera() {
+  updateCamera();
 }
 
 function clamp(v, lo, hi) {
@@ -112,34 +120,18 @@ function clamp(v, lo, hi) {
 
 // ---------- 绘制 ----------
 
-function drawSceneRoom() {
-  const e = world.entries[0];
-  const ox = (view.w - e.roomW) / 2;
-  const oy = (view.h - e.roomH) / 2;
-  ctx.drawImage(e.img, ox, oy, e.roomW, e.roomH);
-  drawCharacter(ox, oy, e.roomK);
-}
-
-function drawSceneStrip() {
-  const cam = world.camX;
-  for (const e of world.entries) {
-    if (e.x0 > cam + view.w || e.x0 + e.stripW < cam) continue;
-    ctx.drawImage(e.img, e.x0 - cam, e.stripTop, e.stripW, e.stripH);
-  }
+function drawScene() {
   const e = entryOf();
-  drawCharacter(e.x0 - cam, e.stripTop, e.stripK);
-  // 接缝雾带压在角色之上：跨场景那 1~2 格（墙）藏在雾里，看起来是走了很远。
-  const bandW = Math.max(180, view.h * 0.3);
-  for (let i = 1; i < world.entries.length; i += 1) {
-    const sx = world.entries[i].x0 - cam;
-    if (sx < -bandW || sx > view.w + bandW) continue;
-    const g = ctx.createLinearGradient(sx - bandW / 2, 0, sx + bandW / 2, 0);
-    g.addColorStop(0, "rgba(6,7,12,0)");
-    g.addColorStop(0.5, "rgba(6,7,12,0.92)");
-    g.addColorStop(1, "rgba(6,7,12,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(sx - bandW / 2, 0, bandW, view.h);
+  if (!e) return;
+  if (e.mode === "room") {
+    // 首段：整幅居中。
+    ctx.drawImage(e.img, e.ox, e.oy, e.drawW, e.drawH);
+    drawCharacter(e.ox, e.oy, e.k);
+    return;
   }
+  // 街景段：横向随 camX 滚动，纵向按锚定行对齐。
+  ctx.drawImage(e.img, -world.camX, e.oy, e.drawW, e.drawH);
+  drawCharacter(-world.camX, e.oy, e.k);
 }
 
 function dirName(dir = {}) {
@@ -151,11 +143,6 @@ function drawCharacter(ox, oy, k) {
   const cell = cellNow();
   const x = ox + tour.pos.x * k;
   const footY = oy + tour.pos.y * k + cell * k * 0.25;
-
-  ctx.fillStyle = "rgba(0,0,0,0.26)";
-  ctx.beginPath();
-  ctx.ellipse(x, footY + 6 * k, 7 * k, 2.5 * k, 0, 0, Math.PI * 2);
-  ctx.fill();
 
   if (!charSheet || !charImg) return;
 
@@ -180,6 +167,17 @@ function drawCharacter(ox, oy, k) {
     ctx.restore();
     return;
   }
+
+  // 阴影必须压在脚底：早先写 footY + 6*k 是从 32px 小图时期的经验值，
+  // 街景段 k≈5.9 时那 6 格像素放大成 35px 空隙，角色像飘在半空
+  // （2026-11-19 实测被指出）。现在以脚底为基准，主体落在脚下、上沿与脚部重叠，
+  // 读作"人站在自己的影子上"。
+  const shadowRy = Math.max(1.5, 1.6 * k);
+  ctx.fillStyle = "rgba(0,0,0,0.32)";
+  ctx.beginPath();
+  ctx.ellipse(x, footY + shadowRy * 0.35, 5.2 * k, shadowRy, 0, 0, Math.PI * 2);
+  ctx.fill();
+
   ctx.drawImage(charImg, sx, sy, fw, fh, x - dw / 2, footY - dh, dw, dh);
 }
 
@@ -195,9 +193,12 @@ function drawBubble() {
   const bw = Math.min(maxW, Math.max(...lines.map((l) => ctx.measureText(l).width)) + 22 * u);
   const bh = lines.length * lineH + 12 * u;
   const e = entryOf();
-  const k = world.mode === "strip" ? e.stripK : e.roomK;
-  const cx = world.mode === "strip" ? e.x0 - world.camX + tour.pos.x * k : (view.w - e.roomW) / 2 + tour.pos.x * k;
-  const feetY = world.mode === "strip" ? e.stripTop + tour.pos.y * k : (view.h - e.roomH) / 2 + tour.pos.y * k;
+  const k = e.k;
+  const camX = e.mode === "walk" ? world.camX : 0;
+  const originX = e.mode === "walk" ? 0 : e.ox;
+  const originY = e.oy;
+  const cx = originX - camX + tour.pos.x * k;
+  const feetY = originY + tour.pos.y * k;
   const headY = charSheet ? feetY - charSheet.frame.h * (cellNow() / 24) * k : feetY - 60 * u;
   const bx = clamp(Math.round(cx - bw / 2), 8 * u, view.w - bw - 8 * u);
   const by = Math.max(8 * u, Math.round(headY - 14 * u - bh));
@@ -396,8 +397,7 @@ function draw(now) {
     drawOverlay();
     return;
   }
-  if (world.mode === "room") drawSceneRoom();
-  else drawSceneStrip();
+  drawScene();
   drawBubble();
   lightPlate(ctx, view.w, view.h, lightFor(phaseOf(tour.minute), "clear"));
   drawHud();
@@ -440,13 +440,49 @@ function walkCells(path) {
   return walkTo(path.map(([gx, gy]) => ({ x: (gx + 0.5) * c, y: (gy + 0.5) * c })));
 }
 
+/**
+ * 按里程向右走：累计 px，走满 resolve。
+ * 与 walkTo 的区别是不会把 state 打回 idle——换图时调用方要保持行走手感。
+ */
+function walkDistance(px) {
+  if (!(px > 0)) return Promise.resolve();
+  tour.state = "walk";
+  tour.dir = { x: 1, y: 0 };
+  tour.runLeft = px;
+  return new Promise((resolve) => {
+    tour.runDone = resolve;
+  });
+}
+
 function advance(dt) {
+  // 里程模式：只推进 x，不查路径、不判到达格子；换图由编排层在里程耗尽时接管。
+  if (tour.runLeft > 0) {
+    const e = entryOf();
+    const grid = e?.scene?.grid;
+    if (grid) {
+      const c = grid.cell || CELL_DEFAULT;
+      const step = CELLS_PER_SEC * c * dt;
+      const nextX = tour.pos.x + step;
+      // 不越过地图右缘：到边就停在最后一条可走格上，等编排层换图。
+      const maxX = (grid.w - 0.5) * c;
+      tour.pos.x = Math.min(nextX, maxX);
+      tour.runLeft -= step;
+      tour.frame += dt * 8;
+      if (tour.runLeft <= 0) {
+        tour.runLeft = 0;
+        const done = tour.runDone;
+        tour.runDone = null;
+        if (done) done();
+      }
+      return;
+    }
+  }
   if (tour.state !== "walk" || !tour.pts.length) {
     if (tour.state === "walk" && !tour.pts.length) tour.state = "idle";
     return;
   }
   // 步速只按场景内像素算：pos 是场景内坐标，绘制时才乘 k。
-  // 这里再乘一次 scaleNow() 会让角色随场景比例放大而"加速"，街景段快 3~4 倍。
+  // 再乘一次取景比例会让角色随场景放大而"加速"（实测街景段快到 3~4 倍）。
   let budget = CELLS_PER_SEC * cellNow() * dt;
   while (budget > 0 && tour.pts.length) {
     const p = tour.pts[0];
@@ -505,38 +541,31 @@ function hotspotCell(scene, acts) {
   return null;
 }
 
-/** 场景内最靠右的可行走格（家/店内“走到门口”的目标）。 */
+/**
+ * 出门目标：从场景 doors 里取 `to:"outside"` 的门（家=front 下方门，书店=entrance，
+ * 咖啡厅=front，公园=gate）。
+ * 早先取"最右侧可行走格"，实测会走到厕所/阳台（吃完饭去了卫生间）。
+ */
 function exitCell(scene, from) {
   const grid = scene.grid;
-  const cells = [];
+  const walkable = (x, y) => isWalkable(grid, x, y);
+  const door = pickExit(scene.doors, walkable, from);
+  if (door) {
+    // 门格本身可走就用它；否则用门旁边的可行走格（门格常是 DOOR，本来就是可走的）。
+    if (walkable(door[0], door[1])) return door;
+    return nearestWalkable(grid, door[0], door[1], 3) || from;
+  }
+  // 没有 doors 数据的场景：退回最右可行走格（旧行为，仅兜底）。
   for (let x = grid.w - 1; x >= 0; x -= 1) {
+    const cells = [];
     for (let y = 0; y < grid.h; y += 1) {
-      if (!isWalkable(grid, x, y)) continue;
-      if (bfsPath(grid, from[0], from[1], x, y)) cells.push([x, y]);
+      if (isWalkable(grid, x, y) && bfsPath(grid, from[0], from[1], x, y)) cells.push([x, y]);
     }
     if (cells.length) return cells.sort((a, b) => Math.abs(a[1] - from[1]) - Math.abs(b[1] - from[1]))[0];
   }
   return from;
 }
 
-function entryCellOf(scene, ypx) {
-  const grid = scene.grid;
-  const c = grid.cell || CELL_DEFAULT;
-  const row = Math.round(ypx / c - 0.5);
-  let best = null;
-  let bestD = Infinity;
-  for (let x = 0; x < Math.min(4, grid.w); x += 1) {
-    for (let y = 0; y < grid.h; y += 1) {
-      if (!isWalkable(grid, x, y)) continue;
-      const d = Math.abs(y - row);
-      if (d < bestD) {
-        bestD = d;
-        best = [x, y];
-      }
-    }
-  }
-  return best || nearestWalkable(grid, 1, clamp(row, 0, grid.h - 1), 8) || [1, 1];
-}
 
 async function loadEntries() {
   const entries = [];
@@ -597,55 +626,51 @@ async function homeSequence() {
     tour.state = "idle";
   }
 
-  // 出门：走到最右侧可行走格
+  // 出门：走到 front 门（场景 doors 里 to:"outside"，家是底部 (8,14)）。
   const from = cellOfPos();
   const exit = exitCell(scene, from);
   const path = bfsPath(scene.grid, from[0], from[1], exit[0], exit[1]);
   if (path) await walkCells(path);
-  await sleep(260);
+  await sleep(200);
 }
 
-async function enterStrip(fromIndex) {
-  await tween(700, tour.fade, 1, (v) => { tour.fade = v; });
-  world.mode = "strip";
-  world.cur = fromIndex;
-  const next = world.entries[fromIndex];
-  const enter = entryCellOf(next.scene, next.scene.grid.h * (next.scene.grid.cell || CELL_DEFAULT) * 0.55);
-  tour.pos = centerPx(enter[0], enter[1]);
-  tour.dir = { x: 1, y: 0 };
-  tour.state = "idle";
-  tour.act = null;
-  layout();
-  updateCamera(1);
-  world.camX = clamp(
-    next.x0 + tour.pos.x * next.stripK - view.w * 0.4,
-    0,
-    Math.max(0, world.totalW - view.w),
-  );
-  await tween(900, tour.fade, 0, (v) => { tour.fade = v; });
-}
-
+/**
+ * 街景段：边走边换图，全程不停步、不黑场、角色屏幕位置固定。
+ *
+ * 观感目标：像一条不断延伸的街。角色始终踩在屏幕同一个点上，
+ * 地图在其脚下滚动；滚到这张图的可移动尽头时，**立刻**换成下一张图
+ * （同一帧内改 world.cur 与摄像机归位），角色继续走同样的屏幕位置。
+ *
+ * 为什么不"走完一张图再换"：那会让角色在每张图内从左走到右，
+ * 换图时又从右弹回左，观感是幻灯片（2026-11-19 实测被否）。
+ *
+ * 关键：换图时 camX 归位到该段起点，worldX 同步重置，
+ * 使屏幕坐标 = -camX + pos*k 与换图前一致 → 角色不跳。
+ */
 async function stripSequence(fromIndex) {
   for (let i = fromIndex; i < world.entries.length; i += 1) {
     world.cur = i;
     const e = world.entries[i];
     const grid = e.scene.grid;
-    const c = grid.cell || CELL_DEFAULT;
-    const from = cellOfPos();
-    const start = isWalkable(grid, from[0], from[1]) ? from : nearestWalkable(grid, from[0], from[1], 6) || from;
-    const target = exitCell(e.scene, start);
-    const path = bfsPath(grid, start[0], start[1], target[0], target[1]);
-    if (path && path.length) await walkCells(path);
-    // 继续向右走到底边：这一段穿过墙体，靠接缝雾带遮住。
-    await walkTo([{ x: grid.w * c + c * 1.5, y: tour.pos.y }]);
-    if (i + 1 >= world.entries.length) break;
-    const next = world.entries[i + 1];
-    world.cur = i + 1;
-    const enter = entryCellOf(next.scene, tour.pos.y);
-    tour.pos = centerPx(enter[0], enter[1]);
-    if (SCENE_LINES[next.id]) say(SCENE_LINES[next.id], 2400);
+
+    // 落点：x 精确放在 startPx（屏幕 40% 处），y 精确取本段的行走行 e.row
+    // （outside 门行上移 2 格，见 tourlayout.walkingRowPx / 布局里的退格）。
+    // 两者都不能对齐到"格中心"：差半格会被 k≈5.9 放大成 40~70px 的换图跳变（实测 556 vs 509）。
+    tour.pos = { x: e.startPx, y: e.row };
+    tour.dir = { x: 1, y: 0 };
+    tour.act = null;
+    tour.state = "walk";
+    world.camX = 0;
+    if (i > fromIndex && SCENE_LINES[e.id]) say(SCENE_LINES[e.id], 2400);
+
+    // 走满本段里程（= 摄像机从 0 饱和到 camMax 所需距离）就换下一张，同一帧切线。
+    await walkDistance(e.runPx);
   }
+  tour.state = "idle";
+  tour.runLeft = 0;
 }
+
+
 
 async function runTour() {
   tour.startedAt = 0;
@@ -671,9 +696,13 @@ async function runTour() {
     /* 字体没装好也能跑，只是字形退化 */
   }
 
-  world.mode = "room";
   world.cur = 0;
-  tour.pos = { x: 0, y: 0 };
+  // 开局先摆到床上：留 pos=(0,0) 会让首帧把角色画在地图左上角（录像开头闪一下）。
+  const bedInit = (world.entries[0]?.scene?.props || []).find((p) => p.id === "bed");
+  const initCell = world.entries[0]?.scene?.grid?.cell || CELL_DEFAULT;
+  tour.pos = bedInit
+    ? { x: (bedInit.x + (bedInit.w || 2) / 2) * initCell, y: (bedInit.y + (bedInit.h || 3) / 2) * initCell }
+    : { x: 3 * initCell, y: 12 * initCell };
   tour.state = "idle";
   world.camX = 0;
   if (view.w === 0) resize();
@@ -687,7 +716,7 @@ async function runTour() {
   await homeSequence();
 
   if (world.entries.length > 1) {
-    await enterStrip(1);
+    // 家的 front 门在底部：直接从门后接第一张街景图，不停步。
     await stripSequence(1);
   }
 
@@ -824,7 +853,7 @@ function frame(now) {
     tour.hudAlpha = clamp(1 - (t - hideAt) / fadeS, 0, 1);
 
     advance(dt);
-    updateCamera(dt);
+    updateCamera();
     draw(now);
     fps.push(now);
   } catch (err) {
@@ -869,7 +898,7 @@ window.__tour = {
   world,
   tour,
   opts,
-  entries: () => world.entries.map((e) => ({ id: e.id, x0: e.x0, w: e.stripW })),
+  entries: () => world.entries.map((e) => ({ id: e.id, mode: e.mode, k: e.k, camMax: Math.round(e.camMax) })),
   startRecording: () => recorder.start(),
   stopRecording: () => recorder.stop(),
   isRecording: () => recorder.active(),
