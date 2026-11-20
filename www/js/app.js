@@ -833,7 +833,13 @@ async function boot() {
         if (sameScene && Number.isInteger(cx) && Number.isInteger(cy) && isWalkable(scene.grid, cx, cy)
           && agent.state === "idle" && performance.now() - lastLocalMotionAt > 5000) {
           const snapped = applyChecksum(agent, cx, cy);
-          if (snapped) store.emit("checksum", { snapped: true });
+          if (snapped) {
+            // 纠偏清空了路径，但 worker 的 pending 还在等 arrived；不通知它就再也发不出新意图。
+            // 目标点本身没错，用 intentCancel 而不是 intentFailed，避免把好热点拉黑。
+            pendingArrival = null;
+            local.intentCancel();
+            store.emit("checksum", { snapped: true });
+          }
         }
         if (p.work_tier) setTier(p.work_tier);
         if (p.clock && clockIsForward(p.clock)) {

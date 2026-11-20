@@ -1283,6 +1283,10 @@ export function createLocalRuntime({
     intentFailed() {
       postLife({ type: "intentFailed" });
     },
+    /** 位置被外部纠偏：目标点没问题，只放开 worker 的 pending，不拉黑热点。 */
+    intentCancel() {
+      postLife({ type: "intentCancel" });
+    },
     requestSummary() {
       postLife({ type: "summary" });
     },

@@ -874,6 +874,14 @@ self.onmessage = (e) => {
       pending = null;
       break;
     }
+    case "intentCancel": {
+      // 位置被纠偏打断：目标点本身没问题，不能拉黑，只需放开状态机让它重新发意图。
+      if (pending?.act === "sleep") sleepRetryAt = nowAbs() + 1;
+      pending = null;
+      // 纠偏是被动打断，不该再等一个漫游周期才动；放开立刻重试。
+      lastIntentMinute = -1e9;
+      break;
+    }
     case "setActivity": {
       activity = msg.level === "asleep" ? "asleep" : msg.level === "idle" ? "idle" : "active";
       resetAnchor();
