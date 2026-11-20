@@ -410,6 +410,7 @@ curl -s http://127.0.0.1:8080/__health
 |---|---|
 | 不建主线运行时 | 独立页面；`app.js` 在 `boot()` 最前面遇 `?tour=1` 直接 `location.replace("tour.html")` 返回，**不创建任何 store / Worker / WS** |
 | 不写设备存档 | 不碰 `localStorage` / `IndexedDB` / `life_snapshot`；只读场景包与角色图集（Cache Storage 命中优先，与总观同一读法） |
+| 不动主线立绘 | 巡演用 `assets/char/looks/` 下三套独立副本，不覆盖 `assets/char/ojj_sheet.*`；主线角色同步（PC 推送）照常生效，两者互不影响 |
 | 不连主机 | 无 WebSocket；主机档/端侧档都不参与 |
 | 不产出 tier 资产 | 不触发 `forge`，不写 `outbox` |
 | 唯一副作用 | 录完 `POST /__tour/save?name=*.webm` → 设备 `data/recordings/`（kiosk 无文件管理器，浏览器下载等于丢素材） |
@@ -426,10 +427,28 @@ curl -s http://127.0.0.1:8080/__health
 | 0.9–4.4s | 躺在床上（横躺帧）→ 气泡「唔……」→「天亮了。」 |
 | 4.4–10.7s | 走到灶台 → `eat` 动作「先吃点东西。」 |
 | 10.7–13.0s | 走到 `front` 门（`doors` 里 `to:"outside"`，家在底部）→ 出门 |
-| 13.0–28.6s | 街景段：书店 → 咖啡厅 → 公园，**边走边换图**，每段约 5.1s |
+| 13.0–21.3s | 街景段：书店 → 咖啡厅 → 公园，**边走边换图**，每段约 2.5~3.2s |
 | 末尾 | 淡出 → 停录 → 落盘 `data/recordings/dhvw-tour-<ts>.webm` |
 
-实测全长约 29s（`?scenes=home,bookstore,cafe,park`）。
+实测全长约 21s（`?scenes=home,bookstore,cafe,park`）。
+
+**街景步速是室内的两倍**：`STREET_CELLS_PER_SEC = 1/0.17`（室内 `1/0.35`）。
+出门后是赶路不是散步，原来 0.35s/格让每段要 5.1s，观感拖沓（用户反馈「速度太慢」）。
+实测段时长 5.1s → **2.49 / 2.50 / 3.16s**，全程 29s → 21.3s。
+
+**每个场景换一套立绘**（`core/tourlooks.js`，已单测 6 项）：
+
+| 场景 | 形象 | 来源 |
+|---|---|---|
+| home | whale 鲸鱼娘 | PC `assets/char/ojj_sheet` |
+| bookstore | atri 亚托莉 | PC 角色库 `deepseek-54e633` |
+| cafe | miku 初音未来 | PC 角色库 `char-76bc33` |
+| park | whale（循环） | 同上 |
+
+序号取 `world.cur`（从**家**算起），不是从街景首段算起——否则家和书店都用第 0 套，
+第一次换场看不出变化（2026-11-20 实测）。三套都是 32×48 / 22 动作 / 四向齐全，
+切图只换 `sheet/img`，绘制参数完全不变，换图那一帧同时换人。
+形象资源在 `assets/char/looks/<name>.{json,png}`，开局并发预载、切换同步生效。
 
 ### 14.1.3 街景段：边走边换图（核心口径）
 
@@ -455,6 +474,7 @@ curl -s http://127.0.0.1:8080/__health
 | `startPx = vw * CAM_RATIO / k` | 进场点精确落在 40% 处；对齐到格中心会带入半格误差，被 k≈5.9 放大成 40~70px 跳变 |
 
 步速只按场景内像素算（`CELLS_PER_SEC * cell * dt`），**不乘**视图比例——乘了会让街景段快 3~4 倍。
+街景里程模式另用 `STREET_CELLS_PER_SEC`（见 14.1.2），同样不乘视图比例。
 
 ### 14.1.4 出门方向必须读 `doors`（2026-11-19 走错门根因）
 

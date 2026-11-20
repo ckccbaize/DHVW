@@ -1,11 +1,41 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-19T11:47:43.397Z",
+ "built_at": "2026-11-20T05:43:58.453Z",
  "files": [
   {
    "path": "agent/registry.json",
    "size": 16012,
    "sha256": "80d4f9666ccd9ac454c24607df1bac7f7a660bbbd0510708efeed943f50cd23d"
+  },
+  {
+   "path": "assets/char/looks/atri.json",
+   "size": 7725,
+   "sha256": "ae926639c980e11f3064b0a15246a44a1d99a860fe77a399a7ac9aa288251ace"
+  },
+  {
+   "path": "assets/char/looks/atri.png",
+   "size": 255741,
+   "sha256": "70585480d0b62e12b6d1f77b029cd7647dfafbc0dcb00b5b3aea41a89575c344"
+  },
+  {
+   "path": "assets/char/looks/miku.json",
+   "size": 7725,
+   "sha256": "ae926639c980e11f3064b0a15246a44a1d99a860fe77a399a7ac9aa288251ace"
+  },
+  {
+   "path": "assets/char/looks/miku.png",
+   "size": 230207,
+   "sha256": "b95547c54b6a2cc564b7c9f1e3c2274a7602f61d4df99f3633c3a3b537325baf"
+  },
+  {
+   "path": "assets/char/looks/whale.json",
+   "size": 7725,
+   "sha256": "ae926639c980e11f3064b0a15246a44a1d99a860fe77a399a7ac9aa288251ace"
+  },
+  {
+   "path": "assets/char/looks/whale.png",
+   "size": 292333,
+   "sha256": "8cca703acd587387551b2496ddf29f08819b03becf1e24a12b30aef3d27b272b"
   },
   {
    "path": "assets/char/ojj_sheet.json",
@@ -14,8 +44,8 @@
   },
   {
    "path": "assets/char/ojj_sheet.png",
-   "size": 255635,
-   "sha256": "0c9fe1033777cead36c66f995a31606a515a919329b2d239671cbca06f9871b6"
+   "size": 255741,
+   "sha256": "70585480d0b62e12b6d1f77b029cd7647dfafbc0dcb00b5b3aea41a89575c344"
   },
   {
    "path": "assets/fonts/fusion-pixel/Fusion-Pixel-12px-Proportional-Simplified-Chinese.Arrows.woff2",
@@ -559,8 +589,8 @@
   },
   {
    "path": "assets/scenes/cafe/character/sheet.png",
-   "size": 278773,
-   "sha256": "906f92b3eb59c6322c058433104d1a003605e051f00fbb27c25517ea2efda8d1"
+   "size": 278904,
+   "sha256": "d242b7d3abe1ab117b914ea1c345f652d658407224a4c985e5c9676bab4288ca"
   },
   {
    "path": "assets/scenes/cafe/furniture.png",
@@ -585,7 +615,7 @@
   {
    "path": "assets/scenes/cafe/manifest.json",
    "size": 1240,
-   "sha256": "f3f98ae236e109bf626e0e7a05c498a32a43bfe07032ea4f4d588ba8d7a9ba2c"
+   "sha256": "38b2625f6ffbf8501dc32a1d874ac08034450ea243097bf6fc69d66bcf5884c6"
   },
   {
    "path": "assets/scenes/cafe/scene.json",
@@ -609,8 +639,8 @@
   },
   {
    "path": "assets/scenes/home/character/sheet.png",
-   "size": 255635,
-   "sha256": "0c9fe1033777cead36c66f995a31606a515a919329b2d239671cbca06f9871b6"
+   "size": 255741,
+   "sha256": "70585480d0b62e12b6d1f77b029cd7647dfafbc0dcb00b5b3aea41a89575c344"
   },
   {
    "path": "assets/scenes/home/furniture.png",
@@ -660,7 +690,7 @@
   {
    "path": "assets/scenes/home/manifest.json",
    "size": 1232,
-   "sha256": "fdd8c16ca1b41e284bd23a16a8d1583a42db31a84d1358b7c2c58a4edfc2e67f"
+   "sha256": "883ab3fc7544cc1e46085b2fa1e573c8020727b3f39a3bf8af2851b3c9cf655c"
   },
   {
    "path": "assets/scenes/home/scene.json",
@@ -754,8 +784,8 @@
   },
   {
    "path": "assets/scenes/office/character/sheet.png",
-   "size": 255635,
-   "sha256": "0c9fe1033777cead36c66f995a31606a515a919329b2d239671cbca06f9871b6"
+   "size": 255741,
+   "sha256": "70585480d0b62e12b6d1f77b029cd7647dfafbc0dcb00b5b3aea41a89575c344"
   },
   {
    "path": "assets/scenes/office/furniture.png",
@@ -780,7 +810,7 @@
   {
    "path": "assets/scenes/office/manifest.json",
    "size": 1233,
-   "sha256": "924d1d6d815bdae536d34dedc9fcaa98bd96a5967f8a622bfb799715a65bef1e"
+   "sha256": "f3288de83f737e2bf7dc6d216ad7a56f1125dc2b358420a05f217a306f272d85"
   },
   {
    "path": "assets/scenes/office/office.built.json",
@@ -934,8 +964,8 @@
   },
   {
    "path": "js/app.js",
-   "size": 61585,
-   "sha256": "45e6312bda42b5d06fea8eb1af0c0ea397d5ae88fbdf299d23c76e144adc1d56"
+   "size": 63040,
+   "sha256": "5932c41970c85221a7e16f3e3aaadf18e2856ce811f33614c08dffa9f6e40c32"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -1189,8 +1219,13 @@
   },
   {
    "path": "js/core/tourlayout.js",
-   "size": 2251,
-   "sha256": "b934f456ab4ba663f91d85f1543c90bfd05dff12e487ebd9d53956f232cf18b0"
+   "size": 7656,
+   "sha256": "c88f62fb38e51adf1c56e98230373a5e91f0670a41b91ee15d6b1a9436de3e56"
+  },
+  {
+   "path": "js/core/tourlooks.js",
+   "size": 881,
+   "sha256": "1f5a87bcc4fc83f584bde4033274b06b5aabfde28deb4ab336ea2393aa5c8e67"
   },
   {
    "path": "js/core/wake/engine.js",
@@ -1244,8 +1279,8 @@
   },
   {
    "path": "js/tour.js",
-   "size": 28321,
-   "sha256": "026a17bca3e4fc722c40f58b6abd3c6b059b7f1de4bbad8ba1561761a82c879e"
+   "size": 31736,
+   "sha256": "91deac9f64911f95b989f6a6d4470672f7909c07600f327014f1b669a59f8b77"
   },
   {
    "path": "js/view/hud.js",
@@ -1259,8 +1294,8 @@
   },
   {
    "path": "js/view/overview.js",
-   "size": 11110,
-   "sha256": "da25dba554e9321781902f93e16398e5e367eb6d447a02663d03a074ff40f8a4"
+   "size": 11268,
+   "sha256": "749f4214c20c177ac7d912bf9271a1433889ec0965419d0feb2316337a9ec2c5"
   },
   {
    "path": "js/view/perf-overlay.js",

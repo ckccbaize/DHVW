@@ -13,8 +13,10 @@ import { loadScene } from "./view/scene-loader.js";
 import { loadCachedImage, loadCachedJSON } from "./view/pixmap.js";
 import { createLightPlate } from "./view/lightplate.js";
 import { layoutTour, cameraTarget, pickExit, CELL_DEFAULT } from "./core/tourlayout.js";
+import { LOOKS, lookFor } from "./core/tourlooks.js";
 
-const CELLS_PER_SEC = 1 / 0.35;        // 与 pathagent 同步：0.35s/格
+const CELLS_PER_SEC = 1 / 0.35;        // 室内：与 pathagent 同步 0.35s/格
+const STREET_CELLS_PER_SEC = 1 / 0.17;  // 街景：出门后步行约快一倍，宣传片节奏更紧凑
 const CLOCK_START_MIN = 6 * 60 + 20;   // 06:20 夜色未尽
 const CLOCK_MIN_PER_SEC = 10;          // 1 秒 = 10 分钟：出门时已过 08:00，街景全程白天
 const HUD_IN_MS = 900;                 // 总观浮层展开
@@ -66,10 +68,45 @@ const tour = {
   runLeft: 0,              // 街景段剩余里程（px）；>0 时走里程模式
   runDone: null,
   done: null,
+  look: "",                // 当前形象名（whale / atri / miku）
   finished: false,
 };
 let charSheet = null;
 let charImg = null;
+// 形象缓存：key = LOOKS 里的名字，value = { sheet, img }
+const lookCache = new Map();
+
+/**
+ * 载入全部形象（并发），失败的不进缓存，切换时自动跳过。
+ * 加载期在巡演开始前完成，切换本身是同步的——不会因为换图卡一帧。
+ */
+async function loadLooks() {
+  await Promise.all(
+    LOOKS.map(async (name) => {
+      try {
+        const [sheet, img] = await Promise.all([
+          loadCachedJSON(`assets/char/looks/${name}.json`),
+          loadCachedImage(`assets/char/looks/${name}.png`),
+        ]);
+        lookCache.set(name, { sheet, img });
+      } catch (err) {
+        console.warn("[tour] 形象不可用", name, err?.message || err);
+      }
+    }),
+  );
+  if (!lookCache.size) throw new Error("没有可用的角色形象");
+}
+
+/** 切到第 i 个场景该用的形象；同步生效，下一帧就画新立绘。 */
+function applyLook(i) {
+  const avail = LOOKS.filter((n) => lookCache.has(n));
+  if (!avail.length) return;
+  const name = lookFor(i, avail);
+  const hit = lookCache.get(name);
+  charSheet = hit.sheet;
+  charImg = hit.img;
+  tour.look = name;
+}
 
 // ---------- 布局 ----------
 
@@ -456,18 +493,20 @@ function walkDistance(px) {
 
 function advance(dt) {
   // 里程模式：只推进 x，不查路径、不判到达格子；换图由编排层在里程耗尽时接管。
+  // 街景用更快的步速（STREET_CELLS_PER_SEC）：出门后是赶路不是散步，
+  // 原来 0.35s/格 让每段要 5.1s，观感拖沓。
   if (tour.runLeft > 0) {
     const e = entryOf();
     const grid = e?.scene?.grid;
     if (grid) {
       const c = grid.cell || CELL_DEFAULT;
-      const step = CELLS_PER_SEC * c * dt;
+      const step = STREET_CELLS_PER_SEC * c * dt;
       const nextX = tour.pos.x + step;
       // 不越过地图右缘：到边就停在最后一条可走格上，等编排层换图。
       const maxX = (grid.w - 0.5) * c;
       tour.pos.x = Math.min(nextX, maxX);
       tour.runLeft -= step;
-      tour.frame += dt * 8;
+      tour.frame += dt * 10;
       if (tour.runLeft <= 0) {
         tour.runLeft = 0;
         const done = tour.runDone;
@@ -653,6 +692,11 @@ async function stripSequence(fromIndex) {
     const e = world.entries[i];
     const grid = e.scene.grid;
 
+    // 每换一次场景就换一套立绘：鲸鱼娘 → 亚托莉 → 初音，循环。
+    // 序号从**家**算起（world.cur），不是从街景首段算起——
+    // 否则家和书店都用第 0 套，第一次换场看不出变化。
+    applyLook(i);
+
     // 落点：x 精确放在 startPx（屏幕 40% 处），y 精确取本段的行走行 e.row
     // （outside 门行上移 2 格，见 tourlayout.walkingRowPx / 布局里的退格）。
     // 两者都不能对齐到"格中心"：差半格会被 k≈5.9 放大成 40~70px 的换图跳变（实测 556 vs 509）。
@@ -685,8 +729,8 @@ async function runTour() {
   if (missing.length) console.warn("[tour]", missingText);
 
   try {
-    charSheet = await loadCachedJSON("assets/char/ojj_sheet.json");
-    charImg = await loadCachedImage("assets/char/ojj_sheet.png");
+    await loadLooks();
+    applyLook(0);
   } catch (err) {
     console.warn("[tour] 角色图集缺失，退回无角色画面", err?.message || err);
   }
@@ -899,6 +943,8 @@ window.__tour = {
   tour,
   opts,
   entries: () => world.entries.map((e) => ({ id: e.id, mode: e.mode, k: e.k, camMax: Math.round(e.camMax) })),
+  looks: () => [...lookCache.keys()],
+  applyLook,
   startRecording: () => recorder.start(),
   stopRecording: () => recorder.stop(),
   isRecording: () => recorder.active(),
