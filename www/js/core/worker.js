@@ -32,7 +32,7 @@ import { createBehaviorRegistry } from "./actions/registry.js";
 import { pickBehavior } from "./actions/plan.js";
 import { createWakeRuntime } from "./wake/runtime.js";
 import { createRecordAgent } from "./agent/subs/record.js";
-import { createBrowsePlanner, searchBing, validatePublicUrl } from "./actions/browse.js";
+import { createBrowsePlanner, pickSearchCandidates, searchBing } from "./actions/browse.js";
 import { createDoctor } from "./doctor.js";
 import { createMoodPolicy } from "./mood/policy.js";
 import { cleanupTombstones, mergeBatch, mergeRecord } from "./sync/merge.js";
@@ -116,7 +116,6 @@ let wake = null;
 let behaviors = null;
 let behaviorLog = [];
 let netLog = [];
-let browseUrl = "https://www.weather.com.cn/weather/101010100.shtml";
 let wakeRuntime = null;
 let recordAgent = null;
 let browsePlanner = null;
@@ -475,8 +474,6 @@ const ready = (async () => {
   behaviors = createBehaviorRegistry({ custom: (await kvBackend.get("behavior_pool")) || [] });
   behaviorLog = (await kvBackend.get("behavior_log")) || [];
   netLog = (await kvBackend.get("net_log")) || [];
-  const bcfg = await kvBackend.get("behavior_config");
-  if (bcfg?.browseUrl) browseUrl = bcfg.browseUrl;
   await localMemory.init();
   await scheduler.init();
   if (Date.now() - eventPool.updatedAt > 6 * 3600 * 1000) {
@@ -722,16 +719,21 @@ async function browseBehavior() {
   }
 
   const candidates = [];
-  if (plan.ok && plan.mode === "search") {
+  if (plan.ok) {
     const sr = await searchBing(plan.query);
-    for (const hit of sr.results.slice(0, 3)) {
-      if (validatePublicUrl(hit.url) !== null) continue;
+    // 先跳过最近看过的，再从随机位置按序尝试：换页 + 首条抓不到时还有后备。
+    const picks = pickSearchCandidates(sr.results, {
+      recent: netLog.slice(0, 10).map((e) => ({ url: e.url, topic: e.resultTitle || "" })),
+    });
+    for (const hit of picks) {
       candidates.push({ url: hit.url, topic: plan.query, reason: plan.reason, query: plan.query, resultTitle: hit.title, searchCount: sr.results.length });
     }
-  } else if (plan.ok) {
-    candidates.push({ url: plan.url, topic: plan.topic || "", reason: plan.reason || "", query: "", resultTitle: "", searchCount: 0 });
   }
-  if (!candidates.length) candidates.push({ url: browseUrl, topic: "", reason: "", query: "", resultTitle: "", searchCount: 0 });
+  // 没有搜索结果就本次不浏览：不回退到固定页面，目标必须由搜索产生。
+  if (!candidates.length) {
+    if (ledger) void ledger.record({ kind: "browse", ok: false, ms: Date.now() - t0, error: "no_search_result" });
+    return { ok: false, reason: "no_search_result", plan: plan.ok ? { query: plan.query } : { reason: plan.reason } };
+  }
 
   const attempts = [];
   for (const c of candidates) {
@@ -777,7 +779,7 @@ async function browseBehavior() {
       kind: "network",
       url: c.url,
       excerpt,
-      plan: plan.ok ? { mode: plan.mode, topic: c.topic, query: c.query, reason: c.reason } : null,
+      plan: plan.ok ? { query: c.query, reason: c.reason } : null,
       search: c.searchCount ? { count: c.searchCount, title: c.resultTitle } : null,
       attempts,
     };
@@ -1634,11 +1636,6 @@ const handlers = {
       const b = behaviors.get(p.args?.id);
       if (!b) return { ok: false, reason: "not_found" };
       return { ok: true, behavior: b.id, result: await runBehavior(b, { reason: "manual" }) };
-    }
-    if (p.name === "behavior_config") {
-      if (p.args?.browseUrl) browseUrl = String(p.args.browseUrl);
-      await kvBackend.put("behavior_config", { browseUrl });
-      return { ok: true, browseUrl };
     }
     if (p.name === "browse_plan") {
       const r = await browsePlanner.plan({

@@ -257,7 +257,7 @@ function renderBrowses(rows) {
     ? rows.slice().reverse().map((b) => {
         const page = b.result?.page;
         const list = b.result?.results?.slice(0, 3) || [];
-        return `<div class="row"><b>${esc(b.plan?.query || b.plan?.url || "浏览")}</b><div class="pre">${esc(page?.title || "")}${page?.text ? `\n${esc(page.text.slice(0, 300))}` : ""}${list.length ? `\n${esc(list.map((r) => r.title + " " + r.url).join("\n"))}` : ""}</div></div>`;
+        return `<div class="row"><b>${esc(b.plan?.query || "浏览")}</b><div class="pre">${esc(page?.title || "")}${page?.text ? `\n${esc(page.text.slice(0, 300))}` : ""}${list.length ? `\n${esc(list.map((r) => r.title + " " + r.url).join("\n"))}` : ""}</div></div>`;
       }).join("")
     : '<div class="empty">还没有浏览记录</div>';
 }

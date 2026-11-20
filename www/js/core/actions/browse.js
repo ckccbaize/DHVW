@@ -1,14 +1,6 @@
-// AI 决定浏览目标（W28b）：LLM 给主题/URL → 校验白名单 → /__fetch。
+// AI 自助搜索（W28b）：LLM 只给搜索词 → /__search（Bing HTML）→ 挑一条 → /__fetch。
+// 不再支持模型直接给 URL/域名白名单：目标必须由搜索产生，避免退化成固定页面。
 import { extractJson } from "../agent/json.js";
-
-export const DEFAULT_HOSTS = [
-  "weather.com.cn",
-  "cn.bing.com",
-  "www.bing.com",
-  "zh.wikipedia.org",
-  "news.qq.com",
-  "www.people.com.cn",
-];
 
 const PRIVATE_RE = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|::1$|\[::1\]$|.*\.local$)/i;
 
@@ -33,35 +25,33 @@ export function validatePublicUrl(raw) {
   return null;
 }
 
-export function validateBrowseTarget(obj, { hosts = DEFAULT_HOSTS } = {}) {
+/** 只接受一个搜索词；URL/主题会被拒，目标必须由搜索产生。 */
+export function validateBrowseTarget(obj) {
   if (!obj || typeof obj !== "object" || Array.isArray(obj)) return "not_object";
-  if (obj.query !== undefined) {
-    const q = String(obj.query).trim();
-    if (q.length < 2 || q.length > 80) return "bad_query";
-    return null;
-  }
-  if (obj.url) {
-    let u;
-    try {
-      u = new URL(String(obj.url));
-    } catch {
-      return "bad_url";
-    }
-    if (u.protocol !== "http:" && u.protocol !== "https:") return "bad_scheme";
-    if (u.username || u.password) return "has_credentials";
-    if (isPrivateHost(u.hostname)) return "private_host";
-    const allowed = hosts.some((h) => u.hostname === h || u.hostname.endsWith(`.${h}`));
-    if (!allowed) return "host_not_allowed";
-    return null;
-  }
-  const topic = String(obj.topic ?? "").trim();
-  if (topic.length < 2 || topic.length > 60) return "bad_topic";
+  if (obj.url !== undefined || obj.topic !== undefined) return "not_search";
+  const q = String(obj.query ?? "").trim();
+  if (q.length < 2 || q.length > 80) return "bad_query";
   return null;
 }
 
-export function targetUrl({ topic = "", url = "" } = {}) {
-  if (url) return url;
-  return `https://cn.bing.com/search?q=${encodeURIComponent(topic)}`;
+/**
+ * 把搜索结果排成尝试顺序：先跳过看过的，再从随机位置开始（轮转），
+ * 这样既能换页、又不固定第一页，且前一页抓不到时还有后备。
+ */
+export function pickSearchCandidates(results = [], { recent = [], random = Math.random, limit = 3 } = {}) {
+  const usable = (Array.isArray(results) ? results : []).filter((r) => r && r.url && validatePublicUrl(r.url) === null);
+  if (!usable.length) return [];
+  const seen = new Set(
+    recent.map((r) => `${String(r?.url || "")}|${String(r?.topic || "")}`).filter((s) => s !== "|"),
+  );
+  const fresh = usable.filter((r) => !seen.has(`${r.url}|${r.title || ""}`));
+  const pool = fresh.length ? fresh : usable;
+  const start = Math.min(pool.length - 1, Math.floor(random() * pool.length));
+  const out = [];
+  for (let i = 0; i < pool.length && out.length < limit; i++) {
+    out.push(pool[(start + i) % pool.length]);
+  }
+  return out;
 }
 
 export async function searchBing(query, { fetchImpl = globalThis.fetch, n = 5 } = {}) {
@@ -71,14 +61,7 @@ export async function searchBing(query, { fetchImpl = globalThis.fetch, n = 5 } 
   return { ok: true, query, results: data.results || [] };
 }
 
-export function pickSearchResult(results = []) {
-  for (const r of results) {
-    if (validatePublicUrl(r.url) === null) return r;
-  }
-  return null;
-}
-
-export function createBrowsePlanner({ llm, registry, hosts = DEFAULT_HOSTS, now = () => Date.now() } = {}) {
+export function createBrowsePlanner({ llm, registry, now = () => Date.now() } = {}) {
   if (!llm) throw new Error("createBrowsePlanner 需要 llm");
   if (!registry) throw new Error("createBrowsePlanner 需要 registry");
 
@@ -89,7 +72,6 @@ export function createBrowsePlanner({ llm, registry, hosts = DEFAULT_HOSTS, now 
       threads: JSON.stringify(threads.slice(0, 5)),
       recent: JSON.stringify(recent.slice(0, 3).map((r) => ({ url: r.url, topic: r.topic }))),
       mood: JSON.stringify(mood),
-      hosts: hosts.join(", "),
     });
     let res;
     try {
@@ -105,23 +87,11 @@ export function createBrowsePlanner({ llm, registry, hosts = DEFAULT_HOSTS, now 
       return { ok: false, reason: "llm_failed", error: err.message };
     }
     const obj = extractJson(res.text);
-    const reason = obj ? validateBrowseTarget(obj, { hosts }) : "invalid_json";
+    const reason = obj ? validateBrowseTarget(obj) : "invalid_json";
     if (reason) return { ok: false, reason };
-    if (obj.query !== undefined) {
-      return {
-        ok: true,
-        mode: "search",
-        query: String(obj.query).trim(),
-        reason: String(obj.reason || "").trim(),
-        raw: res.text,
-        ts: now(),
-      };
-    }
     return {
       ok: true,
-      mode: "url",
-      topic: String(obj.topic || "").trim(),
-      url: targetUrl(obj),
+      query: String(obj.query).trim(),
       reason: String(obj.reason || "").trim(),
       raw: res.text,
       ts: now(),

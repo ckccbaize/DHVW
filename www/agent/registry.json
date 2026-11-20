@@ -1,6 +1,6 @@
 {
  "version": 1,
- "built_at": "2026-11-20T08:41:57.214Z",
+ "built_at": "2026-11-20T09:07:53.890Z",
  "skills": {
   "behavior-record": {
    "name": "behavior-record",
@@ -15,14 +15,14 @@
   },
   "browse-plan": {
    "name": "browse-plan",
-   "description": "决定这次上网看什么：给出主题与一个可抓取的 URL",
+   "description": "决定这次上网搜什么：只给出一个搜索词",
    "class": "work",
    "prompt": "browse-plan",
-   "maxTokens": 3000,
+   "maxTokens": 6000,
    "temperature": 0.8,
    "tools": [],
    "output": "json",
-   "body": "# 使用时机\n\n`browse` 行为执行前调用；由角色兴趣、开放线头、最近浏览与心情决定目标。\n\n# 约束\n\n- 只输出一个目标，优先给 `url`；没有具体页面就给 `topic`，由核心机拼搜索页；\n- 只能访问公网 http(s)，禁止内网/元数据/凭据；\n- 域名必须在设备白名单内（天气、Bing、维基、新闻等）；\n- 给出 `reason`，说明为什么想看这个。\n"
+   "body": "# 使用时机\n\n`browse` 行为执行前调用；由角色兴趣、开放线头、最近浏览与心情决定搜什么。\n\n# 约束\n\n- 只输出一个 `query`；不给 URL、不给域名、不指定网站——具体看哪一页由搜索结果决定；\n- 搜索词要具体，能搜到有内容的页面；避免只给泛词；\n- 不要与最近看过的主题重复；\n- 只能访问公网 http(s)，禁止内网/元数据/凭据；\n- 给出 `reason`，说明为什么想搜这个。\n"
   },
   "doctor": {
    "name": "doctor",
@@ -93,7 +93,7 @@
  },
  "prompts": {
   "behavior-record": "她刚做了：{{name}}（{{kind}}）\n地点：{{place}}\n事件细节：{{detail}}\n心情变化：{{before}} → {{after}}\n\n写一条 20-60 字的留档，包含\"做了什么\"和\"心情变化\"，只输出 JSON：\n{\"summary\":\"...\",\"mood\":\"...\",\"evidence\":\"可选证据\"}\n\n要求：具体、克制；不写台词；不解释系统；evidence 只在有真实抓取/产物时填写。\n",
-  "browse-plan": "她的兴趣/线头：{{threads}}\n最近看过：{{recent}}\n当前心情：{{mood}}\n可访问域名：{{hosts}}\n\n决定这次上网看什么，只输出 JSON：\n{\"query\":\"搜索词\",\"reason\":\"为什么想看\"}\n\n规则：\n- 只输出 query，让搜索引擎去找，不要猜具体 URL；\n- 只给一个目标；\n- 禁止内网/凭据。\n",
+  "browse-plan": "她的兴趣/线头：{{threads}}\n最近看过：{{recent}}\n当前心情：{{mood}}\n\n决定这次上网搜什么，只输出 JSON：\n{\"query\":\"搜索词\",\"reason\":\"为什么想看\"}\n\n规则：\n- 只给一个 query，由搜索引擎去找；不要说要看哪个网站、不要猜 URL、不要指定域名；\n- 搜索词要具体（人物/地点/事件/疑问），不要只写一个泛词；\n- 换点新鲜的，别和「最近看过」重复；\n- 只给一个目标，禁止内网/凭据。\n",
   "character-wake": "现在：{{now}}\n你刚经历：{{input}}\n你此刻的心情：{{mood}}\n\n开口要求：1-2 句口语，接着这个片段说；不要解释你在做什么，不要说\"我注意到\"，不要提问式追问，不要提及记录或系统。\n",
   "doctor": "问题：{{issues}}\n状态：{{state}}\n最近日志：{{logs}}\n\n只输出 JSON：\n{\"diagnosis\":\"一句话判断\",\"actions\":[{\"type\":\"动作\",\"args\":{}}],\"safeMode\":false}\n\n动作只能从这些里选：clear_event_log、trim_memory、pause_agent、resume_agent、reset_budget、enter_safe_mode、exit_safe_mode、snapshot_save。\n最多 3 个；不确定就留空。\n",
   "event-pool": "已有事件（不要重复）：{{existing}}\n\n生成 {{count}} 条新的日常生活事件，只输出 JSON：\n{\"events\":[{\"text\":\"4-24字事件\",\"hours\":[8,9],\"place\":\"kitchen\",\"mood\":{\"valence\":0.05},\"imageQuery\":\"英文检索词\"}]}\n\n要求：\n- 具体、能拍成一个画面，写她正在做的一件小事；\n- hours 用 0-23 的整数数组，覆盖不同时段；\n- place 只能是 living/hall/bedroom/bath/balcony/kitchen；\n- mood 只允许 energy/valence/social/focus，单项 ±0.3；\n- 不要与已有事件重复，也不要写台词或抽象情绪。\n",

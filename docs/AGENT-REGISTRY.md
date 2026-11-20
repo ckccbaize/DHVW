@@ -153,15 +153,17 @@ LLM 失败/非法输出时回退 `pickDestination`，不阻塞状态机。
 - 写入 `behavior_log`（含 before/after 心情快照）与 `behavior:recorded` 事件；
 - LLM 失败时记 `record.error`，行为本身不回滚。
 
-## 10. AI 浏览目标（W28b）
+## 10. AI 自助搜索（W28b）
 
 `core/actions/browse.js`：
 
-- LLM 输出 `{query, reason}` 或 `{topic, url, reason}`，只能给一个目标；
+- LLM 只输出 `{query, reason}`；给 `url`/`topic` 一律按 `not_search` 拒绝，目标必须由搜索产生；
 - `query` 走 `/__search`（Bing HTML 解析，无 key），模型可自由决定搜索词；
 - 搜索结果逐个尝试，跳过内网/拦截页/过短正文，最多 3 个；
-- 直接给 URL 时必须 http(s)、无凭据、非内网、域名在白名单；
+- 没有可用结果就本次不浏览（`no_search_result`），不回退到任何固定页面；
 - 抓取结果写 `net_log`（含 query/resultTitle/attempts），并进入行为留档。
+
+触发概率：行为池 `browse` 权重 0.9、冷却 100 分钟；`runtime/local.js` 自动浏览间隔 60 分钟。
 
 ## 11. 新增技能
 
