@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-20T11:03:30.903Z",
+ "built_at": "2026-11-20T12:01:56.540Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -964,8 +964,8 @@
   },
   {
    "path": "js/app.js",
-   "size": 66784,
-   "sha256": "e660d8cc0d44aae97ff026a73ba1ff8fdbaec927a3dd7f02ce09669b802c3b0a"
+   "size": 67126,
+   "sha256": "10d0c86391edd727986aff439b055715ef47fcdd7c7e4cd676953a98d519caa3"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -1091,6 +1091,11 @@
    "path": "js/core/life/plan.js",
    "size": 3781,
    "sha256": "9b8c4e8588428600aaa464e1912db7b1f38d135bc7322450d39189910d5ab506"
+  },
+  {
+   "path": "js/core/life/scene-dedupe.js",
+   "size": 2882,
+   "sha256": "0b5d9edd00877008339d56d11d9c1d5b2ec860d0c29d416cbc8723a6123a9b40"
   },
   {
    "path": "js/core/lifestore.js",
@@ -1264,8 +1269,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 60519,
-   "sha256": "796f9376294e5f6177abe2ac1c83025a8f0e4830fcf09b2cc5f9a97a5d5e2bab"
+   "size": 65065,
+   "sha256": "b265b41c21b93f1f98bc213c02e8bb23b3e12e2fa0300959aedf7e3fb3647148"
   },
   {
    "path": "js/runtime/qq-bridge.js",

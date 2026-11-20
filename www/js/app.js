@@ -1021,7 +1021,9 @@ async function boot() {
       case "scene:ready": {
         void (async () => {
           const req = await local.findSceneRequest(p).catch(() => null);
-          const alias = String(req?.placeId || p.placeId || "").trim();
+          // 请求表可能已被清理，此时用推送载荷里的 placeId 兜底；再退一步按地点名匹配已知地点，
+          // 否则包只落进 job 目录、没有别名副本，设备会一直认为该地点缺场景并重复申请。
+          const alias = String(req?.placeId || p.placeId || "").trim() || (await local.placeIdForName?.(p.name)) || "";
           const cached = await cacheSceneAssets(p, alias).catch((err) => {
             console.warn("[remote] 场景资源缓存失败", p.sceneId || p.job, err);
             return false;
@@ -1031,7 +1033,7 @@ async function boot() {
             store.emit("scene_ready_failed", { ...p, placeId: alias || undefined, reason: "cache_failed" });
             return;
           }
-          const ready = await local.markSceneReady(p).catch(() => null);
+          const ready = await local.markSceneReady({ ...p, placeId: alias || undefined }).catch(() => null);
           const id = String(ready?.placeId || alias || p.sceneId || p.job || p.id || "").trim();
           if (!id) return;
           await local.addPlace({
