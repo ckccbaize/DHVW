@@ -3,7 +3,7 @@ name: browse-plan
 description: 决定这次上网看什么：给出主题与一个可抓取的 URL
 class: work
 prompt: browse-plan
-maxTokens: 300
+maxTokens: 3000
 temperature: 0.8
 tools: []
 output: json

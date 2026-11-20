@@ -28,7 +28,8 @@ test("buildRegistry：仓库内 skills/prompts 合法", async () => {
   const wake = registry.skills["wake-character"];
   assert.equal(wake.class, "character");
   assert.equal(wake.prompt, "character-wake");
-  assert.equal(wake.maxTokens, 200);
+  // 推理模型的 reasoning 与正文共享 max_tokens，预算必须留出思考开销
+  assert.equal(wake.maxTokens, 2000);
   assert.ok(registry.prompts["character-wake"].includes("{{input}}"));
 });
 

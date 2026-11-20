@@ -636,7 +636,7 @@ export function createLocalRuntime({
     try {
       const res = await llm.complete({
         messages: [{ role: "user", content: prompt }],
-        maxTokens: 220,
+        maxTokens: 4000,
         temperature: 0.8,
         json: true,
         cls: "work",
@@ -697,7 +697,7 @@ export function createLocalRuntime({
     try {
       const res = await llm.complete({
         messages: [{ role: "user", content: prompt }],
-        maxTokens: 900,
+        maxTokens: 8000,
         temperature: 0.7,
         json: true,
         cls: "work",
@@ -917,7 +917,7 @@ export function createLocalRuntime({
         if (attempt > 1) prompt += `\n\n上一稿不合格：${reason}。请重写，严格满足要求。`;
         const res = await llm.complete({
           messages: [{ role: "user", content: prompt }],
-          maxTokens: kind === "weekly" ? 650 : 500,
+          maxTokens: kind === "weekly" ? 6000 : 5000,
           temperature: kind === "novel" ? 0.7 : 0.8,
           cls: "work",
           kind: "writing",

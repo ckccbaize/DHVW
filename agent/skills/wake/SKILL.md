@@ -3,7 +3,7 @@ name: wake
 description: 设备档醒来：严格 JSON 三结局，产出 fact/content/share/residue
 class: character
 prompt: wake
-maxTokens: 600
+maxTokens: 4000
 temperature: 0.8
 tools: []
 output: json

@@ -35,7 +35,7 @@ export function createLlmClient({
           ...(provider.apiKey ? { Authorization: `Bearer ${provider.apiKey}` } : {}),
         };
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs ?? provider.timeoutMs ?? 30000);
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs ?? provider.timeoutMs ?? 180000);
     if (externalSignal) {
       if (externalSignal.aborted) ctrl.abort();
       else externalSignal.addEventListener("abort", () => ctrl.abort(), { once: true });
@@ -66,7 +66,18 @@ export function createLlmClient({
         const msg = data?.error?.message ? `LLM 返回错误: ${data.error.message}` : "LLM 返回缺少 content";
         throw Object.assign(new Error(msg), { code: "bad_shape" });
       }
-      return { text: content, usage: data.usage || null, model: data.model || provider.model };
+      const finish = data?.choices?.[0]?.finish_reason ?? null;
+      const usage = data.usage || null;
+      // 推理模型的 reasoning_content 与正文共享 max_tokens：预算不足时 200 OK 但正文空/半截。
+      // 这种情况必须如实报“预算不够”，否则上层只能看到“空剧情/空文本”，查不到根因。
+      if (finish === "length" && !content.trim()) {
+        const think = Number(usage?.completion_tokens_details?.reasoning_tokens || 0);
+        throw Object.assign(
+          new Error(`LLM 推理吃满 max_tokens=${body.max_tokens}，正文为空（reasoning ${think} tokens）`),
+          { code: "truncated", status: null, finish, usage },
+        );
+      }
+      return { text: content, usage, model: data.model || provider.model, finish };
     } catch (err) {
       if (err && err.name === "AbortError") {
         throw Object.assign(new Error("LLM 超时/中止"), { code: "timeout" });
@@ -91,7 +102,9 @@ export function createLlmClient({
    */
   async function complete({
     messages,
-    maxTokens = 800,
+    // 推理模型把 reasoning_content 也算进 max_tokens：正文还没开始就被截断，
+    // 表现为“响应 200 但 content 是思考链/空”。正文预算必须在上限之上额外留出。
+    maxTokens = 4096,
     temperature = 0.3,
     json = false,
     signal,

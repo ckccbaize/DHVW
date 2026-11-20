@@ -362,7 +362,7 @@ async function maybeLlmThought() {
           messages: [
             { role: "user", content: promptText },
           ],
-          max_tokens: 120,
+          max_tokens: 3000,
           temperature: 0.8,
           ...(llmCfg.reasoningEffort !== false ? { reasoning_effort: llmCfg.reasoningEffort || "none" } : {}),
         },

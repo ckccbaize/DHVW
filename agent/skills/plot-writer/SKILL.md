@@ -3,7 +3,7 @@ name: plot-writer
 description: 工作层：根据生活事件生成 30-80 字剧情
 class: work
 prompt: plot
-maxTokens: 400
+maxTokens: 8000
 temperature: 0.5
 tools: []
 output: json
