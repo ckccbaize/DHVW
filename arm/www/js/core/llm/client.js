@@ -35,7 +35,7 @@ export function createLlmClient({
           ...(provider.apiKey ? { Authorization: `Bearer ${provider.apiKey}` } : {}),
         };
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs ?? provider.timeoutMs ?? 30000);
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs ?? provider.timeoutMs ?? 180000);
     if (externalSignal) {
       if (externalSignal.aborted) ctrl.abort();
       else externalSignal.addEventListener("abort", () => ctrl.abort(), { once: true });
@@ -63,10 +63,29 @@ export function createLlmClient({
       }
       const content = data?.choices?.[0]?.message?.content;
       if (typeof content !== "string") {
-        const msg = data?.error?.message ? `LLM 返回错误: ${data.error.message}` : "LLM 返回缺少 content";
-        throw Object.assign(new Error(msg), { code: "bad_shape" });
+        // 不带原始响应就无法区分“上游报错”“被代理截断”“只有思考没有正文”。
+        const head = JSON.stringify(data ?? null).slice(0, 400);
+        const msg = data?.error?.message
+          ? `LLM 返回错误: ${data.error.message}`
+          : `LLM 返回缺少 content（原始响应 ${head}）`;
+        throw Object.assign(new Error(msg), { code: "bad_shape", body: head });
       }
-      return { text: content, usage: data.usage || null, model: data.model || provider.model };
+      const finish = data?.choices?.[0]?.finish_reason ?? null;
+      const usage = data.usage || null;
+      // 推理模型的 reasoning_content 与正文共享 max_tokens：预算不足时 200 OK 但正文空/半截。
+      // 这种情况必须如实报“预算不够”，否则上层只能看到“空剧情/空文本”，查不到根因。
+      const think = Number(usage?.completion_tokens_details?.reasoning_tokens || 0);
+      if (!content.trim()) {
+        throw Object.assign(
+          new Error(
+            finish === "length"
+              ? `LLM 推理吃满 max_tokens=${body.max_tokens ?? "unlimited"}，正文为空（reasoning ${think} tokens）`
+              : `LLM 正文为空（finish=${finish}，思考占 ${body.max_tokens ?? "unlimited"} 预算）`,
+          ),
+          { code: "empty_content", status: null, finish, usage },
+        );
+      }
+      return { text: content, usage, model: data.model || provider.model, finish };
     } catch (err) {
       if (err && err.name === "AbortError") {
         throw Object.assign(new Error("LLM 超时/中止"), { code: "timeout" });
@@ -91,7 +110,9 @@ export function createLlmClient({
    */
   async function complete({
     messages,
-    maxTokens = 800,
+    // 推理模型把 reasoning_content 也算进 max_tokens：正文还没开始就被截断，
+    // 表现为“响应 200 但 content 是思考链/空”。正文预算必须在上限之上额外留出。
+    maxTokens = 4096,
     temperature = 0.3,
     json = false,
     signal,
@@ -103,16 +124,22 @@ export function createLlmClient({
     if (!provider || !provider.baseUrl || !provider.model) {
       throw Object.assign(new Error("LLM 未配置（baseUrl/model）"), { code: "not_configured" });
     }
+    const localMode = isLocalLlamaProvider(provider);
+    const effectiveTemp = localMode
+      ? temperature <= 0.4
+        ? Math.min(0.65, Number((temperature + 0.25).toFixed(2)))
+        : Math.min(1.2, Number((Math.max(temperature, 1.0) + 0.05).toFixed(2)))
+      : temperature;
     const body = {
       model: provider.model,
       messages,
-      max_tokens: maxTokens,
-      temperature,
+      ...(!localMode ? { max_tokens: maxTokens } : {}),
+      temperature: effectiveTemp,
       stream: false,
     };
-    const useJsonFormat = json && !(isLocalLlamaProvider(provider) && provider.reasoningEffort !== false);
+    const useJsonFormat = json;
     if (useJsonFormat) body.response_format = { type: "json_object" };
-    if (provider.reasoningEffort !== false) body.reasoning_effort = provider.reasoningEffort || "none";
+    if (!localMode && provider.reasoningEffort !== false) body.reasoning_effort = provider.reasoningEffort || "none";
 
     const attempts = Math.max(1, Number(provider.maxAttempts) || 1);
     let lastErr = null;
@@ -136,6 +163,7 @@ export function createLlmClient({
           err.code === "network" ||
           err.code === "bad_json" ||
           err.code === "bad_shape" ||
+          err.code === "empty_content" ||
           (Number.isFinite(status) && TRANSIENT_STATUS(status)) ||
           (!err.code && !status); // 网络错误（fetch 抛 TypeError）
 

@@ -6,6 +6,8 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 import { QQOfficialClient, MsgDedupRing, WindowLedger, normalizeQqInboundContent } from "../dist/src/qq-official-client.js";
+import { FeishuClient, encodePbFrame, decodePbFrame } from "../dist/src/feishu-client.js";
+import { startDhvwQqService } from "../dist/dhvw-server.js";
 import { resolveSnowLumaAccount } from "../dist/src/config.js";
 import { createAggregator } from "../dist/src/aggregator.js";
 import { dispatchBatch } from "../dist/src/dispatch.js";
@@ -214,7 +216,7 @@ describe("openclaw-snowluma 管道整合 (aggregator + image + dispatch + dhvw-r
     const runtime = createDhvwRuntime({
       mediaDir,
       stateDir,
-      getLlmConfig: () => ({ baseUrl: "https://llm.example/v1", apiKey: "k", model: "vision-test" }),
+      getLlmConfig: () => ({ baseUrl: "https://llm.example/v1", apiKey: "k", model: "vision-test", supportsVision: true }),
       getWorldState: () => ({ day: 3, minute: 900, phase: "afternoon", weather: "clear", place: "living_room", mood: { valence: 0.6, social: 0.5 }, band: "calm" }),
       queryMemory: async (text, k, mood) => {
         memoryQueries.push({ text, k, mood });
@@ -600,7 +602,7 @@ describe("图片表情包采集（偷图）与语境挑图发送 (sticker-store 
       mediaDir,
       stateDir,
       sticker: { enabled: true, autoCollect: true, eagerness: 3, maxStickers: 50 },
-      getLlmConfig: () => ({ baseUrl: "https://llm.example/v1", model: "vision" }),
+      getLlmConfig: () => ({ baseUrl: "https://llm.example/v1", model: "vision", supportsVision: true }),
       getWorldState: () => ({ phase: "evening", weather: "clear", mood: { valence: 0.3, social: 0.6 }, band: "low" }),
       fetchImpl,
     });
@@ -1174,6 +1176,42 @@ describe("图片表情包采集（偷图）与语境挑图发送 (sticker-store 
     assert.ok(prompts[0].includes("parts 仅填 1 句"));
     assert.ok(prompts[0].includes("说话节奏参考"));
 
+    // 校验连续温和端水回复会触发【拒绝端水与老好人】约束
+    const neutralDir = fs.mkdtempSync(path.join(os.tmpdir(), "dhvw-neutral-guard-"));
+    fs.writeFileSync(
+      path.join(neutralDir, "history.json"),
+      JSON.stringify([
+        { role: "user", text: "黄焖鸡还是沙县", ts: 1 },
+        { role: "assistant", text: "各有各的好，都挺不错的", ts: 2 },
+        { role: "user", text: "今晚不想写代码了", ts: 3 },
+        { role: "assistant", text: "那就先放一边，劳逸结合也挺好", ts: 4 },
+      ]),
+      "utf8",
+    );
+    const neutralPrompts = [];
+    const rtNeutral = createDhvwRuntime({
+      stateDir: neutralDir,
+      mediaDir: path.join(neutralDir, "m"),
+      partDelayMs: 0,
+      sticker: { enabled: false },
+      getLlmConfig: () => ({ baseUrl: "http://llm.local/v1", model: "test-m", apiKey: "k" }),
+      fetchImpl: async (_url, init) => {
+        neutralPrompts.push(JSON.parse(init.body).messages[0].content);
+        return new Response(
+          JSON.stringify({ choices: [{ message: { content: JSON.stringify({ reply_mode: "reply", parts: ["少端水，黄焖鸡秒了"] }) } }] }),
+          { status: 200 },
+        );
+      },
+    });
+    await rtNeutral.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+      ctx: { CommandSource: "qq", RawBody: "我觉得他俩都一般", Body: "我觉得他俩都一般", BodyForAgent: "我觉得他俩都一般" },
+      dispatcherOptions: { deliver: async () => {} },
+    });
+    assert.equal(neutralPrompts.length, 1);
+    assert.ok(neutralPrompts[0].includes("拒绝端水与老好人"));
+    assert.ok(prompts[0].includes("语气词太少"));
+    fs.rmSync(neutralDir, { recursive: true, force: true });
+
     // 校验 frequency_penalty / presence_penalty 遇不支持模型自动降级重试，不崩
     const bodies = [];
     const rt2 = createDhvwRuntime({
@@ -1223,7 +1261,7 @@ describe("图片表情包采集（偷图）与语境挑图发送 (sticker-store 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("本地 Nemotron/llama 不带 response_format 以保住 reasoning_effort=none，且截断 JSON 绝不裸发给 QQ", async () => {
+  it("本地 Nemotron/llama 不关闭思考、不限制 max_tokens，且截断 JSON 绝不裸发给 QQ", async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dhvw-local-json-guard-"));
     const sentBodies = [];
     const delivered = [];
@@ -1248,8 +1286,9 @@ describe("图片表情包采集（偷图）与语境挑图发送 (sticker-store 
       ctx: { CommandSource: "qq", RawBody: "哈哈", Body: "哈哈", BodyForAgent: "哈哈" },
       dispatcherOptions: { deliver: async (m) => delivered.push(m) },
     });
-    assert.equal(sentBodies[0].response_format, undefined);
-    assert.equal(sentBodies[0].reasoning_effort, "none");
+    assert.deepEqual(sentBodies[0].response_format, { type: "json_object" });
+    assert.equal(sentBodies[0].max_tokens, undefined);
+    assert.equal(sentBodies[0].reasoning_effort, undefined);
     assert.equal(delivered.length, 0);
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
@@ -1295,7 +1334,9 @@ describe("图片表情包采集（偷图）与语境挑图发送 (sticker-store 
     assert.ok(searches[1].includes("三秋缒"));
     assert.equal(localBodies[0].frequency_penalty, 0.15);
     assert.equal(localBodies[0].presence_penalty, 0.1);
-    assert.ok(localBodies[0].temperature <= 0.72);
+    assert.equal(localBodies[0].max_tokens, undefined);
+    assert.equal(localBodies[0].reasoning_effort, undefined);
+    assert.ok(localBodies[0].temperature >= 1.0 && localBodies[0].temperature <= 1.2);
     assert.ok(localBodies[0].messages[0].content.includes("本地模型专用规则"));
     assert.ok(localBodies[0].messages[0].content.includes("《三日间的幸福》"));
     assert.ok(!localBodies[0].messages[0].content.includes("[不支持的元素类型]"));
@@ -1329,6 +1370,791 @@ describe("图片表情包采集（偷图）与语境挑图发送 (sticker-store 
     assert.equal(cloudBodies[0].frequency_penalty, 0.45);
     assert.equal(cloudBodies[0].presence_penalty, 0.35);
     assert.ok(!cloudBodies[0].messages[0].content.includes("本地模型专用规则"));
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("supportsVision 开关拦截无识图模型的 image_url；开启识图+生图+3D参考图时自动触发生活照溶图发送", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dhvw-qq-fusion-"));
+    const mediaDir = path.join(tmpDir, "media");
+    const stateDir = path.join(tmpDir, "state");
+    fs.mkdirSync(mediaDir, { recursive: true });
+    fs.mkdirSync(stateDir, { recursive: true });
+    const sceneImgPath = path.join(mediaDir, "cafe.png");
+    const ref3dPath = path.join(stateDir, "character_ref_3d.png");
+    fs.writeFileSync(sceneImgPath, TINY_PNG);
+    fs.writeFileSync(ref3dPath, TINY_PNG);
+
+    // 1. supportsVision=false -> 不向 LLM 传 image_url，也不注入 photo_fusion 规则
+    const noVisionBodies = [];
+    const rtNoVision = createDhvwRuntime({
+      stateDir: path.join(tmpDir, "nv"),
+      mediaDir,
+      partDelayMs: 0,
+      sticker: { enabled: false },
+      getLlmConfig: () => ({ baseUrl: "https://llm.example/v1", model: "text-only", apiKey: "k", supportsVision: false }),
+      getImageGenConfig: () => ({ enabled: true, protocol: "openai-chat-image", baseUrl: "https://img.example/v1", apiKey: "ik", model: "gpt-image" }),
+      getRef3dPath: () => ref3dPath,
+      fetchImpl: async (_url, init) => {
+        noVisionBodies.push(JSON.parse(init.body));
+        return new Response(
+          JSON.stringify({ choices: [{ message: { content: JSON.stringify({ reply_mode: "reply", parts: ["看到你发了图描述"] }) } }] }),
+          { status: 200 },
+        );
+      },
+    });
+    const nvDelivered = [];
+    await rtNoVision.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+      ctx: {
+        CommandSource: "qq",
+        RawBody: "看看我在咖啡馆",
+        Body: "看看我在咖啡馆",
+        BodyForAgent: "看看我在咖啡馆",
+        media: [{ path: sceneImgPath, mime: "image/png" }],
+      },
+      dispatcherOptions: { deliver: async (p) => nvDelivered.push(p) },
+    });
+    assert.equal(typeof noVisionBodies[0].messages[noVisionBodies[0].messages.length - 1].content, "string");
+    assert.ok(!noVisionBodies[0].messages[0].content.includes("photo_fusion"));
+    assert.equal(nvDelivered.filter((d) => d.mediaUrl).length, 0);
+
+    // 2. supportsVision=true + imageGen.enabled + ref3dPath -> 识图决策 photo_fusion 并生图发送
+    const visionBodies = [];
+    const imgGenRequests = [];
+    const fusionDelivered = [];
+    const rtFusion = createDhvwRuntime({
+      stateDir: path.join(tmpDir, "fus"),
+      mediaDir,
+      partDelayMs: 0,
+      sticker: { enabled: false },
+      getLlmConfig: () => ({ baseUrl: "https://llm.example/v1", model: "gpt-4o", apiKey: "k", supportsVision: true }),
+      getImageGenConfig: () => ({ enabled: true, protocol: "openai-chat-image", baseUrl: "https://img.example/v1", apiKey: "ik", model: "gpt-4o-image" }),
+      getRef3dPath: () => ref3dPath,
+      fetchImpl: async (url, init) => {
+        const body = JSON.parse(init.body);
+        if (url.startsWith("https://llm.example")) {
+          visionBodies.push(body);
+          return new Response(
+            JSON.stringify({
+              choices: [
+                {
+                  message: {
+                    content: JSON.stringify({
+                      reply_mode: "reply",
+                      parts: ["这家咖啡馆采光真好呀，我也坐过来陪你！"],
+                      photo_fusion: {
+                        should_generate: true,
+                        scene_desc: "木质咖啡馆窗边，阳光斜照",
+                        insert_position: "右侧靠窗空位",
+                        character_pose: "托腮微笑看向镜头",
+                        lighting_mood: "午后暖阳柔光",
+                        caption: "我也坐过来陪你啦~",
+                      },
+                    }),
+                  },
+                },
+              ],
+            }),
+            { status: 200 },
+          );
+        }
+        if (url.startsWith("https://img.example")) {
+          imgGenRequests.push({ url, body });
+          return new Response(
+            JSON.stringify({
+              choices: [
+                {
+                  message: {
+                    content: `![fused](data:image/png;base64,${TINY_PNG.toString("base64")})`,
+                  },
+                },
+              ],
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response("not found", { status: 404 });
+      },
+    });
+    await rtFusion.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+      ctx: {
+        CommandSource: "qq",
+        RawBody: "周末来咖啡馆啦",
+        Body: "周末来咖啡馆啦",
+        BodyForAgent: "周末来咖啡馆啦",
+        media: [{ path: sceneImgPath, mime: "image/png" }],
+      },
+      dispatcherOptions: { deliver: async (p) => fusionDelivered.push(p) },
+    });
+    const lastUserMsg = visionBodies[0].messages[visionBodies[0].messages.length - 1];
+    assert.ok(Array.isArray(lastUserMsg.content));
+    assert.ok(lastUserMsg.content.some((p) => p.type === "image_url"));
+    assert.ok(lastUserMsg.content.some((p) => p.type === "text" && p.text.includes("photo_fusion")));
+    assert.equal(imgGenRequests.length, 1);
+    const imgGenParts = imgGenRequests[0].body.messages[0].content;
+    assert.equal(imgGenParts.filter((p) => p.type === "image_url").length, 2);
+    assert.ok(imgGenParts[0].text.includes("右侧靠窗空位"));
+    assert.ok(imgGenParts[0].text.includes("托腮微笑看向镜头"));
+    assert.ok(imgGenParts[0].text.includes("Impasto"));
+    assert.ok(imgGenParts[0].text.includes("Backlighting"));
+    assert.ok(imgGenParts[0].text.includes("Muted/Desaturated Color Palette"));
+    const mediaReply = fusionDelivered.find((d) => d.mediaUrl);
+    assert.ok(mediaReply, "should deliver fused photo via mediaUrl");
+    assert.ok(fs.existsSync(mediaReply.mediaUrl));
+
+    // 3. 验证自定义 fusionStylePrompt 可覆盖默认风格
+    let customStylePrompt = "赛璐璐赛博朋克霓虹夜景风格";
+    const rtCustomStyle = createDhvwRuntime({
+      stateDir: path.join(tmpDir, "fus-custom"),
+      mediaDir,
+      partDelayMs: 0,
+      sticker: { enabled: false },
+      getLlmConfig: () => ({ baseUrl: "https://llm.example/v1", model: "gpt-4o", apiKey: "k", supportsVision: true }),
+      getImageGenConfig: () => ({
+        enabled: true,
+        protocol: "openai-chat-image",
+        baseUrl: "https://img.example/v1",
+        apiKey: "ik",
+        model: "gpt-4o-image",
+        fusionStylePrompt: customStylePrompt,
+      }),
+      getRef3dPath: () => ref3dPath,
+      fetchImpl: async (url, init) => {
+        const body = JSON.parse(init.body);
+        if (url.startsWith("https://llm.example")) {
+          return new Response(
+            JSON.stringify({
+              choices: [
+                {
+                  message: {
+                    content: JSON.stringify({
+                      reply_mode: "reply",
+                      parts: ["我也来啦"],
+                      photo_fusion: {
+                        should_generate: true,
+                        scene_desc: "天台夜景",
+                        insert_position: "栏杆旁",
+                        character_pose: "扶栏远眺",
+                        lighting_mood: "霓虹反光",
+                        caption: "看夜景呀",
+                      },
+                    }),
+                  },
+                },
+              ],
+            }),
+            { status: 200 },
+          );
+        }
+        imgGenRequests.push({ url, body });
+        return new Response(
+          JSON.stringify({ choices: [{ message: { content: `![fused](data:image/png;base64,${TINY_PNG.toString("base64")})` } }] }),
+          { status: 200 },
+        );
+      },
+    });
+    await rtCustomStyle.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+      ctx: { CommandSource: "qq", RawBody: "来看夜景", Body: "来看夜景", BodyForAgent: "来看夜景", media: [{ path: sceneImgPath, mime: "image/png" }] },
+      dispatcherOptions: { deliver: async () => {} },
+    });
+    assert.equal(imgGenRequests.length, 2);
+    const customImgText = imgGenRequests[1].body.messages[0].content[0].text;
+    assert.ok(customImgText.includes("赛璐璐赛博朋克霓虹夜景风格"));
+    assert.ok(!customImgText.includes("Impasto"));
+
+    // 4. openai-images 场景融图请求不得强制携带 size 字段（由模型自主判断尺寸）
+    let seenForm = null;
+    const rtOpenAiImg = createDhvwRuntime({
+      stateDir: path.join(tmpDir, "fus-oai"),
+      mediaDir,
+      partDelayMs: 0,
+      sticker: { enabled: false },
+      getLlmConfig: () => ({ baseUrl: "https://llm.example/v1", model: "gpt-4o", apiKey: "k", supportsVision: true }),
+      getImageGenConfig: () => ({
+        enabled: true,
+        protocol: "openai-images",
+        baseUrl: "https://img.example/v1",
+        apiKey: "ik",
+        model: "gpt-image-1",
+      }),
+      getRef3dPath: () => ref3dPath,
+      fetchImpl: async (url, init) => {
+        if (url.startsWith("https://llm.example")) {
+          return new Response(
+            JSON.stringify({
+              choices: [
+                {
+                  message: {
+                    content: JSON.stringify({
+                      reply_mode: "reply",
+                      parts: ["合张影！"],
+                      photo_fusion: {
+                        should_generate: true,
+                        scene_desc: "海边栈道",
+                        insert_position: "木栏杆边",
+                        character_pose: "比耶笑",
+                        lighting_mood: "海风暖阳",
+                        caption: "海边风好大",
+                      },
+                    }),
+                  },
+                },
+              ],
+            }),
+            { status: 200 },
+          );
+        }
+        seenForm = init.body;
+        return new Response(JSON.stringify({ data: [{ b64_json: TINY_PNG.toString("base64") }] }), { status: 200 });
+      },
+    });
+    await rtOpenAiImg.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+      ctx: { CommandSource: "qq", RawBody: "海边打卡", Body: "海边打卡", BodyForAgent: "海边打卡", media: [{ path: sceneImgPath, mime: "image/png" }] },
+      dispatcherOptions: { deliver: async () => {} },
+    });
+    assert.ok(seenForm instanceof FormData);
+    assert.equal(seenForm.has("size"), false);
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("直连云端端点携带浏览器 UA，且 400 不支持参数自动降级重试与 403 转壳代理兜底", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dhvw-qq-ua-"));
+    const mediaDir = path.join(tmpDir, "media");
+    const stateDir = path.join(tmpDir, "state");
+
+    const calls = [];
+    const runtime = createDhvwRuntime({
+      mediaDir,
+      stateDir,
+      shellUrl: "http://127.0.0.1:8080",
+      partDelayMs: 0,
+      sticker: { enabled: false },
+      getLlmConfig: () => ({
+        baseUrl: "https://codex.mintcat.work",
+        apiKey: "sk-test",
+        model: "deepseek-v4.1-flash",
+        reasoningEffort: "none",
+        useShellProxy: false,
+      }),
+      fetchImpl: async (url, init = {}) => {
+        const headers = init.headers || {};
+        const parsed = JSON.parse(init.body || "{}");
+        calls.push({ url, headers, body: parsed });
+        // 1) 第一次模拟缺少 response_format / reasoning_effort 支持返回 400
+        if (calls.length === 1) {
+          assert.match(String(headers["User-Agent"] || ""), /Mozilla\/5\.0/);
+          assert.equal(url, "https://codex.mintcat.work/v1/chat/completions");
+          return new Response(JSON.stringify({ error: "unsupported parameter: response_format" }), { status: 400 });
+        }
+        // 2) 第二次剥离 response_format 后，模拟直连遇 403 触发 /__llm 代理兜底
+        if (calls.length === 2) {
+          assert.equal("response_format" in parsed, false);
+          return new Response("forbidden", { status: 403 });
+        }
+        // 3) 第三次通过 /__llm/chat/completions 成功
+        assert.equal(url, "http://127.0.0.1:8080/__llm/chat/completions");
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: JSON.stringify({ reply_mode: "reply", parts: ["通啦！"] }) } }],
+          }),
+          { status: 200 },
+        );
+      },
+    });
+
+    const delivered = [];
+    await runtime.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+      ctx: { CommandSource: "qq", RawBody: "测一下", Body: "测一下", BodyForAgent: "测一下" },
+      dispatcherOptions: {
+        deliver: async (p) => { if (p.text) delivered.push(p.text); },
+        onError: async (err) => { throw err; },
+      },
+    });
+    assert.deepEqual(delivered, ["通啦！"]);
+    assert.equal(calls.length, 3);
+    assert.equal(runtime.getLastLlmError(), "");
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("跨消息宿舍文字暗示后发纯照片可带出前置语境触发融图（带浏览器UA）且防句首复读", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dhvw-qq-dorm-"));
+    const mediaDir = path.join(tmpDir, "media");
+    const stateDir = path.join(tmpDir, "state");
+    fs.mkdirSync(mediaDir, { recursive: true });
+    fs.mkdirSync(stateDir, { recursive: true });
+    const ref3dPath = path.join(stateDir, "character_ref_3d.png");
+    const dormImgPath = path.join(mediaDir, "dorm.jpg");
+    fs.writeFileSync(ref3dPath, TINY_PNG);
+    fs.writeFileSync(dormImgPath, TINY_PNG);
+
+    let clockMs = 1_700_000_000_000;
+    const llmPrompts = [];
+    const imgCalls = [];
+    const delivered = [];
+    const rt = createDhvwRuntime({
+      mediaDir,
+      stateDir,
+      partDelayMs: 0,
+      now: () => clockMs,
+      sticker: { enabled: false },
+      getLlmConfig: () => ({ baseUrl: "https://llm.example/v1", apiKey: "k", model: "vision-test", supportsVision: true }),
+      getImageGenConfig: () => ({ enabled: true, protocol: "openai-images", baseUrl: "https://img.example", apiKey: "ik", model: "gpt-image-2.5-sunburst" }),
+      getRef3dPath: () => ref3dPath,
+      fetchImpl: async (url, init = {}) => {
+        if (url.endsWith("/images/edits")) {
+          imgCalls.push({ url, headers: init.headers || {} });
+          assert.match(String(init.headers?.["User-Agent"] || ""), /Mozilla\/5\.0/);
+          return new Response(JSON.stringify({ data: [{ b64_json: TINY_PNG.toString("base64") }] }), { status: 200 });
+        }
+        const body = JSON.parse(init.body || "{}");
+        const content = body.messages?.[0]?.content;
+        const promptText = Array.isArray(content) ? content.find((p) => p.type === "text")?.text || "" : String(content || "");
+        llmPrompts.push(promptText);
+        if (llmPrompts.length === 1) {
+          return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ reply_mode: "reply", parts: ["这宿舍看着还挺好窝的"] }) } }] }), { status: 200 });
+        }
+        return new Response(
+          JSON.stringify({
+            choices: [{
+              message: {
+                content: JSON.stringify({
+                  reply_mode: "reply",
+                  parts: ["来了来了", "那张椅子先归我坐了"],
+                  photo_fusion: {
+                    should_generate: true,
+                    scene_desc: "学生宿舍和阳台",
+                    insert_position: "靠书桌旁的椅子上",
+                    character_pose: "翘脚坐着冲镜头笑",
+                    lighting_mood: "室内自然窗光",
+                    caption: "给你现场打卡一张",
+                  },
+                }),
+              },
+            }],
+          }),
+          { status: 200 },
+        );
+      },
+    });
+
+    // 第一条先发纯文字暗示（6 秒后才发图）
+    await rt.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+      ctx: { CommandSource: "qq", RawBody: "给你看看我的宿舍，如果你在这就好了", Body: "给你看看我的宿舍，如果你在这就好了", BodyForAgent: "给你看看我的宿舍，如果你在这就好了" },
+      dispatcherOptions: { deliver: async (p) => delivered.push(p) },
+    });
+    clockMs += 6000;
+    await rt.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+      ctx: { CommandSource: "qq", RawBody: "[图片]", Body: "[图片]", BodyForAgent: "[图片]", media: [{ path: dormImgPath, contentType: "image/jpeg" }] },
+      dispatcherOptions: { deliver: async (p) => delivered.push(p) },
+    });
+
+    assert.equal(llmPrompts.length, 2);
+    assert.ok(llmPrompts[1].includes("给你看看我的宿舍，如果你在这就好了"), "image turn must receive prior text caption");
+    assert.ok(llmPrompts[1].includes("本轮严禁再以「这」开头"), "style guard must ban repeating '这' starter");
+    assert.equal(imgCalls.length, 1);
+    assert.equal(imgCalls[0].url, "https://img.example/v1/images/edits");
+    assert.ok(delivered.some((d) => d.mediaUrl && fs.existsSync(d.mediaUrl)));
+    assert.equal(rt.getLastImageGenError(), "");
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("FeishuClient pbbp2 长连接收发、自动认主、图片拉取与无限主动私聊，且 proactive 不受 40034122 阻塞", async () => {
+    const rawPing = encodePbFrame({
+      seqId: 1n,
+      logId: 0n,
+      service: 33554678,
+      method: 0,
+      headers: [{ key: "type", value: "ping" }],
+    });
+    // proto2 必填字段 logId=0 (tag 0x10 0x00) 与 method=0 (tag 0x20 0x00) 必须显式编码
+    assert.ok(rawPing.includes(Buffer.from([0x10, 0x00])));
+    assert.ok(rawPing.includes(Buffer.from([0x20, 0x00])));
+
+    const rawBin = encodePbFrame({
+      seqId: 42n,
+      logId: 7n,
+      service: 123,
+      method: 1,
+      headers: [
+        { key: "type", value: "event" },
+        { key: "message_id", value: "fm-1" },
+      ],
+      payload: Buffer.from(JSON.stringify({ hello: "world" }), "utf8"),
+    });
+    const decoded = decodePbFrame(rawBin);
+    assert.equal(decoded.seqId, 42n);
+    assert.equal(decoded.service, 123);
+    assert.equal(decoded.method, 1);
+    assert.equal(decoded.headers.find((h) => h.key === "type")?.value, "event");
+    assert.deepEqual(JSON.parse(decoded.payload.toString("utf8")), { hello: "world" });
+
+    let liveWs = null;
+    class FakeFeishuWs {
+      constructor(url) {
+        this.url = url;
+        this.readyState = 1;
+        this.sent = [];
+        liveWs = this;
+        queueMicrotask(() => {
+          this.onopen?.({});
+        });
+      }
+      send(buf) {
+        this.sent.push(Buffer.isBuffer(buf) ? buf : Buffer.from(buf));
+      }
+      close() {
+        this.readyState = 3;
+      }
+    }
+
+    const apiCalls = [];
+    const client = new FeishuClient({
+      appId: "cli_test_123",
+      appSecret: "sec_test_xyz",
+      autoPairFirst: true,
+      WSImpl: FakeFeishuWs,
+      fetchImpl: async (url, init = {}) => {
+        apiCalls.push({ url: String(url), method: init.method || "GET", body: init.body });
+        if (String(url).includes("/callback/ws/endpoint")) {
+          return new Response(
+            JSON.stringify({
+              code: 0,
+              data: { URL: "wss://msg-frontier.feishu.cn/ws?service_id=888", ClientConfig: { PingInterval: 90 } },
+            }),
+            { status: 200 },
+          );
+        }
+        if (String(url).includes("/auth/v3/tenant_access_token/internal")) {
+          return new Response(JSON.stringify({ code: 0, tenant_access_token: "t-fs-tok", expire: 7200 }), { status: 200 });
+        }
+        if (String(url).includes("/resources/img_key_1")) {
+          return new Response(TINY_PNG, { status: 200, headers: { "Content-Type": "image/png" } });
+        }
+        if (String(url).endsWith("/im/v1/images")) {
+          return new Response(JSON.stringify({ code: 0, data: { image_key: "img_out_99" } }), { status: 200 });
+        }
+        if (String(url).includes("/im/v1/messages")) {
+          return new Response(JSON.stringify({ code: 0, data: { message_id: `om_out_${apiCalls.length}` } }), { status: 200 });
+        }
+        return new Response("{}", { status: 404 });
+      },
+    });
+
+    const received = [];
+    client.onMessage((ev) => received.push(ev));
+    await client.connect();
+    assert.equal(client.connected, true);
+    assert.ok(liveWs.sent.length >= 1);
+    const firstPing = decodePbFrame(liveWs.sent[0]);
+    assert.equal(firstPing.method, 0);
+    assert.equal(firstPing.headers.find((h) => h.key === "type")?.value, "ping");
+
+    // 推送一条带图片的飞书 im.message.receive_v1 二进制帧
+    const imgEventFrame = encodePbFrame({
+      seqId: 100n,
+      logId: 200n,
+      service: 888,
+      method: 1,
+      headers: [{ key: "type", value: "event" }],
+      payload: Buffer.from(
+        JSON.stringify({
+          schema: "2.0",
+          header: { event_id: "ev_fs_1", event_type: "im.message.receive_v1" },
+          event: {
+            sender: { sender_id: { open_id: "ou_feishu_owner_1" }, sender_type: "user" },
+            message: {
+              message_id: "om_in_1",
+              chat_type: "p2p",
+              message_type: "image",
+              content: JSON.stringify({ image_key: "img_key_1" }),
+              create_time: "1795150000000",
+            },
+          },
+        }),
+        "utf8",
+      ),
+    });
+    await liveWs.onmessage({ data: imgEventFrame });
+    await new Promise((r) => setTimeout(r, 40));
+
+    // 验证 1: 立即回传了 method=1 biz_rt + {"code":200} ACK 帧
+    assert.ok(liveWs.sent.length >= 2);
+    const ackFrame = decodePbFrame(liveWs.sent[1]);
+    assert.equal(ackFrame.method, 1);
+    assert.ok(ackFrame.headers.some((h) => h.key === "biz_rt"));
+    assert.deepEqual(JSON.parse(ackFrame.payload.toString("utf8")), { code: 200 });
+
+    // 验证 2: 自动认主 & 正确下载图片为 dataUrl
+    assert.equal(client.ownerOpenId, "ou_feishu_owner_1");
+    assert.equal(received.length, 1);
+    assert.equal(received[0].message[0].type, "image");
+    assert.ok(received[0].message[0].data.url.startsWith("data:image/png;base64,"));
+
+    // 验证 3: 即使历史里QQ触发过 40034122 当日熔断，飞书无限主动仍能连续发多气泡+图！
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dhvw-feishu-proactive-"));
+    const mediaDir = path.join(tmpDir, "m");
+    const stateDir = path.join(tmpDir, "s");
+    fs.mkdirSync(mediaDir, { recursive: true });
+    fs.mkdirSync(stateDir, { recursive: true });
+    const fakeNow = new Date(2026, 10, 20, 14, 0, 0).getTime();
+    const dk = new Date(fakeNow).toISOString().slice(0, 10);
+    fs.writeFileSync(path.join(stateDir, "proactive-state.json"), JSON.stringify({ wakeupBlockedDayKey: dk }), "utf8");
+
+    const imgFile = path.join(mediaDir, "card.png");
+    fs.writeFileSync(imgFile, TINY_PNG);
+
+    const rt = createDhvwRuntime({
+      stateDir,
+      mediaDir,
+      sticker: { enabled: false },
+      now: () => fakeNow,
+      getLlmConfig: () => ({ baseUrl: "http://llm.local/v1", model: "m", apiKey: "k" }),
+      fetchImpl: async () =>
+        new Response(
+          JSON.stringify({
+            choices: [{
+              message: {
+                content: JSON.stringify({ speak: true, parts: ["嘿！出来冒个泡呀", "顺手给你看张刚截的小画嘛"], send_edge_bg: true, bubble: "飞书主动测试" }),
+              },
+            }],
+          }),
+          { status: 200 },
+        ),
+    });
+
+    const runner = createProactiveRunner({
+      getTargets: () => [
+        { channel: "feishu", client, account: { ownerOpenId: client.ownerOpenId, proactiveDailyMax: 30, proactiveCooldownMin: 30, partDelayMs: 0 } },
+      ],
+      runtime: rt,
+      getWorldState: () => ({ phase: "afternoon", weather: "rain", band: "excited", mood: { valence: 0.8, social: 0.7 } }),
+      requestEdgeMedia: async () => imgFile,
+      now: () => fakeNow,
+    });
+
+    const pRes = await runner.tick({ force: false });
+    assert.equal(pRes.ok, true);
+    assert.equal(pRes.sentOk, true);
+    assert.equal(pRes.parts.length, 2);
+    assert.ok(runner.getStatus().quotaStatus.includes("飞书长连接无限主动可用"));
+    assert.ok(apiCalls.some((c) => c.url.endsWith("/im/v1/images")));
+    assert.ok(apiCalls.filter((c) => c.url.includes("/im/v1/messages")).length >= 3);
+
+    client.close();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("dhvw-server 支持 Boost 模式自由选择启用 QQ / 飞书网关组合并返回分网关健康状态", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dhvw-multi-gw-"));
+    const probeSock = await import("node:net").then((m) =>
+      new Promise((resolve) => {
+        const s = m.default.createServer();
+        s.listen(0, "127.0.0.1", () => {
+          const p = s.address().port;
+          s.close(() => resolve(p));
+        });
+      }),
+    );
+
+    const svc = await startDhvwQqService({
+      listenAddr: `127.0.0.1:${probeSock}`,
+      stateDir: tmpDir,
+      mediaDir: path.join(tmpDir, "m"),
+      enabled: false,
+      gateways: { qq: false, feishu: true },
+      sticker: { enabled: false },
+    });
+
+    try {
+      const h1 = await fetch(`http://127.0.0.1:${probeSock}/__qq/health`).then((r) => r.json());
+      assert.deepEqual(h1.gateways, { qq: false, feishu: true });
+      assert.equal(h1.feishu.enabled, true);
+      assert.equal(h1.feishu.unlimitedProactive, true);
+
+      // 动态通过 /__qq/config 切换网关组合与飞书凭据
+      const updated = await fetch(`http://127.0.0.1:${probeSock}/__qq/config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          gateways: { qq: true, feishu: true },
+          feishu: { appId: "cli_multi_1", ownerOpenId: "ou_test_1" },
+        }),
+      }).then((r) => r.json());
+      assert.deepEqual(updated.gateways, { qq: true, feishu: true });
+      assert.equal(updated.feishu.appId, "cli_multi_1");
+      assert.equal(updated.feishu.paired, true);
+
+      // 支持单独重新绑定飞书而不清空 QQ 绑定
+      const reb = await fetch(`http://127.0.0.1:${probeSock}/__qq/rebind`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel: "feishu" }),
+      }).then((r) => r.json());
+      assert.equal(reb.feishu.paired, false);
+    } finally {
+      await svc.stop();
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("表情包热度=2 动态生效与角色形象（如大肥鱼鲸鱼娘）搜图、想看看你了触发独立生活照生成及飞书主动生活照推送", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dhvw-life-sticker-"));
+    const mediaDir = path.join(tmpDir, "media");
+    const stateDir = path.join(tmpDir, "state");
+    fs.mkdirSync(mediaDir, { recursive: true });
+    fs.mkdirSync(stateDir, { recursive: true });
+    const ref3dPath = path.join(stateDir, "character_ref_3d.png");
+    fs.writeFileSync(ref3dPath, TINY_PNG);
+
+    // 1. 测试 stickerStore eagerness=2 冷却更短（间隔 1 轮即解锁）+ 角色关键词搜图
+    const searchUrls = [];
+    const stk = createStickerStore({
+      dir: path.join(stateDir, "stickers"),
+      eagerness: 1,
+      shellUrl: "http://shell.local",
+      fetchImpl: async (url) => {
+        const u = String(url);
+        searchUrls.push(u);
+        if (u.includes("/__image/search")) {
+          return new Response(JSON.stringify({ items: [{ url: "http://img.local/whale1.png" }] }), { status: 200 });
+        }
+        return new Response(TINY_PNG.toString("base64").length ? Buffer.concat([TINY_PNG, Buffer.alloc(1200, 1)]) : TINY_PNG, {
+          status: 200,
+          headers: { "Content-Type": "image/png" },
+        });
+      },
+    });
+    assert.equal(stk.eagerness, 1);
+    stk.setEagerness(2);
+    assert.equal(stk.eagerness, 2);
+    stk.recordTurn(true);
+    assert.equal(stk.canSendThisTurn(), false);
+    stk.recordTurn(false);
+    assert.equal(stk.canSendThisTurn(), true); // eagerness=2 只隔 1 轮就恢复！
+    stk.setCharacterCues(["鲸鱼娘", "大肥鱼"]);
+    await stk.searchAndCollect({ mood: { band: "excited" }, queryHint: "开心", limit: 1, force: true });
+    assert.ok(searchUrls.some((u) => decodeURIComponent(u).includes("鲸鱼娘") || decodeURIComponent(u).includes("大肥鱼")));
+
+    // 2. 测试「想看看你了」纯文字消息触发独立生活照生成（仅传 1 张参考图、非溶图提示词、携带设置中的风格预设）
+    const imgRequests = [];
+    const llmPrompts = [];
+    const delivered = [];
+    const rt = createDhvwRuntime({
+      mediaDir,
+      stateDir,
+      partDelayMs: 0,
+      sticker: { enabled: true, eagerness: 2, autoFetch: false },
+      getLlmConfig: () => ({ baseUrl: "https://llm.example/v1", apiKey: "k", model: "chat-m" }),
+      getImageGenConfig: () => ({
+        enabled: true,
+        protocol: "openai-chat-image",
+        baseUrl: "https://img.example",
+        apiKey: "ik",
+        model: "gpt-image-2.5-sunburst",
+        fusionStylePrompt: "自定义厚涂水彩电影光影风格",
+      }),
+      getPersonaConfig: () => ({ characterName: "小仓", personaPrompt: "你是大肥鱼鲸鱼娘，住在虚拟仓里" }),
+      getRef3dPath: () => ref3dPath,
+      fetchImpl: async (url, init = {}) => {
+        const u = String(url);
+        const body = JSON.parse(init.body || "{}");
+        if (u.startsWith("https://img.example")) {
+          imgRequests.push(body);
+          return new Response(
+            JSON.stringify({ choices: [{ message: { images: [{ image_url: { url: `data:image/png;base64,${TINY_PNG.toString("base64")}` } }] } }] }),
+            { status: 200 },
+          );
+        }
+        const promptText = String(body.messages?.[0]?.content || "");
+        llmPrompts.push(promptText);
+        if (promptText.includes("想起对方了")) {
+          // 主动唤醒场景自分析生图
+          return new Response(
+            JSON.stringify({
+              choices: [{
+                message: {
+                  content: JSON.stringify({
+                    speak: true,
+                    parts: ["刚煮好热可可呀，发张现在的样子给你看看嘛"],
+                    life_photo: {
+                      should_generate: true,
+                      scene_desc: "午后雨天窗边木桌，摆着热可可和摊开的书",
+                      camera_framing: "半身自然窗边抓拍",
+                      character_pose: "托着腮笑眯眯看镜头",
+                      lighting_mood: "窗外灰蓝雨光与暖橙台灯对比",
+                    },
+                    bubble: "给你看我在干嘛",
+                  }),
+                },
+              }],
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            choices: [{
+              message: {
+                content: JSON.stringify({
+                  reply_mode: "reply",
+                  parts: ["诺，刚拍的近况照拿去吧哼"],
+                  life_photo: {
+                    should_generate: true,
+                    scene_desc: "虚拟仓阳光书桌前靠着抱枕",
+                    camera_framing: "近景随手自拍视角",
+                    character_pose: "比了个耶冲镜头眨眼",
+                    lighting_mood: "柔和日光与边缘逆光",
+                    caption: "不许嫌弃光线暗呀",
+                  },
+                }),
+              },
+            }],
+          }),
+          { status: 200 },
+        );
+      },
+    });
+
+    await rt.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+      ctx: { CommandSource: "feishu", RawBody: "想看看你了", Body: "想看看你了", BodyForAgent: "想看看你了" },
+      dispatcherOptions: { deliver: async (p) => delivered.push(p) },
+    });
+
+    assert.equal(imgRequests.length, 1);
+    const lifeContent = imgRequests[0].messages[0].content;
+    const lifePrompt = lifeContent.find((x) => x.type === "text")?.text || "";
+    const lifeImages = lifeContent.filter((x) => x.type === "image_url");
+    assert.equal(lifeImages.length, 1, "standalone life photo sends ONLY 1 character ref image (not fusion)");
+    assert.ok(lifePrompt.includes("CRITICAL COMPOSITION RULE"), "uses dedicated life photo prompt, not fusion prompt");
+    assert.ok(lifePrompt.includes("自定义厚涂水彩电影光影风格"), "preserves Settings fusionStylePrompt preset");
+    assert.ok(delivered.some((d) => d.mediaUrl && path.basename(d.mediaUrl).startsWith("life-")));
+    assert.ok(llmPrompts[0].includes("鲸鱼娘") || llmPrompts[0].includes("大肥鱼"), "extracts persona cues for stickers");
+
+    // 3. 测试飞书自唤醒阶段：模型自分析构建生活场景、生图并通过飞书发图+附文
+    const feishuSent = [];
+    const fakeFeishuClient = {
+      capabilities: { unlimitedProactive: true, channelName: "feishu" },
+      ledger: null,
+      async sendPrivateMessage(userId, msg) {
+        feishuSent.push({ userId, msg });
+        return { message_id: `om_pro_${feishuSent.length}` };
+      },
+    };
+    const proRunner = createProactiveRunner({
+      getTargets: () => [
+        { channel: "feishu", client: fakeFeishuClient, account: { ownerOpenId: "ou_fs_owner", proactiveDailyMax: 30, proactiveCooldownMin: 30, partDelayMs: 0 } },
+      ],
+      runtime: rt,
+      getWorldState: () => ({ phase: "afternoon", weather: "rain", place: "书桌", band: "calm", mood: { valence: 0.7, social: 0.6 } }),
+      now: () => new Date(2026, 10, 20, 15, 0, 0).getTime(),
+    });
+    const proRes = await proRunner.tick({ force: true });
+    assert.equal(proRes.ok, true);
+    assert.equal(proRes.sentOk, true);
+    assert.equal(proRes.lifePhoto, true);
+    assert.equal(imgRequests.length, 2);
+    assert.ok(feishuSent.length >= 2, "proactive sends text + generated AI life photo to Feishu");
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });

@@ -13,7 +13,7 @@ import { describeMood, moodTone } from "../core/mood/describe.js";
 import { buildMoodView } from "../core/mood.js";
 import { moodBand } from "../core/machine/life.js";
 import { DESTINATIONS } from "../core/life/outing.js";
-import { createBrowsePlanner } from "../core/actions/browse.js";
+import { createBrowsePlanner, pickSearchCandidates } from "../core/actions/browse.js";
 import { normalizeBehaviors, roomForAct, createActRoomMap } from "../core/life/plan.js";
 
 const EVENT_CAP = 2000;
@@ -193,7 +193,7 @@ export function createLocalRuntime({
   idbFactory = globalThis.indexedDB,
   now = () => Date.now(),
   forgeIntervalMs = 45000,
-  browseIntervalMs = 75 * 60_000,
+  browseIntervalMs = 60 * 60_000,
 } = {}) {
   let backend = null;
   let lifeWorker = null;
@@ -636,7 +636,7 @@ export function createLocalRuntime({
     try {
       const res = await llm.complete({
         messages: [{ role: "user", content: prompt }],
-        maxTokens: 220,
+        maxTokens: 4000,
         temperature: 0.8,
         json: true,
         cls: "work",
@@ -697,7 +697,7 @@ export function createLocalRuntime({
     try {
       const res = await llm.complete({
         messages: [{ role: "user", content: prompt }],
-        maxTokens: 900,
+        maxTokens: 8000,
         temperature: 0.7,
         json: true,
         cls: "work",
@@ -823,32 +823,31 @@ export function createLocalRuntime({
       }));
       const plan = await planner.plan({ threads: memoryText(6).split("\n").filter(Boolean), recent, mood });
       if (!plan.ok) {
-        await logLlm({ agent: "browse", ok: false, ms: now() - t0, response: plan.reason });
+        await logLlm({ agent: "browse", ok: false, ms: now() - t0, response: plan.error ? `${plan.reason}: ${plan.error}` : plan.reason });
         return null;
       }
       let result = null;
-      const query = plan.query || plan.topic || "";
-      if (plan.mode === "url" && plan.url) {
-        const page = await fetch(`/__fetch?url=${encodeURIComponent(plan.url)}`, { cache: "no-store" });
-        if (page.ok) {
-          const data = await page.json();
-          result = { results: [], page: { url: plan.url, title: data.title || "", text: String(data.text || "").slice(0, 1200) } };
-        } else {
-          result = { error: `fetch_http_${page.status}` };
-        }
-      } else if (query) {
+      const query = plan.query || "";
+      if (query) {
         const res = await fetch(`/__search?q=${encodeURIComponent(query)}&n=5`, { cache: "no-store" });
         result = res.ok ? await res.json() : { error: `http_${res.status}` };
-        const first = result?.results?.find((r) => r.url);
-        if (first) {
+        const recentPages = prevLogs.map((b) => ({ url: b?.result?.page?.url || "", topic: b?.result?.page?.title || "" }));
+        // 换页 + 后备：从随机位置按序尝试，首条抓不到不会让整次浏览失败。
+        for (const hit of pickSearchCandidates(result?.results, { recent: recentPages })) {
           try {
-            const page = await fetch(`/__fetch?url=${encodeURIComponent(first.url)}`, { cache: "no-store" });
-            if (page.ok) {
-              const data = await page.json();
-              result.page = { url: first.url, title: data.title || first.title || "", text: String(data.text || "").slice(0, 1200) };
-            }
+            const page = await fetch(`/__fetch?url=${encodeURIComponent(hit.url)}`, { cache: "no-store" });
+            if (!page.ok) continue;
+            const data = await page.json();
+            const text = String(data.text || "");
+            if (text.length < 80) continue;
+            result.page = { url: hit.url, title: data.title || hit.title || "", text: text.slice(0, 1200) };
+            break;
           } catch {}
         }
+      }
+      if (!result?.page && !(result?.results?.length)) {
+        await logLlm({ agent: "browse", ok: false, ms: now() - t0, prompt: query, response: `无可用结果：${JSON.stringify(result || {}).slice(0, 160)}` });
+        return null;
       }
       const item = { id: `browse-${now()}`, plan, result, created_at: now() };
       await appendKv("browse_log", item, 20);
@@ -867,7 +866,7 @@ export function createLocalRuntime({
         agent: "browse",
         ok: true,
         ms: now() - t0,
-        prompt: plan.query || plan.url || plan.topic,
+        prompt: query,
         response: plan.raw || JSON.stringify(result?.page || result?.results?.slice(0, 3) || result || {}),
       });
       store.emit("browse", item);
@@ -917,7 +916,7 @@ export function createLocalRuntime({
         if (attempt > 1) prompt += `\n\n上一稿不合格：${reason}。请重写，严格满足要求。`;
         const res = await llm.complete({
           messages: [{ role: "user", content: prompt }],
-          maxTokens: kind === "weekly" ? 650 : 500,
+          maxTokens: kind === "weekly" ? 6000 : 5000,
           temperature: kind === "novel" ? 0.7 : 0.8,
           cls: "work",
           kind: "writing",
@@ -1283,6 +1282,10 @@ export function createLocalRuntime({
     intentFailed() {
       postLife({ type: "intentFailed" });
     },
+    /** 位置被外部纠偏：目标点没问题，只放开 worker 的 pending，不拉黑热点。 */
+    intentCancel() {
+      postLife({ type: "intentCancel" });
+    },
     requestSummary() {
       postLife({ type: "summary" });
     },
@@ -1384,7 +1387,13 @@ export function createLocalRuntime({
         const n = Number(payload[key]);
         if (payload[key] !== undefined && payload[key] !== null && Number.isFinite(n) && n > 0) next[key] = n;
       }
-      if (!next.reasoningEffort && next.reasoningEffort !== false) {
+      const isLocalLlama =
+        String(payload.mode || "").toLowerCase() === "local" ||
+        /^https?:\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0|\[::1\])(:|\/|$)|\/(dhvw\/)?llm\/v1/i.test(String(next.baseUrl || "")) ||
+        /nemotron|gemma/i.test(String(next.model || ""));
+      if (isLocalLlama) {
+        next.reasoningEffort = false;
+      } else if (!next.reasoningEffort && next.reasoningEffort !== false) {
         next.reasoningEffort = "none";
       }
       config.llm = next;

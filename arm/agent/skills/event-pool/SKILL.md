@@ -3,7 +3,7 @@ name: event-pool
 description: 生成新的日常事件，扩展剧情事件池
 class: work
 prompt: event-pool
-maxTokens: 600
+maxTokens: 4000
 temperature: 0.9
 tools: []
 output: json

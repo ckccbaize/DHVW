@@ -80,6 +80,25 @@ function readBody(req, limit = 1 << 20) {
 
 const CA_FILE = path.resolve(ROOT, "..", "data", "ca.crt.pem");
 
+/** 二进制请求体（录像上传用；readBody 会按 utf8 解码，不能拿来收 webm）。 */
+function readBuffer(req, limit = 1 << 20) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks = [];
+    req.on("data", (c) => {
+      size += c.length;
+      if (size > limit) {
+        reject(Object.assign(new Error("body too large"), { code: "too_large" }));
+        req.destroy();
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+
 function postJsonUpstream(targetUrl, headers, payloadText) {
   const u = new URL(targetUrl);
   const mod = u.protocol === "https:" ? https : http;
@@ -240,6 +259,24 @@ const server = http.createServer(async (req, res) => {
       } catch {
         res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
         return void res.end(JSON.stringify({ ok: true, running: false, configured: false, paired: false }));
+      }
+    }
+    if (earlyPath === "/__tour/save") {
+      if (req.method !== "POST") return void res.writeHead(405, { Allow: "POST" }).end("method not allowed");
+      const name = new URL(req.url || "/", "http://127.0.0.1").searchParams.get("name") || "";
+      if (!/^[A-Za-z0-9._-]{1,80}\.webm$/.test(name)) return void res.writeHead(400).end("bad name");
+      try {
+        const body = await readBuffer(req, 512 << 20);
+        if (!body.length) return void res.writeHead(400).end("empty");
+        const dir = path.resolve(ROOT, "..", "data", "recordings");
+        fs.mkdirSync(dir, { recursive: true });
+        const dst = path.join(dir, name);
+        fs.writeFileSync(`${dst}.tmp`, body);
+        fs.renameSync(`${dst}.tmp`, dst);
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+        return void res.end(JSON.stringify({ ok: true, path: `data/recordings/${name}`, bytes: body.length }));
+      } catch (err) {
+        return void res.writeHead(err?.code === "too_large" ? 413 : 500).end("save failed");
       }
     }
     if (req.method !== "GET" && req.method !== "HEAD") {

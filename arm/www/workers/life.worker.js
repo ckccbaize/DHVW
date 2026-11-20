@@ -351,6 +351,10 @@ async function maybeLlmThought() {
   const t0 = Date.now();
   const promptText = `她在${currentRoom || "家里"}，${phase}，天气${weather}。她现在${describeMood(mood)}。${moodTone(mood)}。她记得：${memoryText || "暂无"}。${plan && plan.day === clock.day ? `今天的方向：${plan.text}。` : ""}写一句 20 字内的独白，不要台词，不要解释。`;
   try {
+    const isLocalLlama =
+      String(llmCfg.mode || "").toLowerCase() === "local" ||
+      /^https?:\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0|\[::1\])(:|\/|$)|\/(dhvw\/)?llm\/v1/i.test(String(llmCfg.baseUrl || "")) ||
+      /nemotron|gemma/i.test(String(llmCfg.model || ""));
     const res = await fetch("/__llm/chat/completions", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -362,9 +366,13 @@ async function maybeLlmThought() {
           messages: [
             { role: "user", content: promptText },
           ],
-          max_tokens: 120,
-          temperature: 0.8,
-          ...(llmCfg.reasoningEffort !== false ? { reasoning_effort: llmCfg.reasoningEffort || "none" } : {}),
+          temperature: isLocalLlama ? 1.05 : 0.8,
+          ...(!isLocalLlama
+            ? {
+                max_tokens: 3000,
+                ...(llmCfg.reasoningEffort !== false ? { reasoning_effort: llmCfg.reasoningEffort || "none" } : {}),
+              }
+            : {}),
         },
       }),
     });
@@ -872,6 +880,14 @@ self.onmessage = (e) => {
       if (pending && pending.act !== "sleep") badSpots.add(`${pending.x},${pending.y}:${pending.act}`);
       if (pending?.act === "sleep") sleepRetryAt = nowAbs() + 1;
       pending = null;
+      break;
+    }
+    case "intentCancel": {
+      // 位置被纠偏打断：目标点本身没问题，不能拉黑，只需放开状态机让它重新发意图。
+      if (pending?.act === "sleep") sleepRetryAt = nowAbs() + 1;
+      pending = null;
+      // 纠偏是被动打断，不该再等一个漫游周期才动；放开立刻重试。
+      lastIntentMinute = -1e9;
       break;
     }
     case "setActivity": {

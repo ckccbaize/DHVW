@@ -144,3 +144,18 @@ test("provider 未给 timeoutMs：使用默认超时，不立即中止，且默�
   assert.equal(out.text, "slow-ok");
   assert.equal(sentBody.reasoning_effort, "none");
 });
+
+test("本地 llama：保留思考(不传 reasoning_effort)、不锁 max_tokens、适度提高 temperature", async () => {
+  const { c, calls } = clientWith([okResponse('{"ok":true}')], {
+    baseUrl: "http://127.0.0.1:8089/v1",
+    model: "nemotron-3.5-bolt-e4b",
+    reasoningEffort: "none",
+    useProxy: false,
+  });
+  await c.complete({ messages: [{ role: "user", content: "hi" }], temperature: 0.85, json: true });
+  const body = JSON.parse(calls[0].opts.body);
+  assert.equal(body.max_tokens, undefined);
+  assert.equal(body.reasoning_effort, undefined);
+  assert.ok(body.temperature >= 1.0);
+  assert.deepEqual(body.response_format, { type: "json_object" });
+});

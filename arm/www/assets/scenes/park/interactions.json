@@ -1,0 +1,356 @@
+{
+ "schema_version": 1,
+ "acts": {
+  "water_plants": {
+   "label": "浇花",
+   "trigger": {
+    "props": [
+     "flowerbed"
+    ]
+   },
+   "perform": {
+    "animation": "water_plants",
+    "duration_min": 5,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.06,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "water_plants"
+    }
+   ],
+   "priority": 3,
+   "bubble": "喝点水。",
+   "tags": [
+    "chore",
+    "quiet"
+   ]
+  },
+  "sit_park_bench": {
+   "label": "坐长椅",
+   "trigger": {
+    "props": [
+     "park_bench",
+     "park_bench_s"
+    ]
+   },
+   "approach": {
+    "face": "S"
+   },
+   "perform": {
+    "animation": "sit",
+    "duration_min": 20,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": 0.1,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.06,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "sit_park_bench"
+    }
+   ],
+   "priority": 4,
+   "bubble": "风里有草味。",
+   "tags": [
+    "quiet",
+    "leisure",
+    "outdoor"
+   ]
+  },
+  "watch_fountain": {
+   "label": "看喷泉",
+   "trigger": {
+    "props": [
+     "fountain_basin"
+    ]
+   },
+   "approach": {
+    "face": "N"
+   },
+   "perform": {
+    "animation": "watch",
+    "duration_min": 12,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.12,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "watch_fountain"
+    }
+   ],
+   "priority": 5,
+   "bubble": "水声很轻。",
+   "tags": [
+    "quiet",
+    "outdoor"
+   ]
+  },
+  "read_park_map": {
+   "label": "看指路牌",
+   "trigger": {
+    "props": [
+     "signpost"
+    ]
+   },
+   "approach": {
+    "face": "N"
+   },
+   "perform": {
+    "animation": "read",
+    "duration_min": 4,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.04,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "read_park_map"
+    }
+   ],
+   "priority": 3,
+   "bubble": "东门出去就是梧桐街。",
+   "tags": [
+    "quiet",
+    "outdoor"
+   ]
+  },
+  "buy_soda": {
+   "label": "买一瓶汽水",
+   "trigger": {
+    "props": [
+     "kiosk"
+    ]
+   },
+   "requires": [
+    {
+     "kind": "time",
+     "between": [
+      "08:00",
+      "21:00"
+     ]
+    }
+   ],
+   "approach": {
+    "face": "E"
+   },
+   "perform": {
+    "animation": "shop",
+    "duration_min": 6,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": 0.08,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "advance_time",
+     "minutes": 6
+    },
+    {
+     "kind": "event",
+     "name": "buy_soda"
+    }
+   ],
+   "cooldown_min": 90,
+   "priority": 4,
+   "bubble": "冰的。",
+   "tags": [
+    "social",
+    "outdoor"
+   ]
+  },
+  "buy_flowers": {
+   "label": "买一束花",
+   "trigger": {
+    "props": [
+     "flower_stall"
+    ]
+   },
+   "requires": [
+    {
+     "kind": "time",
+     "between": [
+      "07:00",
+      "19:00"
+     ]
+    }
+   ],
+   "approach": {
+    "face": "N"
+   },
+   "perform": {
+    "animation": "shop",
+    "duration_min": 8,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.16,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "produce_artifact",
+     "template": "bouquet"
+    },
+    {
+     "kind": "event",
+     "name": "buy_flowers"
+    }
+   ],
+   "cooldown_min": 240,
+   "priority": 6,
+   "bubble": "挑了三枝白的。",
+   "tags": [
+    "social",
+    "outdoor"
+   ]
+  },
+  "swing_play": {
+   "label": "荡秋千",
+   "trigger": {
+    "props": [
+     "swing"
+    ]
+   },
+   "approach": {
+    "face": "S"
+   },
+   "perform": {
+    "animation": "play",
+    "duration_min": 10,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.2,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": -0.03,
+     "apply": "per_minute"
+    },
+    {
+     "kind": "event",
+     "name": "swing_play"
+    }
+   ],
+   "priority": 6,
+   "bubble": "再高一格。",
+   "tags": [
+    "play",
+    "outdoor"
+   ]
+  },
+  "play_chess": {
+   "label": "摆一盘棋",
+   "trigger": {
+    "props": [
+     "chess_table"
+    ]
+   },
+   "approach": {
+    "face": "S"
+   },
+   "perform": {
+    "animation": "chess",
+    "duration_min": 25,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.14,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "mood",
+     "target": "energy",
+     "delta": 0.05,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "play_chess"
+    }
+   ],
+   "priority": 5,
+   "bubble": "这步走马。",
+   "tags": [
+    "quiet",
+    "outdoor"
+   ]
+  },
+  "admire_statue": {
+   "label": "看看石像",
+   "trigger": {
+    "props": [
+     "statue"
+    ]
+   },
+   "approach": {
+    "face": "N"
+   },
+   "perform": {
+    "animation": "admire",
+    "duration_min": 6,
+    "interruptible": true
+   },
+   "effects": [
+    {
+     "kind": "mood",
+     "target": "valence",
+     "delta": 0.05,
+     "apply": "on_complete"
+    },
+    {
+     "kind": "event",
+     "name": "admire_statue"
+    }
+   ],
+   "priority": 3,
+   "bubble": "石头被晒温了。",
+   "tags": [
+    "quiet",
+    "outdoor"
+   ]
+  }
+ }
+}

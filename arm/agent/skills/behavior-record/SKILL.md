@@ -3,7 +3,7 @@ name: behavior-record
 description: 行为留档：由角色 LLM 写一条含"做了什么 + 心情变化"的短记录
 class: character
 prompt: behavior-record
-maxTokens: 220
+maxTokens: 2000
 temperature: 0.7
 tools: []
 output: json

@@ -1,11 +1,41 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-18T12:16:33.228Z",
+ "built_at": "2026-11-20T11:03:30.903Z",
  "files": [
   {
    "path": "agent/registry.json",
-   "size": 16012,
-   "sha256": "80d4f9666ccd9ac454c24607df1bac7f7a660bbbd0510708efeed943f50cd23d"
+   "size": 16217,
+   "sha256": "c565d77de28056d2f077091e9f045d0e977a8c8d93a457385e5714748f73d26d"
+  },
+  {
+   "path": "assets/char/looks/atri.json",
+   "size": 7725,
+   "sha256": "ae926639c980e11f3064b0a15246a44a1d99a860fe77a399a7ac9aa288251ace"
+  },
+  {
+   "path": "assets/char/looks/atri.png",
+   "size": 255741,
+   "sha256": "70585480d0b62e12b6d1f77b029cd7647dfafbc0dcb00b5b3aea41a89575c344"
+  },
+  {
+   "path": "assets/char/looks/miku.json",
+   "size": 7725,
+   "sha256": "ae926639c980e11f3064b0a15246a44a1d99a860fe77a399a7ac9aa288251ace"
+  },
+  {
+   "path": "assets/char/looks/miku.png",
+   "size": 230207,
+   "sha256": "b95547c54b6a2cc564b7c9f1e3c2274a7602f61d4df99f3633c3a3b537325baf"
+  },
+  {
+   "path": "assets/char/looks/whale.json",
+   "size": 7725,
+   "sha256": "ae926639c980e11f3064b0a15246a44a1d99a860fe77a399a7ac9aa288251ace"
+  },
+  {
+   "path": "assets/char/looks/whale.png",
+   "size": 292333,
+   "sha256": "8cca703acd587387551b2496ddf29f08819b03becf1e24a12b30aef3d27b272b"
   },
   {
    "path": "assets/char/ojj_sheet.json",
@@ -463,6 +493,76 @@
    "sha256": "f452d2f45590bb2e5066db82547a7fc0242d077bdca6275875b75a37b45cfeaa"
   },
   {
+   "path": "assets/scenes/bookstore/bookstore.built.json",
+   "size": 11517,
+   "sha256": "633daff93641a77104228b49abd13eb3bd6ea3f86b93ece8da03fb018012f4b3"
+  },
+  {
+   "path": "assets/scenes/bookstore/bookstore.bundle.js",
+   "size": 11568,
+   "sha256": "9d3dacaa3945378f92f65e8090b8a72cc0fc174b347da54fee38a005e9cdf844"
+  },
+  {
+   "path": "assets/scenes/bookstore/bookstore.png",
+   "size": 73063,
+   "sha256": "4bc55a117a0b6ee727febbfe76ac87ccb0ce28f5b762ce3a6f90ba48e0042f25"
+  },
+  {
+   "path": "assets/scenes/bookstore/bookstore@2x.png",
+   "size": 90896,
+   "sha256": "ee473579fd75f858bcead5a04b63532cf0b15cf88c6a34d4fd3addbf29330f0e"
+  },
+  {
+   "path": "assets/scenes/bookstore/character/sheet.json",
+   "size": 11206,
+   "sha256": "9f741195dca1fad40888d2aea72d5da21e4394db9e753e5132a3b4ee3d419866"
+  },
+  {
+   "path": "assets/scenes/bookstore/character/sheet.png",
+   "size": 325343,
+   "sha256": "2c2c1f65036b5070e03761f2a3fe839c445b56a8074d98f17f658c1e373bd337"
+  },
+  {
+   "path": "assets/scenes/bookstore/furniture.png",
+   "size": 26826,
+   "sha256": "76d57ba9ddc714a2966d53e1db2069ecec9a1e9233f531eaeeda887255a5ec60"
+  },
+  {
+   "path": "assets/scenes/bookstore/interactions.json",
+   "size": 8157,
+   "sha256": "00b5af0f89879fd4f40357d0686370ae70696dbdb65c9feac4d0cd3830d83140"
+  },
+  {
+   "path": "assets/scenes/bookstore/intgrid.bin",
+   "size": 532,
+   "sha256": "165440d074ffb8bf3fdfa24a0ee725e95a1b4fbca49f7562e9d529edd61befb3"
+  },
+  {
+   "path": "assets/scenes/bookstore/light_day.png",
+   "size": 3015,
+   "sha256": "a9c777b4d47366d8c6849261b58670b115c1f0e2e93f3e9c659557b75f2bb4a9"
+  },
+  {
+   "path": "assets/scenes/bookstore/manifest.json",
+   "size": 1462,
+   "sha256": "bea11ea6831e8f15eb2cc7a4b933fc8e387ee62a40d5c7edd793557b000bc6a3"
+  },
+  {
+   "path": "assets/scenes/bookstore/scene.json",
+   "size": 18425,
+   "sha256": "bd2c9c601e9c749c08e6be12a2d11860aef36e881e8b246f8965d3c01129bcbe"
+  },
+  {
+   "path": "assets/scenes/bookstore/sprites.png",
+   "size": 390,
+   "sha256": "df131de780de8fb2f8aa3a37a9ec3fabf751488fcabc2c453e4de798dbd49f9f"
+  },
+  {
+   "path": "assets/scenes/bookstore/terrain.png",
+   "size": 53759,
+   "sha256": "90515053d4e6966862c344d51a2c0d374bec0617d7f7121846260dd49e276581"
+  },
+  {
    "path": "assets/scenes/cafe/cafe.built.json",
    "size": 20048,
    "sha256": "31ddf89658124a1f669e880aec5cfc3a4fb33d9940a9360b24b3efb8f194c71d"
@@ -484,13 +584,13 @@
   },
   {
    "path": "assets/scenes/cafe/character/sheet.json",
-   "size": 5286,
-   "sha256": "483bc8212627e18153f01b2681f095f0acbf7d978dcc4f1983aad2c474726a3d"
+   "size": 7725,
+   "sha256": "ae926639c980e11f3064b0a15246a44a1d99a860fe77a399a7ac9aa288251ace"
   },
   {
    "path": "assets/scenes/cafe/character/sheet.png",
-   "size": 5070,
-   "sha256": "65368c47ccb963243ebccd58c4351f11103324046273b54e6075c5679e31ea02"
+   "size": 292333,
+   "sha256": "8cca703acd587387551b2496ddf29f08819b03becf1e24a12b30aef3d27b272b"
   },
   {
    "path": "assets/scenes/cafe/furniture.png",
@@ -514,8 +614,8 @@
   },
   {
    "path": "assets/scenes/cafe/manifest.json",
-   "size": 1238,
-   "sha256": "c6a43f1317dbf9b8d6ab27759f988f91eff92aeedcec1a0938f78e72f0045d27"
+   "size": 1240,
+   "sha256": "937a5381e77d39c00b263d148585b7570102035050c6a45973ef4cb46d8fc311"
   },
   {
    "path": "assets/scenes/cafe/scene.json",
@@ -753,6 +853,76 @@
    "sha256": "8ecb16d8b9adeb04f303fd7d70082f61888ba5824402c6a779070ab5237a6053"
   },
   {
+   "path": "assets/scenes/park/character/sheet.json",
+   "size": 9454,
+   "sha256": "91db6c07ad750d36aad8ded51a89b3ff1dbc8aa667348aa4a718bb954c65e8af"
+  },
+  {
+   "path": "assets/scenes/park/character/sheet.png",
+   "size": 279370,
+   "sha256": "867e6baae94952e6c2e6c948d92a555a4f8541ca029d6cbaea94af561b98e7ed"
+  },
+  {
+   "path": "assets/scenes/park/furniture.png",
+   "size": 26216,
+   "sha256": "627d900c9d48dacf6fb4077a26aab068d31ceb7473c1aaf4d4fb6e0053723fe2"
+  },
+  {
+   "path": "assets/scenes/park/interactions.json",
+   "size": 5939,
+   "sha256": "b55f401c932832033aafb22749757b6228d8de7c04f98ca7a64e0a94fa190d8d"
+  },
+  {
+   "path": "assets/scenes/park/intgrid.bin",
+   "size": 408,
+   "sha256": "9488666d6a21c2a86554a27060a3e9cb8716b809fe0ca2a44cf0f8b0d704c163"
+  },
+  {
+   "path": "assets/scenes/park/light_day.png",
+   "size": 7430,
+   "sha256": "a9fbebfa0a6002a10455ec38af0790ef7f001eb16ad0d0e8de5d0b1201841843"
+  },
+  {
+   "path": "assets/scenes/park/manifest.json",
+   "size": 1440,
+   "sha256": "82a72eda949fc0d010da0ec21201f5a8180ac0f41cc05ac536c4685766055353"
+  },
+  {
+   "path": "assets/scenes/park/park.built.json",
+   "size": 11495,
+   "sha256": "265d3e1946e01ec3324f74c8389b4b53949aac49d8ed9f04aa7fe3628cb987bf"
+  },
+  {
+   "path": "assets/scenes/park/park.bundle.js",
+   "size": 11546,
+   "sha256": "565b7f9f8677af5ceddac268bf7bf750a883d34310b3235c7fa434256f121c9c"
+  },
+  {
+   "path": "assets/scenes/park/park.png",
+   "size": 61078,
+   "sha256": "2c77a4e44aedb016b6c840de94252a172ee9f8971523a4b70bc5bc3553c01ca7"
+  },
+  {
+   "path": "assets/scenes/park/park@2x.png",
+   "size": 76308,
+   "sha256": "d5ee0259894519efea04c7fa0b2716a59a4e24baa1cad60ea5532641f5e872e1"
+  },
+  {
+   "path": "assets/scenes/park/scene.json",
+   "size": 7345,
+   "sha256": "22c7c1a96bc75b4ea6cf44c141e03b050aa6538d478268031334d10b38bfdcae"
+  },
+  {
+   "path": "assets/scenes/park/sprites.png",
+   "size": 390,
+   "sha256": "df131de780de8fb2f8aa3a37a9ec3fabf751488fcabc2c453e4de798dbd49f9f"
+  },
+  {
+   "path": "assets/scenes/park/terrain.png",
+   "size": 36562,
+   "sha256": "9ac451a5710cf865adad6efe89325c40a471d80fe4c5d3eefe203660e1dafb70"
+  },
+  {
    "path": "config.json",
    "size": 603,
    "sha256": "ba46bdec2d4618f54cefa9cbf39eed1c3f5db74881ebdb7485c4f0bbf170fced"
@@ -773,14 +943,19 @@
    "sha256": "be85176fef6d2144f9eb9a266b5f59512d2b2736e239edb46dfa1c508a9c3f71"
   },
   {
+   "path": "css/tour.css",
+   "size": 1860,
+   "sha256": "c8d15c88bd6aa102a5ad1bf1dbd885afe0081f78469233ec7f966cb5f7a23ee2"
+  },
+  {
    "path": "debug-core.html",
    "size": 33842,
    "sha256": "84d4686ff6a984571dad6d63d596e72fd9d9229834084a52c0977881d16956a8"
   },
   {
    "path": "debug-life.html",
-   "size": 22891,
-   "sha256": "069a54322ca51c67c5dc3853bd8c0cd551b69abf97fa07099430121b786b6214"
+   "size": 22876,
+   "sha256": "5dce72972196a1f0130a9c6041ff4498b73207a9b8f70ce1e65bc8f063f203ce"
   },
   {
    "path": "index.html",
@@ -789,13 +964,13 @@
   },
   {
    "path": "js/app.js",
-   "size": 55948,
-   "sha256": "b58f7dbf607831a14c0b129231d9703c0e95b685ae6da9c2bee20fd634c31198"
+   "size": 66784,
+   "sha256": "e660d8cc0d44aae97ff026a73ba1ff8fdbaec927a3dd7f02ce09669b802c3b0a"
   },
   {
    "path": "js/core/actions/browse.js",
-   "size": 4281,
-   "sha256": "41314db1e607104ee21bcbf84bb56850aa4e91c45e38be8d2bf8f24f94983410"
+   "size": 4034,
+   "sha256": "7281a285330b745d8f1f8cff36e3f35a9692ec4ec80ba9cdfb745d3f7691f07e"
   },
   {
    "path": "js/core/actions/plan.js",
@@ -805,7 +980,7 @@
   {
    "path": "js/core/actions/registry.js",
    "size": 3698,
-   "sha256": "4c4b12de4b8c81f1c78ecfbcbb1af6174407d2c41cdd24855373453dbd83d14c"
+   "sha256": "0bab0442115db060153de8c6688bddd59c158746b168a108dc9e384db5c8a1b9"
   },
   {
    "path": "js/core/agent/json.js",
@@ -934,18 +1109,18 @@
   },
   {
    "path": "js/core/llm/client.js",
-   "size": 5857,
-   "sha256": "258a8376c1bb747003c6a02ae74ffe9d7d6197870939717509fb826786667110"
+   "size": 7486,
+   "sha256": "be976954c0aa2d84ea708fc19c2d3ba978109a1ea292a9a2de483d75cc3cb06b"
   },
   {
    "path": "js/core/llm/provider.js",
-   "size": 2971,
-   "sha256": "ad25c4cb6f2f774b2177a6930028d3f377472225712fd3557b484d4043385c78"
+   "size": 3023,
+   "sha256": "d3544c11c0c5a2eb83c3026fbabc3234a074e581076978773768482931810d2e"
   },
   {
    "path": "js/core/llm/resolve.js",
-   "size": 2331,
-   "sha256": "3ed7dfed1aa3276d4b9f430c20fca93a5e7e6d1c1aabd4fb1d2d671cc16ac4e1"
+   "size": 2430,
+   "sha256": "94f5a43b4f1679e6d39a48ad6a6ee84bef0725407e59e3d2c4b6281825a85dfc"
   },
   {
    "path": "js/core/log/events.js",
@@ -1043,6 +1218,16 @@
    "sha256": "4e9472dc0c9c3f75a513ae726330477e6d12a115c9175a27348f84bfdf587872"
   },
   {
+   "path": "js/core/tourlayout.js",
+   "size": 7656,
+   "sha256": "c88f62fb38e51adf1c56e98230373a5e91f0670a41b91ee15d6b1a9436de3e56"
+  },
+  {
+   "path": "js/core/tourlooks.js",
+   "size": 881,
+   "sha256": "1f5a87bcc4fc83f584bde4033274b06b5aabfde28deb4ab336ea2393aa5c8e67"
+  },
+  {
    "path": "js/core/wake/engine.js",
    "size": 4782,
    "sha256": "b3dcb46d2aaa4ff8533c4fe5a0cdc87a5b1dd04a71d68e03261d2e8a6b2d51d0"
@@ -1064,8 +1249,8 @@
   },
   {
    "path": "js/core/worker.js",
-   "size": 72794,
-   "sha256": "ffcace47f04526d2f5148b45227a6794af4d11970cd44d3cc50c7d3bd69f2f86"
+   "size": 72617,
+   "sha256": "062ba3845f89c84de3f91e260549efec46e8ddfad62620c42584bb81d38d001f"
   },
   {
    "path": "js/forge/grammar.js",
@@ -1079,8 +1264,8 @@
   },
   {
    "path": "js/runtime/local.js",
-   "size": 59836,
-   "sha256": "d0c08469ee35b8d89291066889d4d579e16ebba8d155431e222b9733997b30b1"
+   "size": 60519,
+   "sha256": "796f9376294e5f6177abe2ac1c83025a8f0e4830fcf09b2cc5f9a97a5d5e2bab"
   },
   {
    "path": "js/runtime/qq-bridge.js",
@@ -1093,19 +1278,34 @@
    "sha256": "4908d90cb36033115eed82a91645fd5b09e067e1e6d2ad3bf9387017ce4b3c8f"
   },
   {
+   "path": "js/tour.js",
+   "size": 31736,
+   "sha256": "91deac9f64911f95b989f6a6d4470672f7909c07600f327014f1b669a59f8b77"
+  },
+  {
    "path": "js/view/hud.js",
    "size": 2601,
    "sha256": "cd10c13956354d0cad7ad91d9f022212bc29b300a6b67c3c8edd9e19afbad6e4"
   },
   {
+   "path": "js/view/lightplate.js",
+   "size": 2285,
+   "sha256": "3a706c9966f724d00eaa4e0f0b9f52bca3e25676debc6633f2131f64af76f51d"
+  },
+  {
    "path": "js/view/overview.js",
-   "size": 12531,
-   "sha256": "88d849cf7831a2efcd240f254b2d89f8ba85c7d771b5cf98a9d3d5995b4032c4"
+   "size": 11268,
+   "sha256": "749f4214c20c177ac7d912bf9271a1433889ec0965419d0feb2316337a9ec2c5"
   },
   {
    "path": "js/view/perf-overlay.js",
    "size": 1156,
    "sha256": "6309532a7745d380fae199bf99bfa8593997f62f19b1432b3054e3ae8af35e29"
+  },
+  {
+   "path": "js/view/pixmap.js",
+   "size": 1389,
+   "sha256": "0fa3eb97de9d3009e8255e6371f2418daef48dd38ba6c670a6d87deb67ded627"
   },
   {
    "path": "js/view/present-host.js",
@@ -1143,14 +1343,19 @@
    "sha256": "34202ee6d9b8280e834587609a57377c0711304ffa54512b0b803ef11f481fce"
   },
   {
+   "path": "tour.html",
+   "size": 990,
+   "sha256": "84de9fc73414cb59bb429d503bae55645a9f592d5128846f22c3d236d604d61a"
+  },
+  {
    "path": "workers/forge.worker.js",
    "size": 9486,
    "sha256": "71ee9233f5474e649a6dc2f9b52573ee3cab028f876c4b231d8f5abbf1344c69"
   },
   {
    "path": "workers/life.worker.js",
-   "size": 35205,
-   "sha256": "1a89fa4c8c4a5d0f1f4eb119334a075412f29fe3e9a0238b93ad117924ce9c30"
+   "size": 35972,
+   "sha256": "a3ba68e5392d3627847063893a9fdffb4d0ab3a2435b056edf823f57ca8d862a"
   }
  ]
 }

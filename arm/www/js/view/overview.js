@@ -3,15 +3,8 @@
 
 import { walkFrame } from "../core/pathagent.js";
 import { isWalkable } from "../core/grid.js";
-
-const LIGHT = {
-  dawn: { top: "rgba(255,180,120,0.16)", bottom: "rgba(60,40,80,0.10)", vignette: 0.22 },
-  day: { top: "rgba(255,240,210,0.05)", bottom: "rgba(0,0,0,0.02)", vignette: 0.12 },
-  dusk: { top: "rgba(255,140,90,0.20)", bottom: "rgba(40,20,60,0.16)", vignette: 0.26 },
-  night: { top: "rgba(40,60,140,0.34)", bottom: "rgba(10,16,40,0.30)", vignette: 0.42 },
-  rain: { top: "rgba(90,120,150,0.26)", bottom: "rgba(30,40,60,0.22)", vignette: 0.34 },
-  snow: { top: "rgba(220,235,250,0.22)", bottom: "rgba(120,140,170,0.14)", vignette: 0.20 },
-};
+import { loadCachedImage, loadCachedJSON } from "./pixmap.js";
+import { paintLightPlate } from "./lightplate.js";
 
 const SKIN = "#f0c9a4";
 const HAIR = "#3b2b33";
@@ -49,26 +42,7 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
   let fps = 0;
 
   async function loadImage(url) {
-    let src = url;
-    let objectUrl = "";
-    if (typeof caches !== "undefined" && typeof location !== "undefined") {
-      try {
-        const cache = await caches.open("dhvw-scenes-v1");
-        const hit = await cache.match(new URL(url, location.href).href);
-        if (hit) {
-          objectUrl = URL.createObjectURL(await hit.blob());
-          src = objectUrl;
-        }
-      } catch {
-        /* Cache API 不可用时直接走网络 */
-      }
-    }
-    const img = new Image();
-    img.decoding = "async";
-    img.src = src;
-    await img.decode();
-    if (objectUrl) URL.revokeObjectURL(objectUrl);
-    return img;
+    return loadCachedImage(url);
   }
 
   function buildLight(key) {
@@ -78,18 +52,7 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
       lightLayer.height = H;
       lightCtx = lightLayer.getContext("2d");
     }
-    const p = LIGHT[key] || LIGHT.day;
-    lightCtx.clearRect(0, 0, W, H);
-    const g = lightCtx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, p.top);
-    g.addColorStop(1, p.bottom);
-    lightCtx.fillStyle = g;
-    lightCtx.fillRect(0, 0, W, H);
-    const v = lightCtx.createRadialGradient(W / 2, H / 2, H * 0.34, W / 2, H / 2, H * 0.95);
-    v.addColorStop(0, "rgba(0,0,0,0)");
-    v.addColorStop(1, `rgba(0,0,0,${p.vignette})`);
-    lightCtx.fillStyle = v;
-    lightCtx.fillRect(0, 0, W, H);
+    paintLightPlate(lightCtx, W, H, key);
     lightKey = key;
   }
 
@@ -317,6 +280,25 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
     return dt;
   }
 
+  async function reloadCharacter(override = null) {
+    if (override && override.sheet && override.img) {
+      charSheet = override.sheet;
+      charImg = override.img;
+      return true;
+    }
+    try {
+      const sheet = await loadCachedJSON("assets/char/ojj_sheet.json");
+      const img = await loadImage("assets/char/ojj_sheet.png");
+      charSheet = sheet;
+      charImg = img;
+      return true;
+    } catch {
+      charSheet = null;
+      charImg = null;
+      return false;
+    }
+  }
+
   return {
     get fps() {
       return fps;
@@ -324,18 +306,10 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
     get size() {
       return { w: W, h: H, css: fitted };
     },
+    reloadCharacter,
     async load() {
       terrain = await loadImage(scene.image2xUrl);
-      try {
-        const res = await fetch("assets/char/ojj_sheet.json", { cache: "no-cache" });
-        if (res.ok) {
-          charSheet = await res.json();
-          charImg = await loadImage("assets/char/ojj_sheet.png");
-        }
-      } catch {
-        charSheet = null;
-        charImg = null;
-      }
+      await reloadCharacter();
       await Promise.all(
         sprites
           .filter((sp) => sp.sheet && sp.image)

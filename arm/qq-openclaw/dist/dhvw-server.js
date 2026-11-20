@@ -8,6 +8,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
+import https from "node:https";
 import path from "node:path";
 import { resolveSnowLumaAccount } from "./src/config.js";
 import { startGateway } from "./src/gateway.js";
@@ -50,9 +51,12 @@ function attachWsClient(req, socket, onMessage, onClose) {
       `Sec-WebSocket-Accept: ${accept}\r\n\r\n`,
   );
   let buf = Buffer.alloc(0);
+  let fragChunks = [];
+  let fragOp = 0;
   socket.on("data", (chunk) => {
     buf = Buffer.concat([buf, chunk]);
     while (buf.length >= 2) {
+      const fin = (buf[0] & 0x80) !== 0;
       const op = buf[0] & 0x0f;
       const masked = (buf[1] & 0x80) !== 0;
       let len = buf[1] & 0x7f;
@@ -84,10 +88,27 @@ function attachWsClient(req, socket, onMessage, onClose) {
         socket.write(Buffer.from([0x8a, 0x00]));
         continue;
       }
-      if (op === 0x1) {
-        try {
-          onMessage(JSON.parse(payload.toString("utf8")));
-        } catch {}
+      if (op === 0xa) {
+        continue;
+      }
+      if (op === 0x1 || op === 0x2) {
+        fragChunks = [payload];
+        fragOp = op;
+      } else if (op === 0x0 && fragOp) {
+        fragChunks.push(payload);
+      } else {
+        continue;
+      }
+      if (fin) {
+        const fullBuf = fragChunks.length === 1 ? fragChunks[0] : Buffer.concat(fragChunks);
+        const doneOp = fragOp;
+        fragChunks = [];
+        fragOp = 0;
+        if (doneOp === 0x1) {
+          try {
+            onMessage(JSON.parse(fullBuf.toString("utf8")));
+          } catch {}
+        }
       }
     }
   });
@@ -143,12 +164,72 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
   const stateDir = rawCfg.stateDir || "/var/lib/dhvw/qq-openclaw";
   fs.mkdirSync(stateDir, { recursive: true });
   const llmCachePath = path.join(stateDir, "llm.json");
+  const imageGenCachePath = path.join(stateDir, "imagegen.json");
+  const personaCachePath = path.join(stateDir, "persona.json");
+  const ref3dPath = path.join(stateDir, "character_ref_3d.png");
   const botConfigPath = path.join(stateDir, "bot-config.json");
 
   let cachedLlm = {};
   try {
     if (fs.existsSync(llmCachePath)) cachedLlm = JSON.parse(fs.readFileSync(llmCachePath, "utf8")) || {};
   } catch {}
+
+  let imageGenConfig = {};
+  try {
+    if (fs.existsSync(imageGenCachePath)) imageGenConfig = JSON.parse(fs.readFileSync(imageGenCachePath, "utf8")) || {};
+  } catch {}
+
+  let personaConfig = {};
+  try {
+    if (fs.existsSync(personaCachePath)) personaConfig = JSON.parse(fs.readFileSync(personaCachePath, "utf8")) || {};
+  } catch {}
+
+  let ref3dFetchInFlight = null;
+  function syncRef3dFromUrls(fetchUrl = "") {
+    if (ref3dFetchInFlight) return ref3dFetchInFlight;
+    const candidates = [
+      ...(typeof fetchUrl === "string" && fetchUrl.trim() ? [fetchUrl.trim()] : []),
+      "http://127.0.0.1:8877/dhvw/character-ref-3d",
+    ];
+    ref3dFetchInFlight = (async () => {
+      for (const rawU of candidates) {
+        try {
+          const u = new URL(rawU);
+          const mod = u.protocol === "https:" ? https : http;
+          const buf = await new Promise((resolve, reject) => {
+            const req = mod.get(
+              u,
+              { rejectUnauthorized: false, timeout: 8000 },
+              (res) => {
+                if (res.statusCode !== 200) {
+                  res.resume();
+                  return reject(new Error(`HTTP ${res.statusCode}`));
+                }
+                const chunks = [];
+                res.on("data", (c) => chunks.push(c));
+                res.on("end", () => resolve(Buffer.concat(chunks)));
+              },
+            );
+            req.on("error", reject);
+            req.on("timeout", () => req.destroy(new Error("timeout")));
+          });
+          if (buf && buf.byteLength > 100) {
+            fs.writeFileSync(ref3dPath, buf);
+            log?.info?.(`[qq-openclaw] 已直连拉取角色三维参考图 (${buf.byteLength}B)`);
+            return true;
+          }
+        } catch {}
+      }
+      return false;
+    })().finally(() => {
+      ref3dFetchInFlight = null;
+    });
+    return ref3dFetchInFlight;
+  }
+
+  if (Number(imageGenConfig.ref3dUpdatedAt || 0) > 0 && !fs.existsSync(ref3dPath)) {
+    void syncRef3dFromUrls();
+  }
 
   let persistedBot = {};
   try {
@@ -158,9 +239,22 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
   const effCfg = {
     ...rawCfg,
     ...persistedBot,
-    sticker: { ...(rawCfg.sticker || {}), ...(persistedBot.sticker || {}) },
+    gateways: {
+      qq: rawCfg.gateways?.qq ?? persistedBot.gateways?.qq ?? true,
+      feishu: rawCfg.gateways?.feishu ?? persistedBot.gateways?.feishu ?? false,
+    },
+    feishu: {
+      ...(rawCfg.feishu || {}),
+      ...(persistedBot.feishu || {}),
+    },
+    sticker: {
+      eagerness: 2,
+      ...(rawCfg.sticker || {}),
+      ...(persistedBot.sticker || {}),
+    },
   };
   if (!effCfg.clientSecret && rawCfg.clientSecret) effCfg.clientSecret = rawCfg.clientSecret;
+  if (!effCfg.feishu.appSecret && rawCfg.feishu?.appSecret) effCfg.feishu.appSecret = rawCfg.feishu.appSecret;
 
   let worldState = { day: 1, minute: 480, phase: "morning", weather: "clear", place: "home", mood: { energy: 0.55, valence: 0.55, social: 0.4, focus: 0.5 }, band: "calm" };
   let llmConfig = effCfg.llm?.baseUrl ? effCfg.llm : cachedLlm;
@@ -169,6 +263,9 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
   let liveClient = null;
   let liveAccount = null;
   let lastGatewayError = "";
+  let liveFeishuClient = null;
+  let liveFeishuAccount = null;
+  let lastFeishuGatewayError = "";
 
   const maskStr = (s) => {
     const str = String(s || "").trim();
@@ -181,11 +278,22 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
     try {
       const toSave = {
         enabled: effCfg.enabled !== false && boostActive,
+        gateways: {
+          qq: effCfg.gateways?.qq !== false,
+          feishu: effCfg.gateways?.feishu === true,
+        },
         appId: effCfg.appId || "",
         clientSecret: effCfg.clientSecret || "",
         sandbox: effCfg.sandbox !== false,
         ownerOpenId: effCfg.ownerOpenId || "",
         proactive: effCfg.proactive !== false,
+        feishu: {
+          appId: effCfg.feishu?.appId || "",
+          appSecret: effCfg.feishu?.appSecret || "",
+          ownerOpenId: effCfg.feishu?.ownerOpenId || "",
+          proactive: effCfg.feishu?.proactive !== false,
+          stickerEagerness: effCfg.feishu?.stickerEagerness ?? 2,
+        },
         followBoost: effCfg.followBoost !== false,
         sticker: effCfg.sticker || {},
       };
@@ -222,6 +330,9 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
     sticker: effCfg.sticker || {},
     partDelayMs: effCfg.partDelayMs ?? 450,
     getLlmConfig: () => llmConfig,
+    getImageGenConfig: () => imageGenConfig,
+    getPersonaConfig: () => personaConfig,
+    getRef3dPath: () => (fs.existsSync(ref3dPath) ? ref3dPath : ""),
     getWorldState: () => worldState,
     queryMemory: async (text, k, mood) => {
       const res = await requestFromBrowser("qq:memory:query", { text, k, mood }, 2200);
@@ -236,8 +347,18 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
   });
 
   const proactive = createProactiveRunner({
-    getClient: () => liveClient,
-    getAccount: () => liveAccount,
+    getClient: () => liveClient || liveFeishuClient,
+    getAccount: () => liveAccount || liveFeishuAccount,
+    getTargets: () => {
+      const out = [];
+      if (effCfg.gateways?.qq !== false && effCfg.proactive !== false && liveClient && liveAccount) {
+        out.push({ channel: "qq", client: liveClient, account: liveAccount });
+      }
+      if (effCfg.gateways?.feishu === true && effCfg.feishu?.proactive !== false && liveFeishuClient && liveFeishuAccount) {
+        out.push({ channel: "feishu", client: liveFeishuClient, account: liveFeishuAccount });
+      }
+      return out;
+    },
     runtime,
     getWorldState: () => worldState,
     queryMemory: async (text, k, mood) => {
@@ -252,10 +373,31 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
     log,
   });
 
+  const sharedReceive = {
+    mention: { enabled: true, alwaysReplyInDirect: true },
+    realtime: {
+      enabled: true,
+      windowMs: effCfg.debounceMs ?? 800,
+      maxWindowMs: effCfg.maxWindowMs ?? 3000,
+      maxMessages: effCfg.maxCoalesceMsgs ?? 10,
+      maxChars: effCfg.maxCoalesceChars ?? 8000,
+    },
+    digest: { enabled: false },
+    summary: { enabled: true },
+    history: { enabled: true, maxMessages: 20, maxChars: 4000 },
+  };
+  const sharedImage = {
+    enabled: true,
+    maxPerMessage: effCfg.maxImagesPerMsg ?? 3,
+    maxBytes: effCfg.mediaMaxBytes ?? 4 * 1024 * 1024,
+    tool: false,
+  };
+
   const cfg = {
     channels: {
       snowluma: {
         enabled: true,
+        channelType: "qq",
         appId: effCfg.appId || "",
         clientSecret: effCfg.clientSecret || "",
         sandbox: effCfg.sandbox !== false,
@@ -264,54 +406,90 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
         proactiveCooldownMin: effCfg.proactiveCooldownMin ?? 40,
         proactiveDailyMax: effCfg.proactiveDailyMax ?? 6,
         partDelayMs: effCfg.partDelayMs ?? 450,
-        receive: {
-          mention: { enabled: true, alwaysReplyInDirect: true },
-          realtime: {
+        receive: sharedReceive,
+        image: sharedImage,
+        accounts: {
+          feishu: {
             enabled: true,
-            windowMs: effCfg.debounceMs ?? 800,
-            maxWindowMs: effCfg.maxWindowMs ?? 3000,
-            maxMessages: effCfg.maxCoalesceMsgs ?? 10,
-            maxChars: effCfg.maxCoalesceChars ?? 8000,
+            channelType: "feishu",
+            appId: effCfg.feishu?.appId || "",
+            appSecret: effCfg.feishu?.appSecret || "",
+            ownerOpenId: effCfg.feishu?.ownerOpenId || "",
+            allowOpenIds: effCfg.feishu?.allowOpenIds || [],
+            proactiveCooldownMin: effCfg.feishu?.proactiveCooldownMin ?? effCfg.proactiveCooldownMin ?? 30,
+            proactiveDailyMax: effCfg.feishu?.proactiveDailyMax ?? 30,
+            partDelayMs: effCfg.partDelayMs ?? 450,
+            receive: sharedReceive,
+            image: sharedImage,
           },
-          digest: { enabled: false },
-          summary: { enabled: true },
-          history: { enabled: true, maxMessages: 20, maxChars: 4000 },
-        },
-        image: {
-          enabled: true,
-          maxPerMessage: effCfg.maxImagesPerMsg ?? 3,
-          maxBytes: effCfg.mediaMaxBytes ?? 4 * 1024 * 1024,
-          tool: false,
         },
       },
     },
   };
 
   let account = resolveSnowLumaAccount(cfg);
+  let feishuAccount = resolveSnowLumaAccount(cfg, "feishu");
   let gwAc = null;
   let gatewayPromise = null;
+  let feishuGwAc = null;
+  let feishuGatewayPromise = null;
   let proactiveTimer = null;
   let boostActive =
     effCfg.enabled === true ||
-    (Boolean(persistedBot.appId && persistedBot.clientSecret) && persistedBot.enabled !== false);
+    (persistedBot.enabled !== false &&
+      (Boolean(persistedBot.appId && persistedBot.clientSecret) ||
+        Boolean(persistedBot.feishu?.appId && persistedBot.feishu?.appSecret)));
 
   function statusSnapshot() {
+    const qqEnabled = effCfg.gateways?.qq !== false;
+    const feishuEnabled = effCfg.gateways?.feishu === true;
+    const qqConfigured = Boolean(account.appId && account.clientSecret);
+    const feishuConfigured = Boolean(feishuAccount.appId && feishuAccount.appSecret);
+    const qqConnected = !!liveClient?.connected;
+    const feishuConnected = !!liveFeishuClient?.connected;
     return {
       ok: true,
       running: true,
-      configured: Boolean(account.appId && account.clientSecret),
+      configured: qqConfigured || feishuConfigured,
       boostActive,
-      connected: !!liveClient?.connected,
+      gateways: { qq: qqEnabled, feishu: feishuEnabled },
+      connected: qqConnected || feishuConnected,
       gatewayError: lastGatewayError || "",
       sandbox: account.sandbox,
       appId: account.appId || "",
       appIdMasked: maskStr(account.appId),
-      paired: Boolean(account.ownerOpenId),
+      paired: Boolean(account.ownerOpenId) || Boolean(feishuAccount.ownerOpenId),
       ownerOpenId: account.ownerOpenId || "",
       ownerOpenIdMasked: maskStr(account.ownerOpenId),
       awaitingActivation: Boolean(account.appId && account.clientSecret && !account.ownerOpenId),
+      feishu: {
+        enabled: feishuEnabled,
+        configured: feishuConfigured,
+        connected: feishuConnected,
+        gatewayError: lastFeishuGatewayError || "",
+        appId: feishuAccount.appId || "",
+        appIdMasked: maskStr(feishuAccount.appId),
+        paired: Boolean(feishuAccount.ownerOpenId),
+        ownerOpenId: feishuAccount.ownerOpenId || "",
+        ownerOpenIdMasked: maskStr(feishuAccount.ownerOpenId),
+        awaitingActivation: Boolean(feishuConfigured && !feishuAccount.ownerOpenId),
+        lastPongAt: Number(liveFeishuClient?.lastPongAt || 0),
+        framesReceived: Number(liveFeishuClient?.framesReceived || 0),
+        lastEventType: String(liveFeishuClient?.lastEventType || ""),
+        lastEventSummary: String(liveFeishuClient?.lastEventSummary || ""),
+        proactive: effCfg.feishu?.proactive !== false,
+        unlimitedProactive: true,
+      },
       stickers: runtime.stickerStore?.stats?.() || { count: 0 },
       proactive: proactive.getStatus?.() || null,
+      lastLlmError: runtime.getLastLlmError?.() || "",
+      imageGen: {
+        enabled: Boolean(imageGenConfig.enabled),
+        model: imageGenConfig.model || "",
+        hasRef3d: fs.existsSync(ref3dPath),
+        ref3dUpdatedAt: Number(imageGenConfig.ref3dUpdatedAt || 0),
+        lastError: runtime.getLastImageGenError?.() || "",
+      },
       window: liveClient?.ledger?.snapshot(account.ownerOpenId) || { active: false, remainingSeq: 0, expiresAt: 0 },
     };
   }
@@ -323,109 +501,238 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
     broadcastBridge("qq:status", statusSnapshot());
   }
 
-  async function setActive(active) {
-    const next = Boolean(active);
-    effCfg.enabled = next;
-    boostActive = next;
+  function handleFeishuPaired(openId) {
+    effCfg.feishu = { ...(effCfg.feishu || {}), ownerOpenId: String(openId || "").trim() };
+    feishuAccount = { ...feishuAccount, ownerOpenId: effCfg.feishu.ownerOpenId };
     saveBotConfig();
-    lastGatewayError = "";
-    if (next) {
-      if (!account.appId || !account.clientSecret) {
-        log?.info?.("[qq-openclaw] Boost 已开启，等待 PC 下发 AppID / ClientSecret");
-        broadcastBridge("qq:status", statusSnapshot());
-        return;
-      }
-      if (gwAc) return;
-      const launchAccount = {
-        ...account,
-        autoPairFirst: true,
-        ledgerStateFile: path.join(stateDir, "qq-window-ledger.json"),
-        onPaired: handlePaired,
-      };
-      gwAc = new AbortController();
-      gatewayPromise = startGateway({
-        account: launchAccount,
-        cfg,
-        runtime,
-        abortSignal: gwAc.signal,
-        log,
-        onError: (err) => {
-          lastGatewayError = String(err?.message || err || "");
-          broadcastBridge("qq:status", statusSnapshot());
-        },
-        onReady: ({ client, account: effAcc }) => {
-          liveClient = client;
-          liveAccount = effAcc;
-          lastGatewayError = "";
-          client.onMessage(() => proactive.recordInbound());
-          broadcastBridge("qq:status", statusSnapshot());
-        },
-      }).catch((err) => {
-        lastGatewayError = String(err?.message || err || "");
-        log?.warn?.(`[qq-openclaw] gateway 退出: ${lastGatewayError}`);
-        broadcastBridge("qq:status", statusSnapshot());
-      });
-      if (effCfg.proactive !== false && !proactiveTimer) {
+    broadcastBridge("qq:status", statusSnapshot());
+  }
+
+  async function stopQqGateway() {
+    if (gwAc) {
+      gwAc.abort();
+      gwAc = null;
+      await gatewayPromise?.catch?.(() => {});
+      gatewayPromise = null;
+    }
+    liveClient = null;
+    liveAccount = null;
+  }
+
+  async function stopFeishuGateway() {
+    if (feishuGwAc) {
+      feishuGwAc.abort();
+      feishuGwAc = null;
+      await feishuGatewayPromise?.catch?.(() => {});
+      feishuGatewayPromise = null;
+    }
+    liveFeishuClient = null;
+    liveFeishuAccount = null;
+  }
+
+  async function syncProactiveTimer() {
+    const anyProactive =
+      boostActive &&
+      ((effCfg.gateways?.qq !== false && effCfg.proactive !== false && account.appId && account.clientSecret) ||
+        (effCfg.gateways?.feishu === true && effCfg.feishu?.proactive !== false && feishuAccount.appId && feishuAccount.appSecret));
+    if (anyProactive) {
+      if (!proactiveTimer) {
         proactiveTimer = setInterval(() => void proactive.tick(), 60_000);
         proactiveTimer.unref?.();
       }
-      log?.info?.("[qq-openclaw] Boost 已开启，QQ Bot 网关上线");
-      broadcastBridge("qq:status", statusSnapshot());
-    } else {
-      if (proactiveTimer) {
-        clearInterval(proactiveTimer);
-        proactiveTimer = null;
-      }
-      if (gwAc) {
-        gwAc.abort();
-        gwAc = null;
-        await gatewayPromise?.catch?.(() => {});
-        gatewayPromise = null;
-      }
-      liveClient = null;
-      liveAccount = null;
-      broadcastBridge("qq:status", statusSnapshot());
-      log?.info?.("[qq-openclaw] Boost 已关闭，QQ Bot 网关休眠");
+    } else if (proactiveTimer) {
+      clearInterval(proactiveTimer);
+      proactiveTimer = null;
     }
+  }
+
+  async function setActive(active, nextGateways = null) {
+    const next = Boolean(active);
+    if (nextGateways && typeof nextGateways === "object") {
+      effCfg.gateways = {
+        qq: nextGateways.qq !== undefined ? Boolean(nextGateways.qq) : effCfg.gateways?.qq !== false,
+        feishu: nextGateways.feishu !== undefined ? Boolean(nextGateways.feishu) : effCfg.gateways?.feishu === true,
+      };
+    }
+    effCfg.enabled = next;
+    boostActive = next;
+    saveBotConfig();
+
+    const wantQq = next && effCfg.gateways?.qq !== false && Boolean(account.appId && account.clientSecret);
+    const wantFeishu = next && effCfg.gateways?.feishu === true && Boolean(feishuAccount.appId && feishuAccount.appSecret);
+
+    if (wantQq) {
+      if (!gwAc) {
+        lastGatewayError = "";
+        const launchAccount = {
+          ...account,
+          channelType: "qq",
+          autoPairFirst: true,
+          ledgerStateFile: path.join(stateDir, "qq-window-ledger.json"),
+          onPaired: handlePaired,
+        };
+        gwAc = new AbortController();
+        gatewayPromise = startGateway({
+          account: launchAccount,
+          cfg,
+          runtime,
+          abortSignal: gwAc.signal,
+          log,
+          onError: (err) => {
+            lastGatewayError = String(err?.message || err || "");
+            broadcastBridge("qq:status", statusSnapshot());
+          },
+          onReady: ({ client, account: effAcc }) => {
+            liveClient = client;
+            liveAccount = effAcc;
+            lastGatewayError = "";
+            client.onMessage(() => proactive.recordInbound());
+            broadcastBridge("qq:status", statusSnapshot());
+          },
+        }).catch((err) => {
+          lastGatewayError = String(err?.message || err || "");
+          log?.warn?.(`[qq-openclaw] QQ gateway 退出: ${lastGatewayError}`);
+          broadcastBridge("qq:status", statusSnapshot());
+        });
+        log?.info?.("[qq-openclaw] Boost 已开启，QQ Bot 网关上线");
+      }
+    } else {
+      await stopQqGateway();
+    }
+
+    if (wantFeishu) {
+      if (!feishuGwAc) {
+        lastFeishuGatewayError = "";
+        const launchFeishu = {
+          ...feishuAccount,
+          accountId: "feishu",
+          channelType: "feishu",
+          autoPairFirst: true,
+          onPaired: handleFeishuPaired,
+        };
+        feishuGwAc = new AbortController();
+        feishuGatewayPromise = startGateway({
+          account: launchFeishu,
+          cfg,
+          runtime,
+          abortSignal: feishuGwAc.signal,
+          log,
+          onError: (err) => {
+            lastFeishuGatewayError = String(err?.message || err || "");
+            broadcastBridge("qq:status", statusSnapshot());
+          },
+          onReady: ({ client, account: effAcc }) => {
+            liveFeishuClient = client;
+            liveFeishuAccount = effAcc;
+            lastFeishuGatewayError = "";
+            client.onMessage(() => proactive.recordInbound());
+            client.on("open", () => broadcastBridge("qq:status", statusSnapshot()));
+            client.on("pong", () => broadcastBridge("qq:status", statusSnapshot()));
+            client.on("close", () => broadcastBridge("qq:status", statusSnapshot()));
+            broadcastBridge("qq:status", statusSnapshot());
+          },
+        }).catch((err) => {
+          lastFeishuGatewayError = String(err?.message || err || "");
+          log?.warn?.(`[qq-openclaw] 飞书 gateway 退出: ${lastFeishuGatewayError}`);
+          broadcastBridge("qq:status", statusSnapshot());
+        });
+        log?.info?.("[qq-openclaw] Boost 已开启，飞书长连接网关上线");
+      }
+    } else {
+      await stopFeishuGateway();
+    }
+
+    if (!next) {
+      log?.info?.("[qq-openclaw] Boost 已关闭，全部外部网关休眠");
+    }
+    await syncProactiveTimer();
+    broadcastBridge("qq:status", statusSnapshot());
   }
 
   async function applyBotConfig(patch = {}) {
     const prevAppId = account.appId;
     const prevSecret = account.clientSecret;
     const prevSandbox = account.sandbox;
+    const prevFeishuAppId = feishuAccount.appId;
+    const prevFeishuSecret = feishuAccount.appSecret;
 
-    if (typeof patch.appId === "string" && patch.appId.trim()) effCfg.appId = patch.appId.trim();
-    if (typeof patch.clientSecret === "string" && patch.clientSecret.trim()) effCfg.clientSecret = patch.clientSecret.trim();
-    if (typeof patch.sandbox === "boolean") effCfg.sandbox = patch.sandbox;
-    if (typeof patch.ownerOpenId === "string") effCfg.ownerOpenId = patch.ownerOpenId.trim();
-    if (typeof patch.proactive === "boolean") effCfg.proactive = patch.proactive;
-    if (typeof patch.followBoost === "boolean") effCfg.followBoost = patch.followBoost;
-    if (patch.rebind === true) effCfg.ownerOpenId = "";
+    if (patch.gateways && typeof patch.gateways === "object") {
+      effCfg.gateways = {
+        qq: patch.gateways.qq !== undefined ? Boolean(patch.gateways.qq) : effCfg.gateways?.qq !== false,
+        feishu: patch.gateways.feishu !== undefined ? Boolean(patch.gateways.feishu) : effCfg.gateways?.feishu === true,
+      };
+    }
+
+    const feishuPatch = patch.channel === "feishu" ? patch : (patch.feishu && typeof patch.feishu === "object" ? patch.feishu : null);
+    if (feishuPatch) {
+      effCfg.feishu = effCfg.feishu || {};
+      if (typeof feishuPatch.appId === "string" && feishuPatch.appId.trim()) effCfg.feishu.appId = feishuPatch.appId.trim();
+      const fSec = feishuPatch.appSecret || feishuPatch.clientSecret;
+      if (typeof fSec === "string" && fSec.trim()) effCfg.feishu.appSecret = fSec.trim();
+      if (typeof feishuPatch.ownerOpenId === "string") effCfg.feishu.ownerOpenId = feishuPatch.ownerOpenId.trim();
+      if (typeof feishuPatch.proactive === "boolean") effCfg.feishu.proactive = feishuPatch.proactive;
+      if (feishuPatch.stickerEagerness !== undefined && Number.isFinite(Number(feishuPatch.stickerEagerness))) {
+        const eg = Math.max(0, Math.min(3, Math.floor(Number(feishuPatch.stickerEagerness))));
+        effCfg.feishu.stickerEagerness = eg;
+        effCfg.sticker = { ...(effCfg.sticker || {}), eagerness: eg };
+        runtime.stickerStore?.setEagerness?.(eg);
+      }
+      if (feishuPatch.rebind === true) effCfg.feishu.ownerOpenId = "";
+    }
+
+    if (patch.channel !== "feishu") {
+      if (typeof patch.appId === "string" && patch.appId.trim()) effCfg.appId = patch.appId.trim();
+      if (typeof patch.clientSecret === "string" && patch.clientSecret.trim()) effCfg.clientSecret = patch.clientSecret.trim();
+      if (typeof patch.sandbox === "boolean") effCfg.sandbox = patch.sandbox;
+      if (typeof patch.ownerOpenId === "string") effCfg.ownerOpenId = patch.ownerOpenId.trim();
+      if (typeof patch.proactive === "boolean") effCfg.proactive = patch.proactive;
+      if (patch.stickerEagerness !== undefined && Number.isFinite(Number(patch.stickerEagerness))) {
+        const eg = Math.max(0, Math.min(3, Math.floor(Number(patch.stickerEagerness))));
+        effCfg.sticker = { ...(effCfg.sticker || {}), eagerness: eg };
+        runtime.stickerStore?.setEagerness?.(eg);
+      }
+      if (typeof patch.followBoost === "boolean") effCfg.followBoost = patch.followBoost;
+      if (patch.rebind === true) effCfg.ownerOpenId = "";
+    }
 
     cfg.channels.snowluma.appId = effCfg.appId || "";
     cfg.channels.snowluma.clientSecret = effCfg.clientSecret || "";
     cfg.channels.snowluma.sandbox = effCfg.sandbox !== false;
     cfg.channels.snowluma.ownerOpenId = effCfg.ownerOpenId || "";
     account = resolveSnowLumaAccount(cfg);
+
+    cfg.channels.snowluma.accounts.feishu.appId = effCfg.feishu?.appId || "";
+    cfg.channels.snowluma.accounts.feishu.appSecret = effCfg.feishu?.appSecret || "";
+    cfg.channels.snowluma.accounts.feishu.ownerOpenId = effCfg.feishu?.ownerOpenId || "";
+    feishuAccount = resolveSnowLumaAccount(cfg, "feishu");
+
     saveBotConfig();
 
-    const credsChanged = account.appId !== prevAppId || account.clientSecret !== prevSecret || account.sandbox !== prevSandbox;
+    const qqCredsChanged = account.appId !== prevAppId || account.clientSecret !== prevSecret || account.sandbox !== prevSandbox;
+    const feishuCredsChanged = feishuAccount.appId !== prevFeishuAppId || feishuAccount.appSecret !== prevFeishuSecret;
     if (patch.activate === true) boostActive = true;
 
-    if (liveClient && !credsChanged) {
-      liveClient.setOwnerOpenId(account.ownerOpenId);
-    }
-    if (boostActive && account.appId && account.clientSecret) {
-      if (credsChanged && gwAc) {
-        await setActive(false);
-      }
+    if (liveClient && !qqCredsChanged) liveClient.setOwnerOpenId(account.ownerOpenId);
+    if (liveFeishuClient && !feishuCredsChanged) liveFeishuClient.setOwnerOpenId(feishuAccount.ownerOpenId);
+
+    if (qqCredsChanged && gwAc) await stopQqGateway();
+    if (feishuCredsChanged && feishuGwAc) await stopFeishuGateway();
+
+    if (boostActive) {
       await setActive(true);
+    } else {
+      broadcastBridge("qq:status", statusSnapshot());
     }
-    broadcastBridge("qq:status", statusSnapshot());
     return statusSnapshot();
   }
 
-  async function triggerRebind() {
+  async function triggerRebind(channel = "qq") {
+    if (channel === "feishu") {
+      return applyBotConfig({ channel: "feishu", rebind: true, ownerOpenId: "" });
+    }
+    if (channel === "all") {
+      return applyBotConfig({ rebind: true, ownerOpenId: "", feishu: { rebind: true, ownerOpenId: "" } });
+    }
     return applyBotConfig({ rebind: true, ownerOpenId: "" });
   }
 
@@ -460,7 +767,9 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
       return;
     }
     if (cleanUrl === "/__qq/rebind" && req.method === "POST") {
-      const st = await triggerRebind();
+      const body = await readJsonBody(req);
+      const qChannel = new URL(req.url || "/", "http://127.0.0.1").searchParams.get("channel");
+      const st = await triggerRebind(body?.channel || qChannel || "qq");
       res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
       res.end(JSON.stringify(st));
       return;
@@ -498,14 +807,44 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
           try {
             fs.writeFileSync(llmCachePath, JSON.stringify(llmConfig), { mode: 0o600 });
           } catch {}
+        } else if (msg?.type === "qq:imagegen:config" && msg.payload) {
+          const { ref3dBase64, ref3dFetchUrl, ...rest } = msg.payload;
+          const prevTs = Number(imageGenConfig.ref3dUpdatedAt || 0);
+          imageGenConfig = { ...imageGenConfig, ...rest };
+          try {
+            fs.writeFileSync(imageGenCachePath, JSON.stringify(imageGenConfig), { mode: 0o600 });
+            if (typeof ref3dBase64 === "string") {
+              if (ref3dBase64.trim()) {
+                fs.writeFileSync(ref3dPath, Buffer.from(ref3dBase64, "base64"));
+                log?.info?.(`[qq-openclaw] 已通过 WS 同步角色三维参考图 (${ref3dPath})`);
+              } else if (fs.existsSync(ref3dPath)) {
+                fs.unlinkSync(ref3dPath);
+              }
+            } else if (
+              Number(rest.ref3dUpdatedAt || 0) > 0 &&
+              (!fs.existsSync(ref3dPath) || Number(rest.ref3dUpdatedAt) !== prevTs)
+            ) {
+              void syncRef3dFromUrls(ref3dFetchUrl);
+            }
+          } catch {}
+        } else if (msg?.type === "qq:persona:config" && msg.payload) {
+          personaConfig = { ...personaConfig, ...msg.payload };
+          try {
+            fs.writeFileSync(personaCachePath, JSON.stringify(personaConfig), { mode: 0o600 });
+          } catch {}
+          runtime.syncCharacterCues?.();
         } else if (msg?.type === "qq:world:event" && msg.payload) {
           proactive.recordWorldEvent(msg.payload);
         } else if (msg?.type === "qq:boost:state" && msg.payload) {
-          void setActive(msg.payload.enabled);
+          void setActive(msg.payload.enabled, msg.payload.gateways);
         } else if (msg?.type === "qq:bot:config" && msg.payload) {
           void applyBotConfig(msg.payload);
         } else if (msg?.type === "qq:bot:rebind") {
-          void triggerRebind();
+          void triggerRebind(msg?.payload?.channel || "qq");
+        } else if (msg?.type === "feishu:bot:config" && msg.payload) {
+          void applyBotConfig({ channel: "feishu", ...msg.payload });
+        } else if (msg?.type === "feishu:bot:rebind") {
+          void triggerRebind("feishu");
         }
       },
       () => {
@@ -539,8 +878,7 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
     stop: async () => {
       if (proactiveTimer) clearInterval(proactiveTimer);
       proactiveTimer = null;
-      if (gwAc) gwAc.abort();
-      await gatewayPromise?.catch?.(() => {});
+      await Promise.all([stopQqGateway(), stopFeishuGateway()]);
       for (const s of sockets) s.close();
       await new Promise((r) => server.close(r));
     },

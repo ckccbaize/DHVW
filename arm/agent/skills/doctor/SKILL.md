@@ -3,7 +3,7 @@ name: doctor
 description: 自检诊断：根据问题与日志给出白名单修复动作
 class: work
 prompt: doctor
-maxTokens: 400
+maxTokens: 3000
 temperature: 0.2
 tools: []
 output: json

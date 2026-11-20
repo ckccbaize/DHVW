@@ -3,7 +3,7 @@ name: memory-summarize
 description: 把事件归纳成稳定事实，供本地记忆与 PC 向量库
 class: work
 prompt: memory-summarize
-maxTokens: 800
+maxTokens: 6000
 temperature: 0.3
 tools: []
 output: json

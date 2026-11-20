@@ -82,8 +82,10 @@ export async function buildRegistry(root = ROOT) {
     if (!CLASSES.has(data.class)) errors.push({ file: `agent/skills/${ent.name}`, msg: `class 必须是 character/work` });
     if (!data.prompt) errors.push({ file: `agent/skills/${ent.name}`, msg: "缺少 prompt" });
     else if (!prompts[data.prompt]) errors.push({ file: `agent/skills/${ent.name}`, msg: `prompt "${data.prompt}" 不存在` });
-    if (!Number.isFinite(data.maxTokens) || data.maxTokens < 1 || data.maxTokens > 800) {
-      errors.push({ file: `agent/skills/${ent.name}`, msg: "maxTokens 必须在 1–800" });
+    // 推理模型把 reasoning_content 也算进 max_tokens，正文预算需要在上限之上额外留出，
+    // 旧上限 800 会让 plot/writing 在思考阶段就被截断，正文永远为空。
+    if (!Number.isFinite(data.maxTokens) || data.maxTokens < 1 || data.maxTokens > 16000) {
+      errors.push({ file: `agent/skills/${ent.name}`, msg: "maxTokens 必须在 1–16000" });
     }
     if (!Number.isFinite(data.temperature) || data.temperature < 0 || data.temperature > 2) {
       errors.push({ file: `agent/skills/${ent.name}`, msg: "temperature 必须在 0–2" });

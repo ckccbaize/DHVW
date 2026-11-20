@@ -6,7 +6,7 @@ export const EFFECT_DIMS = new Set(["energy", "valence", "social", "focus"]);
 
 export const BUILTIN_BEHAVIORS = [
   { id: "outing", name: "出门转转", kind: "travel", weight: 1.2, cooldownMin: 180, hours: [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22], effects: { valence: 0.06 }, requires: {} },
-  { id: "browse", name: "上网看看", kind: "network", weight: 0.8, cooldownMin: 120, hours: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22], effects: { focus: 0.04 }, requires: { network: true } },
+  { id: "browse", name: "上网看看", kind: "network", weight: 0.9, cooldownMin: 100, hours: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22], effects: { focus: 0.04 }, requires: { network: true } },
   { id: "cook", name: "做点吃的", kind: "home", weight: 1.0, cooldownMin: 240, hours: [7, 8, 11, 12, 17, 18, 19], effects: { energy: 0.08, valence: 0.05 } },
   { id: "read", name: "看书", kind: "home", weight: 1.0, cooldownMin: 90, hours: [8, 9, 10, 14, 15, 16, 20, 21, 22], effects: { focus: 0.08 } },
   { id: "tidy", name: "收拾屋子", kind: "home", weight: 0.8, cooldownMin: 180, hours: [9, 10, 11, 15, 16, 17], effects: { focus: 0.05, energy: -0.05 } },

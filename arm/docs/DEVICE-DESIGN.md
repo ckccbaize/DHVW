@@ -66,16 +66,22 @@ arm/
 ├─ docs/DEVICE-DESIGN.md        本文档
 ├─ shell/                       离线只读静态壳（Go）
 │   ├─ main.go                  MIME / ETag / 304 / 无目录列表 / SPA 回退 / /__health
+│   ├─ tour.go                  巡演录像落盘：POST /__tour/save?name=*.webm → data/recordings/
+│   ├─ tour_test.go
 │   ├─ main_test.go
 │   └─ build.sh                 交叉编译 arm64 / armv7
 ├─ www/                         资源包（部署到 /opt/dhvw/www）
 │   ├─ index.html               总观 + 显现同页（两态互斥渲染）
+│   ├─ tour.html                巡演（宣传片）：独立页面，不建主线运行时
 │   ├─ manifest.json            资源包清单（sha256 + size），部署校验基准
 │   ├─ config.json              主机地址/心跳/配额（设备侧唯一配置入口；`?host=` 首次会写入 localStorage `dhvw_host`，kiosk 无 query 时续连）
 │   ├─ css/app.css
+│   ├─ css/tour.css             巡演操作条（画布外的 DOM，不进录像）
 │   ├─ js/
-│   │   ├─ app.js               启动、模式控制、装配
+│   │   ├─ app.js               启动、模式控制、装配（`?tour=1` 最前面跳 tour.html）
+│   │   ├─ tour.js              巡演编排 + 绘制 + 录屏（独立，不碰存档/WS/Worker）
 │   │   ├─ core/grid.js         intGrid 解析、BFS、热点推导
+│   │   ├─ core/tourlayout.js   巡演街景带布局（同比例/地面线/接缝，纯函数）
 │   │   ├─ core/pathagent.js    位置模型（moveTo + 插值 + 纠偏）
 │   │   ├─ core/lifestore.js    唯一视图数据源（订阅式）
 │   │   ├─ core/clock.js        单调时钟 + clock_offset + 时段划分
@@ -85,6 +91,7 @@ arm/
 │   │   ├─ runtime/remote.js    RemoteRuntime（WS + 心跳 + 双证探测）
 │   │   ├─ runtime/local.js     LocalRuntime（Worker + IndexedDB）
 │   │   ├─ view/overview.js     总观：分层合成 + 角色 + 光罩
+│   │   ├─ view/lightplate.js   光罩色板 + 离屏合成（总观与巡演共用；不得直接画主画布）
 │   │   ├─ view/present.js      显现：四级前置 + 背景 + 字幕
 │   │   ├─ view/hud.js          角标 / 连接点 / Agent 卡 / 菜单
 │   │   ├─ view/bubble.js       气泡
@@ -350,9 +357,14 @@ sudo certutil -d sql:/home/dhvw/.pki/nssdb -A -t "C,," -n dhvw-gateway -i /path/
 ```bash
 # 本地开发（Windows/任意平台，Node 20+）
 npm run serve            # http://127.0.0.1:8080（开发服务，no-cache）
-npm test                 # node --test tests/*.test.mjs（31 项）
+npm test                 # node --test tests/*.test.mjs（326 项）
 npm run pack             # 重建 www/manifest.json
 npm run verify           # 校验资源包
+
+# 巡演（宣传片）：独立页面，不建主线运行时
+#   http://127.0.0.1:8080/tour.html          （空格重跑 / R 录屏 / H 操作条）
+#   ?record=0 只预览；?scenes=a,b,c 换路线；?bitrate=12000000 提码率
+#   录完落盘 data/recordings/dhvw-tour-<ts>.webm（壳 /__tour/save）
 
 # 离线壳
 cd shell && go test ./... && sh build.sh     # 产出 dist/dhvw-shell-linux-arm64 / -armv7
@@ -385,6 +397,198 @@ curl -s http://127.0.0.1:8080/__health
 | 交叉编译 | `sh shell/build.sh` | 通过：`dhvw-shell-linux-arm64` 5.7MB、`-armv7` 6.0MB（CGO 关闭） |
 
 **未验证（真机待测）**：A4 内存、A10 切换耗时、A13 8h 长稳与息屏功耗、A16 真机 tick P95 与烘焙耗时、1080p 实际观感（当前 20×15 场景在 16:9 屏上左右留黑边，属资源比例而非渲染问题）。
+
+---
+
+## 14.1 巡演模式（宣传片录制，v0.3，2026-11-19）
+
+一句话：**独立页面 `tour.html` 自动跑一遍"夜→晨→出门→逛遍现有场景"，全程画在 canvas 上并直接录成 webm**。录到的就是成片，不含任何 DOM 控件。
+
+### 14.1.1 与主线的隔离（硬约束）
+
+| 约束 | 实现 |
+|---|---|
+| 不建主线运行时 | 独立页面；`app.js` 在 `boot()` 最前面遇 `?tour=1` 直接 `location.replace("tour.html")` 返回，**不创建任何 store / Worker / WS** |
+| 不写设备存档 | 不碰 `localStorage` / `IndexedDB` / `life_snapshot`；只读场景包与角色图集（Cache Storage 命中优先，与总观同一读法） |
+| 不动主线立绘 | 巡演用 `assets/char/looks/` 下三套独立副本，不覆盖 `assets/char/ojj_sheet.*`；主线角色同步（PC 推送）照常生效，两者互不影响 |
+| 不连主机 | 无 WebSocket；主机档/端侧档都不参与 |
+| 不产出 tier 资产 | 不触发 `forge`，不写 `outbox` |
+| 唯一副作用 | 录完 `POST /__tour/save?name=*.webm` → 设备 `data/recordings/`（kiosk 无文件管理器，浏览器下载等于丢素材） |
+
+入口：`http://<device>:8080/tour.html`，或 `index.html?tour=1`（自动跳转）。
+
+### 14.1.2 编排（实测节拍，1280×720）
+
+| 时刻 | 内容 |
+|---|---|
+| 0–0.9s | 黑场淡入；总观浮层**错峰展开**（档位角标→时钟→产出计数→里/外 dock，各自从画面外侧滑入） |
+| 0–3.6s | 时钟 06:20 起走，1s = 10 游戏分钟；光罩由 `night` → `dawn` → `day` |
+| 3.6–4.8s | 浮层淡出收起 |
+| 0.9–4.4s | 躺在床上（横躺帧）→ 气泡「唔……」→「天亮了。」 |
+| 4.4–10.7s | 走到灶台 → `eat` 动作「先吃点东西。」 |
+| 10.7–13.0s | 走到 `front` 门（`doors` 里 `to:"outside"`，家在底部）→ 出门 |
+| 13.0–21.3s | 街景段：书店 → 咖啡厅 → 公园，**边走边换图**，每段约 2.5~3.2s |
+| 末尾 | 淡出 → 停录 → 落盘 `data/recordings/dhvw-tour-<ts>.webm` |
+
+实测全长约 21s（`?scenes=home,bookstore,cafe,park`）。
+
+**街景步速是室内的两倍**：`STREET_CELLS_PER_SEC = 1/0.17`（室内 `1/0.35`）。
+出门后是赶路不是散步，原来 0.35s/格让每段要 5.1s，观感拖沓（用户反馈「速度太慢」）。
+实测段时长 5.1s → **2.49 / 2.50 / 3.16s**，全程 29s → 21.3s。
+
+**每个场景换一套立绘**（`core/tourlooks.js`，已单测 6 项）：
+
+| 场景 | 形象 | 来源 |
+|---|---|---|
+| home | whale 鲸鱼娘 | PC `assets/char/ojj_sheet` |
+| bookstore | atri 亚托莉 | PC 角色库 `deepseek-54e633` |
+| cafe | miku 初音未来 | PC 角色库 `char-76bc33` |
+| park | whale（循环） | 同上 |
+
+序号取 `world.cur`（从**家**算起），不是从街景首段算起——否则家和书店都用第 0 套，
+第一次换场看不出变化（2026-11-20 实测）。三套都是 32×48 / 22 动作 / 四向齐全，
+切图只换 `sheet/img`，绘制参数完全不变，换图那一帧同时换人。
+形象资源在 `assets/char/looks/<name>.{json,png}`，开局并发预载、切换同步生效。
+
+### 14.1.3 街景段：边走边换图（核心口径）
+
+需求是**一张图没走完就换成下一张，角色不停步，接着走同样长的一段，再换**。实现遵循三条：
+
+1. **角色屏幕位置恒定**。摄像机用 `cameraTarget(worldX, camMax, vw, CAM_RATIO=0.4)`
+   把角色锁在画面 40% 处，地图在其脚下滚。换图时 `pos` 与 `camX` 在同一帧重置，
+   屏幕坐标连续——这是"走过去"与"幻灯片"的分界。
+2. **段长 = 摄像机可滚动距离**。`runPx = camMax / k`，走满即换。饱和瞬间角色
+   仍在 40% 处，此刻切线不会跳。
+3. **换图不黑场**。直接改 `world.cur` 与落点，`tour.state` 保持 `walk`。
+
+**walk 段必须变焦**（`WALK_ZOOM=1.8`）：这些地图宽高比接近视口（448×304 vs 1258×622），
+用 cover 算出来 `stripW≈vw`、`camMax≈0`，横向没有滚动余量，角色只能在画面里从左走到右、
+换图时弹回左边——观感是幻灯片（实测被否）。变焦后 `stripW ≈ 2264px`，`camMax ≈ 1006px`。
+
+**三条必须成立的不变量**（`core/tourlayout.js`，已单测 21 项）：
+
+| 不变量 | 说明 |
+|---|---|
+| walk 段统一 `k` | 逐场各算会让角色换图时缩放跳变 |
+| 统一 `feetY = vh * GROUND_RATIO` | 行走行先上移 2 格（`row - 2*cell`），`oy` 由 feetY 反算；换图脚底不上下跳，地图底边同时越出视口不露黑带（见 14.1.5） |
+| `startPx = vw * CAM_RATIO / k` | 进场点精确落在 40% 处；对齐到格中心会带入半格误差，被 k≈5.9 放大成 40~70px 跳变 |
+
+步速只按场景内像素算（`CELLS_PER_SEC * cell * dt`），**不乘**视图比例——乘了会让街景段快 3~4 倍。
+街景里程模式另用 `STREET_CELLS_PER_SEC`（见 14.1.2），同样不乘视图比例。
+
+### 14.1.4 出门方向必须读 `doors`（2026-11-19 走错门根因）
+
+早先「出门」取的是**场景最右侧可行走格**，实测吃完饭去了卫生间：
+
+| 场景 | `to:"outside"` 门 | 最右格 | 结果 |
+|---|---|---|---|
+| home | `front` **(8,14) 底部** | 阳台 (17,13) | 走阳台 |
+| bookstore | `entrance` (8,18) | (27,7) | 侥幸正确 |
+| cafe | `front` (13,18) | **wc (26,6)** | 去厕所 |
+
+`pickExit(doors, walkable, from)` 只认 `to:"outside"`；多个出口取离起点最近。
+无 `outside` 时退回任意可走门，再退回 `null`（由调用方兜底）。
+
+**实测换场坐标（2880 帧采样）**：
+
+```text
+换场 home→bookstore: 0:sx=568/feet=599/idle → 1:sx=503/feet=485/walk
+换场 bookstore→cafe: 1:sx=503/feet=485/walk → 2:sx=503/feet=485/walk
+换场 cafe→park:      2:sx=503/feet=485/walk → 3:sx=503/feet=485/walk
+```
+
+三段换场屏幕坐标完全一致；整程角色出画 **0 帧**。
+
+### 14.1.5 「角色悬空」根因：脚下 90px 是纯黑（2026-11-19）
+
+用户反馈「阴影位置和角色位置不符，角色和悬空了一样」。逐层排查后是**两个叠加**的独立缺陷：
+
+**a) 行走行取错：取到可行走带中位行**
+
+`walkingRowPx` 早先返回可行走带中点（`(lo+hi+1)/2`）。书店 19 行、可行走带 y=1..18，
+中位行 ≈ y=9.5 —— 角色站在**屋子中部**，脚下是空的。
+
+改为读 `doors` 里 `to:"outside"` 的**最下方**门（`max(y)`）：下方才是街面。
+不能取中位数——书店有 `entrance (8,18)` 和 `side_door (27,7)` 两个 outside 门，
+中位数会挑到 y≈7 的侧门。
+
+**b) 即使行对了，脚下仍悬空：地图底边在视口上方 90px**
+
+`doors` 的 outside 门全部压在**地图最后一格**（墙脚）。站在门行上：
+
+```text
+footY=509, mapBottom=532, viewH=622   → 脚下只有 23px 地板，再往下 90px 纯黑
+菜单扫描 515..531: 125,107,93 → 134,114,102  ← 地板
+        535..619: 6,7,12                     ← 纯黑
+```
+
+角色站在地图断崖边，阴影浮在黑带之上 —— 这才是「悬空」的视觉主体。
+
+**修法：行走行上移 2 格，让地图越过视口底边**
+
+```js
+const row = Math.max(cell * 0.5, s.row - 2 * s.cell);   // 门口上方 2 格
+const oy  = feetY - row * k - cell * k * 0.25;          // 统一 feetY 反算
+```
+
+`mapBottom = feetY + (H - row) * k`。三张图 `H - row` 都是 2.5 格 ⇒ 脚底恒在
+`vh * GROUND_RATIO`，地图底边 697 > 622 被裁掉，**不露黑边**。
+
+**c) 阴影偏移按小图经验值放大**
+
+`footY + 6*k`：k=1 时 6px 是"贴地"，街景段 k≈5.9 时变成 **35px 空隙**。
+改为以脚底为基准、主体落在脚下：
+
+```js
+const shadowRy = Math.max(1.5, 1.6 * k);
+ctx.ellipse(x, footY + shadowRy * 0.35, 5.2 * k, shadowRy, ...);
+```
+
+**实测（三场景各采一次）**：
+
+| 场景 | footY | mapBottom | 脚下 20px | 脚下 120px |
+|---|---|---|---|---|
+| bookstore | 485 | 697 | 237,220,194 | 86,71,74（木地板/家具） |
+| cafe | 485 | 697 | 188,179,166 | 73,46,33 |
+| park | 485 | 697 | 77,99,59 | 54,76,48（草地） |
+
+三段脚底同高、地图底边同高、脚下无一处黑带。
+
+**新增回归断言**（`tests/tour-layout.test.mjs`，21 项全绿）：
+
+- `walk 段地图底边不低于视口底部（不露黑带）`
+- `walk 段脚下至少有 2 格地板`
+
+
+### 14.1.6 光罩必须画在离屏层（2026-11-19 黑屏根因）
+
+`paintLightPlate()` 内部先 `clearRect(0,0,w,h)`。直接把它画在主画布上，**每帧都会先擦掉场景再叠半透明渐变**，画面只剩光罩本身（实测 mean 从 70.7 掉到 10.4，看起来是"全黑"）。
+
+正确用法是 `createLightPlate()`：光罩画到离屏 canvas，主画布只做一次 `drawImage`。同尺寸同档位零重建、零重绘。总观 `overview.js` 本来就是这个结构，现在两边共用同一实现。
+
+### 14.1.7 场景包要求
+
+`opts.scenes` 默认 `home,bookstore,cafe,park`。缺包时该段跳过并在左上角黄条列出缺失项，**不中断巡演**。补包流程见 `dhvw-arm-scene-pack-sync`：`data/scenes/<job>/dist/` 全量复制到 `www/assets/scenes/<place>/`，并把 `<job>.built.json` / `.png` / `@2x.png` 改名、`built.name/image/image2x` 与 `scene.json.id`、`manifest.json.scene` 同步改成地点名。
+
+### 14.1.8 操作
+
+| 键 / 控件 | 作用 |
+|---|---|
+| 空格 | 重跑一遍 |
+| `R` | 开始 / 结束录屏 |
+| `H` | 显隐操作条 |
+| `?record=0` | 只预览不录 |
+| `?debug=1` | 直接显示操作条 |
+| `?scenes=a,b,c` | 换巡演路线 |
+| `?bitrate=12000000` | 提码率（默认 6Mbps） |
+
+验证命令：
+
+```bash
+node tools/pack.mjs && node tools/verify.mjs        # 新场景包必须进 manifest
+node --test tests/tour-layout.test.mjs tests/lightplate.test.mjs
+cd shell && go test ./...                           # /__tour/save 路由与非法文件名拒绝
+```
 
 ---
 

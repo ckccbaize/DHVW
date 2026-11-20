@@ -264,6 +264,10 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.serveState(w, r)
 		return
 	}
+	if r.URL.Path == "/__tour/save" {
+		s.serveTourSave(w, r)
+		return
+	}
 	if r.URL.Path == "/__host" {
 		s.serveHost(w, r)
 		return

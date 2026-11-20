@@ -3,7 +3,7 @@ name: wake-character
 description: 角色层唤醒：根据生活种子生成 1-2 句口语
 class: character
 prompt: character-wake
-maxTokens: 200
+maxTokens: 2000
 temperature: 0.8
 tools: []
 output: text

@@ -1,12 +1,29 @@
 /**
- * 魔改替换原 client.js：构造合规 QQOfficialClient（官方 APIv2 单聊+多模态）并注册供工具/主动引擎复用。
+ * 构造合规官方通道客户端：默认 QQOfficialClient（官方 Bot APIv2），当 account.channelType === "feishu" 时构造 FeishuClient。
  */
+import { FeishuClient } from "./feishu-client.js";
 import { QQOfficialClient } from "./qq-official-client.js";
 import { ensureSnowLumaSdk } from "./sdk.js";
 
 const actionClients = new Map();
 
 export function createSnowLumaClient(account) {
+  if (String(account?.channelType || "").toLowerCase() === "feishu") {
+    return new FeishuClient({
+      appId: account.appId,
+      appSecret: account.appSecret || account.clientSecret,
+      ownerOpenId: account.ownerOpenId,
+      allowOpenIds: account.allowOpenIds,
+      autoPairFirst: account.autoPairFirst !== false,
+      onPaired: account.onPaired,
+      apiBaseUrl: account.apiBaseUrl,
+      wsEndpointUrl: account.wsEndpointUrl,
+      fetchImpl: account.fetchImpl,
+      WSImpl: account.WSImpl,
+      now: account.now,
+      log: account.log,
+    });
+  }
   return new QQOfficialClient({
     appId: account.appId,
     clientSecret: account.clientSecret,
