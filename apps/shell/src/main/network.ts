@@ -98,3 +98,37 @@ export async function listModels(
   }
   return { ok: false, models: [], error: errors.join('；') }
 }
+
+const IMAGE_HINT_RE = /(image|flux|dall-e|gpt-image|banana|kontext|sd|imagen|seedream|kolors|cogview|wanx|recraft|ideogram)/i
+
+/** 拉取生图模型列表：优先把图像相关模型排在前面。 */
+export async function listImageModels(
+  opts: { baseUrl: string; apiKey: string | null },
+  timeoutMs = 20000,
+): Promise<ModelListResult> {
+  const headers: Record<string, string> = { 'User-Agent': UA, Accept: 'application/json' }
+  if (opts.apiKey) headers.Authorization = `Bearer ${opts.apiKey}`
+  const errors: string[] = []
+  for (const url of modelUrls(opts.baseUrl)) {
+    try {
+      const res = await net.fetch(url, { method: 'GET', headers, signal: AbortSignal.timeout(timeoutMs) })
+      if (!res.ok) {
+        errors.push(`${url} -> HTTP ${res.status}`)
+        continue
+      }
+      const body = (await res.json()) as { data?: Array<{ id?: string }>; models?: Array<{ name?: string }> }
+      const ids = (body.data ?? []).map((m) => m.id ?? '').filter(Boolean)
+      const alt = (body.models ?? []).map((m) => m.name ?? '').filter(Boolean)
+      const all = ids.length ? ids : alt
+      if (!all.length) {
+        errors.push(`${url} -> 列表为空`)
+        continue
+      }
+      const imgFirst = [...all.filter((id) => IMAGE_HINT_RE.test(id)), ...all.filter((id) => !IMAGE_HINT_RE.test(id))]
+      return { ok: true, models: imgFirst, url }
+    } catch (err) {
+      errors.push(`${url} -> ${String((err as Error).message ?? err)}`)
+    }
+  }
+  return { ok: false, models: [], error: errors.join('；') }
+}

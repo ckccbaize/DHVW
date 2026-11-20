@@ -6,7 +6,7 @@ export const NEMOTRON_MODEL_ID = 'nemotron-3.5-bolt-e4b'
 export const NEMOTRON_FILE = 'NVIDIA-Nemotron-3.5-Bolt-E4B-Uncensored-AD-Q4_K_M-00001-of-00001.gguf'
 export const NEMOTRON_SHA256 = '6f31c73b2fcac7464045f99a42dad707fe999e3691ca205fe4875358d14f0779'
 export const NEMOTRON_MIN_BYTES = 5_000_000_000
-export const NEMOTRON_RECOMMENDED_TEMP = 1.0
+export const NEMOTRON_RECOMMENDED_TEMP = 1.05
 
 export const NEMOTRON_URLS: string[] = [
   'https://hf-mirror.com/AtomicChat/NVIDIA-Nemotron-3.5-Bolt-E4B-Uncensored-GGUF/resolve/main/NVIDIA-Nemotron-3.5-Bolt-E4B-Uncensored-AD-Q4_K_M/NVIDIA-Nemotron-3.5-Bolt-E4B-Uncensored-AD-Q4_K_M-00001-of-00001.gguf',
@@ -28,7 +28,7 @@ export const NEMOTRON_MMPROJ_URLS: string[] = [
 ]
 
 export const NEMOTRON_TUNING_SUMMARY =
-  'llama · -ngl 99 --flash-attn on --jinja -c 16384 f16KV -b 1024 -ub 512 -t 6 --no-mmproj-offload --temp 1.0 --top-p 0.95'
+  'llama · -ngl 99 --flash-attn on --jinja -c 16384 f16KV -b 1024 -ub 512 -t 6 --no-mmproj-offload --temp 1.05 --top-p 0.95'
 
 export interface LlamaServerRef {
   exe: string
@@ -143,8 +143,8 @@ export function resolveNemotronMmproj(overrideDir?: string): { path: string; dir
  * 构建经 RTX 5070 + Gemma4 E4B 实测调优的 `llama-server` 启动参数：
  * - `--flash-attn on` + `16K f16` KV cache + `-b 1024`：避免 q8_0 KV 预填充退化，同时比 32K/-b 2048 节省约 500 MiB 显存
  * - 若存在配套 `mmproj`，附加 `--mmproj <路径> --no-mmproj-offload`：视觉编码器放内存按需推理，节省 ~990 MiB 常驻显存
- * - `--jinja` + `--temp 1.0 --top-p 0.95 --top-k 64`：对齐 Nemotron-3.5-Bolt-E4B 官方模板与采样分布
- * - 不锁定 `--reasoning-budget 0`：配合 OLVT 的 `reasoning_effort=none` 干净输出口语正文，同时保留 Agent 推理能力
+ * - `--jinja` + `--temp 1.05 --top-p 0.95 --top-k 64`：在官方推荐采样分布基础上略微提高温度，保留思考链与输出欲望
+ * - 不锁定 `--reasoning-budget 0` 与 `reasoning_effort=none`：保留完整思考以提升对话与工具调用质量
  */
 export function buildNemotronLlamaArgs(modelPath: string, mmprojPath?: string | null): string[] {
   const args = [
@@ -173,7 +173,7 @@ export function buildNemotronLlamaArgs(modelPath: string, mmprojPath?: string | 
     '-np',
     '1',
     '--temp',
-    '1.0',
+    '1.05',
     '--top-p',
     '0.95',
     '--top-k',

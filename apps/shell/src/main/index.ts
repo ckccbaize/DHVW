@@ -14,12 +14,23 @@ import {
   modelUrlPath,
   type Live2dModelRef,
 } from './live2d-models'
-import { getArmPreviewPort, resolveArmWwwDir, startArmPreviewServer, stopArmPreviewServer } from './arm-preview'
+import {
+  getArmPreviewLocalUrl,
+  getArmPreviewPort,
+  resolveArmWwwDir,
+  startArmPreviewServer,
+  stopArmPreviewServer,
+} from './arm-preview'
 import type {
   ActionRequest,
   AppSnapshot,
   ArmConsoleResult,
   CharacterCardData,
+  CharacterGenerateInput,
+  CharacterSampleView,
+  CharacterSheetMetaJson,
+  CharacterSheetView,
+  FeishuBotStatusView,
   Live2dModelView,
   LlmMode,
   MemoryCurveView,
@@ -51,9 +62,24 @@ import {
 } from './persona-card'
 import { createTray } from './tray'
 import { applyNetworkHardening, hardenSessionSetup } from './hardening'
-import { listModels, probeLlm } from './network'
+import { listImageModels, listModels, probeLlm } from './network'
 import { COMPONENTS, componentStatus, ensureComponent, resolveSpec, uvBinary } from './components'
-import { clearApiKey, hasApiKey, hasQqSecret, readApiKey, readQqSecret, saveApiKey, saveQqSecret } from './secret'
+import {
+  clearApiKey,
+  clearImageGenKey,
+  hasApiKey,
+  hasFeishuSecret,
+  hasImageGenKey,
+  hasQqSecret,
+  readApiKey,
+  readFeishuSecret,
+  readImageGenKey,
+  readQqSecret,
+  saveApiKey,
+  saveFeishuSecret,
+  saveImageGenKey,
+  saveQqSecret,
+} from './secret'
 import { asrModelPaths, prepareOlvt, resolveOlvtDir, syncOlvtModel } from './olvt'
 import { Gateway, type GatewayTarget } from './gateway'
 import { pairArmDevice, scanArmDevices } from './arm-pair'
@@ -105,6 +131,7 @@ async function pushOrchestratorConfig(): Promise<boolean> {
     olvtPort: olvtServicePort,
     gatewayPort: config.gateway.enabled ? config.gateway.port : 0,
     boost: config.boost.enabled,
+    boostGateways: { ...config.boost.gateways },
     qqBot: {
       appId: config.qqBot.appId,
       clientSecret: readQqSecret() || undefined,
@@ -113,13 +140,35 @@ async function pushOrchestratorConfig(): Promise<boolean> {
       proactive: config.qqBot.proactive,
       stickerEagerness: config.qqBot.stickerEagerness,
     },
+    feishuBot: {
+      appId: config.feishuBot.appId,
+      appSecret: readFeishuSecret() || undefined,
+      ownerOpenId: config.feishuBot.ownerOpenId,
+      proactive: config.feishuBot.proactive,
+      stickerEagerness: config.feishuBot.stickerEagerness,
+    },
     autoPushScene: config.scene.autoPush,
+    pixelCharacterId: config.pixelCharacterId ?? '',
+    persona: {
+      characterName: config.olvt?.characterName || '',
+      personaPrompt: config.olvt?.personaPrompt || '',
+      cardName: config.olvt?.personaCard?.name || '',
+    },
     proactive: { ...config.proactive },
     llm: {
       mode: config.llmMode,
       baseUrl: config.llm.baseUrl,
       model: config.llm.model || undefined,
       apiKey: effectiveApiKey(config.llm.baseUrl) || undefined,
+      supportsVision: Boolean(config.llm.supportsVision),
+    },
+    imageGen: {
+      enabled: Boolean(config.imageGen?.enabled),
+      protocol: config.imageGen?.protocol || 'openai-images',
+      baseUrl: (config.imageGen?.baseUrl || '').trim() || config.llm.baseUrl,
+      model: (config.imageGen?.model || '').trim(),
+      fusionStylePrompt: config.imageGen?.fusionStylePrompt ?? '',
+      apiKey: readImageGenKey() || effectiveApiKey((config.imageGen?.baseUrl || '').trim() || config.llm.baseUrl) || '',
     },
   }
   try {
@@ -639,17 +688,21 @@ function buildRuntimeServices(ports: number[]): ServiceDef[] {
       }
     }
     if (svc.id === 'olvt' && olvtDir) {
+      const isLocalLlm = config.llmMode === 'local' || isLoopbackUrl(config.llm.baseUrl)
+      const env: Record<string, string> = {
+        ...override?.env,
+        PYTHONUNBUFFERED: '1',
+        DHVW_ORCHESTRATOR_URL: `http://127.0.0.1:${portOf('orchestrator')}`,
+      }
+      if (!isLocalLlm) {
+        // 云端 API 思考模型可关闭 reasoning_effort；本地 llama 保留思考与完整输出欲望
+        env.OLVT_LLM_EXTRA_BODY = '{"reasoning_effort":"none"}'
+      }
       return {
         ...svc,
         command: override?.command ?? [resolvePython(), 'run_server.py'],
         cwd: olvtDir,
-        env: {
-          ...override?.env,
-          PYTHONUNBUFFERED: '1',
-          // 思考模型默认带 reasoning_content，首字多 1–2 s 且内容无法出声
-          OLVT_LLM_EXTRA_BODY: '{"reasoning_effort":"none"}',
-          DHVW_ORCHESTRATOR_URL: `http://127.0.0.1:${portOf('orchestrator')}`,
-        },
+        env,
         healthMode: 'tcp',
         healthPath: undefined,
         healthTimeout: 180,
@@ -698,18 +751,26 @@ function resolvePython(): string {
 
 const PROTOCOLS = ['openai-compatible', 'anthropic'] as const
 
+function ref3dFilePath(): string {
+  return path.join(dataDir, 'data', 'character_ref_3d.png')
+}
+
 function settingsView(): SettingsView {
   return {
-    boost: { ...config.boost },
+    boost: { enabled: config.boost.enabled, gateways: { ...config.boost.gateways } },
     qqBot: { ...config.qqBot, hasSecret: hasQqSecret() },
+    feishuBot: { ...config.feishuBot, hasSecret: hasFeishuSecret() },
     llmMode: config.llmMode,
     llmApi: { ...config.llmApi },
     localLlmReady: Boolean(resolveLlamaServer() && resolveNemotronModel()),
     localLlmModel: NEMOTRON_MODEL_ID,
     llm: { ...config.llm, hasKey: hasApiKey() },
+    imageGen: { ...config.imageGen, hasKey: hasImageGenKey() },
+    hasRef3d: fs.existsSync(ref3dFilePath()),
     ports: { ...config.ports },
     asr: { ...config.asr, ready: Boolean(asrModelPaths(config.asr.enabled).modelPath) },
     live2d: { model: live2dModel?.id ?? config.live2d.model },
+    pixelCharacterId: config.pixelCharacterId ?? '',
     scene: { ...config.scene },
     proactive: { ...config.proactive },
     olvt: { ...config.olvt },
@@ -807,6 +868,7 @@ function registerIpc(): void {
   })
   ipcMain.handle('dhvw:armPreview', () => ({
     url: armPreviewUrl,
+    localUrl: getArmPreviewLocalUrl(),
     error: armPreviewUrl ? undefined : 'ARM 预览资源缺失（arm/www/preview.html）',
   }))
   ipcMain.handle('dhvw:memoryStats', () => readMemoryStats())
@@ -1081,10 +1143,408 @@ function registerIpc(): void {
   ipcMain.handle('dhvw:memoryDeleteFact', async (_e, factId: string) =>
     orchJson(`/dhvw/memory/facts/${encodeURIComponent(String(factId || ''))}`, { method: 'DELETE' }),
   )
-  ipcMain.handle('dhvw:setBoost', (_e, enabled: boolean) => {
-    config = { ...config, boost: { enabled: Boolean(enabled) } }
+  ipcMain.handle(
+    'dhvw:characters',
+    async (): Promise<{ ok: boolean; activeId: string | null; characters: CharacterSheetView[]; error?: string }> => {
+      const r = await orchJson<{ ok?: boolean; activeId?: string | null; characters?: CharacterSheetView[]; error?: string }>(
+        '/dhvw/characters',
+      )
+      return { ok: Boolean(r.ok), activeId: r.activeId ?? null, characters: r.characters ?? [], error: r.error }
+    },
+  )
+  ipcMain.handle('dhvw:characterPickImage', async () => {
+    const opts: Electron.OpenDialogOptions = {
+      title: '选择角色 4×4 行走图（PNG / JPG / WebP）',
+      properties: ['openFile'],
+      filters: [{ name: '角色行走图', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+    }
+    const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+    const target = res.canceled ? '' : (res.filePaths[0] ?? '')
+    if (!target) return { ok: false, canceled: true }
+    try {
+      const buf = fs.readFileSync(target)
+      const ext = path.extname(target).toLowerCase().replace('.', '')
+      const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg'
+      const b64 = buf.toString('base64')
+      return {
+        ok: true,
+        filename: path.basename(target),
+        imageBase64: b64,
+        dataUrl: `data:${mime};base64,${b64}`,
+      }
+    } catch (e) {
+      return { ok: false, error: String(e) }
+    }
+  })
+  ipcMain.handle('dhvw:characterSamples', async (): Promise<{ ok: boolean; samples: CharacterSampleView[] }> => {
+    const candidateDirs = [
+      path.join(app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'resources'), 'char-samples'),
+      path.resolve(app.getAppPath(), '..', '..', 'assets', 'char'),
+      path.resolve(process.cwd(), 'assets', 'char'),
+    ]
+    const specs: Array<{
+      id: string
+      filename: string
+      name: string
+      badge: string
+      description: string
+      rowOrder: string
+    }> = [
+      {
+        id: 'ojj',
+        filename: 'ojj.jpg',
+        name: '鲸鱼娘',
+        badge: '标准 4×4 原素材',
+        description: '处理前 4 方向×4 帧原始白底素材（32×48 推荐），可直接自动去背并扩展全套 22 种动作。',
+        rowOrder: 'auto',
+      },
+      {
+        id: 'miku_err',
+        filename: 'miku_err.jpg',
+        name: '初音未来（方向纠偏示例）',
+        badge: '含方向错误 · 可自动纠偏',
+        description: 'AI 生成素材中第 2 行第 4 帧人物朝向反转（朝右），且双马尾间含闭合白底；载入后可验证自动方向纠偏与白隙清理。',
+        rowOrder: 'auto',
+      },
+    ]
+    const samples: CharacterSampleView[] = []
+    for (const sp of specs) {
+      let found: string | null = null
+      for (const d of candidateDirs) {
+        const p = path.join(d, sp.filename)
+        if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+          found = p
+          break
+        }
+      }
+      if (!found) continue
+      try {
+        const buf = fs.readFileSync(found)
+        const b64 = buf.toString('base64')
+        samples.push({
+          ...sp,
+          imageBase64: b64,
+          dataUrl: `data:image/jpeg;base64,${b64}`,
+        })
+      } catch {
+        /* ignore */
+      }
+    }
+    return { ok: true, samples }
+  })
+  ipcMain.handle(
+    'dhvw:characterGenerate',
+    async (
+      _e,
+      input: CharacterGenerateInput,
+    ): Promise<{
+      ok: boolean
+      character?: CharacterSheetView
+      activeId?: string | null
+      apply?: { activeId: string; updatedScenes: string[]; syncedDevPaths: string[] } | null
+      settings?: SettingsView
+      error?: string
+    }> => {
+      const res = await orchJson<{
+        ok?: boolean
+        character?: CharacterSheetView
+        activeId?: string | null
+        apply?: { activeId: string; updatedScenes: string[]; syncedDevPaths: string[] } | null
+        error?: string
+      }>(
+        '/dhvw/characters/generate',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input ?? {}),
+        },
+        30_000,
+      )
+      if (res.ok && input?.autoApply !== false && res.character?.id) {
+        config = { ...config, pixelCharacterId: res.character.id }
+        saveConfig(config)
+      }
+      return { ...res, settings: settingsView() }
+    },
+  )
+  ipcMain.handle(
+    'dhvw:characterRegenerate',
+    async (
+      _e,
+      charId: string,
+      patch: {
+        rowOrder?: string
+        frameW?: number
+        frameH?: number
+        name?: string
+        autoFixDir?: boolean
+        cleanInnerWhite?: boolean
+        manualFlips?: Record<string, boolean[]>
+      },
+    ): Promise<{ ok: boolean; character?: CharacterSheetView; error?: string }> =>
+      orchJson(
+        `/dhvw/characters/${encodeURIComponent(String(charId || ''))}/regenerate`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch ?? {}),
+        },
+        30_000,
+      ),
+  )
+  ipcMain.handle(
+    'dhvw:characterApply',
+    async (
+      _e,
+      charId: string,
+      opts?: { applyToScenes?: boolean; syncToolchain?: boolean },
+    ): Promise<{
+      ok: boolean
+      activeId?: string | null
+      updatedScenes?: string[]
+      syncedDevPaths?: string[]
+      delivered?: number
+      settings?: SettingsView
+      error?: string
+    }> => {
+      const targetId = String(charId || '').trim() || 'default'
+      const res = await orchJson<{
+        ok?: boolean
+        activeId?: string | null
+        updatedScenes?: string[]
+        syncedDevPaths?: string[]
+        delivered?: number
+        error?: string
+      }>(
+        `/dhvw/characters/${encodeURIComponent(targetId)}/apply`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(opts ?? { applyToScenes: true, syncToolchain: true }),
+        },
+        30_000,
+      )
+      if (res.ok) {
+        config = { ...config, pixelCharacterId: targetId === 'default' ? '' : (res.activeId ?? targetId) }
+        saveConfig(config)
+      }
+      return { ...res, settings: settingsView() }
+    },
+  )
+  ipcMain.handle('dhvw:characterDelete', async (_e, charId: string) => {
+    const res = await orchJson<{ ok?: boolean; deleted?: string; activeId?: string | null; error?: string }>(
+      `/dhvw/characters/${encodeURIComponent(String(charId || ''))}`,
+      { method: 'DELETE' },
+    )
+    if (res.ok && config.pixelCharacterId === charId) {
+      config = { ...config, pixelCharacterId: res.activeId ?? '' }
+      saveConfig(config)
+    }
+    return { ...res, settings: settingsView() }
+  })
+  ipcMain.handle('dhvw:characterRename', async (_e, charId: string, name: string) => {
+    const res = await orchJson<{ ok?: boolean; character?: CharacterSheetView; error?: string }>(
+      `/dhvw/characters/${encodeURIComponent(String(charId || ''))}/rename`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: String(name ?? '').trim() }),
+      },
+    )
+    return { ...res, settings: settingsView() }
+  })
+  ipcMain.handle(
+    'dhvw:characterAssets',
+    async (
+      _e,
+      charId: string,
+    ): Promise<{
+      ok: boolean
+      meta?: CharacterSheetMetaJson
+      sheetDataUrl?: string
+      previewDataUrl?: string
+      sourceDataUrl?: string
+      error?: string
+    }> => {
+      if (!orchestratorPort) return { ok: false, error: '编排器尚未就绪' }
+      const safeId = encodeURIComponent(String(charId || ''))
+      const base = `http://127.0.0.1:${orchestratorPort}/dhvw/characters/${safeId}`
+      try {
+        const [metaRes, sheetRes, prevRes, srcRes] = await Promise.all([
+          fetch(`${base}/sheet.json`, { signal: AbortSignal.timeout(5000) }),
+          fetch(`${base}/sheet.png`, { signal: AbortSignal.timeout(5000) }),
+          fetch(`${base}/preview.png`, { signal: AbortSignal.timeout(5000) }),
+          fetch(`${base}/source.png`, { signal: AbortSignal.timeout(5000) }),
+        ])
+        if (!metaRes.ok || !sheetRes.ok) return { ok: false, error: '图集文件读取失败' }
+        const meta = (await metaRes.json()) as CharacterSheetMetaJson
+        const sheetBuf = Buffer.from(await sheetRes.arrayBuffer())
+        const prevBuf = prevRes.ok ? Buffer.from(await prevRes.arrayBuffer()) : null
+        const srcBuf = srcRes.ok ? Buffer.from(await srcRes.arrayBuffer()) : null
+        return {
+          ok: true,
+          meta,
+          sheetDataUrl: `data:image/png;base64,${sheetBuf.toString('base64')}`,
+          previewDataUrl: prevBuf ? `data:image/png;base64,${prevBuf.toString('base64')}` : undefined,
+          sourceDataUrl: srcBuf ? `data:image/png;base64,${srcBuf.toString('base64')}` : undefined,
+        }
+      } catch (e) {
+        return { ok: false, error: String(e) }
+      }
+    },
+  )
+  ipcMain.handle('dhvw:saveImageGenKey', (_e, key: string) => {
+    const r = saveImageGenKey(String(key ?? ''))
+    if (r.ok) void pushOrchestratorConfig()
+    return r
+  })
+  ipcMain.handle('dhvw:clearImageGenKey', () => {
+    clearImageGenKey()
+    void pushOrchestratorConfig()
+    return { ok: true }
+  })
+  ipcMain.handle(
+    'dhvw:listImageModels',
+    async (_e, req?: { baseUrl?: string; apiKey?: string }) => {
+      const base = String(req?.baseUrl || config.imageGen?.baseUrl || config.llm.baseUrl || '').trim()
+      if (!base) return { ok: false, models: [], error: '请先填写生图模型端点或 LLM 端点' }
+      const k = req?.apiKey?.trim() || readImageGenKey() || effectiveApiKey(base) || null
+      return listImageModels({ baseUrl: base, apiKey: k })
+    },
+  )
+  ipcMain.handle('dhvw:characterRef3dGet', async () => {
+    const p = ref3dFilePath()
+    if (!fs.existsSync(p)) return { ok: true, hasRef3d: false }
+    try {
+      const buf = fs.readFileSync(p)
+      return { ok: true, hasRef3d: true, dataUrl: `data:image/png;base64,${buf.toString('base64')}` }
+    } catch (e) {
+      return { ok: false, hasRef3d: false, error: String(e) }
+    }
+  })
+  ipcMain.handle('dhvw:characterRef3dPick', async () => {
+    const opts: Electron.OpenDialogOptions = {
+      title: '选择角色三维 / 三视图参考图片（用于生图融图）',
+      properties: ['openFile'],
+      filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+    }
+    const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+    const target = res.canceled ? '' : (res.filePaths[0] ?? '')
+    if (!target) return { ok: false, canceled: true }
+    try {
+      const b64 = fs.readFileSync(target).toString('base64')
+      const r = await orchJson<{ ok?: boolean; hasRef3d?: boolean; updatedAt?: number; error?: string }>(
+        '/dhvw/character-ref-3d',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64: b64 }),
+        },
+        15_000,
+      )
+      if (!r.ok) return { ok: false, error: r.error ?? '保存三维参考图失败' }
+      const p = ref3dFilePath()
+      const outB64 = fs.existsSync(p) ? fs.readFileSync(p).toString('base64') : b64
+      return {
+        ok: true,
+        hasRef3d: true,
+        dataUrl: `data:image/png;base64,${outB64}`,
+        settings: settingsView(),
+      }
+    } catch (e) {
+      return { ok: false, error: String(e) }
+    }
+  })
+  ipcMain.handle('dhvw:characterRef3dClear', async () => {
+    const r = await orchJson('/dhvw/character-ref-3d', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clear: true }),
+    })
+    try {
+      const p = ref3dFilePath()
+      if (fs.existsSync(p)) fs.unlinkSync(p)
+    } catch {}
+    return { ...r, settings: settingsView() }
+  })
+  ipcMain.handle('dhvw:imageHistory', () => orchJson('/dhvw/image/history'))
+  ipcMain.handle('dhvw:imageHistoryDelete', (_e, itemId: string) =>
+    orchJson(`/dhvw/image/history/${encodeURIComponent(String(itemId || ''))}`, { method: 'DELETE' }),
+  )
+  ipcMain.handle(
+    'dhvw:imageGenerate',
+    async (
+      _e,
+      req: {
+        mode?: 'character_4x4' | 'raw' | 'scene_fusion'
+        prompt?: string
+        refImageBase64?: string
+        use3dRef?: boolean
+        size?: string
+        force?: boolean
+      },
+    ): Promise<{ ok: boolean; imageBase64?: string; mime?: string; dataUrl?: string; promptUsed?: string; error?: string }> =>
+      orchJson(
+        '/dhvw/image/generate',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(req ?? {}),
+        },
+        120_000,
+      ),
+  )
+  ipcMain.handle(
+    'dhvw:characterExport',
+    async (_e, req: { charId: string; name?: string; file: 'sheet.png' | 'sheet.json' | 'preview.png' }) => {
+      if (!orchestratorPort) return { ok: false, error: '编排器尚未就绪' }
+      const file = req?.file === 'sheet.json' ? 'sheet.json' : req?.file === 'preview.png' ? 'preview.png' : 'sheet.png'
+      const safeName = (req?.name || 'character').replace(/[\\/:*?"<>|]/g, '_').trim() || 'character'
+      const defaultName = file === 'sheet.json' ? `${safeName}_sheet.json` : file === 'preview.png' ? `${safeName}_preview.png` : `${safeName}_sheet.png`
+      const ext = file.endsWith('.json') ? 'json' : 'png'
+      const opts: Electron.SaveDialogOptions = {
+        title: `导出 ${defaultName}`,
+        defaultPath: defaultName,
+        filters: [ext === 'json' ? { name: 'JSON 动作配置', extensions: ['json'] } : { name: 'PNG 图像', extensions: ['png'] }],
+      }
+      const res = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts)
+      if (res.canceled || !res.filePath) return { ok: false, canceled: true }
+      try {
+        const safeId = encodeURIComponent(String(req?.charId || ''))
+        const upstream = await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/characters/${safeId}/${file}`, {
+          signal: AbortSignal.timeout(8000),
+        })
+        if (!upstream.ok) return { ok: false, error: `HTTP ${upstream.status}` }
+        const buf = Buffer.from(await upstream.arrayBuffer())
+        fs.writeFileSync(res.filePath, buf)
+        return { ok: true, path: res.filePath }
+      } catch (e) {
+        return { ok: false, error: String(e) }
+      }
+    },
+  )
+  ipcMain.handle(
+    'dhvw:setBoost',
+    (_e, enabled: boolean, gateways?: Partial<{ qq: boolean; feishu: boolean }>) => {
+      const nextGw = {
+        qq: gateways?.qq !== undefined ? Boolean(gateways.qq) : config.boost.gateways.qq,
+        feishu: gateways?.feishu !== undefined ? Boolean(gateways.feishu) : config.boost.gateways.feishu,
+      }
+      config = { ...config, boost: { enabled: Boolean(enabled), gateways: nextGw } }
+      saveConfig(config)
+      log('info', 'settings', '世界模式增强开关', { enabled: config.boost.enabled, gateways: config.boost.gateways })
+      void pushOrchestratorConfig()
+      return { ok: true, settings: settingsView() }
+    },
+  )
+  ipcMain.handle('dhvw:setBoostGateways', (_e, gateways: Partial<{ qq: boolean; feishu: boolean }>) => {
+    const nextGw = {
+      qq: gateways?.qq !== undefined ? Boolean(gateways.qq) : config.boost.gateways.qq,
+      feishu: gateways?.feishu !== undefined ? Boolean(gateways.feishu) : config.boost.gateways.feishu,
+    }
+    config = { ...config, boost: { ...config.boost, gateways: nextGw } }
     saveConfig(config)
-    log('info', 'settings', '世界模式增强开关', { enabled: config.boost.enabled })
+    log('info', 'settings', '更新 Boost 启用网关', { gateways: nextGw })
     void pushOrchestratorConfig()
     return { ok: true, settings: settingsView() }
   })
@@ -1107,11 +1567,13 @@ function registerIpc(): void {
     }
   })
   const readQqBotStatus = async (): Promise<QqBotStatusView> => {
+    const fsConfigured = Boolean(config.feishuBot.appId && hasFeishuSecret())
     const base: QqBotStatusView = {
       reachable: false,
-      configured: Boolean(config.qqBot.appId && hasQqSecret()),
+      configured: Boolean(config.qqBot.appId && hasQqSecret()) || fsConfigured,
       hasSecret: hasQqSecret(),
       boostActive: config.boost.enabled,
+      gateways: { ...config.boost.gateways },
       connected: false,
       sandbox: config.qqBot.sandbox,
       appId: config.qqBot.appId,
@@ -1122,6 +1584,22 @@ function registerIpc(): void {
       awaitingActivation: Boolean(config.qqBot.appId && hasQqSecret() && !config.qqBot.ownerOpenId),
       proactive: config.qqBot.proactive,
       stickerEagerness: config.qqBot.stickerEagerness,
+      feishu: {
+        enabled: config.boost.gateways.feishu,
+        configured: fsConfigured,
+        hasSecret: hasFeishuSecret(),
+        connected: false,
+        appId: config.feishuBot.appId,
+        appIdMasked: config.feishuBot.appId ? `${config.feishuBot.appId.slice(0, 4)}***` : '',
+        paired: Boolean(config.feishuBot.ownerOpenId),
+        ownerOpenId: config.feishuBot.ownerOpenId,
+        ownerOpenIdMasked: config.feishuBot.ownerOpenId
+          ? `${config.feishuBot.ownerOpenId.slice(0, 4)}****${config.feishuBot.ownerOpenId.slice(-3)}`
+          : '',
+        awaitingActivation: Boolean(fsConfigured && !config.feishuBot.ownerOpenId),
+        proactive: config.feishuBot.proactive,
+        unlimitedProactive: true,
+      },
     }
     if (!orchestratorPort) return base
     try {
@@ -1130,11 +1608,34 @@ function registerIpc(): void {
       })
       if (!res.ok) return base
       const data = (await res.json()) as Partial<QqBotStatusView> & { ok?: boolean }
+      let dirty = false
       if (data.paired && data.ownerOpenId && data.ownerOpenId !== config.qqBot.ownerOpenId) {
         config = { ...config, qqBot: { ...config.qqBot, ownerOpenId: String(data.ownerOpenId) } }
-        saveConfig(config)
+        dirty = true
       }
-      return { ...base, ...data, reachable: true, hasSecret: base.hasSecret }
+      if (data.feishu?.paired && data.feishu?.ownerOpenId && data.feishu.ownerOpenId !== config.feishuBot.ownerOpenId) {
+        config = { ...config, feishuBot: { ...config.feishuBot, ownerOpenId: String(data.feishu.ownerOpenId) } }
+        dirty = true
+      }
+      if (dirty) saveConfig(config)
+      const baseFeishu: FeishuBotStatusView = base.feishu ?? {
+        enabled: config.boost.gateways.feishu,
+        configured: fsConfigured,
+        connected: false,
+        appId: config.feishuBot.appId,
+        appIdMasked: '',
+        paired: Boolean(config.feishuBot.ownerOpenId),
+        ownerOpenId: config.feishuBot.ownerOpenId,
+        ownerOpenIdMasked: '',
+        proactive: config.feishuBot.proactive,
+      }
+      return {
+        ...base,
+        ...data,
+        reachable: true,
+        hasSecret: base.hasSecret,
+        feishu: { ...baseFeishu, ...(data.feishu || {}), hasSecret: hasFeishuSecret() },
+      }
     } catch {
       return base
     }
@@ -1165,8 +1666,12 @@ function registerIpc(): void {
         const secRes = saveQqSecret(patch.clientSecret.trim())
         if (!secRes.ok) return { ok: false, error: secRes.error }
       }
-      const nextBoost = patch?.activateBoost === true ? true : config.boost.enabled
-      config = { ...config, qqBot: nextQq, boost: { enabled: nextBoost } }
+      const nextBoostEnabled = patch?.activateBoost === true ? true : config.boost.enabled
+      const nextGateways =
+        patch?.activateBoost === true
+          ? { ...config.boost.gateways, qq: true }
+          : config.boost.gateways
+      config = { ...config, qqBot: nextQq, boost: { enabled: nextBoostEnabled, gateways: nextGateways } }
       saveConfig(config)
       await pushOrchestratorConfig()
       const status = await readQqBotStatus()
@@ -1174,12 +1679,70 @@ function registerIpc(): void {
     },
   )
   ipcMain.handle('dhvw:qqBotRebind', async () => {
-    config = { ...config, qqBot: { ...config.qqBot, ownerOpenId: '' }, boost: { enabled: true } }
+    config = {
+      ...config,
+      qqBot: { ...config.qqBot, ownerOpenId: '' },
+      boost: { enabled: true, gateways: { ...config.boost.gateways, qq: true } },
+    }
     saveConfig(config)
     await pushOrchestratorConfig()
     if (orchestratorPort) {
       try {
         await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/qqbot/rebind`, {
+          method: 'POST',
+          signal: AbortSignal.timeout(3000),
+        })
+      } catch {}
+    }
+    const status = await readQqBotStatus()
+    return { ok: true, settings: settingsView(), status }
+  })
+  ipcMain.handle(
+    'dhvw:feishuBotSave',
+    async (
+      _e,
+      patch: {
+        appId?: string
+        appSecret?: string
+        proactive?: boolean
+        stickerEagerness?: number
+        activateBoost?: boolean
+      },
+    ) => {
+      const nextFs = { ...config.feishuBot }
+      if (patch?.appId !== undefined) nextFs.appId = String(patch.appId).trim()
+      if (patch?.proactive !== undefined) nextFs.proactive = Boolean(patch.proactive)
+      if (patch?.stickerEagerness !== undefined) {
+        const n = Number(patch.stickerEagerness)
+        if (Number.isFinite(n)) nextFs.stickerEagerness = Math.max(0, Math.min(3, Math.floor(n)))
+      }
+      if (patch?.appSecret && patch.appSecret.trim()) {
+        const secRes = saveFeishuSecret(patch.appSecret.trim())
+        if (!secRes.ok) return { ok: false, error: secRes.error }
+      }
+      const nextBoostEnabled = patch?.activateBoost === true ? true : config.boost.enabled
+      const nextGateways =
+        patch?.activateBoost === true
+          ? { ...config.boost.gateways, feishu: true }
+          : config.boost.gateways
+      config = { ...config, feishuBot: nextFs, boost: { enabled: nextBoostEnabled, gateways: nextGateways } }
+      saveConfig(config)
+      await pushOrchestratorConfig()
+      const status = await readQqBotStatus()
+      return { ok: true, settings: settingsView(), status }
+    },
+  )
+  ipcMain.handle('dhvw:feishuBotRebind', async () => {
+    config = {
+      ...config,
+      feishuBot: { ...config.feishuBot, ownerOpenId: '' },
+      boost: { enabled: true, gateways: { ...config.boost.gateways, feishu: true } },
+    }
+    saveConfig(config)
+    await pushOrchestratorConfig()
+    if (orchestratorPort) {
+      try {
+        await fetch(`http://127.0.0.1:${orchestratorPort}/dhvw/feishubot/rebind`, {
           method: 'POST',
           signal: AbortSignal.timeout(3000),
         })
@@ -1219,8 +1782,24 @@ function registerIpc(): void {
       if (t !== next.llm.temperature) llmChanged = true
       next.llm.temperature = t
     }
+    if (patch.llm?.supportsVision !== undefined) {
+      next.llm.supportsVision = Boolean(patch.llm.supportsVision)
+    }
     if (next.llmMode === 'api') {
       next.llmApi = { ...next.llm }
+    }
+    if (patch.imageGen) {
+      if (patch.imageGen.enabled !== undefined) next.imageGen.enabled = Boolean(patch.imageGen.enabled)
+      if (patch.imageGen.protocol !== undefined) next.imageGen.protocol = patch.imageGen.protocol
+      if (patch.imageGen.baseUrl !== undefined) {
+        const u = String(patch.imageGen.baseUrl ?? '').trim()
+        if (u && !/^https?:\/\/[^\s]+$/.test(u)) return { ok: false, error: '生图端点必须是 http(s) URL（或留空复用 LLM 端点）' }
+        next.imageGen.baseUrl = u
+      }
+      if (patch.imageGen.model !== undefined) next.imageGen.model = String(patch.imageGen.model ?? '').trim()
+      if (patch.imageGen.fusionStylePrompt !== undefined) {
+        next.imageGen.fusionStylePrompt = String(patch.imageGen.fusionStylePrompt ?? '').replace(/\r\n/g, '\n').trim()
+      }
     }
     if (patch.ports) {
       for (const key of ['olvt', 'tts', 'llama'] as const) {
@@ -1228,6 +1807,13 @@ function registerIpc(): void {
         if (v === undefined) continue
         if (!Number.isInteger(v) || v < 0 || v > 65535) return { ok: false, error: '端口需为 0–65535 的整数' }
         next.ports[key] = v
+      }
+    }
+    if (patch.boost) {
+      if (patch.boost.enabled !== undefined) next.boost.enabled = Boolean(patch.boost.enabled)
+      if (patch.boost.gateways) {
+        if (patch.boost.gateways.qq !== undefined) next.boost.gateways.qq = Boolean(patch.boost.gateways.qq)
+        if (patch.boost.gateways.feishu !== undefined) next.boost.gateways.feishu = Boolean(patch.boost.gateways.feishu)
       }
     }
     if (patch.asr?.enabled !== undefined) next.asr.enabled = Boolean(patch.asr.enabled)
@@ -1262,6 +1848,9 @@ function registerIpc(): void {
       live2dChanged = ref.id !== live2dModel?.id
       live2dModel = ref
       next.live2d.model = ref.id
+    }
+    if (patch.pixelCharacterId !== undefined) {
+      next.pixelCharacterId = String(patch.pixelCharacterId ?? '').trim()
     }
     let olvtChanged = false
     for (const key of ['characterName', 'humanName', 'personaPrompt'] as const) {
@@ -1418,6 +2007,7 @@ function registerIpc(): void {
     saveConfig(next)
     config = next
     if (supervisor) {
+      if (allocatedPorts.length) supervisor.updateServices(buildRuntimeServices(allocatedPorts))
       const cur = supervisor.snapshots.find((w) => w.id === 'llama')
       if (cur && (cur.state === 'running' || cur.state === 'starting')) {
         supervisor.send({ cmd: 'stop', service: 'llama' })
@@ -1832,6 +2422,7 @@ async function boot(): Promise<void> {
   gateway = new Gateway({ port: config.gateway.port, targets: gatewayTargets })
   if (config.gateway.enabled) gateway.start()
 
+  registerIpc()
   createWindow()
   createTray({
     onShow: showWindow,
@@ -1840,7 +2431,6 @@ async function boot(): Promise<void> {
       void supervisor?.stop('tray-restart').then(() => supervisor?.start())
     },
   })
-  registerIpc()
 
   app.on('second-instance', showWindow)
   app.on('before-quit', async (e) => {

@@ -16,6 +16,11 @@
         position: absolute;
         inset: 0;
       }
+      #stage canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
       #msg {
         position: absolute;
         inset: 0;
@@ -53,14 +58,18 @@
       if (!window.Live2DCubismCore) {
         fail('Live2D 核心未加载（lib/live2dcubismcore.min.js）')
       } else {
+        const stageEl = document.getElementById('stage')
         const app = new PIXI.Application({
           view: undefined,
-          resizeTo: window,
+          resizeTo: stageEl,
           backgroundAlpha: 0,
           antialias: true,
           autoStart: true,
         })
-        document.getElementById('stage').appendChild(app.view)
+        stageEl.appendChild(app.view)
+        app.view.addEventListener('webglcontextlost', (e) => {
+          e.preventDefault()
+        })
 
         const half = new PIXI.Container()
         app.stage.addChild(half)
@@ -72,24 +81,40 @@
             half.addChild(model)
 
             const fit = () => {
-              const w = window.innerWidth
-              const h = window.innerHeight
+              const w = stageEl.clientWidth || window.innerWidth
+              const h = stageEl.clientHeight || window.innerHeight
+              const mw = model.internalModel && model.internalModel.width
+              const mh = model.internalModel && model.internalModel.height
+              if (!w || !h || !mw || !mh) {
+                requestAnimationFrame(fit)
+                return
+              }
+              app.resize()
               // 留一点下边距：有的模型（如带书桌的 shizuku）自身画面比人物大，贴底会被裁
-              const scale = Math.min((w * 0.92) / model.internalModel.width, (h * 0.94) / model.internalModel.height)
+              const scale = Math.min((w * 0.92) / mw, (h * 0.94) / mh)
               stageCenter.x = w / 2
               stageCenter.y = h * 0.98
               half.scale.set(scale)
               half.position.set(stageCenter.x, stageCenter.y)
               model.scale.set(1)
+              app.renderer.render(app.stage)
+              window.__dbg = {
+                model: modelPath,
+                internal: [mw, mh],
+                canvas: [app.view.width, app.view.height],
+                scale: half.scale.x,
+              }
             }
             fit()
-            window.__dbg = {
-              model: modelPath,
-              internal: [model.internalModel.width, model.internalModel.height],
-              canvas: [app.view.width, app.view.height],
-              scale: half.scale.x,
-            }
+            requestAnimationFrame(fit)
+            setTimeout(fit, 150)
             window.addEventListener('resize', fit)
+            if (typeof ResizeObserver !== 'undefined') {
+              new ResizeObserver(() => fit()).observe(stageEl)
+            }
+            app.view.addEventListener('webglcontextrestored', () => {
+              fit()
+            })
 
             // 待机动作循环：模型自带 idle 组，缺组时保持默认姿势
             const idleGroup = model.internalModel.motionManager.groups.idle

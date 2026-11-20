@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import path from 'node:path'
-import type { LlmMode, LlmProfile, LlmProtocol } from '../shared/types'
+import type { ImageGenProtocol, LlmMode, LlmProfile, LlmProtocol } from '../shared/types'
+import { DEFAULT_FUSION_STYLE_PROMPT } from '../shared/types'
 import { dataDir } from './paths'
 import { log } from './logger'
 
@@ -10,7 +11,15 @@ export interface ShellConfig {
   window: { width: number; height: number }
   llmMode: LlmMode
   llmApi: LlmProfile
-  llm: { baseUrl: string; model: string; temperature: number; protocol: LlmProtocol }
+  llm: { baseUrl: string; model: string; temperature: number; protocol: LlmProtocol; supportsVision?: boolean }
+  /** API 生图模型配置（PC 像素形象生成 + ARM QQ 场景融图共用） */
+  imageGen: {
+    enabled: boolean
+    protocol: ImageGenProtocol
+    baseUrl: string
+    model: string
+    fusionStylePrompt: string
+  }
   /** 固定端口（0 = 自动分配），用于对接外部工具或防火墙放行 */
   ports: { olvt: number; tts: number; orchestrator: number; llama: number }
   asr: { enabled: boolean }
@@ -32,6 +41,8 @@ export interface ShellConfig {
   componentUrls: Record<string, string[]>
   /** 角色形象：PC 舞台与 OLVT 共用同一个 Live2D 模型（模型 id，见 live2d-models.ts） */
   live2d: { model: string }
+  /** 像素角色模型 id（总观地图 & ARM 设备端共用；空串表示使用场景内置默认精灵） */
+  pixelCharacterId: string
   /** 地图推送：false = 生成后必须在产出验收里手动「提交 ARM 侧」；true = 核验通过即自动推 */
   scene: { autoPush: boolean }
   /** 主动说话（仅 OLVT）：显现模式下由编排器按节奏驱动 */
@@ -44,12 +55,19 @@ export interface ShellConfig {
     quietStart: string
     quietEnd: string
   }
-  /** 世界模式增强：联动激活 ARM 侧 QQ 官方 Bot */
-  boost: { enabled: boolean }
+  /** 世界模式增强：联动激活 ARM 侧外部聊天网关（可自由勾选开启 QQ / 飞书） */
+  boost: { enabled: boolean; gateways: { qq: boolean; feishu: boolean } }
   /** QQ 官方 Bot 基础配置（clientSecret 由 secret.ts DPAPI 加密另存） */
   qqBot: {
     appId: string
     sandbox: boolean
+    ownerOpenId: string
+    proactive: boolean
+    stickerEagerness: number
+  }
+  /** 飞书自建应用长连接 Bot 配置（appSecret 由 secret.ts DPAPI 加密另存） */
+  feishuBot: {
+    appId: string
     ownerOpenId: string
     proactive: boolean
     stickerEagerness: number
@@ -64,6 +82,15 @@ const DEFAULT_LLM: LlmProfile = {
   model: '',
   temperature: 0.7,
   protocol: 'openai-compatible',
+  supportsVision: false,
+}
+
+const DEFAULT_IMAGE_GEN: ShellConfig['imageGen'] = {
+  enabled: false,
+  protocol: 'openai-images',
+  baseUrl: '',
+  model: '',
+  fusionStylePrompt: DEFAULT_FUSION_STYLE_PROMPT,
 }
 
 const isLoopbackHostUrl = (url: string): boolean =>
@@ -76,6 +103,7 @@ const DEFAULTS: ShellConfig = {
   llmMode: 'api',
   llmApi: { ...DEFAULT_LLM },
   llm: { ...DEFAULT_LLM },
+  imageGen: { ...DEFAULT_IMAGE_GEN },
   ports: { olvt: 0, tts: 0, orchestrator: 8877, llama: 8089 },
   asr: { enabled: true },
   olvt: {
@@ -83,13 +111,14 @@ const DEFAULTS: ShellConfig = {
     characterName: '小仓',
     humanName: '主人',
     personaPrompt:
-      '你是住在数字人虚拟仓里的小仓，语气自然、口语化，回答简短。每次换不同开头接话，不固定用同一口癖或尾音，也不要主动重复提虚拟仓。不要使用 Markdown，不要输出括号里的动作描写。',
+      '你是住在数字人虚拟仓里的小仓，活泼灵动、嘴俏带点小傲娇和小毒舌，爱恨分明敢偏心吐槽。说话自然带「嘛/呀/吧/咧/哼/切/呗」这类活人口语语气词，长短起伏着接话，不做中立端水老好人，不固定同一开头或尾音，也不主动硬扯虚拟仓。不要使用 Markdown，不要输出括号里的动作描写。',
     personaCard: null,
   },
   tts: { backendDir: '', refAudioPath: '', refText: '', refLang: 'ja', textLang: 'zh' },
   gateway: { enabled: true, port: 8443 },
   sidecars: {},
   live2d: { model: 'mao_pro' },
+  pixelCharacterId: '',
   scene: { autoPush: false },
   proactive: {
     enabled: true,
@@ -100,8 +129,9 @@ const DEFAULTS: ShellConfig = {
     quietStart: '23:30',
     quietEnd: '07:30',
   },
-  boost: { enabled: false },
+  boost: { enabled: false, gateways: { qq: true, feishu: false } },
   qqBot: { appId: '', sandbox: true, ownerOpenId: '', proactive: true, stickerEagerness: 2 },
+  feishuBot: { appId: '', ownerOpenId: '', proactive: true, stickerEagerness: 2 },
   componentUrls: {},
   pipIndex: 'https://mirrors.aliyun.com/pypi/simple',
   services: {},
@@ -160,6 +190,7 @@ export function loadConfig(): ShellConfig {
       llmMode,
       llmApi,
       llm,
+      imageGen: { ...DEFAULTS.imageGen, ...raw.imageGen },
       ports: { ...DEFAULTS.ports, ...raw.ports },
       asr: { ...DEFAULTS.asr, ...raw.asr },
       olvt: { ...DEFAULTS.olvt, ...raw.olvt },
@@ -168,8 +199,16 @@ export function loadConfig(): ShellConfig {
       live2d: { ...DEFAULTS.live2d, ...raw.live2d },
       scene: { ...DEFAULTS.scene, ...raw.scene },
       proactive: { ...DEFAULTS.proactive, ...raw.proactive },
-      boost: { ...DEFAULTS.boost, ...raw.boost },
+      boost: {
+        ...DEFAULTS.boost,
+        ...raw.boost,
+        gateways: {
+          ...DEFAULTS.boost.gateways,
+          ...(raw.boost?.gateways || {}),
+        },
+      },
       qqBot: { ...DEFAULTS.qqBot, ...raw.qqBot },
+      feishuBot: { ...DEFAULTS.feishuBot, ...raw.feishuBot },
       sidecars: { ...DEFAULTS.sidecars, ...raw.sidecars },
       componentUrls: { ...DEFAULTS.componentUrls, ...raw.componentUrls },
     }

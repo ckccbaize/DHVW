@@ -14,16 +14,20 @@ export function HomeView({
   stats,
   live2d,
   boost,
+  boostGateways,
   onBoost,
   onOpenQqGuide,
+  onOpenFeishuGuide,
   busy,
 }: {
   world: WorldView | null
   stats: StatsView | null
   live2d: { url: string | null; model: string | null; error?: string } | null
   boost: boolean
+  boostGateways?: { qq: boolean; feishu: boolean }
   onBoost: (next: boolean) => void
   onOpenQqGuide: () => void
+  onOpenFeishuGuide: () => void
   busy: boolean
 }): React.ReactElement {
   const live2dReady = Boolean(live2d?.url)
@@ -115,7 +119,7 @@ export function HomeView({
           </div>
           <div className="stage-body">
             {live2dReady ? (
-              <iframe className="stage-frame" src={live2d!.url!} title="角色形象" allow="autoplay" />
+              <iframe key={live2d!.url!} className="stage-frame" src={live2d!.url!} title="角色形象" allow="autoplay" />
             ) : (
               <div className="stage-empty">
                 <span className="stage-empty-title">角色形象未就绪</span>
@@ -129,11 +133,22 @@ export function HomeView({
           <section className={`panel boost ${boost ? 'on' : ''}`}>
             <div className="boost-lines" aria-hidden="true" />
             <h2>
-              世界模式增强 · ARM QQ Bot
-              <span className={`pill ${boost ? 'ok' : ''}`}>{boost ? '已联动' : '未开启'}</span>
+              世界模式增强 · 外部聊天网关
+              <span className={`pill ${boost ? 'ok' : ''}`}>
+                {boost
+                  ? `已联动 (${
+                      [
+                        boostGateways?.qq !== false ? 'QQ' : null,
+                        boostGateways?.feishu ? '飞书' : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' + ') || '未勾选网关'
+                    })`
+                  : '未开启'}
+              </span>
             </h2>
             <p className="boost-desc">
-              开启后会向 ARM 设备下发激活信号，联动启用官方 QQ Bot 单聊多模态、表情包斗图、心情/事件主动搭话与 PC 向量记忆库检索。
+              开启后按「设置 → Boost 网关选择」向 ARM 设备联动拉起所选网关（QQ 官方 Bot / 飞书官方长连接），共用单聊多模态、表情包、主动搭话与 PC 向量记忆库检索。
             </p>
             <div className="boost-actions">
               <button
@@ -147,6 +162,9 @@ export function HomeView({
               </button>
               <button type="button" className="boost-guide-btn" onClick={onOpenQqGuide}>
                 QQ 登录 / 链接说明
+              </button>
+              <button type="button" className="boost-guide-btn" onClick={onOpenFeishuGuide}>
+                飞书配置向导
               </button>
             </div>
           </section>

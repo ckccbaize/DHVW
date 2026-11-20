@@ -17,6 +17,7 @@ import { ConfigView } from './views/ConfigView'
 import { ArmConsoleDialog } from './views/ArmConsole'
 import { SettingsPage } from './views/SettingsPage'
 import { QqBotGuideDialog } from './components/QqBotGuideDialog'
+import { FeishuBotGuideDialog } from './components/FeishuBotGuideDialog'
 
 // 窗口 API 直接复用预加载层的导出类型，避免两处手写签名漂移
 declare global {
@@ -240,6 +241,7 @@ export default function App(): React.ReactElement {
   const [settings, setSettings] = useState<SettingsView | null>(null)
   const [boostBusy, setBoostBusy] = useState(false)
   const [showQqGuide, setShowQqGuide] = useState(false)
+  const [showFeishuGuide, setShowFeishuGuide] = useState(false)
   const [showArmConsole, setShowArmConsole] = useState(false)
   const [live2d, setLive2d] = useState<{ url: string | null; model: string | null; error?: string } | null>(null)
 
@@ -264,7 +266,28 @@ export default function App(): React.ReactElement {
         if (!dismissed) setShowQqGuide(true)
       }
     })
-    void window.dhvw.live2d().then(setLive2d)
+    let cancelled = false
+    const loadLive2d = (attempt = 0): void => {
+      void window.dhvw
+        .live2d()
+        .then((res) => {
+          if (cancelled) return
+          setLive2d(res)
+          if (!res?.url && attempt < 20) {
+            setTimeout(() => {
+              if (!cancelled) loadLive2d(attempt + 1)
+            }, 250)
+          }
+        })
+        .catch(() => {
+          if (!cancelled && attempt < 20) {
+            setTimeout(() => {
+              if (!cancelled) loadLive2d(attempt + 1)
+            }, 250)
+          }
+        })
+    }
+    loadLive2d()
     const offComp = window.dhvw.onComponentProgress(({ id, progress }) =>
       setComponents((prev) => prev.map((c) => (c.id === id ? { ...c, progress } : c))),
     )
@@ -281,6 +304,7 @@ export default function App(): React.ReactElement {
       void window.dhvw.stats().then(setStats)
     }, 2000)
     return () => {
+      cancelled = true
       offSnap()
       offEvt()
       offComp()
@@ -291,6 +315,12 @@ export default function App(): React.ReactElement {
   useEffect(() => {
     void refreshLog()
   }, [refreshLog])
+
+  useEffect(() => {
+    if (tab === 'home' && !live2d?.url) {
+      void window.dhvw.live2d().then(setLive2d).catch(() => {})
+    }
+  }, [tab, live2d?.url])
 
   const act = async (id: string, action: 'start' | 'stop' | 'restart'): Promise<void> => {
     setBusy(true)
@@ -308,11 +338,21 @@ export default function App(): React.ReactElement {
       const res = await window.dhvw.setBoost(next)
       if (res.settings) setSettings(res.settings)
       if (next) {
-        let dismissed = false
-        try {
-          dismissed = localStorage.getItem('dhvw.qqBotGuide.dismissed') === '1'
-        } catch {}
-        if (!dismissed) setShowQqGuide(true)
+        const gw = res.settings?.boost?.gateways ?? settings?.boost?.gateways
+        const feishuOnly = gw?.feishu === true && gw?.qq === false
+        if (feishuOnly) {
+          let fsDismissed = false
+          try {
+            fsDismissed = localStorage.getItem('dhvw.feishuBotGuide.dismissed') === '1'
+          } catch {}
+          if (!fsDismissed) setShowFeishuGuide(true)
+        } else {
+          let dismissed = false
+          try {
+            dismissed = localStorage.getItem('dhvw.qqBotGuide.dismissed') === '1'
+          } catch {}
+          if (!dismissed) setShowQqGuide(true)
+        }
       }
     } finally {
       setBoostBusy(false)
@@ -396,6 +436,14 @@ export default function App(): React.ReactElement {
           onClose={() => setShowQqGuide(false)}
         />
       )}
+      {showFeishuGuide && (
+        <FeishuBotGuideDialog
+          settings={settings}
+          boost={settings?.boost?.enabled ?? false}
+          onSettingsChange={setSettings}
+          onClose={() => setShowFeishuGuide(false)}
+        />
+      )}
 
       <main className={`page ${tab}`}>
         {tab === 'home' && (
@@ -404,8 +452,10 @@ export default function App(): React.ReactElement {
             stats={stats}
             live2d={live2d}
             boost={settings?.boost?.enabled ?? false}
+            boostGateways={settings?.boost?.gateways}
             onBoost={(next) => void setBoost(next)}
             onOpenQqGuide={() => setShowQqGuide(true)}
+            onOpenFeishuGuide={() => setShowFeishuGuide(true)}
             busy={boostBusy}
           />
         )}
@@ -454,6 +504,7 @@ export default function App(): React.ReactElement {
           <SettingsPage
             value={settings}
             onOpenQqGuide={() => setShowQqGuide(true)}
+            onOpenFeishuGuide={() => setShowFeishuGuide(true)}
             onSaved={(next) => {
               setSettings(next)
               setSnap((prev) => (prev ? { ...prev, llm: { baseUrl: next.llm.baseUrl, model: next.llm.model } } : prev))
