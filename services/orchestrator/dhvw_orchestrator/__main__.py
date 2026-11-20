@@ -112,6 +112,35 @@ def _normalize_openai_base(url: str) -> str:
     return f"{u}/v1"
 
 
+def _place_key(name: str) -> str:
+    """地点身份归一：按核心名词比较，避免「拾光书店」与「书店」、「咖啡厅」与「咖啡馆」被当成两处。
+
+    设备按 placeId（bookstore/library/cafe）申请，PC 产出名可能带修饰或同义词
+    （拾光书店、日落水磨石咖啡厅、咖啡厅/咖啡馆），只按请求 id 去重会让同一地点
+    被反复生成，所以这里统一到同一批规范词。
+    """
+    s = re.sub(r"\s+", "", str(name or ""))
+    # 同义词先归一，否则「咖啡厅」「咖啡馆」会落成两个地点
+    groups = (
+        ("咖啡厅", "咖啡馆", "咖啡店", "咖啡"),
+        ("书店", "书城", "书局"),
+        ("图书馆", "图书室", "阅览室"),
+        ("公园", "花园", "绿地"),
+        ("集市", "菜市场", "市场"),
+        ("夜市", "夜market"),
+    )
+    for group in groups:
+        if any(word in s for word in group):
+            return group[0]
+    for suffix in ("餐厅", "食堂", "影院", "电影院", "便利店", "江边", "小山坡"):
+        if s.endswith(suffix):
+            return suffix
+    for prefix in ("拾光", "日落", "水磨石", "旧", "新", "小", "大"):
+        if s.startswith(prefix) and len(s) > len(prefix):
+            s = s[len(prefix):]
+    return s
+
+
 class Orchestrator:
     def __init__(self, store: Store) -> None:
         self.store = store
@@ -320,10 +349,13 @@ class Orchestrator:
         return len(facts)
 
     async def consume_scene_requests(self) -> None:
-        """设备 digest 里的 pending sceneRequests → 场景作业；同一 id 只做一次。
+        """设备 digest 里的 pending sceneRequests → 场景作业。
 
-        设备每 5 s 重发摘要，pending 会反复出现；幂等靠 SceneRunner 的请求账本，
-        失败也不自动重试（避免坏 spec 无限烧 token），重试走 /dhvw/scene/retry。
+        幂等有两层：
+        1. 请求 id：设备每 5 s 重发摘要，同一条只受理一次（SceneRunner.requests）；
+        2. 地点身份：设备侧请求表可能丢（换存档/清缓存）后重新生成新 id，
+           但同一个地点（mapSpec.name）已经有场景产出或正在生成时不再重复生成。
+        失败不自动重试（避免坏 spec 无限烧 token），重试走 /dhvw/scene/retry。
         """
         if str(self.llm.get("mode") or "") == "local":
             return
@@ -336,12 +368,35 @@ class Orchestrator:
             rid = str(req.get("id") or "")
             if not rid or self.scenes.request_state(rid):
                 continue
+            spec = req.get("mapSpec") if isinstance(req.get("mapSpec"), dict) else {}
+            place_key = _place_key(str(spec.get("name") or ""))
+            if place_key:
+                done = self._scene_for_place(place_key)
+                if done:
+                    # 该地点已有产物/在画：把请求按 id 记成已完成，避免设备每 5 s 重报。
+                    self.scenes.mark_request(rid, "done", job=done, reason="地点已有场景，跳过重复生成")
+                    log("info", "跳过重复地点场景", request=rid, place=place_key, job=done)
+                    continue
             job, err = self.scenes.submit_request(req)
             if job is None:
                 log("warn", "场景请求未受理", request=rid, reason=err)
                 continue
             log("info", "受理设备场景请求", request=rid, job=job["id"], kind=job["kind"])
             asyncio.create_task(self.scenes.run(job))
+
+    def _scene_for_place(self, place_key: str) -> str:
+        """该地点已有产出或正在生成时返回作业 id；没有返回空。"""
+        done_states = {"queued", "running", "done"}
+        for job in self.scenes.jobs.values():
+            if str(job.get("state") or "") not in done_states:
+                continue
+            if _place_key(str(job.get("name") or "")) == place_key:
+                return str(job.get("id") or "")
+        # 作业表被清过也还有产物目录：按 built.json 里的 name 兜底。
+        for item in _list_scene_outputs(self.scenes.root):
+            if _place_key(str(item.get("name") or "")) == place_key:
+                return str(item.get("id") or "")
+        return ""
 
     # ---------- 地图推送到设备 ----------
     def _save_pushes(self) -> None:
