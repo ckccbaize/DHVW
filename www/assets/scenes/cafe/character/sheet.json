@@ -47,7 +47,7 @@
     ]
    }
   },
-  "brew": {
+  "cook": {
    "fps": 6,
    "loop": true,
    "frameCount": 4,
@@ -78,7 +78,7 @@
     ]
    }
   },
-  "cook": {
+  "dress": {
    "fps": 6,
    "loop": true,
    "frameCount": 4,
@@ -109,7 +109,7 @@
     ]
    }
   },
-  "dress": {
+  "drink": {
    "fps": 6,
    "loop": true,
    "frameCount": 4,
@@ -140,7 +140,7 @@
     ]
    }
   },
-  "drink": {
+  "eat": {
    "fps": 6,
    "loop": true,
    "frameCount": 4,
@@ -171,7 +171,7 @@
     ]
    }
   },
-  "eat": {
+  "hang_coat": {
    "fps": 6,
    "loop": true,
    "frameCount": 4,
@@ -202,8 +202,8 @@
     ]
    }
   },
-  "hang_coat": {
-   "fps": 6,
+  "idle": {
+   "fps": 4,
    "loop": true,
    "frameCount": 4,
    "frames": {
@@ -233,8 +233,8 @@
     ]
    }
   },
-  "idle": {
-   "fps": 4,
+  "laundry": {
+   "fps": 6,
    "loop": true,
    "frameCount": 4,
    "frames": {
@@ -264,7 +264,7 @@
     ]
    }
   },
-  "laundry": {
+  "meet": {
    "fps": 6,
    "loop": true,
    "frameCount": 4,
@@ -295,7 +295,7 @@
     ]
    }
   },
-  "meet": {
+  "play_cat": {
    "fps": 6,
    "loop": true,
    "frameCount": 4,
@@ -326,7 +326,7 @@
     ]
    }
   },
-  "play_cat": {
+  "print": {
    "fps": 6,
    "loop": true,
    "frameCount": 4,
@@ -357,7 +357,7 @@
     ]
    }
   },
-  "print": {
+  "read": {
    "fps": 6,
    "loop": true,
    "frameCount": 4,
@@ -388,8 +388,8 @@
     ]
    }
   },
-  "read": {
-   "fps": 6,
+  "rest": {
+   "fps": 4,
    "loop": true,
    "frameCount": 4,
    "frames": {
@@ -419,8 +419,8 @@
     ]
    }
   },
-  "rest": {
-   "fps": 4,
+  "sit": {
+   "fps": 6,
    "loop": true,
    "frameCount": 4,
    "frames": {
@@ -450,8 +450,8 @@
     ]
    }
   },
-  "sit": {
-   "fps": 6,
+  "sleep": {
+   "fps": 4,
    "loop": true,
    "frameCount": 4,
    "frames": {
@@ -481,8 +481,8 @@
     ]
    }
   },
-  "sleep": {
-   "fps": 4,
+  "tidy": {
+   "fps": 6,
    "loop": true,
    "frameCount": 4,
    "frames": {
@@ -512,7 +512,7 @@
     ]
    }
   },
-  "tidy": {
+  "use_toilet": {
    "fps": 6,
    "loop": true,
    "frameCount": 4,
@@ -543,8 +543,8 @@
     ]
    }
   },
-  "use_toilet": {
-   "fps": 6,
+  "walk": {
+   "fps": 8,
    "loop": true,
    "frameCount": 4,
    "frames": {
@@ -574,8 +574,8 @@
     ]
    }
   },
-  "walk": {
-   "fps": 8,
+  "wash_up": {
+   "fps": 6,
    "loop": true,
    "frameCount": 4,
    "frames": {
@@ -605,7 +605,7 @@
     ]
    }
   },
-  "wash_up": {
+  "watch_tv": {
    "fps": 6,
    "loop": true,
    "frameCount": 4,
@@ -636,7 +636,7 @@
     ]
    }
   },
-  "watch_tv": {
+  "water_plants": {
    "fps": 6,
    "loop": true,
    "frameCount": 4,
@@ -667,7 +667,7 @@
     ]
    }
   },
-  "water_plants": {
+  "work": {
    "fps": 6,
    "loop": true,
    "frameCount": 4,
@@ -695,68 +695,6 @@
      349,
      350,
      351
-    ]
-   }
-  },
-  "wc": {
-   "fps": 6,
-   "loop": true,
-   "frameCount": 4,
-   "frames": {
-    "N": [
-     352,
-     353,
-     354,
-     355
-    ],
-    "S": [
-     356,
-     357,
-     358,
-     359
-    ],
-    "E": [
-     360,
-     361,
-     362,
-     363
-    ],
-    "W": [
-     364,
-     365,
-     366,
-     367
-    ]
-   }
-  },
-  "work": {
-   "fps": 6,
-   "loop": true,
-   "frameCount": 4,
-   "frames": {
-    "N": [
-     368,
-     369,
-     370,
-     371
-    ],
-    "S": [
-     372,
-     373,
-     374,
-     375
-    ],
-    "E": [
-     376,
-     377,
-     378,
-     379
-    ],
-    "W": [
-     380,
-     381,
-     382,
-     383
     ]
    }
   }

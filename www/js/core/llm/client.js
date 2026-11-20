@@ -124,16 +124,22 @@ export function createLlmClient({
     if (!provider || !provider.baseUrl || !provider.model) {
       throw Object.assign(new Error("LLM 未配置（baseUrl/model）"), { code: "not_configured" });
     }
+    const localMode = isLocalLlamaProvider(provider);
+    const effectiveTemp = localMode
+      ? temperature <= 0.4
+        ? Math.min(0.65, Number((temperature + 0.25).toFixed(2)))
+        : Math.min(1.2, Number((Math.max(temperature, 1.0) + 0.05).toFixed(2)))
+      : temperature;
     const body = {
       model: provider.model,
       messages,
-      max_tokens: maxTokens,
-      temperature,
+      ...(!localMode ? { max_tokens: maxTokens } : {}),
+      temperature: effectiveTemp,
       stream: false,
     };
-    const useJsonFormat = json && !(isLocalLlamaProvider(provider) && provider.reasoningEffort !== false);
+    const useJsonFormat = json;
     if (useJsonFormat) body.response_format = { type: "json_object" };
-    if (provider.reasoningEffort !== false) body.reasoning_effort = provider.reasoningEffort || "none";
+    if (!localMode && provider.reasoningEffort !== false) body.reasoning_effort = provider.reasoningEffort || "none";
 
     const attempts = Math.max(1, Number(provider.maxAttempts) || 1);
     let lastErr = null;

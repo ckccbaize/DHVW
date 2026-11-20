@@ -285,10 +285,12 @@ export function resolveSnowLumaAccount(cfg, accountId) {
     const reconnect = accountConfig.reconnect ?? {};
     return {
         accountId: resolvedAccountId,
+        channelType: accountConfig.channelType || (resolvedAccountId === "feishu" ? "feishu" : "qq"),
         name: accountConfig.name,
         enabled: accountConfig.enabled !== false,
         appId: accountConfig.appId ?? "",
-        clientSecret: accountConfig.clientSecret ?? "",
+        clientSecret: accountConfig.clientSecret ?? accountConfig.appSecret ?? "",
+        appSecret: accountConfig.appSecret ?? accountConfig.clientSecret ?? "",
         sandbox: accountConfig.sandbox !== false,
         ownerOpenId: accountConfig.ownerOpenId ?? "",
         allowOpenIds: stringList(accountConfig.allowOpenIds),
@@ -297,6 +299,7 @@ export function resolveSnowLumaAccount(cfg, accountId) {
         partDelayMs: nonNegativeInt(accountConfig.partDelayMs, 450),
         authUrl: accountConfig.authUrl,
         apiBaseUrl: accountConfig.apiBaseUrl,
+        wsEndpointUrl: accountConfig.wsEndpointUrl,
         wsUrl,
         httpUrl,
         accessToken,

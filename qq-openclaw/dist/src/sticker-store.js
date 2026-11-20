@@ -60,6 +60,8 @@ export function createStickerStore({
 
   const indexFile = path.join(dir, "index.json");
   let items = loadIndex();
+  let currentEagerness = Math.max(0, Math.min(3, Math.floor(Number(eagerness) || 0)));
+  let characterCues = [];
   let turnsSinceSticker = 4;
   let lastWebFetchAt = 0;
   let lastWebAttemptAt = 0;
@@ -161,13 +163,37 @@ export function createStickerStore({
 
   return {
     get enabled() {
-      return enabled && eagerness > 0;
+      return enabled && currentEagerness > 0;
     },
     get autoCollect() {
       return enabled && autoCollect;
     },
     get eagerness() {
-      return eagerness;
+      return currentEagerness;
+    },
+    setEagerness(val) {
+      const n = Number(val);
+      if (!Number.isFinite(n)) return currentEagerness;
+      const clamped = Math.max(0, Math.min(3, Math.floor(n)));
+      if (clamped !== currentEagerness) {
+        currentEagerness = clamped;
+        log?.info?.(`[sticker-store] 表情包热度已更新 eagerness=${currentEagerness}`);
+      }
+      return currentEagerness;
+    },
+    get characterCues() {
+      return characterCues.slice();
+    },
+    setCharacterCues(cues = []) {
+      const clean = (Array.isArray(cues) ? cues : [cues])
+        .map((s) => String(s || "").trim())
+        .filter((s) => s.length >= 2 && s.length <= 16);
+      const next = Array.from(new Set(clean)).slice(0, 6);
+      if (JSON.stringify(next) !== JSON.stringify(characterCues)) {
+        characterCues = next;
+        log?.info?.(`[sticker-store] 角色形象表情包关键词已更新: ${characterCues.join(" / ") || "(无)"}`);
+      }
+      return characterCues.slice();
     },
     scanDirectory,
 
@@ -187,10 +213,14 @@ export function createStickerStore({
     },
 
     canSendThisTurn({ proactive = false, userSentMedia = false } = {}) {
-      if (!enabled || eagerness <= 0) return false;
-      if (proactive) return eagerness >= 1 && turnsSinceSticker >= 2;
-      if (eagerness === 1) return userSentMedia ? turnsSinceSticker >= 2 : turnsSinceSticker >= 4;
-      if (eagerness === 2) return userSentMedia ? turnsSinceSticker >= 1 : turnsSinceSticker >= 2;
+      if (!enabled || currentEagerness <= 0) return false;
+      if (proactive) {
+        if (currentEagerness >= 3) return true;
+        if (currentEagerness === 2) return turnsSinceSticker >= 1;
+        return turnsSinceSticker >= 3;
+      }
+      if (currentEagerness === 1) return userSentMedia ? turnsSinceSticker >= 2 : turnsSinceSticker >= 4;
+      if (currentEagerness === 2) return userSentMedia ? true : turnsSinceSticker >= 1;
       return true;
     },
 
@@ -199,7 +229,7 @@ export function createStickerStore({
     },
 
     selectCandidates({ query = "", mood = {}, limit = 8 } = {}) {
-      if (!enabled || eagerness <= 0 || !items.length) return [];
+      if (!enabled || currentEagerness <= 0 || !items.length) return [];
       const q = String(query || "").toLowerCase();
       const band = String(mood?.band || "calm").toLowerCase();
       const moodCues = MOOD_KEYWORDS[band] || MOOD_KEYWORDS.calm;
@@ -220,6 +250,9 @@ export function createStickerStore({
         }
         for (const cue of moodCues) {
           if (hay.includes(cue)) score += 2;
+        }
+        for (const charCue of characterCues) {
+          if (hay.includes(charCue.toLowerCase())) score += 4;
         }
         // 降低长期高频重复同一表情的概率
         score += Math.min(2, (it.seenCount || 1) * 0.25) - Math.min(3, (it.usedCount || 0) * 0.2);
@@ -260,15 +293,16 @@ export function createStickerStore({
     },
 
     stats() {
-      return { count: items.length, eagerness, autoCollect, autoFetch };
+      return { count: items.length, eagerness: currentEagerness, autoCollect, autoFetch, characterCues: characterCues.slice() };
     },
 
     /**
-     * 联网按心情与上下文关键词自动搜索并扩充表情包库（走壳 /__image/search，安全格式校验+哈希去重）。
+     * 联网按角色形象（如「鲸鱼娘/大肥鱼」）+ 心情/上下文关键词自动搜索并扩充表情包库。
      */
     async searchAndCollect({
       mood = {},
       queryHint = "",
+      characterCues: cuesOverride = null,
       limit = 2,
       cooldownMs = 20 * 60_000,
       force = false,
@@ -278,10 +312,21 @@ export function createStickerStore({
       }
       if (webFetchInFlight) return webFetchInFlight;
       const t = now();
-      if (!force && t - lastWebAttemptAt < 60_000) {
+      const activeCues = Array.isArray(cuesOverride) && cuesOverride.length
+        ? cuesOverride.map((s) => String(s || "").trim()).filter(Boolean)
+        : characterCues;
+      const personaCount = activeCues.length
+        ? items.filter((it) => {
+            const hay = `${it.emotion} ${it.desc} ${(it.tags || []).join(" ")}`.toLowerCase();
+            return activeCues.some((c) => hay.includes(c.toLowerCase()));
+          }).length
+        : items.length;
+      const needsPersona = activeCues.length > 0 && personaCount < 3;
+
+      if (!force && t - lastWebAttemptAt < 45_000) {
         return { ok: false, added: 0, reason: "attempt_throttled" };
       }
-      if (!force && items.length >= 6 && t - lastWebFetchAt < cooldownMs) {
+      if (!force && !needsPersona && items.length >= 6 && t - lastWebFetchAt < cooldownMs) {
         return { ok: false, added: 0, reason: "cooldown" };
       }
       lastWebAttemptAt = t;
@@ -294,7 +339,12 @@ export function createStickerStore({
       const band = String(mood?.band || "calm").toLowerCase();
       const cues = MOOD_KEYWORDS[band] || MOOD_KEYWORDS.calm;
       const emotion = cleanHint || cues[Math.floor(Math.random() * Math.min(3, cues.length))] || "日常";
-      const searchQ = `${emotion} 可爱 表情包`.trim().slice(0, 40);
+      const primaryPersona = activeCues.length
+        ? activeCues[Math.floor(Math.random() * Math.min(2, activeCues.length))]
+        : "";
+      const searchQ = primaryPersona
+        ? `${primaryPersona} ${emotion} 表情包`.trim().slice(0, 40)
+        : `${emotion} 可爱 表情包`.trim().slice(0, 40);
 
       webFetchInFlight = (async () => {
         try {
@@ -320,8 +370,8 @@ export function createStickerStore({
                 const ext = mimeToExt(ct, targetUrl);
                 const reg = registerBuffer(buf, ext, {
                   emotion,
-                  desc: `${emotion} 表情包`,
-                  tags: [emotion, ...cues.slice(0, 3)],
+                  desc: primaryPersona ? `${primaryPersona} ${emotion} 表情包` : `${emotion} 表情包`,
+                  tags: Array.from(new Set([...(primaryPersona ? [primaryPersona] : []), ...activeCues.slice(0, 2), emotion, ...cues.slice(0, 3)])),
                   source: "web_search",
                 });
                 if (reg?.created) {

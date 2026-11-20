@@ -280,7 +280,12 @@ export function createOverview({ canvas, scene, store, sprites = [], showAgent =
     return dt;
   }
 
-  async function reloadCharacter() {
+  async function reloadCharacter(override = null) {
+    if (override && override.sheet && override.img) {
+      charSheet = override.sheet;
+      charImg = override.img;
+      return true;
+    }
     try {
       const sheet = await loadCachedJSON("assets/char/ojj_sheet.json");
       const img = await loadImage("assets/char/ojj_sheet.png");

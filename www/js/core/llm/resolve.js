@@ -29,6 +29,8 @@ export function resolveRemoteLlmConfig(payload = {}, hostWsUrl = "") {
   }
 
   out.mode = "local";
+  // 本地部署 llama 保留思考，不传 reasoning_effort=none
+  out.reasoningEffort = false;
   const wsRaw = String(hostWsUrl || "").trim();
   if (!wsRaw) return out;
 

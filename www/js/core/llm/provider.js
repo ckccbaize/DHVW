@@ -38,7 +38,9 @@ export function normalizeProvider(patch = {}, base = DEFAULT_PROVIDER) {
   if (patch.timeoutMs !== undefined) p.timeoutMs = clampInt(patch.timeoutMs, 1000, 120000, p.timeoutMs);
   if (patch.maxAttempts !== undefined) p.maxAttempts = clampInt(patch.maxAttempts, 1, 5, p.maxAttempts);
   if (patch.retryBaseMs !== undefined) p.retryBaseMs = clampInt(patch.retryBaseMs, 100, 10000, p.retryBaseMs);
-  if (patch.reasoningEffort !== undefined) p.reasoningEffort = String(patch.reasoningEffort || "none");
+  if (patch.reasoningEffort !== undefined) {
+    p.reasoningEffort = patch.reasoningEffort === false ? false : String(patch.reasoningEffort || "none");
+  }
   if (patch.useProxy !== undefined) p.useProxy = !!patch.useProxy;
   return p;
 }

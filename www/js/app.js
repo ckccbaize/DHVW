@@ -125,7 +125,7 @@ async function loadConfig() {
               baseUrl: data.baseUrl || "",
               apiKey: data.apiKey || "",
               model: data.model || "",
-              reasoningEffort: data.reasoningEffort || "none",
+              reasoningEffort: data.reasoningEffort ?? "none",
             };
           }
         }
@@ -595,6 +595,7 @@ async function boot() {
       displayChangedAt = performance.now();
       presentOpenedAt = displayChangedAt;
       store.emit("state", { display: "present", reason: "open" });
+      void sendDigest();
       await transition.reveal(460);
     } finally {
       presentOpening = false;
@@ -624,6 +625,7 @@ async function boot() {
       if (reason === "host_lost") overview.say("主机断开了，我先回去", 3000);
       if (reason === "iframe_timeout" || reason === "iframe_error") overview.say("显现页加载失败，先回总观", 3000);
       store.emit("state", { display: "overview", reason });
+      void sendDigest();
       if (!isError) await transition.reveal(360);
     } finally {
       presentExiting = false;
@@ -728,26 +730,56 @@ async function boot() {
     return true;
   }
 
+  async function decodeImageFromResponse(res) {
+    const blob = await res.blob();
+    const objUrl = URL.createObjectURL(blob);
+    try {
+      const img = new Image();
+      img.decoding = "async";
+      img.src = objUrl;
+      await img.decode();
+      return img;
+    } finally {
+      URL.revokeObjectURL(objUrl);
+    }
+  }
+
   async function syncActiveCharacter(p, force = false) {
-    if (!p || typeof caches === "undefined") return false;
+    if (!p) return false;
     const cid = String(p.id || "").trim();
     const updatedAt = Number(p.updatedAt || 0);
-    const sig = cid ? `${cid}:${updatedAt}` : "default:0";
+    const sig = cid ? `${cid}:${updatedAt}` : `default:${updatedAt}`;
     try {
       if (!force && localStorage.getItem("dhvw_char_sig") === sig) return false;
     } catch {
       /* ignore */
     }
-    const cache = await caches.open("dhvw-scenes-v1");
+    const cache = typeof caches !== "undefined" ? await caches.open("dhvw-scenes-v1") : null;
     if (!cid) {
-      await Promise.all([
-        cache.delete("assets/char/ojj_sheet.json"),
-        cache.delete("assets/char/ojj_sheet.png"),
-      ]);
+      if (cache) {
+        await Promise.all([
+          cache.delete("assets/char/ojj_sheet.json"),
+          cache.delete("assets/char/ojj_sheet.png"),
+        ]);
+      }
+      const bust = updatedAt || Date.now();
+      let override = null;
+      try {
+        const [jsonRes, sheetRes] = await Promise.all([
+          fetch(`assets/char/ojj_sheet.json?v=${bust}`, { cache: "no-store" }),
+          fetch(`assets/char/ojj_sheet.png?v=${bust}`, { cache: "no-store" }),
+        ]);
+        if (jsonRes.ok && sheetRes.ok) {
+          const [sheet, img] = await Promise.all([jsonRes.json(), decodeImageFromResponse(sheetRes)]);
+          override = { sheet, img };
+        }
+      } catch {
+        /* 回退到 overview 自身加载 */
+      }
       try {
         localStorage.setItem("dhvw_char_sig", sig);
       } catch {}
-      await Promise.all([overview.reloadCharacter?.(), outerOverview.reloadCharacter?.()]);
+      await Promise.all([overview.reloadCharacter?.(override), outerOverview.reloadCharacter?.(override)]);
       store.emit("character_ready", { id: "" });
       return true;
     }
@@ -767,9 +799,11 @@ async function boot() {
     } catch {
       return false;
     }
+    const bust = updatedAt || Date.now();
     const buildUrl = (rel) => {
       const u = new URL(rel, origin);
       if (token) u.searchParams.set("token", token);
+      u.searchParams.set("v", String(bust));
       return u;
     };
     const [jsonRes, sheetRes] = await Promise.all([
@@ -777,12 +811,17 @@ async function boot() {
       fetch(buildUrl(sheetPath), { cache: "no-store" }),
     ]);
     if (!jsonRes.ok || !sheetRes.ok) return false;
-    await cache.put("assets/char/ojj_sheet.json", jsonRes);
-    await cache.put("assets/char/ojj_sheet.png", sheetRes);
+    if (cache) {
+      await Promise.all([
+        cache.put("assets/char/ojj_sheet.json", jsonRes.clone()),
+        cache.put("assets/char/ojj_sheet.png", sheetRes.clone()),
+      ]);
+    }
+    const [sheet, img] = await Promise.all([jsonRes.json(), decodeImageFromResponse(sheetRes)]);
     try {
       localStorage.setItem("dhvw_char_sig", sig);
     } catch {}
-    await Promise.all([overview.reloadCharacter?.(), outerOverview.reloadCharacter?.()]);
+    await Promise.all([overview.reloadCharacter?.({ sheet, img }), outerOverview.reloadCharacter?.({ sheet, img })]);
     store.emit("character_ready", { id: cid, name: p.name || cid });
     return true;
   }
@@ -798,8 +837,10 @@ async function boot() {
   let applyRemoteQqConfig = async () => {};
   let triggerRemoteQqRebind = async () => {};
   let pushQqLlmConfig = () => {};
+  let pushQqPersonaConfig = () => {};
   let syncImageGenConfig = async () => {};
   let pendingRemoteBoost = null;
+  let pendingRemoteGateways = null;
 
   function handleRemoteMessage(msg) {
     const p = msg.payload || {};
@@ -811,9 +852,15 @@ async function boot() {
         if (Number(p.olvt_port) > 0) hostPresentInfo.olvtPort = Number(p.olvt_port);
         if (Number(p.gateway_port) > 0) hostPresentInfo.gatewayPort = Number(p.gateway_port);
         if (p.present_url) hostPresentInfo.presentUrl = String(p.present_url);
+        if (p.boost_gateways && typeof p.boost_gateways === "object") {
+          pendingRemoteGateways = {
+            qq: p.boost_gateways.qq !== false,
+            feishu: p.boost_gateways.feishu === true,
+          };
+        }
         if (typeof p.boost === "boolean") {
           pendingRemoteBoost = p.boost;
-          void setQqBotBoost(p.boost, { persist: true });
+          void setQqBotBoost(p.boost, { persist: true, gateways: pendingRemoteGateways || undefined });
         }
         if (p.active_character !== undefined) {
           void syncActiveCharacter(p.active_character).catch((err) =>
@@ -822,6 +869,10 @@ async function boot() {
         }
         if (p.image_gen !== undefined) {
           void syncImageGenConfig(p.image_gen);
+        }
+        if (p.persona && typeof p.persona === "object") {
+          cfg.persona = { ...(cfg.persona || {}), ...p.persona };
+          pushQqPersonaConfig();
         }
         break;
       }
@@ -911,8 +962,12 @@ async function boot() {
       }
       case "boost:config": {
         const enabled = Boolean(p.enabled);
+        const gateways = p.gateways && typeof p.gateways === "object"
+          ? { qq: p.gateways.qq !== false, feishu: p.gateways.feishu === true }
+          : undefined;
         pendingRemoteBoost = enabled;
-        void setQqBotBoost(enabled, { persist: true });
+        if (gateways) pendingRemoteGateways = gateways;
+        void setQqBotBoost(enabled, { persist: true, gateways });
         break;
       }
       case "qqbot:config": {
@@ -920,7 +975,20 @@ async function boot() {
         break;
       }
       case "qqbot:rebind": {
-        void triggerRemoteQqRebind();
+        void triggerRemoteQqRebind(p?.channel || "qq");
+        break;
+      }
+      case "feishubot:config": {
+        void applyRemoteQqConfig({ channel: "feishu", ...p });
+        break;
+      }
+      case "feishubot:rebind": {
+        void triggerRemoteQqRebind("feishu");
+        break;
+      }
+      case "persona:config": {
+        cfg.persona = { ...(cfg.persona || {}), ...(p || {}) };
+        pushQqPersonaConfig();
         break;
       }
       case "digest:get": {
@@ -1430,6 +1498,7 @@ async function boot() {
     let qqSyncTimer = null;
     let qqEventsWired = false;
     let qqActive = false;
+    let boostGateways = { qq: true, feishu: false };
 
     const pushWorldState = () => {
       if (!qqBridge) return;
@@ -1453,6 +1522,7 @@ async function boot() {
     };
     let cachedRef3dSig = "";
     let cachedRef3dBase64 = "";
+    let cachedRef3dFetchUrl = "";
 
     const pushImageGenConfig = () => {
       if (!qqBridge || !cfg.imageGen) return;
@@ -1468,6 +1538,7 @@ async function boot() {
             ? { fusionStylePrompt: cfg.imageGen.fusionStylePrompt }
             : {}),
           ref3dUpdatedAt: Number(cfg.imageGen.ref3dUpdatedAt || 0),
+          ...(cachedRef3dFetchUrl ? { ref3dFetchUrl: cachedRef3dFetchUrl } : {}),
           ...(cachedRef3dSig === String(cfg.imageGen.ref3dUpdatedAt || 0) ? { ref3dBase64: cachedRef3dBase64 } : {}),
         },
       });
@@ -1480,6 +1551,7 @@ async function boot() {
       if (ts === 0) {
         cachedRef3dSig = "0";
         cachedRef3dBase64 = "";
+        cachedRef3dFetchUrl = "";
       } else if (ts > 0 && cachedRef3dSig !== String(ts)) {
         try {
           const raw = cfg.host.wsUrl || cfg.host.probeUrl || "";
@@ -1491,6 +1563,7 @@ async function boot() {
             const token = u.searchParams.get("token") || "";
             const target = new URL(refPath, u.origin);
             if (token) target.searchParams.set("token", token);
+            cachedRef3dFetchUrl = target.toString();
             const res = await fetch(target, { cache: "no-store" });
             if (res.ok) {
               const buf = new Uint8Array(await res.arrayBuffer());
@@ -1525,17 +1598,37 @@ async function boot() {
     };
     pushQqLlmConfig = pushLlmConfig;
 
+    const pushPersonaConfig = () => {
+      if (!qqBridge || !cfg.persona) return;
+      qqBridge.send({
+        type: "qq:persona:config",
+        payload: cfg.persona,
+      });
+    };
+    pushQqPersonaConfig = pushPersonaConfig;
+
     const updateHudPill = () => {
       if (!qqBoostPill) return;
       qqBoostPill.hidden = !qqActive;
       const st = store.state.qqStatus;
-      const connected = !!st?.connected;
-      qqBoostPill.classList.toggle("live", connected && !!st?.paired);
-      qqBoostPill.textContent = connected
-        ? st?.paired
-          ? "BOOST · QQ在线"
-          : "BOOST · 待激活"
-        : "BOOST · QQ待连";
+      const gws = st?.gateways || boostGateways;
+      const qqOn = gws?.qq !== false;
+      const fsOn = gws?.feishu === true;
+      const fsSt = st?.feishu || {};
+      const connected = Boolean(st?.connected || fsSt?.connected);
+      const paired = Boolean((qqOn && st?.paired) || (fsOn && fsSt?.paired));
+      const names = [];
+      if (qqOn) names.push("QQ");
+      if (fsOn) names.push("飞书");
+      const tag = names.length ? names.join("/") : "无网关";
+      qqBoostPill.classList.toggle("live", connected && paired);
+      qqBoostPill.textContent = !names.length
+        ? "BOOST · 未选网关"
+        : connected
+          ? paired
+            ? `BOOST · ${tag}在线`
+            : `BOOST · ${tag}待激活`
+          : `BOOST · ${tag}待连`;
     };
 
     const handleQqStatus = (st) => {
@@ -1552,7 +1645,7 @@ async function boot() {
         await fetch("/__qq/boost", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ enabled: true }),
+          body: JSON.stringify({ enabled: true, gateways: boostGateways }),
         });
       } catch {}
       if (!qqActive) return;
@@ -1560,9 +1653,10 @@ async function boot() {
         qqBridge = createQqBridge({
           url: cfg.qqBot?.bridgeWsUrl || "ws://127.0.0.1:8088/qq/ws",
           onOpen: () => {
-            qqBridge.send({ type: "qq:boost:state", payload: { enabled: true } });
+            qqBridge.send({ type: "qq:boost:state", payload: { enabled: true, gateways: boostGateways } });
             pushLlmConfig();
             pushImageGenConfig();
+            pushPersonaConfig();
             pushWorldState();
             qqAdapter.flushPendingFacts();
           },
@@ -1573,7 +1667,7 @@ async function boot() {
         });
       }
       qqBridge.start();
-      qqBridge.send({ type: "qq:boost:state", payload: { enabled: true } });
+      qqBridge.send({ type: "qq:boost:state", payload: { enabled: true, gateways: boostGateways } });
       qqAdapter.flushPendingFacts();
       if (!qqEventsWired) {
         qqEventsWired = true;
@@ -1638,16 +1732,20 @@ async function boot() {
       return null;
     };
 
-    const postQqRebind = async () => {
+    const postQqRebind = async (channel = "qq") => {
       try {
-        const res = await fetch("/__qq/rebind", { method: "POST" });
+        const res = await fetch("/__qq/rebind", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ channel }),
+        });
         if (res.ok) {
           const st = await res.json();
           handleQqStatus(st);
           return st;
         }
       } catch {}
-      if (qqBridge?.connected) qqBridge.send({ type: "qq:bot:rebind", payload: {} });
+      if (qqBridge?.connected) qqBridge.send({ type: "qq:bot:rebind", payload: { channel } });
       return null;
     };
 
@@ -1659,29 +1757,55 @@ async function boot() {
       await postQqConfig({ ...payload, activate: store.state.boost || staticQqEnabled });
     };
 
-    triggerRemoteQqRebind = async () => {
+    triggerRemoteQqRebind = async (channel = "qq") => {
       await setQqBotBoost(true, { persist: true });
       await ensureQqStarted();
-      await postQqRebind();
+      await postQqRebind(channel);
     };
 
-    setQqBotBoost = async (enabled, { persist = false } = {}) => {
+    setQqBotBoost = async (enabled, { persist = false, gateways } = {}) => {
       const next = Boolean(enabled);
-      store.patch({ boost: next });
-      try { localStorage.setItem("dhvw_boost", next ? "1" : "0"); } catch {}
+      if (gateways && typeof gateways === "object") {
+        boostGateways = {
+          qq: gateways.qq !== undefined ? Boolean(gateways.qq) : boostGateways.qq,
+          feishu: gateways.feishu !== undefined ? Boolean(gateways.feishu) : boostGateways.feishu,
+        };
+      }
+      store.patch({ boost: next, boostGateways });
+      try {
+        localStorage.setItem("dhvw_boost", next ? "1" : "0");
+        localStorage.setItem("dhvw_boost_gateways", JSON.stringify(boostGateways));
+      } catch {}
       if (persist) {
         const kv = local.getBrainHandles().backend;
         await kv?.setKV?.("qq_boost_enabled", next).catch(() => {});
+        await kv?.setKV?.("qq_boost_gateways", boostGateways).catch(() => {});
       }
-      if (next || staticQqEnabled) await ensureQqStarted();
-      else stopQq();
+      if (next || staticQqEnabled) {
+        const wasActive = qqActive;
+        await ensureQqStarted();
+        if (wasActive && qqBridge) {
+          qqBridge.send({ type: "qq:boost:state", payload: { enabled: true, gateways: boostGateways } });
+        }
+        if (gateways) await postQqConfig({ gateways: boostGateways, activate: true });
+        updateHudPill();
+      } else {
+        stopQq();
+      }
     };
 
     void (async () => {
       const kv = local.getBrainHandles().backend;
       const savedBoost = await kv?.getKV?.("qq_boost_enabled").catch(() => undefined);
+      const savedGateways = await kv?.getKV?.("qq_boost_gateways").catch(() => undefined);
+      if (savedGateways && typeof savedGateways === "object") {
+        boostGateways = {
+          qq: savedGateways.qq !== false,
+          feishu: savedGateways.feishu === true,
+        };
+      }
       const initial = pendingRemoteBoost !== null ? pendingRemoteBoost : (savedBoost === true || staticQqEnabled);
-      await setQqBotBoost(initial);
+      await setQqBotBoost(initial, { gateways: pendingRemoteGateways || boostGateways });
     })();
   }
 

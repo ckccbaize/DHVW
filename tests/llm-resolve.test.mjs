@@ -31,6 +31,7 @@ test("local mode over paired wss gateway rewrites loopback baseUrl to gateway /l
   assert.equal(out.mode, "local");
   assert.equal(out.baseUrl, "https://192.168.1.10:8443/llm/v1");
   assert.equal(out.apiKey, "gw-tok-123");
+  assert.equal(out.reasoningEffort, false);
   assert.equal(out.useShellProxy, true);
 });
 
@@ -47,5 +48,6 @@ test("local mode over direct LAN ws orchestrator uses /dhvw/llm/v1 relay", () =>
   assert.equal(out.mode, "local");
   assert.equal(out.baseUrl, "http://192.168.1.10:8877/dhvw/llm/v1");
   assert.equal(out.apiKey, "local-llama");
+  assert.equal(out.reasoningEffort, false);
   assert.equal(out.useShellProxy, true);
 });
