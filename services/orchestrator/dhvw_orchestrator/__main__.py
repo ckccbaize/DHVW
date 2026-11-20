@@ -116,6 +116,8 @@ class Orchestrator:
         self.tier = "idle"
         self.session: str | None = None
         self.digest: dict = store.read_digest()
+        # 最后一次 world:digest 是哪条连接上报的；位置纠偏只能回给同一条连接
+        self.digest_ws: WebSocket | None = None
         self.mood: dict = store.get_kv("mood", {}) or {}
         self.llm: dict = store.get_kv("llm", {}) or {}
         self.tts_ready = bool(store.get_kv("tts_ready", False))
@@ -217,14 +219,19 @@ class Orchestrator:
         iso = datetime.now().isoweekday()
         return iso, names[iso - 1]
 
-    def overview(self) -> dict:
+    def overview(self, reporter: WebSocket | None = None) -> dict:
         clock = self.digest.get("clock") or {}
         world = self.digest.get("world") or {}
         wd, wn = self._weekday(clock)
+        # 位置只在“上报摘要的那条连接”上有效。把 A 的坐标回显给 B 会让 B 瞬移到 A 所在格，
+        # 而且 B 的路径已被清空、worker 的 pending 还在，角色就此卡住。
+        pos = world.get("pos_checksum")
+        if not isinstance(pos, dict) or (reporter is not None and self.digest_ws is not reporter):
+            pos = "n/a"
         return {
             "work_tier": self.tier,
             "conn_state": "up" if self.connected else "down",
-            "pos_checksum": world.get("pos_checksum") or "n/a",
+            "pos_checksum": pos,
             "clock": {
                 "day": clock.get("day", ""),
                 "minute": clock.get("minute", 0),
@@ -234,6 +241,11 @@ class Orchestrator:
             },
             "agent": {},
         }
+
+    async def broadcast_overview(self) -> None:
+        """每条连接各自拿一份总观：位置只回给它自己上报的那份摘要。"""
+        for ws in list(self.clients):
+            await self.send(ws, "state:overview", self.overview(ws))
 
     async def push_facts(self) -> int:
         """把 PC 侧新增/更新的事实增量推给设备；设备 ack 后才推进游标。"""
@@ -596,6 +608,7 @@ class Orchestrator:
             digest = payload.get("digest")
             if isinstance(digest, dict):
                 self.digest = digest
+                self.digest_ws = ws
                 self.store.write_digest(digest)
                 await self.consume_scene_requests()
                 world_state = digest.get("world") if isinstance(digest.get("world"), dict) else {}
@@ -890,7 +903,7 @@ class Orchestrator:
                         await self.set_tier("idle")
                 await asyncio.sleep(OVERVIEW_INTERVAL - 0.5)
                 if self.clients:
-                    await self.broadcast("state:overview", self.overview())
+                    await self.broadcast_overview()
                     # 30 s 一次兜底：PC 侧新写的事实即使没走端点也能尽快回流
                     if int(time.time() - self.started) % 30 < OVERVIEW_INTERVAL:
                         await self.push_facts()
@@ -1659,6 +1672,8 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
         finally:
             orch.clients.discard(ws)
             orch.client_roles.pop(ws, None)
+            if orch.digest_ws is ws:
+                orch.digest_ws = None
             # 以存活连接为准：旧连接的 finally 晚于新连接握手时，不能把在线判成离线
             orch.connected = bool(orch.clients)
             log("info", "设备断开", clients=len(orch.clients), peer=peer)
