@@ -71,11 +71,33 @@ export interface ServiceDef {
 
 export type LlmProtocol = 'openai-compatible' | 'anthropic'
 
+export interface BoostGatewaysConfig {
+  qq: boolean
+  feishu: boolean
+}
+
+export interface FeishuBotStatusView {
+  enabled: boolean
+  configured: boolean
+  hasSecret?: boolean
+  connected: boolean
+  gatewayError?: string
+  appId: string
+  appIdMasked: string
+  paired: boolean
+  ownerOpenId: string
+  ownerOpenIdMasked: string
+  awaitingActivation?: boolean
+  proactive: boolean
+  unlimitedProactive?: boolean
+}
+
 export interface QqBotStatusView {
   reachable: boolean
   configured: boolean
   hasSecret: boolean
   boostActive: boolean
+  gateways?: BoostGatewaysConfig
   connected: boolean
   sandbox: boolean
   appId: string
@@ -88,24 +110,49 @@ export interface QqBotStatusView {
   stickerEagerness: number
   gatewayError?: string
   stickersCount?: number
+  feishu?: FeishuBotStatusView
   error?: string
 }
 
 export type LlmMode = 'api' | 'local'
+export type ImageGenProtocol = 'openai-images' | 'openai-chat-image' | 'gemini-native'
+
+export const DEFAULT_FUSION_STYLE_PROMPT = [
+  '画风与笔触：日系二次元角色融合厚涂（Impasto）与数字水彩质感，线条纤细柔和，光影过渡自然，带有半写实的立体感与微妙的颗粒噪点。',
+  '光影与摄影感：极强的电影镜头语言，主打逆光（Backlighting）、体积光（Volumetric Lighting）与丁达尔效应。大量运用浅景深（Shallow Depth of Field）、前景虚化以及夜景光斑（Bokeh），边缘光（Rim Light）勾勒发丝与衣物轮廓。',
+  '色彩基调：低饱和度、清冷通透的电影调色（Muted/Desaturated Color Palette），高光带有柔和的暖色调或朦胧雾感（Haze/Glow），明暗对比柔和且富有空气感。',
+].join('\n')
 
 export interface LlmProfile {
   baseUrl: string
   model: string
   temperature: number
   protocol: LlmProtocol
+  supportsVision?: boolean
+}
+
+export interface ImageGenView {
+  enabled: boolean
+  protocol: ImageGenProtocol
+  baseUrl: string
+  model: string
+  fusionStylePrompt?: string
+  hasKey: boolean
 }
 
 export interface SettingsView {
   /** 老配置库没有这个键，渲染层必须按可选处理 */
-  boost?: { enabled: boolean }
+  boost?: { enabled: boolean; gateways?: BoostGatewaysConfig }
   qqBot?: {
     appId: string
     sandbox: boolean
+    ownerOpenId: string
+    proactive: boolean
+    stickerEagerness: number
+    hasSecret: boolean
+  }
+  feishuBot?: {
+    appId: string
     ownerOpenId: string
     proactive: boolean
     stickerEagerness: number
@@ -115,11 +162,15 @@ export interface SettingsView {
   llmApi: LlmProfile
   localLlmReady: boolean
   localLlmModel: string
-  llm: { baseUrl: string; model: string; temperature: number; protocol: LlmProtocol; hasKey: boolean }
+  llm: { baseUrl: string; model: string; temperature: number; protocol: LlmProtocol; supportsVision?: boolean; hasKey: boolean }
+  imageGen?: ImageGenView
+  hasRef3d?: boolean
   ports: { olvt: number; tts: number; llama: number }
   asr: { enabled: boolean; ready: boolean }
   /** Live2D 模型 id：PC 舞台与 OLVT 共用（模型库见 resources/live2d/models 与组件的 live2d-models） */
   live2d: { model: string }
+  /** 像素角色模型 id（空串表示使用默认内置精灵） */
+  pixelCharacterId?: string
   scene: { autoPush: boolean }
   /** 主动说话：仅 OLVT，且只有显示态为「显现」时才真正生效 */
   proactive: {
@@ -142,12 +193,21 @@ export interface SettingsView {
 }
 
 export interface SettingsPatch {
+  boost?: Partial<{ enabled: boolean; gateways: Partial<BoostGatewaysConfig> }>
   llmMode?: LlmMode
   llmApi?: Partial<LlmProfile>
-  llm?: Partial<{ baseUrl: string; model: string; temperature: number; protocol: LlmProtocol }>
+  llm?: Partial<{ baseUrl: string; model: string; temperature: number; protocol: LlmProtocol; supportsVision: boolean }>
+  imageGen?: Partial<{
+    enabled: boolean
+    protocol: ImageGenProtocol
+    baseUrl: string
+    model: string
+    fusionStylePrompt: string
+  }>
   ports?: Partial<{ olvt: number; tts: number; llama: number }>
   asr?: Partial<{ enabled: boolean }>
   live2d?: Partial<{ model: string }>
+  pixelCharacterId?: string
   scene?: Partial<{ autoPush: boolean }>
   proactive?: Partial<{
     enabled: boolean
@@ -518,4 +578,74 @@ export interface MemoryFactView {
   importance: number
   ts: number
   updatedAt: number
+}
+
+export interface CharacterSheetView {
+  id: string
+  name: string
+  sourceFileName?: string
+  rowOrder: string
+  detectedRowOrder?: string
+  autoFixDir?: boolean
+  cleanInnerWhite?: boolean
+  corrections?: string[]
+  manualFlips?: Record<string, boolean[]>
+  frame: { w: number; h: number }
+  animations: string[]
+  sheetSize?: { w: number; h: number }
+  createdAt: number
+  updatedAt: number
+  active?: boolean
+}
+
+export interface CharacterSheetMetaJson {
+  schema_version: number
+  image: string
+  frame: { w: number; h: number }
+  anchor: { x: number; y: number }
+  directions: string[]
+  animations: Record<
+    string,
+    {
+      fps: number
+      loop: boolean
+      frameCount: number
+      frames: Record<string, number[]>
+    }
+  >
+}
+
+export interface CharacterGenerateInput {
+  name?: string
+  filename?: string
+  imageBase64: string
+  rowOrder?: string
+  frameW?: number
+  frameH?: number
+  autoApply?: boolean
+  autoFixDir?: boolean
+  cleanInnerWhite?: boolean
+  manualFlips?: Record<string, boolean[]>
+}
+
+export interface Generated4x4ItemView {
+  id: string
+  prompt: string
+  model?: string
+  usedRef?: boolean
+  used3dRef?: boolean
+  createdAt: number
+  imageBase64: string
+  dataUrl: string
+}
+
+export interface CharacterSampleView {
+  id: string
+  name: string
+  filename: string
+  badge: string
+  description: string
+  rowOrder: string
+  imageBase64: string
+  dataUrl: string
 }

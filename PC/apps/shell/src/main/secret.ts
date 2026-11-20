@@ -9,6 +9,8 @@ import { log } from './logger'
  */
 const KEY = 'llm.apiKey'
 const QQ_SECRET_KEY = 'qqBot.clientSecret'
+const FEISHU_SECRET_KEY = 'feishuBot.appSecret'
+const IMAGE_GEN_KEY = 'imageGen.apiKey'
 
 let db: DatabaseSync | null = null
 
@@ -81,3 +83,15 @@ export const saveQqSecret = (plain: string): { ok: boolean; error?: string } =>
   saveSecretByKey(QQ_SECRET_KEY, 'QQ Bot Secret', plain)
 export const readQqSecret = (): string | null => readSecretByKey(QQ_SECRET_KEY, 'QQ Bot Secret')
 export const clearQqSecret = (): void => clearSecretByKey(QQ_SECRET_KEY, 'QQ Bot Secret')
+
+export const hasFeishuSecret = (): boolean => hasSecretByKey(FEISHU_SECRET_KEY)
+export const saveFeishuSecret = (plain: string): { ok: boolean; error?: string } =>
+  saveSecretByKey(FEISHU_SECRET_KEY, '飞书 AppSecret', plain)
+export const readFeishuSecret = (): string | null => readSecretByKey(FEISHU_SECRET_KEY, '飞书 AppSecret')
+export const clearFeishuSecret = (): void => clearSecretByKey(FEISHU_SECRET_KEY, '飞书 AppSecret')
+
+export const hasImageGenKey = (): boolean => hasSecretByKey(IMAGE_GEN_KEY)
+export const saveImageGenKey = (plain: string): { ok: boolean; error?: string } =>
+  saveSecretByKey(IMAGE_GEN_KEY, '生图模型 API Key', plain)
+export const readImageGenKey = (): string | null => readSecretByKey(IMAGE_GEN_KEY, '生图模型 API Key')
+export const clearImageGenKey = (): void => clearSecretByKey(IMAGE_GEN_KEY, '生图模型 API Key')

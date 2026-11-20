@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
 import hashlib
 import json
 import os
@@ -32,11 +33,18 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 
 from . import APP_ID, service_version
 from . import actions
+from .character_sheet import CharacterSheetManager
+from .image_gen import (
+    DEFAULT_FUSION_STYLE_PROMPT,
+    build_4x4_sprite_prompt,
+    build_scene_fusion_prompt,
+    generate_image,
+)
 from .memory_extract import extract_facts_from_events, extract_facts_from_turns
 from .olvt_proxy import BROWSER_UA, build_memory_context_block, sanitize_proxy_payload
 from .persona import PersonaRunner
 from .saves import SaveStore
-from .scene import SceneRunner
+from .scene import SceneRunner, find_toolchain
 from .store import Store
 
 PROTO = 1
@@ -116,20 +124,39 @@ class Orchestrator:
         self.tier = "idle"
         self.session: str | None = None
         self.digest: dict = store.read_digest()
+        # 最后一次 world:digest 是哪条连接上报的；位置纠偏只能回给同一条连接
+        self.digest_ws: WebSocket | None = None
         self.mood: dict = store.get_kv("mood", {}) or {}
         self.llm: dict = store.get_kv("llm", {}) or {}
+        self.image_gen: dict = store.get_kv("image_gen", {}) or {}
+        self.ref_3d_path = store.root / "character_ref_3d.png"
+        self.gen4x4_dir = store.root / "generated_4x4"
+        self.gen4x4_dir.mkdir(parents=True, exist_ok=True)
+        self.ref_3d_ts = int(store.get_kv("character_ref_3d_ts", 0) or 0)
+        if not self.ref_3d_path.is_file() and self.ref_3d_ts:
+            self.ref_3d_ts = 0
+            store.put_kv("character_ref_3d_ts", 0)
         self.tts_ready = bool(store.get_kv("tts_ready", False))
         self.live2d_ready = bool(store.get_kv("live2d_ready", False))
         self.olvt_port = int(store.get_kv("olvt_port", 0) or 0)
         self.gateway_port = int(store.get_kv("gateway_port", 0) or 0)
         self.boost = bool(store.get_kv("boost", False))
+        raw_gw = store.get_kv("boost_gateways", None) or {}
+        self.boost_gateways: dict = {
+            "qq": bool(raw_gw.get("qq", True)) if isinstance(raw_gw, dict) else True,
+            "feishu": bool(raw_gw.get("feishu", False)) if isinstance(raw_gw, dict) else False,
+        }
         self.qqbot_cfg: dict = store.get_kv("qqbot_cfg", {}) or {}
+        self.feishubot_cfg: dict = store.get_kv("feishubot_cfg", {}) or {}
+        self.persona_cfg: dict = store.get_kv("persona_cfg", {}) or {}
         self.qqbot_status: dict = {}
         self.world_running = True
         self.started = time.time()
         self.saves = SaveStore(store)
+        self.characters = CharacterSheetManager(store, store.root)
         self.scenes = SceneRunner(store, store.root, self._push_scene)
         self.scenes.on_done = self.handle_scene_done
+        self.scenes.on_before_validate = self._apply_active_character_to_dist
         self.scenes.set_llm(self.llm)
         self.personas = PersonaRunner(store, store.root)
         self.personas.set_llm(self.llm)
@@ -158,6 +185,29 @@ class Orchestrator:
     async def _push_scene(self, kind: str, payload: dict) -> None:
         await self.broadcast(kind, payload)
 
+    async def _apply_active_character_to_dist(self, dist_dir: Path) -> None:
+        if self.characters.active_id:
+            await asyncio.to_thread(self.characters.apply_active_to_dist, dist_dir)
+
+    def active_character_payload(self) -> dict:
+        cid = self.characters.active_id
+        if not cid:
+            ts = int(self.store.get_kv("default_char_ts") or 0)
+            return {"id": "", "name": "鲸鱼娘（默认）", "updatedAt": ts}
+        meta = self.characters.get_meta(cid)
+        if not meta:
+            ts = int(self.store.get_kv("default_char_ts") or 0)
+            return {"id": "", "name": "鲸鱼娘（默认）", "updatedAt": ts}
+        return {
+            "id": cid,
+            "name": meta.get("name") or cid,
+            "updatedAt": int(meta.get("updatedAt") or 0),
+            "jsonUrl": f"/dhvw/characters/{cid}/sheet.json",
+            "sheetUrl": f"/dhvw/characters/{cid}/sheet.png",
+            "gatewayJsonUrl": f"/orchestrator/dhvw/characters/{cid}/sheet.json",
+            "gatewaySheetUrl": f"/orchestrator/dhvw/characters/{cid}/sheet.png",
+        }
+
     # ---------- 发送 ----------
     async def send(
         self, ws: WebSocket, type_: str, payload: dict | None = None, reply_to: str | None = None
@@ -178,11 +228,15 @@ class Orchestrator:
                 sent.append(msg_id)
         return sent
 
+    def has_device_client(self) -> bool:
+        return any(self.client_roles.get(ws, "device") == "device" for ws in list(self.clients))
+
     async def broadcast_devices(self, type_: str, payload: dict | None = None) -> list[str]:
-        """只发给物理设备/本地壳，不发给手机/电脑远程渲染页。"""
+        """优先发给物理设备/本地壳；仅连接了远程渲染页（如 ?remote=1）时兜底透传给在线渲染页。"""
+        has_device = self.has_device_client()
         sent: list[str] = []
         for ws in list(self.clients):
-            if self.client_roles.get(ws, "device") != "device":
+            if has_device and self.client_roles.get(ws, "device") != "device":
                 continue
             msg_id = await self.send(ws, type_, payload)
             if msg_id:
@@ -217,14 +271,19 @@ class Orchestrator:
         iso = datetime.now().isoweekday()
         return iso, names[iso - 1]
 
-    def overview(self) -> dict:
+    def overview(self, reporter: WebSocket | None = None) -> dict:
         clock = self.digest.get("clock") or {}
         world = self.digest.get("world") or {}
         wd, wn = self._weekday(clock)
+        # 位置只在“上报摘要的那条连接”上有效。把 A 的坐标回显给 B 会让 B 瞬移到 A 所在格，
+        # 而且 B 的路径已被清空、worker 的 pending 还在，角色就此卡住。
+        pos = world.get("pos_checksum")
+        if not isinstance(pos, dict) or (reporter is not None and self.digest_ws is not reporter):
+            pos = "n/a"
         return {
             "work_tier": self.tier,
             "conn_state": "up" if self.connected else "down",
-            "pos_checksum": world.get("pos_checksum") or "n/a",
+            "pos_checksum": pos,
             "clock": {
                 "day": clock.get("day", ""),
                 "minute": clock.get("minute", 0),
@@ -234,6 +293,11 @@ class Orchestrator:
             },
             "agent": {},
         }
+
+    async def broadcast_overview(self) -> None:
+        """每条连接各自拿一份总观：位置只回给它自己上报的那份摘要。"""
+        for ws in list(self.clients):
+            await self.send(ws, "state:overview", self.overview(ws))
 
     async def push_facts(self) -> int:
         """把 PC 侧新增/更新的事实增量推给设备；设备 ack 后才推进游标。"""
@@ -493,14 +557,20 @@ class Orchestrator:
                     "olvt_port": self.olvt_port,
                     "gateway_port": self.gateway_port,
                     "boost": self.boost,
+                    "boost_gateways": self.boost_gateways,
                     "world_tier": self.tier,
+                    "active_character": self.active_character_payload(),
+                    "image_gen": self.image_gen_payload(),
+                    "persona": self.persona_cfg,
                     "agent": {},
                 },
                 msg_id,
             )
-            await self.send(ws, "boost:config", {"enabled": self.boost}, msg_id)
+            await self.send(ws, "boost:config", {"enabled": self.boost, "gateways": self.boost_gateways}, msg_id)
             if self.qqbot_cfg.get("appId"):
                 await self.send(ws, "qqbot:config", self.qqbot_payload(), msg_id)
+            if self.feishubot_cfg.get("appId"):
+                await self.send(ws, "feishubot:config", self.feishubot_payload(), msg_id)
             if self.llm.get("baseUrl") and self.llm.get("model"):
                 await self.send(ws, "llm:config", self.llm_payload(), msg_id)
             await self.push_proactive(force=True)
@@ -587,15 +657,20 @@ class Orchestrator:
             if payload.get("paired") and payload.get("ownerOpenId"):
                 self.qqbot_cfg["ownerOpenId"] = str(payload["ownerOpenId"])
                 self.store.put_kv("qqbot_cfg", self.qqbot_cfg)
+            feishu_st = payload.get("feishu")
+            if isinstance(feishu_st, dict) and feishu_st.get("paired") and feishu_st.get("ownerOpenId"):
+                self.feishubot_cfg["ownerOpenId"] = str(feishu_st["ownerOpenId"])
+                self.store.put_kv("feishubot_cfg", self.feishubot_cfg)
             return
 
         if type_ == "world:digest":
-            # 远程渲染页的显示态不能覆盖物理设备；否则 PC 显现/ARM 总观会互相打架。
-            if self.client_roles.get(ws) == "viewer":
+            # 同时有物理设备与远程渲染页时，远程页不覆盖物理设备显示态；仅远程渲染页在线时正常接收摘要与显示态。
+            if self.client_roles.get(ws) == "viewer" and self.has_device_client():
                 return
             digest = payload.get("digest")
             if isinstance(digest, dict):
                 self.digest = digest
+                self.digest_ws = ws
                 self.store.write_digest(digest)
                 await self.consume_scene_requests()
                 world_state = digest.get("world") if isinstance(digest.get("world"), dict) else {}
@@ -702,15 +777,31 @@ class Orchestrator:
             "stickerEagerness": int(c.get("stickerEagerness", 2) or 2),
         }
 
+    def feishubot_payload(self) -> dict:
+        c = self.feishubot_cfg or {}
+        return {
+            "channel": "feishu",
+            "appId": c.get("appId") or "",
+            "appSecret": c.get("appSecret") or "",
+            "ownerOpenId": c.get("ownerOpenId") or "",
+            "proactive": bool(c.get("proactive", True)),
+            "stickerEagerness": int(c.get("stickerEagerness", 2) or 2),
+        }
+
     def qqbot_status_view(self) -> dict:
         st = dict(self.qqbot_status or {})
         cfg = self.qqbot_cfg or {}
+        fs_st = dict(st.get("feishu") or {}) if isinstance(st.get("feishu"), dict) else {}
+        fs_cfg = self.feishubot_cfg or {}
         app_id = str(st.get("appId") or cfg.get("appId") or "")
         owner_id = str(st.get("ownerOpenId") or cfg.get("ownerOpenId") or "")
+        fs_app_id = str(fs_st.get("appId") or fs_cfg.get("appId") or "")
+        fs_owner_id = str(fs_st.get("ownerOpenId") or fs_cfg.get("ownerOpenId") or "")
         return {
             "ok": True,
             "configured": bool(st.get("configured") or (app_id and (cfg.get("clientSecret") or st.get("configured")))),
             "boostActive": bool(st.get("boostActive", self.boost)),
+            "gateways": st.get("gateways") if isinstance(st.get("gateways"), dict) else self.boost_gateways,
             "connected": bool(st.get("connected")),
             "sandbox": bool(st.get("sandbox", cfg.get("sandbox", True))),
             "appId": app_id,
@@ -723,6 +814,20 @@ class Orchestrator:
             "stickerEagerness": int(cfg.get("stickerEagerness", 2) or 2),
             "gatewayError": str(st.get("gatewayError") or ""),
             "stickersCount": int((st.get("stickers") or {}).get("count") or 0),
+            "feishu": {
+                "enabled": bool(fs_st.get("enabled", self.boost_gateways.get("feishu", False))),
+                "configured": bool(fs_st.get("configured") or (fs_app_id and fs_cfg.get("appSecret"))),
+                "connected": bool(fs_st.get("connected")),
+                "gatewayError": str(fs_st.get("gatewayError") or ""),
+                "appId": fs_app_id,
+                "appIdMasked": str(fs_st.get("appIdMasked") or ""),
+                "paired": bool(fs_st.get("paired") or fs_owner_id),
+                "ownerOpenId": fs_owner_id,
+                "ownerOpenIdMasked": str(fs_st.get("ownerOpenIdMasked") or ""),
+                "awaitingActivation": bool(fs_app_id and not fs_owner_id),
+                "proactive": bool(fs_cfg.get("proactive", True)),
+                "unlimitedProactive": True,
+            },
         }
 
     def llm_payload(self) -> dict:
@@ -735,10 +840,30 @@ class Orchestrator:
             "baseUrl": _normalize_openai_base(raw_base),
             "apiKey": self.llm.get("apiKey"),
             "model": self.llm.get("model"),
+            "supportsVision": bool(self.llm.get("supportsVision")),
             "timeoutMs": self.llm.get("timeoutMs"),
             "maxAttempts": self.llm.get("maxAttempts"),
             "retryBaseMs": self.llm.get("retryBaseMs"),
             "localProxyPath": "/dhvw/llm/v1",
+        }
+
+    def image_gen_payload(self) -> dict:
+        ig = self.image_gen or {}
+        has_ref = self.ref_3d_path.is_file()
+        ts = self.ref_3d_ts if has_ref else 0
+        raw_base = str(ig.get("baseUrl") or "").strip() or str(self.llm.get("baseUrl") or "").strip()
+        raw_key = str(ig.get("apiKey") or "").strip() or str(self.llm.get("apiKey") or "").strip()
+        fusion_style = ig.get("fusionStylePrompt")
+        return {
+            "enabled": bool(ig.get("enabled")),
+            "protocol": str(ig.get("protocol") or "openai-images"),
+            "baseUrl": raw_base,
+            "apiKey": raw_key,
+            "model": str(ig.get("model") or "").strip(),
+            "fusionStylePrompt": DEFAULT_FUSION_STYLE_PROMPT if fusion_style is None else str(fusion_style),
+            "ref3dUpdatedAt": ts,
+            "ref3dUrl": "/dhvw/character-ref-3d" if has_ref else "",
+            "gatewayRef3dUrl": "/orchestrator/dhvw/character-ref-3d" if has_ref else "",
         }
 
     async def apply_config(self, cfg: dict) -> dict:
@@ -754,11 +879,20 @@ class Orchestrator:
         if "gatewayPort" in cfg:
             self.gateway_port = int(cfg["gatewayPort"] or 0)
             self.store.put_kv("gateway_port", self.gateway_port)
+        if "boostGateways" in cfg and isinstance(cfg["boostGateways"], dict):
+            gw_patch = cfg["boostGateways"]
+            self.boost_gateways = {
+                "qq": bool(gw_patch.get("qq", self.boost_gateways.get("qq", True))),
+                "feishu": bool(gw_patch.get("feishu", self.boost_gateways.get("feishu", False))),
+            }
+            self.store.put_kv("boost_gateways", self.boost_gateways)
+            if "boost" not in cfg:
+                await self.broadcast("boost:config", {"enabled": self.boost, "gateways": self.boost_gateways})
         if "boost" in cfg:
             self.boost = bool(cfg["boost"])
             self.store.put_kv("boost", self.boost)
-            await self.broadcast("boost:config", {"enabled": self.boost})
-            log("info", "世界模式增强(Boost/ARM Bot)", enabled=self.boost)
+            await self.broadcast("boost:config", {"enabled": self.boost, "gateways": self.boost_gateways})
+            log("info", "世界模式增强(Boost/ARM Bot)", enabled=self.boost, gateways=self.boost_gateways)
         qq_bot = cfg.get("qqBot")
         if isinstance(qq_bot, dict):
             merged_qq = {**self.qqbot_cfg}
@@ -772,11 +906,29 @@ class Orchestrator:
             if merged_qq.get("appId"):
                 await self.broadcast("qqbot:config", self.qqbot_payload())
                 log("info", "下发 QQ Bot 配置", appId=merged_qq.get("appId"), sandbox=merged_qq.get("sandbox"))
+        feishu_bot = cfg.get("feishuBot")
+        if isinstance(feishu_bot, dict):
+            merged_fs = {**self.feishubot_cfg}
+            for k in ("appId", "ownerOpenId", "proactive", "stickerEagerness"):
+                if k in feishu_bot and feishu_bot[k] is not None:
+                    merged_fs[k] = feishu_bot[k]
+            if isinstance(feishu_bot.get("appSecret"), str) and feishu_bot["appSecret"].strip():
+                merged_fs["appSecret"] = feishu_bot["appSecret"].strip()
+            self.feishubot_cfg = merged_fs
+            self.store.put_kv("feishubot_cfg", merged_fs)
+            if merged_fs.get("appId"):
+                await self.broadcast("feishubot:config", self.feishubot_payload())
+                log("info", "下发飞书 Bot 配置", appId=merged_fs.get("appId"))
         if "autoPushScene" in cfg:
             # 地图自动推送：关 = 必须人工在产出验收里提交；开 = 闸门通过即推
             self.auto_push_scene = bool(cfg["autoPushScene"])
             self.store.put_kv("auto_push_scene", self.auto_push_scene)
             log("info", "地图自动推送", enabled=self.auto_push_scene)
+        persona_cfg = cfg.get("persona")
+        if isinstance(persona_cfg, dict):
+            self.persona_cfg = {**self.persona_cfg, **{k: v for k, v in persona_cfg.items() if v is not None}}
+            self.store.put_kv("persona_cfg", self.persona_cfg)
+            await self.broadcast("persona:config", self.persona_cfg)
         proactive = cfg.get("proactive")
         if isinstance(proactive, dict):
             self.proactive_cfg = {**self.proactive_cfg, **{k: v for k, v in proactive.items() if v is not None}}
@@ -791,7 +943,42 @@ class Orchestrator:
             self.scenes.set_llm(self.llm)
             self.personas.set_llm(self.llm)
             await self.broadcast("llm:config", self.llm_payload())
-            log("info", "下发 LLM 配置", baseUrl=merged.get("baseUrl"), model=merged.get("model"))
+            log("info", "下发 LLM 配置", baseUrl=merged.get("baseUrl"), model=merged.get("model"), vision=bool(merged.get("supportsVision")))
+        ig = cfg.get("imageGen")
+        if isinstance(ig, dict):
+            merged_ig = {**self.image_gen}
+            for k in ("enabled", "protocol", "baseUrl", "model", "fusionStylePrompt"):
+                if k in ig and ig[k] is not None:
+                    merged_ig[k] = ig[k]
+            if "apiKey" in ig and ig["apiKey"] is not None:
+                merged_ig["apiKey"] = str(ig["apiKey"])
+            self.image_gen = merged_ig
+            self.store.put_kv("image_gen", merged_ig)
+            await self.broadcast("imagegen:config", self.image_gen_payload())
+            log("info", "下发生图模型配置", enabled=bool(merged_ig.get("enabled")), protocol=merged_ig.get("protocol"), model=merged_ig.get("model"))
+        if "pixelCharacterId" in cfg:
+            want_cid = str(cfg.get("pixelCharacterId") or "").strip()
+            if want_cid == "":
+                if self.characters.active_id:
+                    await asyncio.to_thread(
+                        self.characters.reset_default,
+                        scenes_root=self.scenes.root,
+                        toolchain_root=find_toolchain(),
+                        sync_toolchain=True,
+                    )
+                    await self.broadcast("character:ready", self.active_character_payload())
+                    log("info", "重置像素角色为内置默认（鲸鱼娘）")
+            elif want_cid != self.characters.active_id and self.characters.get_meta(want_cid):
+                await asyncio.to_thread(
+                    self.characters.apply_character,
+                    want_cid,
+                    scenes_root=self.scenes.root,
+                    toolchain_root=find_toolchain(),
+                    apply_to_scenes=True,
+                    sync_toolchain=True,
+                )
+                await self.broadcast("character:ready", self.active_character_payload())
+                log("info", "切换并下发像素角色", id=want_cid)
         return {
             "ok": True,
             "tts": self.tts_ready,
@@ -890,7 +1077,7 @@ class Orchestrator:
                         await self.set_tier("idle")
                 await asyncio.sleep(OVERVIEW_INTERVAL - 0.5)
                 if self.clients:
-                    await self.broadcast("state:overview", self.overview())
+                    await self.broadcast_overview()
                     # 30 s 一次兜底：PC 侧新写的事实即使没走端点也能尽快回流
                     if int(time.time() - self.started) % 30 < OVERVIEW_INTERVAL:
                         await self.push_facts()
@@ -1426,12 +1613,27 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
         return JSONResponse(orch.qqbot_status_view())
 
     @app.post("/dhvw/qqbot/rebind")
-    async def qqbot_rebind_route() -> JSONResponse:
+    async def qqbot_rebind_route(request: Request) -> JSONResponse:
+        channel = request.query_params.get("channel") or "qq"
+        if channel == "feishu":
+            orch.feishubot_cfg["ownerOpenId"] = ""
+            store.put_kv("feishubot_cfg", orch.feishubot_cfg)
+            sent = await orch.broadcast("feishubot:rebind", {})
+            log("info", "下发飞书 Bot 重新绑定指令", delivered=len(sent))
+            return JSONResponse({"ok": True, "delivered": len(sent), **orch.qqbot_status_view()})
         orch.qqbot_cfg["ownerOpenId"] = ""
         store.put_kv("qqbot_cfg", orch.qqbot_cfg)
         orch.qqbot_status = {**orch.qqbot_status, "paired": False, "ownerOpenId": "", "ownerOpenIdMasked": ""}
         sent = await orch.broadcast("qqbot:rebind", {})
         log("info", "下发 QQ Bot 重新绑定指令", delivered=len(sent))
+        return JSONResponse({"ok": True, "delivered": len(sent), **orch.qqbot_status_view()})
+
+    @app.post("/dhvw/feishubot/rebind")
+    async def feishubot_rebind_route() -> JSONResponse:
+        orch.feishubot_cfg["ownerOpenId"] = ""
+        store.put_kv("feishubot_cfg", orch.feishubot_cfg)
+        sent = await orch.broadcast("feishubot:rebind", {})
+        log("info", "下发飞书 Bot 重新绑定指令", delivered=len(sent))
         return JSONResponse({"ok": True, "delivered": len(sent), **orch.qqbot_status_view()})
 
     @app.get("/dhvw/persona/jobs")
@@ -1476,6 +1678,361 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
             return JSONResponse({"ok": False, "error": "not_found"}, status_code=404)
         log("info", "删除人设创作任务", job=job_id)
         return JSONResponse({"ok": True, "deleted": job_id})
+
+    # ---------- 角色 4 向行走图动作扩展 ----------
+    @app.get("/dhvw/characters")
+    async def characters_list_route() -> JSONResponse:
+        return JSONResponse({
+            "ok": True,
+            "activeId": orch.characters.active_id,
+            "characters": orch.characters.list_characters(),
+        })
+
+    @app.post("/dhvw/characters/generate")
+    async def characters_generate_route(request: Request) -> JSONResponse:
+        body = await request.json()
+        if not isinstance(body, dict):
+            return JSONResponse({"ok": False, "error": "bad_payload"}, status_code=400)
+        b64 = str(body.get("imageBase64") or "").strip()
+        if b64.startswith("data:") and "," in b64:
+            b64 = b64.split(",", 1)[1]
+        if not b64:
+            return JSONResponse({"ok": False, "error": "缺少 4×4 行走图数据"}, status_code=400)
+        try:
+            img_bytes = base64.b64decode(b64, validate=False)
+        except Exception as err:
+            return JSONResponse({"ok": False, "error": f"图片解码失败：{err}"}, status_code=400)
+
+        name = str(body.get("name") or "").strip()
+        filename = str(body.get("filename") or "walk.png").strip()
+        row_order = str(body.get("rowOrder") or "auto").strip()
+        fw = int(body.get("frameW") or 32)
+        fh = int(body.get("frameH") or 48)
+        auto_apply = body.get("autoApply", True) is not False
+        auto_fix_dir = body.get("autoFixDir", True) is not False
+        clean_inner_white = body.get("cleanInnerWhite", True) is not False
+        manual_flips = body.get("manualFlips") if isinstance(body.get("manualFlips"), dict) else None
+
+        try:
+            meta = await asyncio.to_thread(
+                orch.characters.generate,
+                image_bytes=img_bytes,
+                filename=filename,
+                name=name,
+                row_order=row_order,
+                frame_w=fw,
+                frame_h=fh,
+                auto_fix_dir=auto_fix_dir,
+                clean_inner_white=clean_inner_white,
+                manual_flips=manual_flips,
+            )
+            apply_res = None
+            if auto_apply:
+                apply_res = await asyncio.to_thread(
+                    orch.characters.apply_character,
+                    meta["id"],
+                    scenes_root=orch.scenes.root,
+                    toolchain_root=find_toolchain(),
+                    apply_to_scenes=True,
+                    sync_toolchain=True,
+                )
+                meta["active"] = True
+                await orch.broadcast("character:ready", orch.active_character_payload())
+            log("info", "角色动作扩展完成", id=meta["id"], name=meta["name"], anims=len(meta["animations"]))
+            return JSONResponse({
+                "ok": True,
+                "character": meta,
+                "activeId": orch.characters.active_id,
+                "apply": apply_res,
+            })
+        except Exception as err:
+            log("warn", "角色动作扩展失败", error=str(err))
+            return JSONResponse({"ok": False, "error": str(err)}, status_code=400)
+
+    @app.post("/dhvw/characters/{char_id}/regenerate")
+    async def characters_regenerate_route(char_id: str, request: Request) -> JSONResponse:
+        body = await request.json()
+        if not isinstance(body, dict):
+            return JSONResponse({"ok": False, "error": "bad_payload"}, status_code=400)
+        try:
+            meta = await asyncio.to_thread(
+                orch.characters.regenerate,
+                char_id,
+                row_order=str(body.get("rowOrder") or "").strip() or None,
+                frame_w=int(body["frameW"]) if body.get("frameW") else None,
+                frame_h=int(body["frameH"]) if body.get("frameH") else None,
+                name=str(body.get("name") or "").strip() or None,
+                auto_fix_dir=body.get("autoFixDir") if "autoFixDir" in body else None,
+                clean_inner_white=body.get("cleanInnerWhite") if "cleanInnerWhite" in body else None,
+                manual_flips=body.get("manualFlips") if isinstance(body.get("manualFlips"), dict) else None,
+            )
+            apply_res = None
+            if meta.get("active"):
+                apply_res = await asyncio.to_thread(
+                    orch.characters.apply_character,
+                    meta["id"],
+                    scenes_root=orch.scenes.root,
+                    toolchain_root=find_toolchain(),
+                    apply_to_scenes=True,
+                    sync_toolchain=True,
+                )
+                await orch.broadcast("character:ready", orch.active_character_payload())
+            return JSONResponse({"ok": True, "character": meta, "apply": apply_res})
+        except FileNotFoundError as err:
+            return JSONResponse({"ok": False, "error": str(err)}, status_code=404)
+        except Exception as err:
+            return JSONResponse({"ok": False, "error": str(err)}, status_code=400)
+
+    @app.post("/dhvw/characters/{char_id}/apply")
+    async def characters_apply_route(char_id: str, request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        apply_scenes = bool((body or {}).get("applyToScenes", True)) if isinstance(body, dict) else True
+        sync_tc = bool((body or {}).get("syncToolchain", True)) if isinstance(body, dict) else True
+        if char_id == "default":
+            res = await asyncio.to_thread(
+                orch.characters.reset_default,
+                scenes_root=orch.scenes.root if apply_scenes else None,
+                toolchain_root=find_toolchain(),
+                sync_toolchain=sync_tc,
+            )
+            sent = len(await orch.broadcast("character:ready", orch.active_character_payload()))
+            log("info", "重置像素角色为内置默认（鲸鱼娘）", scenes=len(res["updatedScenes"]), delivered=sent)
+            return JSONResponse({"ok": True, **res, "delivered": sent})
+        try:
+            res = await asyncio.to_thread(
+                orch.characters.apply_character,
+                char_id,
+                scenes_root=orch.scenes.root,
+                toolchain_root=find_toolchain(),
+                apply_to_scenes=apply_scenes,
+                sync_toolchain=sync_tc,
+            )
+            sent = len(await orch.broadcast("character:ready", orch.active_character_payload()))
+            log("info", "应用角色动作图集", id=char_id, scenes=len(res["updatedScenes"]), delivered=sent)
+            return JSONResponse({"ok": True, **res, "delivered": sent})
+        except FileNotFoundError as err:
+            return JSONResponse({"ok": False, "error": str(err)}, status_code=404)
+        except Exception as err:
+            return JSONResponse({"ok": False, "error": str(err)}, status_code=400)
+
+    @app.post("/dhvw/characters/{char_id}/rename")
+    async def characters_rename_route(char_id: str, request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        new_name = str((body or {}).get("name") or "").strip()
+        try:
+            meta = await asyncio.to_thread(orch.characters.rename_character, char_id, new_name)
+            if meta.get("active"):
+                await orch.broadcast("character:ready", orch.active_character_payload())
+            log("info", "重命名角色动作图集", id=char_id, name=meta["name"])
+            return JSONResponse({"ok": True, "character": meta})
+        except FileNotFoundError as err:
+            return JSONResponse({"ok": False, "error": str(err)}, status_code=404)
+        except Exception as err:
+            return JSONResponse({"ok": False, "error": str(err)}, status_code=400)
+
+    @app.delete("/dhvw/characters/{char_id}")
+    async def characters_delete_route(char_id: str) -> JSONResponse:
+        was_active = orch.characters.active_id == char_id
+        ok = await asyncio.to_thread(orch.characters.delete_character, char_id)
+        if not ok:
+            return JSONResponse({"ok": False, "error": "not_found"}, status_code=404)
+        if was_active:
+            await orch.broadcast("character:ready", orch.active_character_payload())
+        return JSONResponse({"ok": True, "deleted": char_id, "activeId": orch.characters.active_id})
+
+    @app.get("/dhvw/characters/{char_id}/{file_name}", response_model=None)
+    async def characters_file_route(char_id: str, file_name: str) -> FileResponse | JSONResponse:
+        target = orch.characters.resolve_file(char_id, file_name)
+        if not target:
+            return JSONResponse({"ok": False, "error": "not_found"}, status_code=404)
+        return FileResponse(target, headers={"Cache-Control": "no-store"})
+
+    # ---------- 角色三维参考图与通用 API 生图 ----------
+    @app.get("/dhvw/character-ref-3d", response_model=None)
+    async def character_ref_3d_get() -> FileResponse | JSONResponse:
+        if not orch.ref_3d_path.is_file():
+            return JSONResponse({"ok": False, "error": "not_set"}, status_code=404)
+        return FileResponse(orch.ref_3d_path, media_type="image/png", headers={"Cache-Control": "no-store"})
+
+    @app.post("/dhvw/character-ref-3d")
+    async def character_ref_3d_set(request: Request) -> JSONResponse:
+        body = await request.json()
+        if not isinstance(body, dict):
+            return JSONResponse({"ok": False, "error": "bad_payload"}, status_code=400)
+        if body.get("clear") is True:
+            if orch.ref_3d_path.is_file():
+                orch.ref_3d_path.unlink(missing_ok=True)
+            orch.ref_3d_ts = 0
+            store.put_kv("character_ref_3d_ts", 0)
+            await orch.broadcast("imagegen:config", orch.image_gen_payload())
+            return JSONResponse({"ok": True, "hasRef3d": False, "updatedAt": 0})
+        b64 = str(body.get("imageBase64") or "").strip()
+        if b64.startswith("data:") and "," in b64:
+            b64 = b64.split(",", 1)[1]
+        if not b64:
+            return JSONResponse({"ok": False, "error": "缺少图片数据"}, status_code=400)
+        try:
+            raw = base64.b64decode(b64, validate=False)
+            from PIL import Image
+            import io
+
+            im = Image.open(io.BytesIO(raw))
+            im.load()
+            if im.mode not in ("RGB", "RGBA"):
+                im = im.convert("RGBA")
+            if max(im.size) > 1280:
+                im.thumbnail((1280, 1280), Image.Resampling.LANCZOS)
+            orch.ref_3d_path.parent.mkdir(parents=True, exist_ok=True)
+            im.save(orch.ref_3d_path, format="PNG")
+            orch.ref_3d_ts = int(time.time() * 1000)
+            store.put_kv("character_ref_3d_ts", orch.ref_3d_ts)
+            await orch.broadcast("imagegen:config", orch.image_gen_payload())
+            log("info", "更新角色三维参考图", ts=orch.ref_3d_ts, size=f"{im.width}x{im.height}")
+            return JSONResponse({"ok": True, "hasRef3d": True, "updatedAt": orch.ref_3d_ts})
+        except Exception as err:
+            return JSONResponse({"ok": False, "error": f"图片处理失败：{err}"}, status_code=400)
+
+    @app.post("/dhvw/image/generate")
+    async def image_generate_route(request: Request) -> JSONResponse:
+        body = await request.json()
+        if not isinstance(body, dict):
+            return JSONResponse({"ok": False, "error": "bad_payload"}, status_code=400)
+        ig = orch.image_gen_payload()
+        if not ig.get("enabled") and not body.get("force"):
+            return JSONResponse({"ok": False, "error": "未启用生图模型 API（请先在「设置 → 生图模型」开启并保存）"}, status_code=400)
+        if not ig.get("baseUrl") or not ig.get("model"):
+            return JSONResponse({"ok": False, "error": "生图模型 Base URL 或模型名未配置"}, status_code=400)
+
+        mode = str(body.get("mode") or "character_4x4").strip()
+        raw_prompt = str(body.get("prompt") or "").strip()
+        refs: list[bytes] = []
+
+        ref_b64 = str(body.get("refImageBase64") or "").strip()
+        if ref_b64.startswith("data:") and "," in ref_b64:
+            ref_b64 = ref_b64.split(",", 1)[1]
+        if ref_b64:
+            try:
+                refs.append(base64.b64decode(ref_b64, validate=False))
+            except Exception as err:
+                return JSONResponse({"ok": False, "error": f"参考图解码失败：{err}"}, status_code=400)
+
+        if body.get("use3dRef") and orch.ref_3d_path.is_file():
+            refs.append(orch.ref_3d_path.read_bytes())
+
+        extra_refs = body.get("extraRefImagesBase64")
+        if isinstance(extra_refs, list):
+            for item in extra_refs[:3]:
+                s = str(item or "").strip()
+                if s.startswith("data:") and "," in s:
+                    s = s.split(",", 1)[1]
+                if s:
+                    refs.append(base64.b64decode(s, validate=False))
+
+        if mode == "character_4x4":
+            if not raw_prompt and not refs:
+                return JSONResponse({"ok": False, "error": "请填写角色描述提示词或提供参考图片"}, status_code=400)
+            prompt_used = build_4x4_sprite_prompt(raw_prompt, has_ref=bool(refs))
+        elif mode == "scene_fusion":
+            style_override = body.get("stylePrompt") if "stylePrompt" in body else ig.get("fusionStylePrompt")
+            prompt_used = build_scene_fusion_prompt(
+                insert_position=str(body.get("insertPosition") or ""),
+                character_pose=str(body.get("characterPose") or ""),
+                lighting_mood=str(body.get("lightingMood") or ""),
+                scene_desc=raw_prompt,
+                style_prompt=None if style_override is None else str(style_override),
+            )
+        else:
+            if not raw_prompt:
+                return JSONResponse({"ok": False, "error": "缺少提示词"}, status_code=400)
+            prompt_used = raw_prompt
+
+        try:
+            explicit_size = str(body.get("size") or "").strip()
+            req_size = explicit_size or ("1024x1024" if mode == "character_4x4" else None)
+            png_bytes, mime = await generate_image(
+                protocol=ig["protocol"],
+                base_url=ig["baseUrl"],
+                api_key=ig["apiKey"],
+                model=ig["model"],
+                prompt=prompt_used,
+                ref_images=refs,
+                size=req_size,
+            )
+            out_b64 = base64.b64encode(png_bytes).decode("ascii")
+            history_item = None
+            if mode == "character_4x4":
+                item_id = f"g4x4-{int(time.time() * 1000)}-{uuid.uuid4().hex[:6]}"
+                meta_obj = {
+                    "id": item_id,
+                    "prompt": raw_prompt,
+                    "model": ig["model"],
+                    "usedRef": bool(ref_b64),
+                    "used3dRef": bool(body.get("use3dRef") and orch.ref_3d_path.is_file()),
+                    "createdAt": int(time.time() * 1000),
+                }
+                (orch.gen4x4_dir / f"{item_id}.png").write_bytes(png_bytes)
+                (orch.gen4x4_dir / f"{item_id}.json").write_text(
+                    json.dumps(meta_obj, ensure_ascii=False, indent=1),
+                    encoding="utf-8",
+                )
+                history_item = {
+                    **meta_obj,
+                    "imageBase64": out_b64,
+                    "dataUrl": f"data:{mime};base64,{out_b64}",
+                }
+            log("info", "API生图完成", mode=mode, model=ig["model"], refs=len(refs), bytes=len(png_bytes))
+            return JSONResponse({
+                "ok": True,
+                "imageBase64": out_b64,
+                "mime": mime,
+                "dataUrl": f"data:{mime};base64,{out_b64}",
+                "promptUsed": prompt_used,
+                "historyItem": history_item,
+            })
+        except Exception as err:
+            err_msg = str(err).strip() or type(err).__name__
+            log("warn", "API生图失败", mode=mode, error=err_msg)
+            return JSONResponse({"ok": False, "error": err_msg}, status_code=502)
+
+    @app.get("/dhvw/image/history")
+    async def image_history_list() -> JSONResponse:
+        items: list[dict] = []
+        if orch.gen4x4_dir.is_dir():
+            files = sorted(orch.gen4x4_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+            for jf in files[:30]:
+                try:
+                    meta_obj = json.loads(jf.read_text(encoding="utf-8"))
+                    pf = jf.with_suffix(".png")
+                    if not isinstance(meta_obj, dict) or not pf.is_file():
+                        continue
+                    b64 = base64.b64encode(pf.read_bytes()).decode("ascii")
+                    items.append({
+                        **meta_obj,
+                        "imageBase64": b64,
+                        "dataUrl": f"data:image/png;base64,{b64}",
+                    })
+                except Exception:
+                    continue
+        return JSONResponse({"ok": True, "items": items})
+
+    @app.delete("/dhvw/image/history/{item_id}")
+    async def image_history_delete(item_id: str) -> JSONResponse:
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", item_id or ""):
+            return JSONResponse({"ok": False, "error": "bad_id"}, status_code=400)
+        jf = orch.gen4x4_dir / f"{item_id}.json"
+        pf = orch.gen4x4_dir / f"{item_id}.png"
+        existed = jf.is_file() or pf.is_file()
+        jf.unlink(missing_ok=True)
+        pf.unlink(missing_ok=True)
+        if not existed:
+            return JSONResponse({"ok": False, "error": "not_found"}, status_code=404)
+        return JSONResponse({"ok": True, "deleted": item_id})
 
     @app.post("/dhvw/config")
     async def config(request: Request) -> JSONResponse:
@@ -1639,6 +2196,8 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
                 "olvt_port": orch.olvt_port,
                 "gateway_port": orch.gateway_port,
                 "world_tier": orch.tier,
+                "active_character": orch.active_character_payload(),
+                "image_gen": orch.image_gen_payload(),
                 "agent": {},
             },
         )
@@ -1659,6 +2218,8 @@ def create_app(store: Store, orch: Orchestrator) -> FastAPI:
         finally:
             orch.clients.discard(ws)
             orch.client_roles.pop(ws, None)
+            if orch.digest_ws is ws:
+                orch.digest_ws = None
             # 以存活连接为准：旧连接的 finally 晚于新连接握手时，不能把在线判成离线
             orch.connected = bool(orch.clients)
             log("info", "设备断开", clients=len(orch.clients), peer=peer)

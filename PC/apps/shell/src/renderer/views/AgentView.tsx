@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import type { SceneJobView, SceneOutputView, SceneRequestView, SettingsView } from '../../shared/types'
+import { CharacterSheetStudio } from './CharacterSheetStudio'
 import { PersonaStudio } from './PersonaStudio'
 
 const KINDS = [
@@ -23,10 +24,10 @@ function pushStateOf(output: SceneOutputView): { text: string; cls: string } {
   return { text: '未推送', cls: '' }
 }
 
-type AgentSubTab = 'maps' | 'persona'
+type AgentSubTab = 'maps' | 'sprites' | 'persona'
 
 /**
- * Agent 页：含「地图绘制」与「角色人设与 L0 记忆」两个子导航页面。
+ * Agent 页：含「地图绘制」、「像素形象」与「角色人设与 L0 记忆」三个子导航页面。
  */
 export function AgentView({
   settings,
@@ -54,7 +55,7 @@ export function AgentView({
   const [busy, setBusy] = useState(false)
   const [deleteBusy, setDeleteBusy] = useState<string | null>(null)
   const [openLog, setOpenLog] = useState<string | null>(null)
-  const [armPreview, setArmPreview] = useState<{ url: string | null; error?: string } | null>(null)
+  const [armPreview, setArmPreview] = useState<{ url: string | null; localUrl?: string | null; error?: string } | null>(null)
   const [previewScene, setPreviewScene] = useState<{ id: string; label: string } | null>(null)
   const localLlm = settings?.llmMode === 'local'
 
@@ -179,6 +180,13 @@ export function AgentView({
         </button>
         <button
           type="button"
+          className={subTab === 'sprites' ? 'active' : ''}
+          onClick={() => setSubTab('sprites')}
+        >
+          像素形象
+        </button>
+        <button
+          type="button"
           className={subTab === 'persona' ? 'active' : ''}
           onClick={() => setSubTab('persona')}
         >
@@ -187,6 +195,8 @@ export function AgentView({
       </div>
       {subTab === 'persona' ? (
         <PersonaStudio settings={settings ?? null} onSettingsChange={onSettingsChange} />
+      ) : subTab === 'sprites' ? (
+        <CharacterSheetStudio settings={settings ?? null} onSettingsChange={onSettingsChange} />
       ) : (
         <div className="agent-grid">
       <section className="panel agent-form">
@@ -386,10 +396,10 @@ export function AgentView({
                 </button>
               </div>
             </div>
-            {armPreview?.url ? (
+            {armPreview?.localUrl || armPreview?.url ? (
               <iframe
                 className="arm-preview-frame"
-                src={`${armPreview.url}preview.html?scene=${encodeURIComponent(previewScene.id)}`}
+                src={`${armPreview.localUrl ?? armPreview.url}preview.html?scene=${encodeURIComponent(previewScene.id)}`}
                 title={`ARM 场景预览 ${previewScene.id}`}
               />
             ) : (

@@ -25,6 +25,17 @@ from .stateless_llm_interface import StatelessLLMInterface
 from ...mcpp.types import ToolCallObject
 
 
+def _is_local_llama_endpoint(base_url: str, model: str) -> bool:
+    """判断是否为本地部署的 llama/Nemotron/Gemma 推理服务。"""
+    b = (base_url or "").strip().lower()
+    m = (model or "").strip().lower()
+    if any(k in m for k in ("nemotron", "gemma")):
+        return True
+    if "/llm/" in b or "/dhvw/llm/" in b:
+        return True
+    return any(h in b for h in ("127.0.0.1", "localhost", "0.0.0.0", "[::1]"))
+
+
 class AsyncLLM(StatelessLLMInterface):
     def __init__(
         self,
@@ -48,7 +59,10 @@ class AsyncLLM(StatelessLLMInterface):
         """
         self.base_url = base_url
         self.model = model
-        self.temperature = temperature
+        self._is_local_llama = _is_local_llama_endpoint(base_url, model)
+        self.temperature = (
+            max(float(temperature or 1.0), 1.05) if self._is_local_llama else temperature
+        )
         # [DHVW 补丁] 端点（codex.mintcat.work 等）无浏览器 UA 直接 403。
         # 可用 OLVT_LLM_USER_AGENT 覆盖，便于换端点时不改代码。
         ua = os.getenv("OLVT_LLM_USER_AGENT") or (
@@ -75,8 +89,18 @@ class AsyncLLM(StatelessLLMInterface):
         _extra = os.getenv("OLVT_LLM_EXTRA_BODY")
         if _extra:
             try:
-                self.extra_body = json.loads(_extra)
-                logger.info(f"[DHVW] LLM extra_body applied: {self.extra_body}")
+                parsed_extra = json.loads(_extra)
+                if isinstance(parsed_extra, dict) and self._is_local_llama:
+                    # 本地 llama 不关闭思考，以免降低回答质量与输出欲望
+                    if str(parsed_extra.get("reasoning_effort") or "").strip().lower() == "none":
+                        parsed_extra.pop("reasoning_effort", None)
+                    if parsed_extra.get("enable_thinking") is False:
+                        parsed_extra.pop("enable_thinking", None)
+                    if parsed_extra.get("reasoning_budget") == 0:
+                        parsed_extra.pop("reasoning_budget", None)
+                self.extra_body = parsed_extra or None
+                if self.extra_body:
+                    logger.info(f"[DHVW] LLM extra_body applied: {self.extra_body}")
             except json.JSONDecodeError as exc:
                 logger.warning(f"[DHVW] OLVT_LLM_EXTRA_BODY 不是合法 JSON，忽略: {exc}")
 

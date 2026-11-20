@@ -4,6 +4,10 @@ import type {
   AppSnapshot,
   ArmConsoleResult,
   CharacterCardData,
+  CharacterGenerateInput,
+  CharacterSampleView,
+  CharacterSheetMetaJson,
+  CharacterSheetView,
   ComponentProgress,
   ArmDeviceView,
   ComponentStatus,
@@ -85,7 +89,8 @@ const api = {
   /** 在资源管理器里打开现用 Live2D 模型文件夹 */
   openLive2dDir: (): Promise<{ ok: boolean; path: string; error?: string }> =>
     ipcRenderer.invoke('dhvw:openLive2dDir'),
-  armPreview: (): Promise<{ url: string | null; error?: string }> => ipcRenderer.invoke('dhvw:armPreview'),
+  armPreview: (): Promise<{ url: string | null; localUrl?: string | null; error?: string }> =>
+    ipcRenderer.invoke('dhvw:armPreview'),
   setDisplay: (
     state: 'overview' | 'present',
   ): Promise<{ ok: boolean; delivered?: number; state?: string; error?: string }> =>
@@ -123,8 +128,13 @@ const api = {
     ipcRenderer.invoke('dhvw:save-backup'),
   saveRestore: (id: string): Promise<{ ok: boolean; sent?: number; error?: string }> =>
     ipcRenderer.invoke('dhvw:save-restore', id),
-  setBoost: (enabled: boolean): Promise<{ ok: boolean; settings?: SettingsView }> =>
-    ipcRenderer.invoke('dhvw:setBoost', enabled),
+  setBoost: (
+    enabled: boolean,
+    gateways?: Partial<{ qq: boolean; feishu: boolean }>,
+  ): Promise<{ ok: boolean; settings?: SettingsView }> => ipcRenderer.invoke('dhvw:setBoost', enabled, gateways),
+  setBoostGateways: (
+    gateways: Partial<{ qq: boolean; feishu: boolean }>,
+  ): Promise<{ ok: boolean; settings?: SettingsView }> => ipcRenderer.invoke('dhvw:setBoostGateways', gateways),
   copyText: (text: string): Promise<boolean> => ipcRenderer.invoke('dhvw:copyText', text),
   openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke('dhvw:openExternal', url),
   qqBotStatus: (): Promise<QqBotStatusView> => ipcRenderer.invoke('dhvw:qqBotStatus'),
@@ -139,6 +149,16 @@ const api = {
     ipcRenderer.invoke('dhvw:qqBotSave', patch),
   qqBotRebind: (): Promise<{ ok: boolean; error?: string; settings?: SettingsView; status?: QqBotStatusView }> =>
     ipcRenderer.invoke('dhvw:qqBotRebind'),
+  feishuBotSave: (patch: {
+    appId?: string
+    appSecret?: string
+    proactive?: boolean
+    stickerEagerness?: number
+    activateBoost?: boolean
+  }): Promise<{ ok: boolean; error?: string; settings?: SettingsView; status?: QqBotStatusView }> =>
+    ipcRenderer.invoke('dhvw:feishuBotSave', patch),
+  feishuBotRebind: (): Promise<{ ok: boolean; error?: string; settings?: SettingsView; status?: QqBotStatusView }> =>
+    ipcRenderer.invoke('dhvw:feishuBotRebind'),
   gatewayPair: (): Promise<{ code: string; expiresAt: number } | null> => ipcRenderer.invoke('dhvw:gatewayPair'),
   gatewayBrowserPair: (name?: string): Promise<GatewayPairResult> =>
     ipcRenderer.invoke('dhvw:gatewayBrowserPair', name),
@@ -183,6 +203,112 @@ const api = {
     ipcRenderer.invoke('dhvw:memoryAddFacts', facts),
   memoryDeleteFact: (factId: string): Promise<{ ok: boolean; deleted?: string; pushed?: number; error?: string }> =>
     ipcRenderer.invoke('dhvw:memoryDeleteFact', factId),
+  characters: (): Promise<{
+    ok: boolean
+    activeId: string | null
+    characters: CharacterSheetView[]
+    error?: string
+  }> => ipcRenderer.invoke('dhvw:characters'),
+  characterPickImage: (): Promise<{
+    ok: boolean
+    canceled?: boolean
+    filename?: string
+    imageBase64?: string
+    dataUrl?: string
+    error?: string
+  }> => ipcRenderer.invoke('dhvw:characterPickImage'),
+  characterSamples: (): Promise<{ ok: boolean; samples: CharacterSampleView[] }> =>
+    ipcRenderer.invoke('dhvw:characterSamples'),
+  characterGenerate: (
+    input: CharacterGenerateInput,
+  ): Promise<{
+    ok: boolean
+    character?: CharacterSheetView
+    activeId?: string | null
+    apply?: { activeId: string; updatedScenes: string[]; syncedDevPaths: string[] } | null
+    settings?: SettingsView
+    error?: string
+  }> => ipcRenderer.invoke('dhvw:characterGenerate', input),
+  characterRegenerate: (
+    charId: string,
+    patch: {
+      rowOrder?: string
+      frameW?: number
+      frameH?: number
+      name?: string
+      autoFixDir?: boolean
+      cleanInnerWhite?: boolean
+      manualFlips?: Record<string, boolean[]>
+    },
+  ): Promise<{ ok: boolean; character?: CharacterSheetView; error?: string }> =>
+    ipcRenderer.invoke('dhvw:characterRegenerate', charId, patch),
+  characterApply: (
+    charId: string,
+    opts?: { applyToScenes?: boolean; syncToolchain?: boolean },
+  ): Promise<{
+    ok: boolean
+    activeId?: string | null
+    updatedScenes?: string[]
+    syncedDevPaths?: string[]
+    delivered?: number
+    settings?: SettingsView
+    error?: string
+  }> => ipcRenderer.invoke('dhvw:characterApply', charId, opts),
+  characterDelete: (
+    charId: string,
+  ): Promise<{ ok: boolean; deleted?: string; activeId?: string | null; settings?: SettingsView; error?: string }> =>
+    ipcRenderer.invoke('dhvw:characterDelete', charId),
+  characterRename: (
+    charId: string,
+    name: string,
+  ): Promise<{ ok: boolean; character?: CharacterSheetView; settings?: SettingsView; error?: string }> =>
+    ipcRenderer.invoke('dhvw:characterRename', charId, name),
+  characterAssets: (
+    charId: string,
+  ): Promise<{
+    ok: boolean
+    meta?: CharacterSheetMetaJson
+    sheetDataUrl?: string
+    previewDataUrl?: string
+    sourceDataUrl?: string
+    error?: string
+  }> => ipcRenderer.invoke('dhvw:characterAssets', charId),
+  saveImageGenKey: (key: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('dhvw:saveImageGenKey', key),
+  clearImageGenKey: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('dhvw:clearImageGenKey'),
+  listImageModels: (req?: { baseUrl?: string; apiKey?: string }): Promise<{ ok: boolean; models: string[]; error?: string; url?: string }> =>
+    ipcRenderer.invoke('dhvw:listImageModels', req),
+  characterRef3dGet: (): Promise<{ ok: boolean; hasRef3d: boolean; dataUrl?: string; error?: string }> =>
+    ipcRenderer.invoke('dhvw:characterRef3dGet'),
+  characterRef3dPick: (): Promise<{
+    ok: boolean
+    canceled?: boolean
+    hasRef3d?: boolean
+    dataUrl?: string
+    settings?: SettingsView
+    error?: string
+  }> => ipcRenderer.invoke('dhvw:characterRef3dPick'),
+  characterRef3dClear: (): Promise<{ ok: boolean; hasRef3d?: boolean; settings?: SettingsView; error?: string }> =>
+    ipcRenderer.invoke('dhvw:characterRef3dClear'),
+  imageGenerate: (req: {
+    mode?: 'character_4x4' | 'raw' | 'scene_fusion'
+    prompt?: string
+    refImageBase64?: string
+    use3dRef?: boolean
+    size?: string
+    force?: boolean
+  }): Promise<{ ok: boolean; imageBase64?: string; mime?: string; dataUrl?: string; promptUsed?: string; error?: string }> =>
+    ipcRenderer.invoke('dhvw:imageGenerate', req),
+  imageHistory: (): Promise<{ ok: boolean; items?: import('../shared/types').Generated4x4ItemView[]; error?: string }> =>
+    ipcRenderer.invoke('dhvw:imageHistory'),
+  imageHistoryDelete: (itemId: string): Promise<{ ok: boolean; deleted?: string; error?: string }> =>
+    ipcRenderer.invoke('dhvw:imageHistoryDelete', itemId),
+  characterExport: (req: {
+    charId: string
+    name?: string
+    file: 'sheet.png' | 'sheet.json' | 'preview.png'
+  }): Promise<{ ok: boolean; path?: string; canceled?: boolean; error?: string }> =>
+    ipcRenderer.invoke('dhvw:characterExport', req),
   installComponent: (id: string): Promise<ComponentStatus> => ipcRenderer.invoke('dhvw:componentInstall', id),
   openComponentDir: (id: string): Promise<{ ok: boolean; path?: string; error?: string }> =>
     ipcRenderer.invoke('dhvw:openComponentDir', id),

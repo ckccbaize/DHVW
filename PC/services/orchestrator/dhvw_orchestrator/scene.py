@@ -135,6 +135,8 @@ class SceneRunner:
         self.push = push
         # 作业完成回调：推不推给设备由编排器按设置决定，runner 不直接发 scene:ready
         self.on_done: Callable[[dict[str, Any]], Awaitable[None]] | None = None
+        # 打包完成后、收包校验前的钩子（如将当前激活的角色动作图集写入 dist/character/）
+        self.on_before_validate: Callable[[Path], Awaitable[None]] | None = None
         self.llm: dict[str, Any] = {}
         self.jobs: dict[str, dict[str, Any]] = {}
         # 运行中的 agent 进程：删除任务时要能立即杀掉，不能只把状态改成失败
@@ -437,6 +439,8 @@ class SceneRunner:
             missing = [f for f in expected if not (workdir / f).is_file()]
             if missing:
                 raise RuntimeError("缺件：" + "、".join(missing))
+            if self.on_before_validate:
+                await self.on_before_validate(workdir / "dist")
             code, out = await self._run_script(py, toolchain / "scripts/validate_scene.py", workdir)
             if code != 0:
                 raise RuntimeError("validate_scene 未通过：" + out.strip()[-600:])

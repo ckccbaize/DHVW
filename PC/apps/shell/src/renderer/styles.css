@@ -1023,6 +1023,10 @@ main.page {
   flex: 1;
   min-height: 0;
 }
+main.page.home {
+  display: flex;
+  flex-direction: column;
+}
 main.page.config {
   display: flex;
   flex-direction: column;
@@ -1238,6 +1242,7 @@ main.page.settings {
 .stage-body .stage-frame {
   flex: 1;
   width: 100%;
+  height: 100%;
   min-height: 220px;
   border: var(--line) solid var(--ink);
   background: #fff;
@@ -2002,4 +2007,424 @@ main.page.settings {
 
 .mode-switch .mode-btn.active {
   background: var(--cel-yellow);
+}
+
+/* 角色动作扩展工坊 */
+.sprite-dropzone {
+  border: 2px dashed var(--ink);
+  background: #faf6ee;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.sprite-drop-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 8px;
+  text-align: center;
+}
+.sprite-drop-empty p {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(26, 26, 46, 0.72);
+}
+.sprite-source-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+.sprite-source-preview img {
+  max-width: 100%;
+  max-height: 210px;
+  object-fit: contain;
+  border: 2px solid var(--ink);
+  background: #fff;
+}
+.sprite-source-meta {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+.sprite-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  margin: 8px 0 12px;
+  cursor: pointer;
+}
+.sprite-check input {
+  width: auto;
+  margin: 0;
+}
+.sprite-preview-panel,
+.sprite-lib-panel {
+  flex-shrink: 0;
+}
+.sprite-stage-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+.sprite-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px;
+  border: var(--line) solid var(--ink);
+  background: #222630;
+  color: #edf1f8;
+}
+.sprite-canvas {
+  image-rendering: pixelated;
+  background: repeating-conic-gradient(#2a2f3a 0% 25%, #222630 0% 50%) 50% / 16px 16px;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+}
+.sprite-stage-info {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  color: #cbd5e1;
+}
+.sprite-dirs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.sprite-action-pills {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 6px;
+}
+.sprite-act-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 5px 8px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  font-size: 12px;
+  text-align: left;
+}
+.sprite-act-btn .mono {
+  font-size: 10px;
+  color: rgba(26, 26, 46, 0.62);
+}
+.sprite-act-btn.active {
+  background: var(--sun);
+  box-shadow: 2px 2px 0 var(--ink);
+  font-weight: 700;
+}
+.sprite-overview-box {
+  margin-top: 8px;
+  border: var(--line) solid var(--ink);
+  background: #222630;
+  padding: 8px;
+  max-height: 460px;
+  overflow: auto;
+}
+.sprite-overview-box img {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+}
+.sprite-export-bar {
+  margin-top: 12px;
+}
+.sprite-lib-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sprite-fix-banner {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 2px solid var(--ink);
+  background: rgba(255, 224, 102, 0.28);
+  font-size: 12px;
+}
+.sprite-fix-banner ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.sprite-walkcheck-box {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sprite-walkcheck-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sprite-walkcheck-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sprite-walkcheck-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 2px solid var(--ink);
+  background: #222630;
+  color: #edf1f8;
+}
+.sprite-walkcheck-dir {
+  width: 62px;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.sprite-walkcheck-frames {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sprite-frame-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 4px;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  background: #2a2f3a;
+  color: #cbd5e1;
+  font-size: 10px;
+}
+.sprite-frame-tile:hover {
+  border-color: var(--sun);
+}
+.sprite-frame-tile.flipped {
+  border-color: var(--sun);
+  background: #3b3524;
+  color: #fde68a;
+}
+.sprite-frame-tile canvas {
+  image-rendering: pixelated;
+  display: block;
+}
+.sprite-guide-box {
+  border: 2px solid var(--ink);
+  background: rgba(125, 211, 252, 0.16);
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.sprite-guide-box ol {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.sprite-samples-box {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 2px dashed rgba(26, 26, 46, 0.25);
+}
+.sprite-samples-box h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+.sprite-samples-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sprite-sample-card {
+  display: flex;
+  gap: 10px;
+  padding: 8px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  align-items: flex-start;
+}
+.sprite-sample-thumb {
+  width: 68px;
+  height: 68px;
+  object-fit: contain;
+  border: 2px solid var(--ink);
+  background: #faf6ee;
+  flex-shrink: 0;
+}
+.sprite-sample-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sprite-sample-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.sprite-sample-body .hint {
+  margin: 0;
+  font-size: 11px;
+}
+
+.sprite-ai-box {
+  border: var(--line) solid var(--ink);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--bg-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sprite-ai-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sprite-ai-box textarea {
+  width: 100%;
+  resize: vertical;
+  font-size: 12px;
+}
+
+.sprite-ai-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sprite-ai-refthumb {
+  width: 34px;
+  height: 34px;
+  object-fit: cover;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.ref3d-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ref3d-thumb {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  border: var(--line) solid var(--ink);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.ref3d-thumb.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--ink-muted);
+  background: var(--bg-soft);
+}
+
+.sprite-ai-history {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line-soft, #cbd5e1);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sprite-ai-history-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+
+.sprite-ai-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.sprite-ai-history-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.sprite-ai-history-card img {
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.sprite-ai-history-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.sprite-ai-history-prompt {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sprite-walkcheck-dir-ctrl {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 96px;
+}
+
+.sprite-walkcheck-dir-ctrl select {
+  font-size: 11px;
+  padding: 3px 5px;
+}
+
+.sprite-rename-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sprite-rename-row input {
+  width: 140px;
+  padding: 3px 6px;
+  font-size: 12px;
 }

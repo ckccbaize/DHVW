@@ -7,6 +7,8 @@ function base64ToBlobUrl(base64: string, mime = 'audio/wav'): string {
   return URL.createObjectURL(new Blob([bytes], { type: mime }))
 }
 import type {
+  CharacterSheetView,
+  ImageGenProtocol,
   Live2dModelView,
   LlmMode,
   LlmProtocol,
@@ -14,6 +16,7 @@ import type {
   QqBotStatusView,
   SettingsView,
 } from '../../shared/types'
+import { DEFAULT_FUSION_STYLE_PROMPT } from '../../shared/types'
 import { SaveBackupPanel } from './SaveBackupPanel'
 
 /** 独立设置页：按模型 / 角色语音 / QQ Bot / 运行 / 存档分类。 */
@@ -21,10 +24,12 @@ export function SettingsPage({
   value,
   onSaved,
   onOpenQqGuide,
+  onOpenFeishuGuide,
 }: {
   value: SettingsView
   onSaved: (next: SettingsView) => void
   onOpenQqGuide?: () => void
+  onOpenFeishuGuide?: () => void
 }): React.ReactElement {
   const [llmMode, setLlmMode] = useState<LlmMode>(value.llmMode ?? 'api')
   const [protocol, setProtocol] = useState<LlmProtocol>(value.llm.protocol)
@@ -34,11 +39,27 @@ export function SettingsPage({
   const [models, setModels] = useState<string[]>([])
   const [loadingModels, setLoadingModels] = useState(false)
   const [temperature, setTemperature] = useState(String(value.llm.temperature))
+  const [supportsVision, setSupportsVision] = useState(Boolean(value.llm.supportsVision))
+  const [igEnabled, setIgEnabled] = useState(Boolean(value.imageGen?.enabled))
+  const [igProtocol, setIgProtocol] = useState<ImageGenProtocol>(value.imageGen?.protocol ?? 'openai-images')
+  const [igBaseUrl, setIgBaseUrl] = useState(value.imageGen?.baseUrl ?? '')
+  const [igModel, setIgModel] = useState(value.imageGen?.model ?? '')
+  const [igFusionStyle, setIgFusionStyle] = useState(value.imageGen?.fusionStylePrompt ?? DEFAULT_FUSION_STYLE_PROMPT)
+  const [igModels, setIgModels] = useState<string[]>([])
+  const [igManualModel, setIgManualModel] = useState(!(value.imageGen?.model ?? ''))
+  const [igLoadingModels, setIgLoadingModels] = useState(false)
+  const [igKey, setIgKey] = useState('')
+  const [igHasKey, setIgHasKey] = useState(Boolean(value.imageGen?.hasKey))
+  const [ref3dDataUrl, setRef3dDataUrl] = useState<string | null>(null)
+  const [ref3dBusy, setRef3dBusy] = useState(false)
   const [olvtPort, setOlvtPort] = useState(String(value.ports.olvt))
   const [ttsPort, setTtsPort] = useState(String(value.ports.tts))
   const [llamaPort, setLlamaPort] = useState(String(value.ports.llama ?? 8089))
   const [asr, setAsr] = useState(value.asr.enabled)
   const [live2dModel, setLive2dModel] = useState(value.live2d.model)
+  const [pixelCharacterId, setPixelCharacterId] = useState(value.pixelCharacterId ?? '')
+  const [pixelCharList, setPixelCharList] = useState<CharacterSheetView[]>([])
+  const [pixelApplyBusy, setPixelApplyBusy] = useState(false)
   const [autoPushScene, setAutoPushScene] = useState(value.scene.autoPush)
   const [proactive, setProactive] = useState(value.proactive)
   const [proactiveState, setProactiveState] = useState<ProactiveStateView | null>(null)
@@ -95,6 +116,12 @@ export function SettingsPage({
   const [qqSandbox, setQqSandbox] = useState(value.qqBot?.sandbox ?? true)
   const [qqProactive, setQqProactive] = useState(value.qqBot?.proactive ?? true)
   const [qqEagerness, setQqEagerness] = useState(String(value.qqBot?.stickerEagerness ?? 2))
+  const [boostQq, setBoostQq] = useState(value.boost?.gateways?.qq ?? true)
+  const [boostFeishu, setBoostFeishu] = useState(value.boost?.gateways?.feishu ?? false)
+  const [fsAppId, setFsAppId] = useState(value.feishuBot?.appId || '')
+  const [fsSecret, setFsSecret] = useState('')
+  const [fsProactive, setFsProactive] = useState(value.feishuBot?.proactive ?? true)
+  const [fsMsg, setFsMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [qqStatus, setQqStatus] = useState<QqBotStatusView | null>(null)
   const [qqMsg, setQqMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -105,6 +132,16 @@ export function SettingsPage({
     setLive2dList(res.models)
     if (res.models.length > 0 && !res.models.some((m) => m.id === live2dModel)) {
       setLive2dModel(res.current ?? res.models[0]?.id ?? live2dModel)
+    }
+  }
+
+  const refreshPixelChars = async (): Promise<void> => {
+    const res = await window.dhvw.characters()
+    if (res.ok) {
+      setPixelCharList(res.characters)
+      if (!pixelCharacterId && res.activeId) {
+        setPixelCharacterId(res.activeId)
+      }
     }
   }
 
@@ -144,6 +181,10 @@ export function SettingsPage({
 
   useEffect(() => {
     void refreshLive2d()
+    void refreshPixelChars()
+    void window.dhvw.characterRef3dGet().then((r) => {
+      if (r.ok && r.hasRef3d && r.dataUrl) setRef3dDataUrl(r.dataUrl)
+    })
     // 只在进入设置页时取一次；换模型后由「刷新模型列表」重取
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -154,6 +195,13 @@ export function SettingsPage({
     setBaseUrl(value.llm.baseUrl)
     setModel(value.llm.model)
     setTemperature(String(value.llm.temperature))
+    setSupportsVision(Boolean(value.llm.supportsVision))
+    setIgEnabled(Boolean(value.imageGen?.enabled))
+    setIgProtocol(value.imageGen?.protocol ?? 'openai-images')
+    setIgBaseUrl(value.imageGen?.baseUrl ?? '')
+    setIgModel(value.imageGen?.model ?? '')
+    setIgFusionStyle(value.imageGen?.fusionStylePrompt ?? DEFAULT_FUSION_STYLE_PROMPT)
+    setIgHasKey(Boolean(value.imageGen?.hasKey))
     setOlvtPort(String(value.ports.olvt))
     setTtsPort(String(value.ports.tts))
     setLlamaPort(String(value.ports.llama ?? 8089))
@@ -165,6 +213,7 @@ export function SettingsPage({
     setRefText(value.tts.refText)
     setRefLang(value.tts.refLang || 'zh')
     setTextLang(value.tts.textLang || 'zh')
+    setPixelCharacterId(value.pixelCharacterId ?? '')
     setRefAudioSrc(null)
     setSynthAudioSrc(null)
   }, [
@@ -173,6 +222,13 @@ export function SettingsPage({
     value.llm.baseUrl,
     value.llm.model,
     value.llm.temperature,
+    value.llm.supportsVision,
+    value.imageGen?.enabled,
+    value.imageGen?.protocol,
+    value.imageGen?.baseUrl,
+    value.imageGen?.model,
+    value.imageGen?.fusionStylePrompt,
+    value.imageGen?.hasKey,
     value.ports.olvt,
     value.ports.tts,
     value.ports.llama,
@@ -184,6 +240,7 @@ export function SettingsPage({
     value.tts.refText,
     value.tts.refLang,
     value.tts.textLang,
+    value.pixelCharacterId,
   ])
 
   const fetchModels = async (): Promise<void> => {
@@ -220,17 +277,60 @@ export function SettingsPage({
     }
   }
 
+  const fetchImageModels = async (): Promise<void> => {
+    setIgLoadingModels(true)
+    setMsg(null)
+    try {
+      const targetBase = igBaseUrl.trim() || baseUrl.trim()
+      const res = await window.dhvw.listImageModels({
+        baseUrl: targetBase,
+        apiKey: igKey.trim() || undefined,
+      })
+      if (!res.ok) {
+        setMsg({ ok: false, text: `拉取生图模型失败：${res.error ?? '未知原因'}` })
+        return
+      }
+      setIgModels(res.models)
+      if (!res.models.includes(igModel)) setIgModel(res.models[0] ?? igModel)
+      setIgManualModel(false)
+      setMsg({ ok: true, text: `拉到 ${res.models.length} 个模型（已优先置顶生图模型）` })
+    } finally {
+      setIgLoadingModels(false)
+    }
+  }
+
+  const saveIgKey = async (): Promise<void> => {
+    const res = await window.dhvw.saveImageGenKey(igKey)
+    if (res.ok) {
+      setIgHasKey(true)
+      setIgKey('')
+      setMsg({ ok: true, text: '生图模型 API Key 已加密保存' })
+    } else {
+      setMsg({ ok: false, text: res.error ?? '保存失败' })
+    }
+  }
+
   const save = async (): Promise<void> => {
     setBusy(true)
     try {
       if (key.trim() && !hasKey) await window.dhvw.saveApiKey(key).then((r) => r.ok && setHasKey(true))
+      if (igKey.trim() && !igHasKey) await window.dhvw.saveImageGenKey(igKey).then((r) => r.ok && setIgHasKey(true))
       const res = await window.dhvw.saveSettings({
-        llm: { protocol, baseUrl, model, temperature: Number(temperature) },
+        llm: { protocol, baseUrl, model, temperature: Number(temperature), supportsVision },
+        imageGen: {
+          enabled: igEnabled,
+          protocol: igProtocol,
+          baseUrl: igBaseUrl.trim(),
+          model: igModel.trim(),
+          fusionStylePrompt: igFusionStyle.replace(/\r\n/g, '\n').trim(),
+        },
         ports: { olvt: Number(olvtPort), tts: Number(ttsPort), llama: Number(llamaPort) },
         asr: { enabled: asr },
         live2d: { model: live2dModel },
+        pixelCharacterId,
         scene: { autoPush: autoPushScene },
         proactive,
+        boost: { gateways: { qq: boostQq, feishu: boostFeishu } },
         olvt: { characterName: charName, humanName, personaPrompt: persona },
         tts: { backendDir: ttsDir, refAudioPath: refAudio, refText, refLang, textLang },
       })
@@ -433,6 +533,137 @@ export function SettingsPage({
             </div>
           </div>
         )}
+        <label className="switch">
+          <input
+            type="checkbox"
+            checked={supportsVision}
+            onChange={(e) => setSupportsVision(e.target.checked)}
+          />
+          当前 LLM 模型支持识图（Multimodal Vision）
+        </label>
+        <p className="hint">
+          勾选后，QQ Bot 接收到图片时会把图像发给 LLM 进行视觉理解、气氛判断及场景融图坐标规划；未勾选时仅按纯文本上下文处理，避免纯文本模型报错。
+        </p>
+      </section>
+
+      <section className="panel settings-section">
+        <div className="section-head">
+          <h2>生图模型（API）</h2>
+        </div>
+        <label className="switch">
+          <input type="checkbox" checked={igEnabled} onChange={(e) => setIgEnabled(e.target.checked)} />
+          启用 API 生图模型（用于像素形象生成 &amp; ARM QQ 场景角色融图）
+        </label>
+        <div className="field">
+          <label>生图 API 协议（4×4 像素图默认请求 1024×1024，其余场景图由模型自行判断尺寸）</label>
+          <select value={igProtocol} onChange={(e) => setIgProtocol(e.target.value as ImageGenProtocol)}>
+            <option value="openai-images">OpenAI Images (/images/generations &amp; edits)</option>
+            <option value="openai-chat-image">OpenAI Chat 生图兼容 (/chat/completions)</option>
+            <option value="gemini-native">Gemini 原生生图 (:generateContent)</option>
+          </select>
+        </div>
+        <div className="field">
+          <label>生图调用端点（留空则自动复用上方 LLM 端点）</label>
+          <div className="row2 tight">
+            <input
+              value={igBaseUrl}
+              onChange={(e) => setIgBaseUrl(e.target.value)}
+              placeholder={baseUrl || 'https://api.openai.com'}
+              spellCheck={false}
+            />
+            <button
+              type="button"
+              disabled={igLoadingModels || (!igBaseUrl.trim() && !baseUrl.trim())}
+              onClick={() => void fetchImageModels()}
+            >
+              {igLoadingModels ? '拉取中…' : '拉取模型'}
+            </button>
+          </div>
+        </div>
+        <div className="field">
+          <label>生图模型名称</label>
+          {!igManualModel && igModels.length > 0 ? (
+            <div className="row2 tight">
+              <select value={igModel} onChange={(e) => setIgModel(e.target.value)}>
+                {igModels.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+              <button type="button" onClick={() => setIgManualModel(true)}>
+                手动输入
+              </button>
+            </div>
+          ) : (
+            <div className="row2 tight">
+              <input
+                value={igModel}
+                onChange={(e) => setIgModel(e.target.value)}
+                placeholder="如 gpt-image-1 / gemini-2.5-flash-image / flux-kontext"
+                spellCheck={false}
+              />
+              {igModels.length > 0 && (
+                <button type="button" onClick={() => setIgManualModel(false)}>
+                  从列表选
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="field">
+          <label>
+            生图 API Key（留空自动复用 LLM 密钥）
+            <span className={`pill ${igHasKey ? 'ok' : ''}`}>{igHasKey ? '已独立配置' : '复用 LLM 密钥'}</span>
+          </label>
+          <div className="row2 tight">
+            <input
+              type="password"
+              placeholder={igHasKey ? '输入新密钥可覆盖' : '留空复用上方 API Key，或填写专用生图密钥'}
+              value={igKey}
+              onChange={(e) => setIgKey(e.target.value)}
+              spellCheck={false}
+            />
+            <button type="button" disabled={!igKey.trim()} onClick={() => void saveIgKey()}>
+              保存密钥
+            </button>
+            <button
+              type="button"
+              disabled={!igHasKey}
+              onClick={() =>
+                void window.dhvw.clearImageGenKey().then(() => {
+                  setIgHasKey(false)
+                  setMsg({ ok: true, text: '生图专用密钥已清除，将复用 LLM 密钥' })
+                })
+              }
+            >
+              清除
+            </button>
+          </div>
+        </div>
+        <div className="field">
+          <div className="label-row">
+            <label>场景融图画面风格提示词（纯提示词融合，完全交由生图模型重绘融入）</label>
+            <button
+              type="button"
+              onClick={() => {
+                setIgFusionStyle(DEFAULT_FUSION_STYLE_PROMPT)
+                setMsg({ ok: true, text: '已恢复预设融图风格提示词，点击「保存」后生效' })
+              }}
+            >
+              恢复预设风格
+            </button>
+          </div>
+          <textarea
+            rows={5}
+            value={igFusionStyle}
+            onChange={(e) => setIgFusionStyle(e.target.value)}
+            placeholder="可自由编辑或留空；默认采用日系厚涂水彩 + 电影逆光体积光 + 清冷低饱和电影调色"
+          />
+          <p className="hint">
+            QQ 收到生活/场景照并经 LLM 识图决定合影时，会将此风格与场景坐标、动作姿势、光影信息拼接后交由生图模型直接重绘融合。
+          </p>
+        </div>
       </section>
 
       <section className="panel settings-section">
@@ -480,6 +711,130 @@ export function SettingsPage({
           <p className="hint">
             直接把模型文件夹放进打开的模型目录（包含 <code>runtime/*.model3.json</code> 或根目录
             <code>*.model3.json</code>），然后点「刷新模型列表」选用。
+          </p>
+        </div>
+        <div className="field">
+          <label>像素角色模型（总观地图 &amp; ARM 设备端共用）</label>
+          <div className="row2 tight">
+            <select value={pixelCharacterId} onChange={(e) => setPixelCharacterId(e.target.value)}>
+              <option value="">内置默认（鲸鱼娘 · 32×48 22动作）</option>
+              {pixelCharacterId && !pixelCharList.some((c) => c.id === pixelCharacterId) && (
+                <option value={pixelCharacterId}>{pixelCharacterId}</option>
+              )}
+              {pixelCharList.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} · {c.frame.w}×{c.frame.h} · {c.animations.length}动作
+                </option>
+              ))}
+            </select>
+            <button type="button" onClick={() => void refreshPixelChars()}>
+              刷新像素角色
+            </button>
+          </div>
+          <div className="actions" style={{ marginTop: 6 }}>
+            <button
+              type="button"
+              disabled={pixelApplyBusy}
+              onClick={() =>
+                void (async () => {
+                  setPixelApplyBusy(true)
+                  setMsg(null)
+                  try {
+                    const res = await window.dhvw.characterApply(pixelCharacterId || 'default', {
+                      applyToScenes: true,
+                      syncToolchain: true,
+                    })
+                    if (!res.ok) {
+                      setMsg({ ok: false, text: res.error ?? '同步 ARM 角色失败' })
+                      return
+                    }
+                    if (res.settings) onSaved(res.settings)
+                    const delivered = res.delivered ?? 0
+                    const scenes = res.updatedScenes?.length ?? 0
+                    const label = pixelCharacterId ? '已切换像素角色' : '已重置为默认像素角色（鲸鱼娘）'
+                    setMsg({
+                      ok: true,
+                      text:
+                        delivered > 0
+                          ? `${label}并实时推送到 ${delivered} 台已连接 ARM 设备${scenes ? `（同步 ${scenes} 张产出地图）` : ''}`
+                          : `${label}${scenes ? `（已同步 ${scenes} 张产出地图）` : ''}；已写入 ARM 端资源目录，待 ARM 端打开或重连后自动生效`,
+                    })
+                  } finally {
+                    setPixelApplyBusy(false)
+                  }
+                })()
+              }
+            >
+              {pixelApplyBusy ? '推送中…' : '立即应用到 ARM 端'}
+            </button>
+          </div>
+          <p className="hint">
+            可选用「Agent → 像素形象」页生成的任意角色；保存设置或点「立即应用到 ARM 端」后，将自动同步到产出地图及已连接的 ARM 端实时刷新显示。
+          </p>
+        </div>
+        <div className="field">
+          <label>
+            角色三维参考图（用于 QQ 场景拍照融合 &amp; 像素形象参考生成）
+            <span className={`pill ${ref3dDataUrl || value.hasRef3d ? 'ok' : ''}`}>
+              {ref3dDataUrl || value.hasRef3d ? '已配置' : '未配置'}
+            </span>
+          </label>
+          <div className="ref3d-row">
+            {ref3dDataUrl ? (
+              <img src={ref3dDataUrl} alt="角色三维参考图" className="ref3d-thumb" />
+            ) : (
+              <div className="ref3d-thumb empty">未上传</div>
+            )}
+            <div className="actions">
+              <button
+                type="button"
+                disabled={ref3dBusy}
+                onClick={() =>
+                  void (async () => {
+                    setRef3dBusy(true)
+                    setMsg(null)
+                    try {
+                      const res = await window.dhvw.characterRef3dPick()
+                      if (res.canceled) return
+                      if (!res.ok || !res.dataUrl) {
+                        setMsg({ ok: false, text: res.error ?? '上传三维参考图失败' })
+                        return
+                      }
+                      setRef3dDataUrl(res.dataUrl)
+                      if (res.settings) onSaved(res.settings)
+                      setMsg({ ok: true, text: '角色三维参考图已保存并同步给 ARM 端 QQ Bot' })
+                    } finally {
+                      setRef3dBusy(false)
+                    }
+                  })()
+                }
+              >
+                {ref3dBusy ? '上传中…' : '上传角色三维参考图'}
+              </button>
+              <button
+                type="button"
+                disabled={ref3dBusy || !ref3dDataUrl}
+                onClick={() =>
+                  void (async () => {
+                    setRef3dBusy(true)
+                    setMsg(null)
+                    try {
+                      const res = await window.dhvw.characterRef3dClear()
+                      setRef3dDataUrl(null)
+                      if (res.settings) onSaved(res.settings)
+                      setMsg({ ok: true, text: '已清除角色三维参考图' })
+                    } finally {
+                      setRef3dBusy(false)
+                    }
+                  })()
+                }
+              >
+                清除
+              </button>
+            </div>
+          </div>
+          <p className="hint">
+            建议上传角色 3D 三视图或正侧背立绘设定图。在 QQ 单聊中发送风景/生活照片且气氛合适时，LLM 会据此规划位置、动作与光影，自动把角色融入你的照片并回传 QQ。
           </p>
         </div>
         <div className="field">
@@ -810,6 +1165,166 @@ export function SettingsPage({
             ? '开：核验通过即推送；设备离线时排队，上线后自动重试直到成功。'
             : '关：生成后必须在 Agent 页「产出验收」里手动点「提交 ARM 侧」。'}
         </p>
+      </section>
+
+      <section className="panel settings-section">
+        <div className="section-head">
+          <h2>
+            Boost 模式启用网关选择
+            <span className={`pill ${value.boost?.enabled ? 'ok' : ''}`}>
+              {value.boost?.enabled ? 'Boost 开启中' : 'Boost 未开启'}
+            </span>
+          </h2>
+        </div>
+        <p className="hint" style={{ marginTop: 0 }}>
+          自由勾选 Boost 模式联动开启的外部聊天网关（可单选或同时开启，实时同步至 ARM 设备）。
+        </p>
+        <div className="row2">
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={boostQq}
+              disabled={busy}
+              onChange={(e) => {
+                const checked = e.target.checked
+                setBoostQq(checked)
+                void window.dhvw.setBoostGateways({ qq: checked, feishu: boostFeishu }).then((r) => {
+                  if (r.settings) onSaved(r.settings)
+                })
+              }}
+            />
+            启用 QQ 官方 Bot 网关（有平台主动次数限制）
+          </label>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={boostFeishu}
+              disabled={busy}
+              onChange={(e) => {
+                const checked = e.target.checked
+                setBoostFeishu(checked)
+                void window.dhvw.setBoostGateways({ qq: boostQq, feishu: checked }).then((r) => {
+                  if (r.settings) onSaved(r.settings)
+                })
+              }}
+            />
+            启用飞书官方长连接网关（推荐 · 无每日主动次数限制）
+          </label>
+        </div>
+      </section>
+
+      <section className="panel settings-section">
+        <div className="section-head">
+          <h2>
+            飞书官方 Bot（Boost 长连接 · 无每日主动限制）
+            <span className={`pill ${qqStatus?.feishu?.paired ? 'ok' : ''}`}>
+              {qqStatus?.feishu?.paired
+                ? `已绑定 · ${qqStatus.feishu.ownerOpenIdMasked || '主人'}`
+                : qqStatus?.feishu?.connected
+                  ? '长连接在线 · 待首条飞书消息激活'
+                  : qqStatus?.feishu?.configured
+                    ? '待连接激活'
+                    : '未配置'}
+            </span>
+          </h2>
+          <div className="actions" style={{ display: 'flex', gap: 8 }}>
+            {onOpenFeishuGuide && (
+              <button type="button" onClick={onOpenFeishuGuide}>
+                打开注册与绑定向导
+              </button>
+            )}
+            <button type="button" onClick={() => void window.dhvw.openExternal('https://open.feishu.cn/app')}>
+              打开飞书开放平台
+            </button>
+          </div>
+        </div>
+        <p className="hint" style={{ marginTop: 0 }}>
+          接入步骤：1. 在飞书创建「企业自建应用」并开启机器人能力，在「权限管理」开通：<code>im:message</code>、<code>im:message.p2p_msg:readonly</code>（读取单聊消息，必开！）、<code>im:message:send_as_bot</code>、<code>im:resource</code>；2. 先在下方保存凭据并开启 Boost（勾选飞书网关），待上方显示「长连接在线」后，去飞书「事件与回调 → 事件配置」选择「使用长连接接收事件」并添加 <code>im.message.receive_v1</code>；3. <b>务必在「版本管理与发布」创建并发布新版本</b>，否则新权限/事件不推送！然后私聊机器人发任意一句话即可自动认主。
+        </p>
+        {qqStatus?.feishu?.gatewayError && <p className="msg bad">飞书网关异常：{qqStatus.feishu.gatewayError}</p>}
+        <div className="row2">
+          <div className="field">
+            <label>App ID</label>
+            <input value={fsAppId} onChange={(e) => setFsAppId(e.target.value)} placeholder="如 cli_a6xxxxxxxx" />
+          </div>
+          <div className="field">
+            <label>App Secret</label>
+            <input
+              type="password"
+              value={fsSecret}
+              onChange={(e) => setFsSecret(e.target.value)}
+              placeholder={value.feishuBot?.hasSecret ? '已加密保存（留空保留）' : '填写飞书 App Secret'}
+            />
+          </div>
+        </div>
+        <div className="row2">
+          <label className="switch">
+            <input type="checkbox" checked={fsProactive} onChange={(e) => setFsProactive(e.target.checked)} />
+            允许心情 / 世界事件主动发飞书消息（全天候无每日次数锁）
+          </label>
+          <div className="field" style={{ maxWidth: 160 }}>
+            <label>表情包积极度 (0~3)</label>
+            <input value={qqEagerness} onChange={(e) => setQqEagerness(e.target.value)} inputMode="numeric" />
+          </div>
+        </div>
+        {fsMsg && <p className={`msg ${fsMsg.ok ? 'ok' : 'bad'}`}>{fsMsg.text}</p>}
+        <div className="actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              void (async () => {
+                setBusy(true)
+                setFsMsg(null)
+                try {
+                  const res = await window.dhvw.feishuBotSave({
+                    appId: fsAppId.trim(),
+                    appSecret: fsSecret.trim() || undefined,
+                    proactive: fsProactive,
+                    stickerEagerness: Number(qqEagerness),
+                    activateBoost: true,
+                  })
+                  if (!res.ok) {
+                    setFsMsg({ ok: false, text: res.error || '保存失败' })
+                    return
+                  }
+                  setBoostFeishu(true)
+                  if (res.settings) onSaved(res.settings)
+                  if (res.status) setQqStatus(res.status)
+                  setFsSecret('')
+                  setFsMsg({ ok: true, text: '飞书 Bot 配置已加密保存并自动启用飞书网关，请在飞书后台选长连接并发布版本' })
+                } finally {
+                  setBusy(false)
+                }
+              })()
+            }
+          >
+            保存并启用飞书网关
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              void (async () => {
+                setBusy(true)
+                setFsMsg(null)
+                try {
+                  const res = await window.dhvw.feishuBotRebind()
+                  if (res.settings) onSaved(res.settings)
+                  if (res.status) setQqStatus(res.status)
+                  setFsMsg({
+                    ok: true,
+                    text: '已解除旧飞书账号绑定！请用目标飞书账号私聊机器人发任意消息完成重新绑定',
+                  })
+                } finally {
+                  setBusy(false)
+                }
+              })()
+            }
+          >
+            重新绑定飞书（解除旧绑定）
+          </button>
+        </div>
       </section>
 
       <section className="panel settings-section">

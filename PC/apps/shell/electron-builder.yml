@@ -26,6 +26,9 @@ extraResources:
   # 角色舞台：页面 + pixi/live2d 库 + 模型（本机 http 静态服务读取）
   - from: resources/live2d
     to: live2d
+  # 像素形象内置示例素材（鲸鱼娘原图 + 含方向错误的初音未来示例图）
+  - from: resources/char-samples
+    to: char-samples
   # 中文句向量模型（bge-small-zh-v1.5 量化 ONNX，运行期零联网）
   - from: resources/models
     to: models

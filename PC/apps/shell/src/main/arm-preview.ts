@@ -21,6 +21,12 @@ const MIME: Record<string, string> = {
 let server: Server | null = null
 let baseUrl: string | null = null
 
+/** 本机回环地址：渲染进程 iframe 只能用这个（CSP frame-src 限定 127.0.0.1） */
+export function getArmPreviewLocalUrl(): string | null {
+  const port = getArmPreviewPort()
+  return port ? `http://127.0.0.1:${port}/` : null
+}
+
 export function getArmPreviewPort(): number {
   const addr = server?.address()
   return addr && typeof addr === 'object' ? addr.port : 0
@@ -98,6 +104,65 @@ export async function startArmPreviewServer(
       res.writeHead(403).end('forbidden')
       return
     }
+    const orchPort = getOrchestratorPort()
+    // 若编排器已激活自定义角色图集，ARM 预览页直接优先加载激活角色（失败或未激活则回退本地文件）
+    const activeCharMatch = /^\/assets\/char\/(ojj_sheet\.(?:json|png))$/.exec(rel)
+    if (activeCharMatch && orchPort > 0) {
+      const targetFile = activeCharMatch[1] === 'ojj_sheet.json' ? 'sheet.json' : 'sheet.png'
+      const upstream = http.request(
+        {
+          host: '127.0.0.1',
+          port: orchPort,
+          method: 'GET',
+          path: `/dhvw/characters/active/${targetFile}`,
+        },
+        (up) => {
+          if ((up.statusCode ?? 500) === 200) {
+            res.writeHead(200, {
+              'content-type': MIME[path.extname(targetFile).toLowerCase()] ?? 'application/octet-stream',
+              'cache-control': 'no-store',
+            })
+            up.pipe(res)
+            return
+          }
+          up.resume()
+          if (fs.existsSync(file) && fs.statSync(file).isFile()) {
+            fs.readFile(file, (err, data) => {
+              if (err) {
+                res.writeHead(500).end('read error')
+                return
+              }
+              res.writeHead(200, {
+                'content-type': MIME[path.extname(file).toLowerCase()] ?? 'application/octet-stream',
+                'cache-control': 'no-cache',
+              })
+              res.end(data)
+            })
+          } else {
+            res.writeHead(404).end('not found')
+          }
+        },
+      )
+      upstream.on('error', () => {
+        if (fs.existsSync(file) && fs.statSync(file).isFile()) {
+          fs.readFile(file, (err, data) => {
+            if (err) {
+              res.writeHead(500).end('read error')
+              return
+            }
+            res.writeHead(200, {
+              'content-type': MIME[path.extname(file).toLowerCase()] ?? 'application/octet-stream',
+              'cache-control': 'no-cache',
+            })
+            res.end(data)
+          })
+        } else {
+          res.writeHead(404).end('not found')
+        }
+      })
+      upstream.end()
+      return
+    }
     if (fs.existsSync(file) && fs.statSync(file).isFile()) {
       fs.readFile(file, (err, data) => {
         if (err) {
@@ -114,7 +179,6 @@ export async function startArmPreviewServer(
     }
 
     const match = /^\/assets\/scenes\/([A-Za-z0-9_-]+)\/(.+)$/.exec(rel)
-    const orchPort = getOrchestratorPort()
     if (match && orchPort > 0) {
       const jobId = match[1] ?? ''
       const assetPath = match[2] ?? ''

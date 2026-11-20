@@ -39,6 +39,17 @@ def _extract_json_obj(raw: str) -> dict | None:
         return None
 
 
+def _is_local_llama(base_url: str, model: str) -> bool:
+    """判断是否为本地 llama 推理服务（不关闭思考且不锁定 max_tokens）。"""
+    b = (base_url or "").strip().lower()
+    m = (model or "").strip().lower()
+    if any(k in m for k in ("nemotron", "gemma")):
+        return True
+    if "/llm/" in b or "/dhvw/llm/" in b:
+        return True
+    return any(h in b for h in ("127.0.0.1", "localhost", "0.0.0.0", "[::1]"))
+
+
 def _chat_url(base_url: str) -> str:
     base = base_url.strip().rstrip("/")
     if base.endswith("/v1"):
@@ -47,11 +58,12 @@ def _chat_url(base_url: str) -> str:
 
 
 async def extract_facts_from_turns(llm_cfg: dict, turns: list[dict]) -> tuple[list[dict], dict | None, str | None]:
-    """调用配置的 DeepSeek 兼容接口抽取事实与心情变化。返回 (facts, mood_delta, error_reason)。"""
+    """调用配置的 OpenAI 兼容接口抽取事实与心情变化。返回 (facts, mood_delta, error_reason)。"""
     base_url = str(llm_cfg.get("baseUrl") or "").strip()
     model = str(llm_cfg.get("model") or "").strip()
     api_key = str(llm_cfg.get("apiKey") or "").strip()
-    if not base_url or not model or not api_key:
+    local_llama = _is_local_llama(base_url, model)
+    if not base_url or not model or (not api_key and not local_llama):
         return [], None, "llm_not_configured"
 
     lines: list[str] = []
@@ -68,15 +80,16 @@ async def extract_facts_from_turns(llm_cfg: dict, turns: list[dict]) -> tuple[li
     if len(lines) < 2:
         return [], None, "not_enough_turns"
 
-    body = {
+    body: dict = {
         "model": model,
         "messages": [{"role": "user", "content": EXTRACT_PROMPT + "\n".join(lines)}],
-        "temperature": 0.2,
-        "max_tokens": 500,
-        "reasoning_effort": "none",
+        "temperature": 0.45 if local_llama else 0.2,
     }
+    if not local_llama:
+        body["max_tokens"] = 500
+        body["reasoning_effort"] = "none"
     headers = {
-        "Authorization": f"Bearer {api_key}",
+        **({"Authorization": f"Bearer {api_key}"} if api_key else {}),
         "Content-Type": "application/json",
         "User-Agent": BROWSER_UA,
     }
@@ -139,7 +152,8 @@ async def extract_facts_from_events(llm_cfg: dict, events: list[dict]) -> tuple[
     base_url = str(llm_cfg.get("baseUrl") or "").strip()
     model = str(llm_cfg.get("model") or "").strip()
     api_key = str(llm_cfg.get("apiKey") or "").strip()
-    if not base_url or not model or not api_key:
+    local_llama = _is_local_llama(base_url, model)
+    if not base_url or not model or (not api_key and not local_llama):
         return [], "llm_not_configured"
     if len(events) < 3:
         return [], "not_enough_events"
@@ -148,14 +162,19 @@ async def extract_facts_from_events(llm_cfg: dict, events: list[dict]) -> tuple[
         [{"kind": e.get("kind"), "payload": e.get("payload"), "t": e.get("t_local")} for e in events[-40:]],
         ensure_ascii=False,
     )[:3600]
-    body = {
+    body: dict = {
         "model": model,
         "messages": [{"role": "user", "content": EVENT_EXTRACT_PROMPT + compact}],
-        "temperature": 0.2,
-        "max_tokens": 450,
-        "reasoning_effort": "none",
+        "temperature": 0.45 if local_llama else 0.2,
     }
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "User-Agent": BROWSER_UA}
+    if not local_llama:
+        body["max_tokens"] = 450
+        body["reasoning_effort"] = "none"
+    headers = {
+        **({"Authorization": f"Bearer {api_key}"} if api_key else {}),
+        "Content-Type": "application/json",
+        "User-Agent": BROWSER_UA,
+    }
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
             resp = await client.post(_chat_url(base_url), headers=headers, json=body)
