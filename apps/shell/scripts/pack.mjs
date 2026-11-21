@@ -34,6 +34,8 @@ const required = [
   ['默认形象纹理', 'resources/live2d/models/DeepSeek/大肥鱼.4096/texture_00.png'],
   ['编排器依赖清单', 'resources/orchestrator-requirements.txt'],
   ['记忆向量依赖清单', 'resources/memory-requirements.txt'],
+  ['OLVT 前端产物', 'resources/olvt-frontend/index.html'],
+  ['OLVT 前端资源', 'resources/olvt-frontend/assets'],
   ['地图动作表', 'resources/defaults/scenes/_shared/acts.json'],
   ['地图工具链文档', '../../../docs/MAP-SCENE-DESIGN.md'],
   ['地图工具链脚本', '../../../scripts/paint_home.py'],

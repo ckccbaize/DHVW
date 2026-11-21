@@ -2051,15 +2051,20 @@ function registerIpc(): void {
       },
       config.pipIndex,
     )
-    if (
-      status.state === 'ready' &&
-      (spec.id === 'llm-nemotron-e4b' || spec.id === 'llm-nemotron-mmproj') &&
-      supervisor &&
-      allocatedPorts.length
-    ) {
+    // 组件装好后必须重建服务表：OLVT 装在启动之后时，服务表还停在「占位 worker」，
+    // 不重建就会一直用占位进程，显现模式必然打不开（2026-11-21 实测）。
+    const affectsRuntime =
+      spec.id === 'llm-nemotron-e4b' || spec.id === 'llm-nemotron-mmproj' || spec.id === 'olvt'
+    if (status.state === 'ready' && affectsRuntime && supervisor && allocatedPorts.length) {
       supervisor.updateServices(buildRuntimeServices(allocatedPorts))
-      if (spec.id === 'llm-nemotron-mmproj' && config.llmMode === 'local') {
-        void supervisor.stop('mmproj-installed').then(() => supervisor?.start())
+      const needRestart =
+        spec.id === 'olvt' || (spec.id === 'llm-nemotron-mmproj' && config.llmMode === 'local')
+      if (needRestart) {
+        void supervisor.stop('component-installed').then(() => {
+          supervisor?.start()
+          // OLVT 到位后 conf.yaml 与显现授权都要按新目录重算
+          if (spec.id === 'olvt') void pushOrchestratorConfigUntilReady()
+        })
       }
     }
     log(status.state === 'ready' ? 'info' : 'error', 'component', status.state === 'ready' ? '组件就绪' : '组件下载失败', {

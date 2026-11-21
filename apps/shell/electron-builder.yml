@@ -43,6 +43,10 @@ extraResources:
   # 上游 OLVT 未开放 UA / extra_body，随包带两个补丁文件覆盖过去
   - from: resources/olvt-overrides
     to: olvt-overrides
+  # OLVT 前端构建产物：上游源码归档里 frontend/ 只有源码，下载后页面 404，
+  # 显现模式依赖它（2026-11-21 实测），所以随包带一份
+  - from: resources/olvt-frontend
+    to: olvt-frontend
   # 三份依赖清单：OLVT 精简版 / 编排器与像素工坊必装 / 记忆向量可选
   - from: resources/olvt-requirements.txt
     to: olvt-requirements.txt
