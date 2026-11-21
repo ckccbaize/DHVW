@@ -1,1 +1,47 @@
-{"schema_version": 1, "scene": "bookstore", "generated_by": "scripts/pack_scene.py", "files": [{"path": "scene.json", "size": 24334, "sha256": "d9fbefa4a101d769c92a7758d7310eedbce784abb69eac263ad8f728f3b68bf5"}, {"path": "intgrid.bin", "size": 532, "sha256": "165440d074ffb8bf3fdfa24a0ee725e95a1b4fbca49f7562e9d529edd61befb3"}, {"path": "terrain.png", "size": 53759, "sha256": "90515053d4e6966862c344d51a2c0d374bec0617d7f7121846260dd49e276581"}, {"path": "furniture.png", "size": 26826, "sha256": "76d57ba9ddc714a2966d53e1db2069ecec9a1e9233f531eaeeda887255a5ec60"}, {"path": "light_day.png", "size": 3015, "sha256": "a9c777b4d47366d8c6849261b58670b115c1f0e2e93f3e9c659557b75f2bb4a9"}, {"path": "interactions.json", "size": 8157, "sha256": "00b5af0f89879fd4f40357d0686370ae70696dbdb65c9feac4d0cd3830d83140"}, {"path": "character/sheet.png", "size": 325343, "sha256": "2c2c1f65036b5070e03761f2a3fe839c445b56a8074d98f17f658c1e373bd337"}, {"path": "character/sheet.json", "size": 11206, "sha256": "9f741195dca1fad40888d2aea72d5da21e4394db9e753e5132a3b4ee3d419866"}, {"path": "indoor-12-bookstore.built.json", "size": 15557, "sha256": "79e5a0e03d6f44e4f1dae04fa707d319e7501b7829cf266905116b10ca492d39"}, {"path": "indoor-12-bookstore.png", "size": 73063, "sha256": "4bc55a117a0b6ee727febbfe76ac87ccb0ce28f5b762ce3a6f90ba48e0042f25"}, {"path": "indoor-12-bookstore@2x.png", "size": 90896, "sha256": "ee473579fd75f858bcead5a04b63532cf0b15cf88c6a34d4fd3addbf29330f0e"}]}
+{
+ "schema_version": 1,
+ "scene": "bookstore",
+ "generated_by": "tools/pack-scenes.mjs",
+ "files": [
+  {
+   "path": "scene.json",
+   "size": 18425,
+   "sha256": "bd2c9c601e9c749c08e6be12a2d11860aef36e881e8b246f8965d3c01129bcbe"
+  },
+  {
+   "path": "intgrid.bin",
+   "size": 532,
+   "sha256": "165440d074ffb8bf3fdfa24a0ee725e95a1b4fbca49f7562e9d529edd61befb3"
+  },
+  {
+   "path": "terrain.png",
+   "size": 53759,
+   "sha256": "90515053d4e6966862c344d51a2c0d374bec0617d7f7121846260dd49e276581"
+  },
+  {
+   "path": "furniture.png",
+   "size": 26826,
+   "sha256": "76d57ba9ddc714a2966d53e1db2069ecec9a1e9233f531eaeeda887255a5ec60"
+  },
+  {
+   "path": "light_day.png",
+   "size": 3015,
+   "sha256": "a9c777b4d47366d8c6849261b58670b115c1f0e2e93f3e9c659557b75f2bb4a9"
+  },
+  {
+   "path": "interactions.json",
+   "size": 8157,
+   "sha256": "00b5af0f89879fd4f40357d0686370ae70696dbdb65c9feac4d0cd3830d83140"
+  },
+  {
+   "path": "character/sheet.png",
+   "size": 325343,
+   "sha256": "2c2c1f65036b5070e03761f2a3fe839c445b56a8074d98f17f658c1e373bd337"
+  },
+  {
+   "path": "character/sheet.json",
+   "size": 11206,
+   "sha256": "9f741195dca1fad40888d2aea72d5da21e4394db9e753e5132a3b4ee3d419866"
+  }
+ ]
+}

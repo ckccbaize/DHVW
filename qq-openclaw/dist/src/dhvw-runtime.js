@@ -454,21 +454,29 @@ export function createDhvwRuntime({
     return rules.length ? `【防机械对话约束】${rules.join("；")}` : "";
   }
 
+  async function runWebSearch(query, maxHits = 3) {
+    const clean = String(query || "").trim();
+    if (!clean) return [];
+    try {
+      if (typeof searchWeb === "function") {
+        const res = await searchWeb(clean);
+        return Array.isArray(res) ? res.slice(0, maxHits) : [];
+      }
+      const r = await fetchImpl(`${shellUrl.replace(/\/+$/, "")}/__search?q=${encodeURIComponent(clean)}&n=${maxHits}`);
+      if (!r.ok) return [];
+      const d = await r.json();
+      return Array.isArray(d?.results) ? d.results.slice(0, maxHits) : [];
+    } catch {
+      return [];
+    }
+  }
+
   async function researchSlang(term) {
     const clean = String(term || "").trim().slice(0, 24);
     if (!clean) return;
     if (slang.some((s) => (typeof s === "string" ? s === clean : s?.term === clean))) return;
     try {
-      let results = [];
-      if (typeof searchWeb === "function") {
-        results = await searchWeb(`${clean} 是什么梗 什么意思`);
-      } else {
-        const res = await fetchImpl(`${shellUrl.replace(/\/+$/, "")}/__search?q=${encodeURIComponent(`${clean} 是什么梗`)}&n=3`);
-        if (res.ok) {
-          const data = await res.json();
-          results = Array.isArray(data?.results) ? data.results : [];
-        }
-      }
+      const results = await runWebSearch(`${clean} 是什么梗 什么意思`, 3);
       const useful = results
         .map((r) => cleanSnippetText(`${r.title || ""} ${r.snippet || ""}`))
         .filter((s) => s && !DICT_JUNK_RE.test(s));
@@ -827,14 +835,101 @@ export function createDhvwRuntime({
     return "SKIP"; // digest 总结默认沉淀进记忆，不打扰单聊用户
   }
 
+  const THREAD_MAX_AGE_MS = 2 * 3600_000;
+  const THREAD_RESURFACE_DELAY_MS = 45 * 60_000;
+  const TOPIC_EXTRACT_STOP_RE =
+    /^(?:这个|那个|这样|那样|现在|时候|自己|其实|但是|不过|感觉|今天|昨天|晚上|早上|上午|下午|没有|是不是|怎么样|知道|什么|为什么|怎么|可以|应该|还是|或者|就是|而且|因为|所以|对方|主人|鲸鱼|大肥鱼|图片|表情包|主动|日常|近况|生活照|场景|融图|哈哈哈?|啊啊啊?|有点|真的|真是|别再|再提|还是|太好|不错|神奇|离谱)$/;
+
+  function extractTopicTokens(text = "") {
+    const clean = String(text || "").replace(/\[表情包:[^\]]*\]|\[[^\]]*生活照[^\]]*\]|\[场景融图\]/g, " ");
+    const out = new Set();
+    const chunks = clean.split(/[的了了吗呢吧呀啊哇嘛是在和与及跟对给把被让就也都还太真好很\s，,。\.！？!\?~～…、：:]+/);
+    for (const seg of chunks) {
+      for (const run of seg.match(/[\u4e00-\u9fa5]{2,}/g) || []) {
+        if (run.length <= 4 && !TOPIC_EXTRACT_STOP_RE.test(run)) {
+          out.add(run);
+        }
+        if (run.length > 2) {
+          for (let i = 0; i <= run.length - 2; i++) {
+            const bg = run.slice(i, i + 2);
+            if (!TOPIC_EXTRACT_STOP_RE.test(bg)) out.add(bg);
+            if (i <= run.length - 3) {
+              const tg = run.slice(i, i + 3);
+              if (!TOPIC_EXTRACT_STOP_RE.test(tg)) out.add(tg);
+            }
+          }
+        }
+      }
+    }
+    return [...out];
+  }
+
+  function isThreadExpired(t, curNow = now()) {
+    if (!t || t.closed) return true;
+    if (t.expiresAt && t.expiresAt <= curNow) return true;
+    if (t.createdAt && curNow - t.createdAt > THREAD_MAX_AGE_MS) return true;
+    // 兼容旧版未写 createdAt/expiresAt 的持久化线头：按原 resurfaceAt - 3h 推算创建时间，超 2 小时直接淘汰
+    if (!t.createdAt && !t.expiresAt && t.resurfaceAt && curNow - (t.resurfaceAt - 3 * 3600_000) > THREAD_MAX_AGE_MS) {
+      return true;
+    }
+    return false;
+  }
+
+  function pruneThreads({ activeText = "", countTurn = false, closeAll = false } = {}) {
+    const curNow = now();
+    let changed = false;
+    const next = [];
+    for (const t of threads) {
+      if (!t) {
+        changed = true;
+        continue;
+      }
+      if (closeAll && !t.closed) {
+        t.closed = true;
+        changed = true;
+        continue;
+      }
+      if (isThreadExpired(t, curNow)) {
+        changed = true;
+        continue;
+      }
+      if (countTurn && activeText) {
+        const toks = (String(t.text || "").match(/[\u4e00-\u9fa5]{2,4}/g) || []).filter((w) => !TOPIC_EXTRACT_STOP_RE.test(w));
+        const mentioned = toks.some((w) => activeText.includes(w));
+        if (!mentioned) {
+          t.turnsSince = (t.turnsSince || 0) + 1;
+          if (t.turnsSince >= 3) {
+            t.closed = true;
+            changed = true;
+            continue;
+          }
+          changed = true;
+        } else if (t.turnsSince) {
+          t.turnsSince = 0;
+          changed = true;
+        }
+      }
+      next.push(t);
+    }
+    if (changed) {
+      threads = next.slice(-2);
+      saveJsonSafe(threadsFile, threads);
+    }
+  }
+
   const runtime = {
     mediaDir,
     stateDir,
     stickerStore,
     formatWorldNote,
     fewShotStyleBlock: FEW_SHOT_STYLE_BLOCK,
+    searchWeb: runWebSearch,
     getStyleGuard: () => buildReplyStyleGuard(chatHistory),
-    getThreads: () => threads.slice(),
+    getThreads: () => {
+      pruneThreads();
+      const curNow = now();
+      return threads.filter((t) => !isThreadExpired(t, curNow)).slice();
+    },
     closeThread: (id) => {
       const t = threads.find((x) => x.id === id);
       if (t) {
@@ -845,15 +940,54 @@ export function createDhvwRuntime({
     addThread: (text) => {
       const clean = String(text || "").trim().slice(0, 80);
       if (!clean) return;
+      pruneThreads();
+      const curNow = now();
       const existing = threads.find((t) => t && !t.closed && isSimilarThread(t.text, clean));
       if (existing) {
         existing.text = clean;
-        existing.resurfaceAt = now() + 3 * 3600_000;
+        existing.createdAt = existing.createdAt || curNow;
+        existing.resurfaceAt = curNow + THREAD_RESURFACE_DELAY_MS;
+        existing.expiresAt = curNow + THREAD_MAX_AGE_MS;
+        existing.turnsSince = 0;
       } else {
-        threads.push({ id: `th-${now().toString(36)}`, text: clean, resurfaceAt: now() + 3 * 3600_000, closed: false });
-        if (threads.length > 5) threads = threads.slice(-5);
+        threads.push({
+          id: `th-${curNow.toString(36)}`,
+          text: clean,
+          createdAt: curNow,
+          resurfaceAt: curNow + THREAD_RESURFACE_DELAY_MS,
+          expiresAt: curNow + THREAD_MAX_AGE_MS,
+          turnsSince: 0,
+          closed: false,
+        });
+        if (threads.length > 2) threads = threads.slice(-2);
       }
       saveJsonSafe(threadsFile, threads);
+    },
+    getForbiddenProactiveTopics: (limit = 8) => {
+      const counts = new Map();
+      const recentSlice = chatHistory.slice(-10);
+      for (const m of recentSlice) {
+        for (const tok of extractTopicTokens(m?.text || "")) {
+          counts.set(tok, (counts.get(tok) || 0) + 1);
+        }
+      }
+      for (const t of threads) {
+        for (const tok of extractTopicTokens(t?.text || "")) {
+          counts.set(tok, (counts.get(tok) || 0) + 2);
+        }
+      }
+      const ranked = [...counts.entries()]
+        .filter(([, cnt]) => cnt >= 2)
+        .sort((a, b) => (b[1] - a[1]) || (b[0].length - a[0].length))
+        .map(([tok]) => tok);
+      // 去重被更长高频词包含的子串（例如既有“纸箱床”就不再占坑位放“纸箱”/“箱床”）
+      const picked = [];
+      for (const tok of ranked) {
+        if (picked.some((p) => p.includes(tok))) continue;
+        picked.push(tok);
+        if (picked.length >= limit) break;
+      }
+      return picked;
     },
     getHistoryText: (limit = 10) => {
       const slice = chatHistory.slice(-limit);
@@ -964,10 +1098,9 @@ export function createDhvwRuntime({
               TOPIC_SHIFT_RE.test(userText) ||
               (SHORT_BOUNCE_RE.test(userText) && recentUsers.some((m) => TOPIC_SHIFT_RE.test(String(m?.text || ""))));
             if (isTopicShift) {
-              for (const t of threads) {
-                if (t && !t.closed) t.resurfaceAt = Math.max(t.resurfaceAt || 0, now() + 4 * 3600_000);
-              }
-              saveJsonSafe(threadsFile, threads);
+              pruneThreads({ closeAll: true });
+            } else {
+              pruneThreads({ activeText: userText, countTurn: true });
             }
             const recentHistoryText = isTopicShift ? "（对方要求翻篇开启新话题，禁止延续旧话题）" : runtime.getHistoryText(8);
             const worldNote = formatWorldNote(world, { userText, nowMs: now() });
@@ -1004,16 +1137,7 @@ export function createDhvwRuntime({
               ? Promise.race([
                   (async () => {
                     try {
-                      let hits = [];
-                      if (typeof searchWeb === "function") {
-                        hits = await searchWeb(searchQuery);
-                      } else {
-                        const r = await fetchImpl(`${shellUrl.replace(/\/+$/, "")}/__search?q=${encodeURIComponent(searchQuery)}&n=3`);
-                        if (r.ok) {
-                          const d = await r.json();
-                          hits = Array.isArray(d?.results) ? d.results : [];
-                        }
-                      }
+                      const hits = await runWebSearch(searchQuery, 3);
                       return (hits || [])
                         .slice(0, 3)
                         .map((h) => `- ${h?.title || ""}${h?.snippet ? `：${String(h.snippet).slice(0, localMode ? 120 : 80)}` : ""}`)

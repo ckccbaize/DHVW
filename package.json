@@ -6,7 +6,11 @@
   "type": "module",
   "scripts": {
     "serve": "node tools/serve.mjs",
-    "pack": "node tools/pack.mjs",
+    "pack": "node tools/pack-scenes.mjs && node tools/pack.mjs",
+    "pack:scenes": "node tools/pack-scenes.mjs",
+    "release:pc": "node tools/release.mjs pc",
+    "release:arm": "node tools/release.mjs arm",
+    "release": "node tools/release.mjs all",
     "verify": "node tools/verify.mjs",
     "test": "node --test tests/*.test.mjs",
     "shell:test": "cd shell && go test ./...",

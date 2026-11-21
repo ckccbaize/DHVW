@@ -2158,4 +2158,124 @@ describe("图片表情包采集（偷图）与语境挑图发送 (sticker-store 
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
+
+  it("主动话题严格限制2小时线头有效期、冷却心情/事件、隔离旧梗并轮换多角度（含间歇冷知识搜索）", async () => {
+    const dayNoon = new Date(2026, 10, 20, 14, 0, 0).getTime();
+
+    // 1. 超过 2 小时的 thread 不再触发 thread_resurface，直接落入多角度 idle_checkin
+    const expiredDecision = evaluateProactiveTrigger({
+      now: dayNoon,
+      threads: [{ id: "old1", text: "等对方回纸箱床照片", createdAt: dayNoon - 2.1 * 3600_000, resurfaceAt: dayNoon - 3600_000 }],
+    });
+    assert.equal(expiredDecision.kind, "idle_checkin");
+
+    // 2. 未满 2 小时的 thread 且 allowThreadResurface=true 时可重浮
+    const freshDecision = evaluateProactiveTrigger({
+      now: dayNoon,
+      threads: [{ id: "new1", text: "刚提到的夜市烧烤", createdAt: dayNoon - 50 * 60_000, expiresAt: dayNoon + 70 * 60_000, resurfaceAt: dayNoon - 1000 }],
+      allowThreadResurface: true,
+    });
+    assert.equal(freshDecision.kind, "thread_resurface");
+
+    // 3. 心情触发在 3 小时冷却期内或连续同类时让位给新鲜多角度；同类事件 2 小时内不连发
+    assert.equal(
+      evaluateProactiveTrigger({
+        now: dayNoon,
+        mood: { social: 0.72, valence: 0.5 },
+        lastMoodTriggerAt: dayNoon - 60 * 60_000,
+      }).kind,
+      "idle_checkin",
+    );
+    assert.equal(
+      evaluateProactiveTrigger({
+        now: dayNoon,
+        recentEvents: [{ id: "b2", kind: "browse", summary: "刷到章鱼百科", ts: dayNoon - 60_000 }],
+        recentEventKinds: { browse: dayNoon - 30 * 60_000 },
+      }).kind,
+      "idle_checkin",
+    );
+
+    // 4. runtime thread 2h 过期 + runner 连续 5 次多角度轮换 + 旧词屏蔽 + web_tidbit 不连续触发
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dhvw-multiangle-"));
+    let clockMs = dayNoon;
+    const promptsSeen = [];
+    const searchCalls = [];
+    const rt = createDhvwRuntime({
+      stateDir: tmpDir,
+      mediaDir: path.join(tmpDir, "m"),
+      sticker: { enabled: false },
+      getLlmConfig: () => ({ baseUrl: "http://llm.local/v1", model: "test-m", apiKey: "k" }),
+      searchWeb: async (q) => {
+        searchCalls.push(q);
+        return [{ title: "冷门奇趣现象", snippet: "猫咪其实尝不出甜味，因为甜味受体基因缺失了。" }];
+      },
+      fetchImpl: async (_url, opts) => {
+        const body = JSON.parse(opts.body);
+        promptsSeen.push(body?.messages?.[0]?.content || "");
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: JSON.stringify({ speak: true, parts: ["换个新鲜角度冒泡呀"], bubble: "新鲜话题" }) } }],
+          }),
+          { status: 200 },
+        );
+      },
+      now: () => clockMs,
+    });
+
+    rt.appendAssistantTurn("纸箱床塌了吗 章鱼百科真离谱");
+    rt.appendAssistantTurn("纸箱床和章鱼别再提啦");
+    rt.addThread("纸箱床照片到底拍没拍");
+    const ths = rt.getThreads();
+    assert.equal(ths.length, 1);
+    assert.equal(ths[0].expiresAt - ths[0].createdAt, 2 * 3600_000);
+
+    // 2.1 小时后线头自动过期被清理
+    clockMs += 2.1 * 3600_000;
+    assert.equal(rt.getThreads().length, 0);
+
+    let tickRollIdx = 0;
+    const rolls = [0.95, 0.25, 0.55, 0.85, 0.15, 0.45, 0.75];
+    const runner = createProactiveRunner({
+      getTargets: () => [
+        {
+          channel: "feishu",
+          client: {
+            capabilities: { unlimitedProactive: true, channelName: "feishu" },
+            async sendPrivateMessage() {
+              return { message_id: "m-angle" };
+            },
+          },
+          account: { ownerOpenId: "ou_test", proactiveDailyMax: 30, proactiveCooldownMin: 30, partDelayMs: 0 },
+        },
+      ],
+      runtime: rt,
+      getWorldState: () => ({ phase: "afternoon", weather: "clear", place: "客厅", band: "calm", mood: { valence: 0.55, social: 0.4 } }),
+      queryMemory: async () => ({
+        semantic: true,
+        l0: [{ text: "喜欢看搞笑短片" }],
+        hits: [
+          { text: "之前聊过纸箱床尺寸", tier: "L2" },
+          { text: "周末喜欢逛逛菜市场", tier: "L2" },
+        ],
+      }),
+      now: () => clockMs,
+      rng: () => rolls[tickRollIdx++ % rolls.length],
+    });
+
+    const anglesPicked = [];
+    for (let i = 0; i < 5; i++) {
+      clockMs += 50 * 60_000;
+      const r = await runner.tick();
+      assert.equal(r.ok, true);
+      anglesPicked.push(r.angle);
+    }
+
+    assert.equal(new Set(anglesPicked).size, 5, `expected 5 distinct proactive angles, got ${anglesPicked.join(",")}`);
+    assert.ok(searchCalls.length <= 1, "web_tidbit cooldown stops search from firing every turn");
+    assert.ok(promptsSeen[0].includes("【强制开启全新话题，严禁翻旧账】"), "injects old-topic ban block");
+    assert.ok(promptsSeen[0].includes("纸箱床") || promptsSeen[0].includes("章鱼"), "bans repeated recent nouns");
+    assert.ok(!promptsSeen[0].includes("之前聊过纸箱床尺寸"), "filters out stale forbidden memory hits");
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
 });

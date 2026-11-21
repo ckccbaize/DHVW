@@ -27,6 +27,19 @@ npm run validate -- www/assets/scenes/home   # 场景包校验（§15 不变量�
 # 核心机骨架自检页：http://127.0.0.1:8080/debug-core.html
 ```
 
+发布打包（一条命令，产物落 `dist/`）：
+
+```bash
+npm run release:pc    # PC 测试包：www + 四个桌面壳 + 启动器 → arm-pc-test.{zip,tar.gz}
+npm run release:arm   # ARM 真机部署包 → arm-deploy.tar.gz
+npm run release       # 两个都打
+```
+
+脚本做完整前置：场景包清单 → 资源包 manifest → manifest 校验 → 6 个场景包结构校验
+→ 交叉编译 → 压缩。启动器与包说明的源文件在 `packaging/pc/`，其中
+`start-windows.bat` 必须是纯 ASCII + CRLF（cmd.exe 按 OEM 代码页解析，中文注释会让整行错位），
+`tools/packaging.mjs` 会强制校验并在 `tests/packaging.test.mjs` 里有对应回归。
+
 设备端：
 
 ```bash
@@ -56,6 +69,7 @@ docs/UI-STYLE.md        设备 UI 风格（赛璐璐/像素字体/布局约束�
 shell/                  离线只读静态壳（Go，交叉编译 arm64/armv7）
 www/                    资源包：页面 + 模块 + Worker + 家园场景
 deploy/                 systemd / kiosk / 禁休眠 / 安装
-tools/                  serve / pack / verify
+packaging/pc/           PC 测试包的启动器与说明模板（release.mjs 渲染）
+tools/                  serve / pack / verify / release
 tests/                  node --test
 ```

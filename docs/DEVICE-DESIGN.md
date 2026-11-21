@@ -432,6 +432,12 @@ curl -s http://127.0.0.1:8080/__health
 
 实测全长约 21s（`?scenes=home,bookstore,cafe,park`）。
 
+> **测试版默认口径（2026-11-20）**：默认场景改为全部功能区
+> `home,office,bookstore,cafe,park`，且默认只出鲸鱼娘（`DEFAULT_LOOKS=["whale"]`）。
+> 上表的 4 图/3 形象节拍是旧宣传片口径，传
+> `?scenes=home,bookstore,cafe,park&looks=whale,atri,miku` 可复现。
+> `indoor-66500` 是 `cafe` 的同图副本，随包保留但不进巡演。
+
 **街景步速是室内的两倍**：`STREET_CELLS_PER_SEC = 1/0.17`（室内 `1/0.35`）。
 出门后是赶路不是散步，原来 0.35s/格让每段要 5.1s，观感拖沓（用户反馈「速度太慢」）。
 实测段时长 5.1s → **2.49 / 2.50 / 3.16s**，全程 29s → 21.3s。

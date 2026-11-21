@@ -4,7 +4,8 @@
 //
 // 画面全部画在 canvas 上（含总观浮层），captureStream 录到的就是成片：
 // 开场（总观 UI 展开 → 收起 + 天黑到天亮）→ 家里起床/吃饭/出门
-// → 街景连续带（书店 → 咖啡厅 → 公园，逐段向前走、接缝雾化）→ 淡出 → 保存录像。
+// → 街景连续带（办公室 → 书店 → 咖啡厅 → 公园，逐段向前走、接缝雾化）→ 淡出 → 保存录像。
+// 测试版默认只出鲸鱼娘；`?looks=whale,atri,miku` 可恢复逐个场景换装的宣传片版本。
 
 import { bfsPath, isWalkable, nearestWalkable } from "./core/grid.js";
 import { phaseOf, weekdayInfo } from "./core/clock.js";
@@ -22,14 +23,28 @@ const CLOCK_MIN_PER_SEC = 10;          // 1 秒 = 10 分钟：出门时已过 08
 const HUD_IN_MS = 900;                 // 总观浮层展开
 const HUD_HIDE_AT_MS = 3600;           // 展开后停留，再收起
 const HUD_FADE_MS = 1200;
-const SCENE_LINES = { bookstore: "书店里很安静。", cafe: "是咖啡的味道。", park: "公园的风很舒服。" };
+const SCENE_LINES = {
+  office: "办公室还亮着灯。",
+  bookstore: "书店里很安静。",
+  cafe: "是咖啡的味道。",
+  park: "公园的风很舒服。",
+};
+
+// 测试版默认：当前全部功能区地图（indoor-66500 是 cafe 的同图副本，不进巡演，但随包保留）。
+const DEFAULT_SCENES = ["home", "office", "bookstore", "cafe", "park"];
+// 测试版默认：只出大肥鱼鲸鱼娘；需要旧宣传片的换装演示时传 ?looks=whale,atri,miku。
+const DEFAULT_LOOKS = ["whale"];
 
 const params = new URLSearchParams(location.search);
 const opts = {
   record: params.get("record") !== "0",
   debug: params.get("debug") === "1",
   bitrate: Math.max(1_000_000, Number(params.get("bitrate")) || 6_000_000),
-  scenes: (params.get("scenes") || "home,bookstore,cafe,park")
+  scenes: (params.get("scenes") || DEFAULT_SCENES.join(","))
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
+  looks: (params.get("looks") || DEFAULT_LOOKS.join(","))
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean),
@@ -82,7 +97,7 @@ const lookCache = new Map();
  */
 async function loadLooks() {
   await Promise.all(
-    LOOKS.map(async (name) => {
+    (opts.looks.length ? opts.looks : LOOKS).map(async (name) => {
       try {
         const [sheet, img] = await Promise.all([
           loadCachedJSON(`assets/char/looks/${name}.json`),
@@ -99,7 +114,8 @@ async function loadLooks() {
 
 /** 切到第 i 个场景该用的形象；同步生效，下一帧就画新立绘。 */
 function applyLook(i) {
-  const avail = LOOKS.filter((n) => lookCache.has(n));
+  const want = opts.looks.length ? opts.looks : LOOKS;
+  const avail = want.filter((n) => lookCache.has(n));
   if (!avail.length) return;
   const name = lookFor(i, avail);
   const hit = lookCache.get(name);
