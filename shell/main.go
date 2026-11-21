@@ -721,6 +721,28 @@ func (s *server) findQqServerScript() string {
 	return ""
 }
 
+// findNode 找 node 可执行文件：优先包内自带（<包>/node/node.exe），再回退 PATH。
+// 测试包随包带 node 后，目标机器不需要预装 Node 22；包里没有时才退到系统安装。
+func (s *server) findNode() string {
+	candidates := []string{
+		os.Getenv("DHVW_NODE"),
+		filepath.Join(filepath.Dir(s.root), "node", "node.exe"),
+		filepath.Join(filepath.Dir(s.root), "node", "node"),
+	}
+	for _, c := range candidates {
+		if c == "" {
+			continue
+		}
+		if st, err := os.Stat(c); err == nil && !st.IsDir() {
+			return c
+		}
+	}
+	if p, err := exec.LookPath("node"); err == nil {
+		return p
+	}
+	return ""
+}
+
 func (s *server) qqAlive() bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 350*time.Millisecond)
 	defer cancel()
@@ -754,17 +776,18 @@ func (s *server) ensureQqStarted() {
 		)
 		return
 	}
-	if _, err := exec.LookPath("node"); err != nil {
-		s.qqLastError = "找不到 node 可执行文件：QQ/飞书网关需要 Node 22+ 才能运行"
+	nodeBin := s.findNode()
+	if nodeBin == "" {
+		s.qqLastError = "找不到 node 可执行文件：请把 node.exe 放到包的 node/ 目录，或安装 Node 22.14+"
 		return
 	}
 	stateDir := filepath.Join(s.dataDir, "qq-openclaw")
 	_ = os.MkdirAll(stateDir, 0o755)
-	cmd := exec.Command("node", script, "-followBoost", "-stateDir", stateDir)
+	cmd := exec.Command(nodeBin, script, "-followBoost", "-stateDir", stateDir)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
-		s.qqLastError = fmt.Sprintf("启动 qq-openclaw 失败: %v", err)
+		s.qqLastError = fmt.Sprintf("启动 qq-openclaw 失败（%s）: %v", nodeBin, err)
 		log.Printf("[qq] %s", s.qqLastError)
 		return
 	}
@@ -891,14 +914,22 @@ func (s *server) serveQqProxy(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) serveHealth(w http.ResponseWriter, r *http.Request) {
-	// 网关能力：测试包常常不带 qq-openclaw、机器也可能没有 Node。
-	// 提前暴露出来，PC 侧和排查时能立刻看出「这个包根本跑不了 QQ/飞书」，
-	// 而不是等到页面显示「待连」再猜。
-	_, nodeErr := exec.LookPath("node")
+	// 网关能力：让排查时一眼看出这个包能不能跑网关、用的是哪个 node。
+	// 包内自带 node 时不再依赖系统安装，nodeSource 区分 bundled/system。
+	nodeBin := s.findNode()
 	qqScript := s.findQqServerScript()
 	s.qqMu.Lock()
 	qqErr := s.qqLastError
 	s.qqMu.Unlock()
+	nodeSource := ""
+	if nodeBin != "" {
+		rootDir := filepath.Dir(s.root)
+		if strings.HasPrefix(nodeBin, filepath.Join(rootDir, "node")) {
+			nodeSource = "bundled"
+		} else {
+			nodeSource = "system"
+		}
+	}
 	body := map[string]any{
 		"ok":       len(s.pack.Missing) == 0 && len(s.pack.SizeBad) == 0 && len(s.pack.HashBad) == 0,
 		"version":  s.version,
@@ -909,8 +940,10 @@ func (s *server) serveHealth(w http.ResponseWriter, r *http.Request) {
 		"gateway": map[string]any{
 			"script":      qqScript,
 			"scriptFound": qqScript != "",
-			"node":        nodeErr == nil,
-			"available":   qqScript != "" && nodeErr == nil,
+			"node":        nodeBin != "",
+			"nodePath":    nodeBin,
+			"nodeSource":  nodeSource,
+			"available":   qqScript != "" && nodeBin != "",
 			"lastError":   qqErr,
 		},
 		"time": time.Now().Format(time.RFC3339),
