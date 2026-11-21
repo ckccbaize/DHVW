@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "built_at": "2026-11-20T12:01:56.540Z",
+ "built_at": "2026-11-21T06:39:12.328Z",
  "files": [
   {
    "path": "agent/registry.json",
@@ -544,8 +544,8 @@
   },
   {
    "path": "assets/scenes/bookstore/manifest.json",
-   "size": 1462,
-   "sha256": "bea11ea6831e8f15eb2cc7a4b933fc8e387ee62a40d5c7edd793557b000bc6a3"
+   "size": 1192,
+   "sha256": "9d8080322a0aae0d259fa98277c69f66436fdf179782d289fee8b11b13fb9eb9"
   },
   {
    "path": "assets/scenes/bookstore/scene.json",
@@ -584,8 +584,8 @@
   },
   {
    "path": "assets/scenes/cafe/character/sheet.json",
-   "size": 7725,
-   "sha256": "ae926639c980e11f3064b0a15246a44a1d99a860fe77a399a7ac9aa288251ace"
+   "size": 8397,
+   "sha256": "281c042ccf9459cea7dd44c0e4da4bb9a262fcd48fa2b082e59bc5a13abaf119"
   },
   {
    "path": "assets/scenes/cafe/character/sheet.png",
@@ -614,8 +614,8 @@
   },
   {
    "path": "assets/scenes/cafe/manifest.json",
-   "size": 1240,
-   "sha256": "937a5381e77d39c00b263d148585b7570102035050c6a45973ef4cb46d8fc311"
+   "size": 1187,
+   "sha256": "b11eec56964646e5acbe5a9a974dfccceaa1d50a470ee4365c43a3564bff42ef"
   },
   {
    "path": "assets/scenes/cafe/scene.json",
@@ -689,8 +689,8 @@
   },
   {
    "path": "assets/scenes/home/manifest.json",
-   "size": 1232,
-   "sha256": "17b9d7b77c808922b514224af13e4e9a73e54f96d8a2e41b8c0d2442517be891"
+   "size": 1187,
+   "sha256": "add6dbcae8bd6c02ad0199f5babc3d4249f4d5189e8396ac365e5cc0921dd636"
   },
   {
    "path": "assets/scenes/home/scene.json",
@@ -759,8 +759,8 @@
   },
   {
    "path": "assets/scenes/indoor-66500/manifest.json",
-   "size": 1238,
-   "sha256": "c6a43f1317dbf9b8d6ab27759f988f91eff92aeedcec1a0938f78e72f0045d27"
+   "size": 1193,
+   "sha256": "f66460731bc38d3e679d93dbd96d4d1ecccba8e507edb7b0fa0d909e89550938"
   },
   {
    "path": "assets/scenes/indoor-66500/scene.json",
@@ -809,8 +809,8 @@
   },
   {
    "path": "assets/scenes/office/manifest.json",
-   "size": 1233,
-   "sha256": "fe014c44490b07f4706f1b4feefa90a4d5d9d7e6db36965b460ce6197695304c"
+   "size": 1188,
+   "sha256": "3187417496b5c68099e1697b930a3fc0421720acd918ef6e6a575d1f0a4313d6"
   },
   {
    "path": "assets/scenes/office/office.built.json",
@@ -884,8 +884,8 @@
   },
   {
    "path": "assets/scenes/park/manifest.json",
-   "size": 1440,
-   "sha256": "82a72eda949fc0d010da0ec21201f5a8180ac0f41cc05ac536c4685766055353"
+   "size": 1185,
+   "sha256": "fd70d3f3aea2b6b56fdb3bf69d788fce9b4e852ff4e9c1ec06ae47ea465e132c"
   },
   {
    "path": "assets/scenes/park/park.built.json",
@@ -964,8 +964,8 @@
   },
   {
    "path": "js/app.js",
-   "size": 67126,
-   "sha256": "10d0c86391edd727986aff439b055715ef47fcdd7c7e4cd676953a98d519caa3"
+   "size": 68149,
+   "sha256": "105769aefe69650bea28db23e10bdfab59c15e70d1163629c24e32d35d8947a7"
   },
   {
    "path": "js/core/actions/browse.js",
@@ -1284,8 +1284,8 @@
   },
   {
    "path": "js/tour.js",
-   "size": 31736,
-   "sha256": "91deac9f64911f95b989f6a6d4470672f7909c07600f327014f1b669a59f8b77"
+   "size": 32462,
+   "sha256": "e8f47150e930294fa106adffbf00530fc93f722476f6166f50ec6cbf9d02de36"
   },
   {
    "path": "js/view/hud.js",

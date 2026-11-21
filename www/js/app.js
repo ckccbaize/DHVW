@@ -1501,6 +1501,8 @@ async function boot() {
     let qqEventsWired = false;
     let qqActive = false;
     let boostGateways = { qq: true, feishu: false };
+    // 壳报回来的「为什么网关起不来」，显示在 HUD 上，避免「待连」无法自查。
+    let qqStartError = "";
 
     const pushWorldState = () => {
       if (!qqBridge) return;
@@ -1624,13 +1626,20 @@ async function boot() {
       if (fsOn) names.push("飞书");
       const tag = names.length ? names.join("/") : "无网关";
       qqBoostPill.classList.toggle("live", connected && paired);
-      qqBoostPill.textContent = !names.length
-        ? "BOOST · 未选网关"
-        : connected
-          ? paired
-            ? `BOOST · ${tag}在线`
-            : `BOOST · ${tag}待激活`
-          : `BOOST · ${tag}待连`;
+      if (qqStartError && !connected) {
+        // 网关没起来时优先说原因：这比「待连」有用得多。
+        qqBoostPill.textContent = `BOOST · 网关未就绪`;
+        qqBoostPill.title = qqStartError;
+      } else {
+        qqBoostPill.title = "";
+        qqBoostPill.textContent = !names.length
+          ? "BOOST · 未选网关"
+          : connected
+            ? paired
+              ? `BOOST · ${tag}在线`
+              : `BOOST · ${tag}待激活`
+            : `BOOST · ${tag}待连`;
+      }
     };
 
     const handleQqStatus = (st) => {
@@ -1644,12 +1653,24 @@ async function boot() {
       qqActive = true;
       updateHudPill();
       try {
-        await fetch("/__qq/boost", {
+        const res = await fetch("/__qq/boost", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ enabled: true, gateways: boostGateways }),
         });
-      } catch {}
+        // 壳会在拉起 qq-openclaw 失败时回 503 + error（缺 Node / 缺脚本 / 端口占用等）。
+        // 以前这里空 catch，用户只看到「待连」，无法判断是配置问题还是包不全。
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          qqStartError = data?.error || `网关未就绪（HTTP ${res.status}）`;
+          updateHudPill();
+        } else {
+          qqStartError = "";
+        }
+      } catch (err) {
+        qqStartError = `无法连接本地壳：${err?.message || err}`;
+        updateHudPill();
+      }
       if (!qqActive) return;
       if (!qqBridge) {
         qqBridge = createQqBridge({

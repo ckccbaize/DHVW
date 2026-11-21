@@ -105,6 +105,10 @@ type server struct {
 	llmClient  *http.Client
 	qqMu       sync.Mutex
 	qqCmd      *exec.Cmd
+	// qqLastError 记录最近一次无法拉起 qq-openclaw 的原因。
+	// 之前找不到脚本时静默 return，前端只能显示「待连」，用户无从判断是缺 Node、
+	// 缺 qq-openclaw 目录，还是端口被占。
+	qqLastError string
 }
 
 func (s *server) rebuildLLMClient() {
@@ -743,6 +747,15 @@ func (s *server) ensureQqStarted() {
 	}
 	script := s.findQqServerScript()
 	if script == "" {
+		// 明确记下来源与期望路径：测试包里通常不带 qq-openclaw，必须能看出是这个原因。
+		s.qqLastError = fmt.Sprintf(
+			"找不到 qq-openclaw 服务脚本（期望 %s，或设置 DHVW_QQ_SERVER）",
+			filepath.Join(filepath.Dir(s.root), "qq-openclaw", "dist", "dhvw-server.js"),
+		)
+		return
+	}
+	if _, err := exec.LookPath("node"); err != nil {
+		s.qqLastError = "找不到 node 可执行文件：QQ/飞书网关需要 Node 22+ 才能运行"
 		return
 	}
 	stateDir := filepath.Join(s.dataDir, "qq-openclaw")
@@ -751,9 +764,11 @@ func (s *server) ensureQqStarted() {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
-		log.Printf("[qq] 启动 qq-openclaw 失败: %v", err)
+		s.qqLastError = fmt.Sprintf("启动 qq-openclaw 失败: %v", err)
+		log.Printf("[qq] %s", s.qqLastError)
 		return
 	}
+	s.qqLastError = ""
 	s.qqCmd = cmd
 	go func(c *exec.Cmd) {
 		_ = c.Wait()
@@ -803,6 +818,18 @@ func (s *server) serveQqProxy(w http.ResponseWriter, r *http.Request) {
 		_ = json.Unmarshal(rawBody, &b)
 		if b.Enabled {
 			s.ensureQqStarted()
+			// 起不来就如实回报：前端据此显示「网关未就绪：<原因>」，
+			// 而不是让用户对着「待连」猜是配置错还是包不全。
+			s.qqMu.Lock()
+			reason := s.qqLastError
+			s.qqMu.Unlock()
+			if reason != "" && !s.qqAlive() {
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.Header().Set("Cache-Control", "no-store")
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "running": false, "error": reason})
+				return
+			}
 		} else {
 			s.stopQqChild()
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -842,10 +869,18 @@ func (s *server) serveQqProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	resp, err := s.httpClient.Do(hr)
 	if err != nil {
+		s.qqMu.Lock()
+		reason := s.qqLastError
+		s.qqMu.Unlock()
+		payload := map[string]any{"ok": true, "running": false, "configured": false, "paired": false}
+		if reason != "" {
+			// 让页面能显示「网关未就绪」的具体原因，而不是只看到「待连」。
+			payload["error"] = reason
+		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "running": false, "configured": false, "paired": false})
+		_ = json.NewEncoder(w).Encode(payload)
 		return
 	}
 	defer resp.Body.Close()
@@ -856,6 +891,14 @@ func (s *server) serveQqProxy(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) serveHealth(w http.ResponseWriter, r *http.Request) {
+	// 网关能力：测试包常常不带 qq-openclaw、机器也可能没有 Node。
+	// 提前暴露出来，PC 侧和排查时能立刻看出「这个包根本跑不了 QQ/飞书」，
+	// 而不是等到页面显示「待连」再猜。
+	_, nodeErr := exec.LookPath("node")
+	qqScript := s.findQqServerScript()
+	s.qqMu.Lock()
+	qqErr := s.qqLastError
+	s.qqMu.Unlock()
 	body := map[string]any{
 		"ok":       len(s.pack.Missing) == 0 && len(s.pack.SizeBad) == 0 && len(s.pack.HashBad) == 0,
 		"version":  s.version,
@@ -863,7 +906,14 @@ func (s *server) serveHealth(w http.ResponseWriter, r *http.Request) {
 		"requests": s.hits.Load(),
 		"pack":     s.pack,
 		"root":     s.root,
-		"time":     time.Now().Format(time.RFC3339),
+		"gateway": map[string]any{
+			"script":      qqScript,
+			"scriptFound": qqScript != "",
+			"node":        nodeErr == nil,
+			"available":   qqScript != "" && nodeErr == nil,
+			"lastError":   qqErr,
+		},
+		"time": time.Now().Format(time.RFC3339),
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
