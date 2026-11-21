@@ -1,12 +1,24 @@
-# DHVW 虚拟生命舱 (Digital Human Virtual Warehouse)
+<p align="center">
+  <img src="assets/logo.jpg" width="140" alt="DHVW Logo" style="border-radius: 28px;" />
+</p>
 
-[![Architecture](https://img.shields.io/badge/Architecture-PC%20Host%20%2B%20ARM%20Edge-blue.svg)](#-系统整体架构)
-[![PC Runtime](https://img.shields.io/badge/PC-Electron%2045%20%7C%20Python%203.12-brightgreen.svg)](#1-pc-主机端开发与运行)
-[![ARM Runtime](https://img.shields.io/badge/ARM-RK3566%20%7C%20Go%20%7C%20Chromium%20Kiosk-orange.svg)](#2-arm-设备端开发与部署)
-[![License](https://img.shields.io/badge/License-NonCommercial%20OpenSource-purple.svg)](#-许可证与致谢)
+<h1 align="center">DHVW 虚拟生命舱</h1>
 
-> **局域网协同的陪伴式数字人虚拟生命系统**。  
-> 核心计算与大模型运行在 PC 端（核心脑），轻量级表现层与生活自治引擎常驻在 ARM 硬件设备（生命舱）。
+<p align="center">
+  <strong>给 AI 一个 24 小时永不熄灭的世界</strong><br />
+  <em>Digital Human Virtual Warehouse · 局域网协同的桌面陪伴式数字人系统</em>
+</p>
+
+<p align="center">
+  <a href="#-系统整体架构"><img src="https://img.shields.io/badge/Architecture-PC%20Host%20%2B%20ARM%20Edge-blue.svg" alt="Architecture" /></a>
+  <a href="#1-pc-主机端开发与运行"><img src="https://img.shields.io/badge/PC-Electron%2045%20%7C%20Python%203.12-brightgreen.svg" alt="PC Runtime" /></a>
+  <a href="#2-arm-设备端开发与部署"><img src="https://img.shields.io/badge/ARM-RK3566%20%7C%20Go%20%7C%20Chromium%20Kiosk-orange.svg" alt="ARM Runtime" /></a>
+  <a href="#-许可证与致谢"><img src="https://img.shields.io/badge/License-NonCommercial%20OpenSource-purple.svg" alt="License" /></a>
+</p>
+
+<p align="center">
+  <img src="assets/card.jpg" width="820" alt="DHVW 虚拟生命舱 项目名片" />
+</p>
 
 ---
 
