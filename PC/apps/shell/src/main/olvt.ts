@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { COMPONENTS, resolveComponentDir } from './components'
-import { overridesRoot } from './paths'
+import { overridesRoot, bundledResourceDir } from './paths'
 import { renderOlvtConf, writeOlvtConf, type OlvtConfInput } from './olvt-conf'
 import { olvtModelEntry, type Live2dModelRef } from './live2d-models'
 import { log } from './logger'
@@ -58,6 +58,24 @@ export interface PrepareInput extends Omit<OlvtConfInput, 'port'> {
 }
 
 /**
+ * 上游 GitHub 源码归档里 `frontend/` 只有源码，没有构建产物，下载完 `/?remote=1` 直接 404
+ * ——显现模式必然打不开（2026-11-21 实测）。所以前端产物随安装包带一份，缺了才拷。
+ * 已有 `index.html` 就不动，避免覆盖用户手工替换的前端。
+ */
+function ensureFrontend(dir: string): void {
+  const bundled = path.join(bundledResourceDir(), 'olvt-frontend')
+  if (!fs.existsSync(path.join(bundled, 'index.html'))) {
+    log('warn', 'olvt', '随包前端产物缺失，显现页面将不可用', { dir: bundled })
+    return
+  }
+  const target = path.join(dir, 'frontend')
+  if (fs.existsSync(path.join(target, 'index.html'))) return
+  fs.mkdirSync(target, { recursive: true })
+  fs.cpSync(bundled, target, { recursive: true, force: true })
+  log('info', 'olvt', '前端产物已落地', { dir: target })
+}
+
+/**
  * 把选中的模型同步进 OLVT 目录：模型文件（缺才拷）+ model_dict.json 条目。
  * OLVT 只在自己的 `live2d-models/` 与 `model_dict.json` 里找模型，二者必须一起就位。
  */
@@ -88,6 +106,7 @@ export function syncOlvtModel(dir: string, model: Live2dModelRef): void {
 /** 写 conf.yaml + 落地补丁；返回 conf 路径 */
 export function prepareOlvt(input: PrepareInput): string {
   copyOverrides(input.dir)
+  ensureFrontend(input.dir)
   const conf = writeOlvtConf(input.dir, renderOlvtConf(input))
   log('info', 'olvt', 'conf.yaml 已生成', {
     dir: input.dir,
