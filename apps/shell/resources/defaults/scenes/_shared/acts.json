@@ -1,0 +1,291 @@
+{
+  "schema_version": 1,
+  "note": "已注册 act 词表（§14.7）：生成器与模型只能在这里选，不得新增 id。effects/requires 只能用 §14.3/§14.4 的枚举。",
+  "acts": {
+    "sleep": {
+      "label": "睡觉",
+      "trigger": { "props": ["bed"] },
+      "requires": [{ "kind": "time", "between": ["22:00", "07:00"] }],
+      "perform": { "animation": "sleep", "duration_min": 480, "interruptible": true },
+      "effects": [
+        { "kind": "mood", "target": "energy", "delta": 1.0, "apply": "on_complete" },
+        { "kind": "mood", "target": "energy", "delta": 0.5, "apply": "on_interrupt" },
+        { "kind": "advance_time", "minutes": 480 },
+        { "kind": "event", "name": "sleep" }
+      ],
+      "priority": 10,
+      "bubble": "睡一会儿。",
+      "tags": ["quiet", "night"]
+    },
+    "lie_down": {
+      "label": "躺一下",
+      "trigger": { "props": ["bed"] },
+      "perform": { "animation": "rest", "duration_min": 20, "interruptible": true },
+      "effects": [
+        { "kind": "mood", "target": "energy", "delta": 0.1, "apply": "on_complete" },
+        { "kind": "event", "name": "lie_down" }
+      ],
+      "priority": 3,
+      "tags": ["quiet"]
+    },
+    "watch_tv": {
+      "label": "看电视",
+      "trigger": { "props": ["tv"] },
+      "perform": { "animation": "watch_tv", "duration_min": 45, "interruptible": true },
+      "effects": [
+        { "kind": "mood", "target": "valence", "delta": 0.12, "apply": "on_complete" },
+        { "kind": "event", "name": "watch_tv" }
+      ],
+      "priority": 6,
+      "bubble": "看会儿电视。",
+      "tags": ["quiet", "leisure"]
+    },
+    "sit_sofa": {
+      "label": "窝在沙发",
+      "trigger": { "props": ["sofa"] },
+      "perform": { "animation": "sit", "duration_min": 20, "interruptible": true },
+      "effects": [
+        { "kind": "mood", "target": "valence", "delta": 0.05, "apply": "on_complete" },
+        { "kind": "event", "name": "sit_sofa" }
+      ],
+      "priority": 4,
+      "tags": ["quiet", "leisure"]
+    },
+    "rest_armchair": {
+      "label": "瘫一会儿",
+      "trigger": { "props": ["armchair", "fountain"] },
+      "perform": { "animation": "rest", "duration_min": 25, "interruptible": true },
+      "effects": [
+        { "kind": "mood", "target": "energy", "delta": 0.15, "apply": "on_complete" },
+        { "kind": "event", "name": "rest_armchair" }
+      ],
+      "priority": 4,
+      "tags": ["quiet"]
+    },
+    "sit_chair": {
+      "label": "坐下",
+      "trigger": { "props": ["chair", "bench", "stool", "office_chair"] },
+      "perform": { "animation": "sit", "duration_min": 15, "interruptible": true },
+      "effects": [
+        { "kind": "mood", "target": "energy", "delta": 0.05, "apply": "on_complete" },
+        { "kind": "event", "name": "sit_chair" }
+      ],
+      "priority": 2,
+      "tags": ["quiet"]
+    },
+    "eat": {
+      "label": "吃饭",
+      "trigger": { "props": ["table", "cafe_table"] },
+      "perform": { "animation": "eat", "duration_min": 30, "interruptible": true },
+      "effects": [
+        { "kind": "mood", "target": "energy", "delta": 0.3, "apply": "on_complete" },
+        { "kind": "mood", "target": "valence", "delta": 0.1, "apply": "on_complete" },
+        { "kind": "advance_time", "minutes": 30 },
+        { "kind": "event", "name": "eat" }
+      ],
+      "priority": 8,
+      "bubble": "先吃饭。",
+      "tags": ["meal"]
+    },
+    "cook": {
+      "label": "做饭",
+      "trigger": { "props": ["stove", "counter"] },
+      "requires": [{ "kind": "place", "in": ["hall", "pantry"] }],
+      "perform": { "animation": "cook", "duration_min": 40, "interruptible": true },
+      "effects": [
+        { "kind": "mood", "target": "valence", "delta": 0.15, "apply": "on_complete" },
+        { "kind": "mood", "target": "energy", "delta": -0.02, "apply": "per_minute" },
+        { "kind": "event", "name": "cook" }
+      ],
+      "priority": 5,
+      "bubble": "锅开了。",
+      "tags": ["meal", "chore"]
+    },
+    "snack": {
+      "label": "翻冰箱",
+      "trigger": { "props": ["fridge"] },
+      "perform": { "animation": "eat", "duration_min": 10, "interruptible": true },
+      "effects": [
+        { "kind": "mood", "target": "energy", "delta": 0.08, "apply": "on_complete" },
+        { "kind": "set_flag", "name": "fridge_open" },
+        { "kind": "clear_flag", "name": "fridge_open" },
+        { "kind": "event", "name": "snack" }
+      ],
+      "priority": 4,
+      "tags": ["meal"]
+    },
+    "read": {
+      "label": "看书",
+      "trigger": { "props": ["bookshelf", "shelf"] },
+      "perform": { "animation": "read", "duration_min": 45, "interruptible": true },
+      "effects": [
+        { "kind": "mood", "target": "valence", "delta": 0.08, "apply": "on_complete" },
+        { "kind": "event", "name": "read" }
+      ],
+      "priority": 5,
+      "tags": ["quiet", "leisure"]
+    },
+    "water_plants": {
+      "label": "浇花",
+      "trigger": { "props": ["plant", "plant_big", "flowerbed", "tree"] },
+      "perform": { "animation": "water_plants", "duration_min": 5, "interruptible": true },
+      "effects": [
+        { "kind": "mood", "target": "valence", "delta": 0.06, "apply": "on_complete" },
+        { "kind": "event", "name": "water_plants" }
+      ],
+      "priority": 3,
+      "bubble": "喝点水。",
+      "tags": ["chore", "quiet"]
+    },
+    "laundry": {
+      "label": "洗衣服",
+      "trigger": { "props": ["washer"] },
+      "perform": { "animation": "laundry", "duration_min": 45, "interruptible": true },
+      "effects": [
+        { "kind": "mood", "target": "energy", "delta": -0.05, "apply": "per_minute" },
+        { "kind": "event", "name": "laundry" }
+      ],
+      "priority": 4,
+      "tags": ["chore"]
+    },
+    "bathe": {
+      "label": "泡澡",
+      "trigger": { "props": ["bathtub"] },
+      "perform": { "animation": "bathe", "duration_min": 30, "interruptible": true },
+      "effects": [
+        { "kind": "mood", "target": "valence", "delta": 0.1, "apply": "on_complete" },
+        { "kind": "mood", "target": "energy", "delta": 0.2, "apply": "on_complete" },
+        { "kind": "event", "name": "bathe" }
+      ],
+      "priority": 5,
+      "tags": ["quiet"]
+    },
+    "wash_up": {
+      "label": "洗脸",
+      "trigger": { "props": ["sink"] },
+      "perform": { "animation": "wash_up", "duration_min": 5, "interruptible": true },
+      "effects": [
+        { "kind": "mood", "target": "energy", "delta": 0.05, "apply": "on_complete" },
+        { "kind": "event", "name": "wash_up" }
+      ],
+      "priority": 4,
+      "tags": ["habit"]
+    },
+    "use_toilet": {
+      "label": "上厕所",
+      "trigger": { "props": ["toilet"] },
+      "perform": { "animation": "use_toilet", "duration_min": 5, "interruptible": false },
+      "effects": [{ "kind": "event", "name": "use_toilet" }],
+      "priority": 6,
+      "tags": ["habit"]
+    },
+    "change_clothes": {
+      "label": "换衣服",
+      "trigger": { "props": ["wardrobe", "dresser"] },
+      "perform": { "animation": "dress", "duration_min": 10, "interruptible": true },
+      "effects": [
+        { "kind": "set_flag", "name": "dressed" },
+        { "kind": "event", "name": "change_clothes" }
+      ],
+      "priority": 3,
+      "tags": ["habit"]
+    },
+    "play_with_cat": {
+      "label": "逗猫",
+      "trigger": { "props": ["cat_tree"] },
+      "perform": { "animation": "play_cat", "duration_min": 20, "interruptible": true },
+      "effects": [
+        { "kind": "mood", "target": "valence", "delta": 0.15, "apply": "on_complete" },
+        { "kind": "say", "text": "过来呀。", "ttl": 3 },
+        { "kind": "event", "name": "play_with_cat" }
+      ],
+      "priority": 6,
+      "bubble": "过来呀。",
+      "tags": ["social", "leisure"]
+    },
+    "hang_coat": {
+      "label": "挂外套",
+      "trigger": { "props": ["coat_rack"] },
+      "perform": { "animation": "hang_coat", "duration_min": 2, "interruptible": true },
+      "effects": [
+        { "kind": "set_flag", "name": "coat_hung" },
+        { "kind": "event", "name": "hang_coat" }
+      ],
+      "priority": 2,
+      "tags": ["habit"]
+    },
+    "toggle_lamp": {
+      "label": "开灯",
+      "trigger": { "props": ["lamp"] },
+      "perform": { "animation": "idle", "duration_min": 1, "interruptible": true },
+      "effects": [
+        { "kind": "set_flag", "name": "lamp_on" },
+        { "kind": "event", "name": "toggle_lamp" }
+      ],
+      "priority": 2,
+      "tags": ["habit"]
+    },
+    "work": {
+      "label": "干活",
+      "trigger": { "props": ["desk", "workdesk", "desk_modern"] },
+      "perform": { "animation": "work", "duration_min": 90, "interruptible": true },
+      "effects": [
+        { "kind": "mood", "target": "energy", "delta": -0.02, "apply": "per_minute" },
+        { "kind": "mood", "target": "valence", "delta": 0.05, "apply": "on_complete" },
+        { "kind": "produce_artifact", "template": "work_log" },
+        { "kind": "event", "name": "work" }
+      ],
+      "priority": 7,
+      "bubble": "先把这段写完。",
+      "tags": ["focus"]
+    },
+    "meet": {
+      "label": "开会",
+      "trigger": { "props": ["whiteboard", "table"] },
+      "requires": [{ "kind": "place", "in": ["meeting", "office"] }],
+      "perform": { "animation": "meet", "duration_min": 60, "interruptible": true },
+      "effects": [
+        { "kind": "mood", "target": "energy", "delta": -0.01, "apply": "per_minute" },
+        { "kind": "set_flag", "name": "in_meeting" },
+        { "kind": "clear_flag", "name": "in_meeting" },
+        { "kind": "event", "name": "meet" }
+      ],
+      "priority": 6,
+      "bubble": "这个方案再对一下。",
+      "tags": ["social", "focus"]
+    },
+    "print": {
+      "label": "打印",
+      "trigger": { "props": ["printer"] },
+      "perform": { "animation": "print", "duration_min": 10, "interruptible": true },
+      "effects": [
+        { "kind": "mood", "target": "energy", "delta": -0.02, "apply": "on_complete" },
+        { "kind": "event", "name": "print" }
+      ],
+      "priority": 3,
+      "tags": ["chore"]
+    },
+    "drink_water": {
+      "label": "接水",
+      "trigger": { "props": ["cooler"] },
+      "perform": { "animation": "drink", "duration_min": 5, "interruptible": true },
+      "effects": [
+        { "kind": "mood", "target": "energy", "delta": 0.05, "apply": "on_complete" },
+        { "kind": "event", "name": "drink_water" }
+      ],
+      "priority": 4,
+      "tags": ["habit"]
+    },
+    "file_docs": {
+      "label": "归文件",
+      "trigger": { "props": ["filing"] },
+      "perform": { "animation": "tidy", "duration_min": 15, "interruptible": true },
+      "effects": [
+        { "kind": "set_flag", "name": "desk_clear" },
+        { "kind": "event", "name": "file_docs" }
+      ],
+      "priority": 3,
+      "tags": ["chore"]
+    }
+  }
+}

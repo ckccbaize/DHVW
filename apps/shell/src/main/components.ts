@@ -3,7 +3,8 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
-import { bundledResourceDir, componentsRoot, dataDir, resourcesRoot, runtimeDir } from './paths'
+import { bundledResourceDir, componentsRoot, dataDir, legacyComponentsRoot, resourcesRoot, runtimeDir } from './paths'
+import { depsDir } from './deps'
 import { downloadFile } from './download'
 import { log } from './logger'
 import {
@@ -151,6 +152,14 @@ export function componentDir(spec: ComponentSpec): string {
   return path.join(rootDir(), spec.id, spec.version)
 }
 
+/**
+ * 升级前的组件在安装目录内（`<安装根>/resources/components`）。新版改落用户数据目录，
+ * 老用户机器上那份还在（升级只删安装目录的新副本之前已经装过），直接复用不重下 229 MB。
+ */
+function legacyComponentDir(spec: ComponentSpec): string {
+  return path.join(legacyComponentsRoot(), spec.id, spec.version)
+}
+
 /** 解析组件实际所在目录：优先使用受管 components 目录，或根目录 local_ai/models */
 export function resolveComponentDir(spec: ComponentSpec): string {
   if (spec.id === 'llm-nemotron-e4b') {
@@ -165,11 +174,15 @@ export function resolveComponentDir(spec: ComponentSpec): string {
   }
   const primary = componentDir(spec)
   if (fs.existsSync(path.join(primary, spec.entry))) return primary
+  // 旧版装在安装目录里：内容完整就沿用，避免升级后无谓重下
+  const legacy = legacyComponentDir(spec)
+  if (fs.existsSync(path.join(legacy, spec.entry))) return legacy
   if (spec.id === 'asr-sensevoice') {
     const folder = `sherpa-onnx-sense-voice-zh-en-ja-ko-yue-${spec.version}`
     const candidates = [
       path.resolve(resourcesRoot(), '../vendor/Open-LLM-VTuber/models', folder),
       path.join(rootDir(), 'olvt', '1.2.1', 'models', folder),
+      path.join(legacyComponentsRoot(), 'olvt', '1.2.1', 'models', folder),
     ]
     for (const dir of candidates) {
       if (fs.existsSync(path.join(dir, spec.entry))) return dir
@@ -331,7 +344,8 @@ function installDeps(
     '--python',
     path.join(runtime, 'python.exe'),
     '--target',
-    path.join(runtime, 'site-packages'),
+    // 与首启依赖同一目录：升级不丢已装依赖，避免每次更新重装 OLVT 全套
+    depsDir(),
     '--index-url',
     indexUrl,
     '--no-cache',

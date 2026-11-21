@@ -75,7 +75,8 @@ class ProactiveScheduler:
         self.last_error = ""
         self.last_reason = "尚未启动"
         self.spoken_total = 0
-        self._recent_openers: deque[str] = deque(maxlen=6)
+        self._recent_openers: deque[str] = deque(maxlen=8)
+        self._recent_angles: deque[str] = deque(maxlen=5)
         self._speak_seq = 0
         self._last_world_seq = -2
         self._task: asyncio.Task | None = None
@@ -217,33 +218,126 @@ class ProactiveScheduler:
                 snippets.append(line)
         return snippets
 
-    def _compose_prompt(self) -> str:
-        self._speak_seq += 1
-        casual_seeds = [
-            "话题方向：纯日常闲聊（不提虚拟仓、不提天气、不提吃饭）——随口吐槽或逗一嘴对方此刻在摸鱼干嘛、看啥呢。",
-            "话题方向：轻快生活小念头（不提虚拟仓、不提天气）——忽然冒出一个古怪二选一或好玩念头，偏心站在某一边让他快选。",
-            "话题方向：熟人轻度挑刺/拆台（不提虚拟仓、不提白饭）——顺着平时聊过的小事俏皮拌嘴两句，别拿老早以前聊死的话题翻旧账。",
-            "话题方向：随口嘀咕一句当下感触（不提天气、不提心情数值）——带点小傲娇自顾自吐槽两句，等对方搭腔。",
-            "话题方向：轻度撒娇/刷存在感（不要固定“嗯哼”开头）——装作刚好发完呆回过神来，短促喊对方一声或抛出一个具体小问题。",
-        ]
-        world_snippets = self._extract_world_snippets()
-        can_use_world = bool(world_snippets) and (self._speak_seq - self._last_world_seq >= 3)
-        use_world = can_use_world and (random.random() < 0.30)
+    def _forbidden_topics(self) -> list[str]:
+        stop = {
+            "这个", "那个", "这样", "那样", "现在", "时候", "自己", "其实", "但是", "不过",
+            "感觉", "今天", "昨天", "晚上", "早上", "没有", "是不是", "怎么样", "知道", "什么",
+            "对方", "主人", "虚拟仓", "天气", "还行", "真的", "神奇", "离谱", "有点", "今天",
+        }
+        counts: dict[str, int] = {}
+        samples = list(self._recent_openers)[-6:]
+        client_uid = self._pick_client()
+        ctx = getattr(self.handler, "client_contexts", {}).get(client_uid) if client_uid else None
+        mem = getattr(getattr(ctx, "agent_engine", None), "_memory", None)
+        if isinstance(mem, list):
+            for item in mem[-6:]:
+                if isinstance(item, dict) and isinstance(item.get("content"), str):
+                    samples.append(item["content"])
+        for text in samples:
+            toks: set[str] = set()
+            for seg in re.split(r"[的了了吗呢吧呀啊哇嘛咧哼切咧是在和与跟就也都还太真\s，,。\.！？!\?～~…]+", text or ""):
+                for run in re.findall(r"[\u4e00-\u9fa5]{2,}", seg):
+                    if len(run) <= 4 and run not in stop:
+                        toks.add(run)
+                    if len(run) > 2:
+                        for i in range(len(run) - 1):
+                            bg = run[i : i + 2]
+                            if bg not in stop:
+                                toks.add(bg)
+                            if i <= len(run) - 3:
+                                tg = run[i : i + 3]
+                                if tg not in stop:
+                                    toks.add(tg)
+            for tok in toks:
+                counts[tok] = counts.get(tok, 0) + 1
+        ranked = sorted(
+            (k for k, v in counts.items() if v >= 2),
+            key=lambda k: (counts[k], len(k)),
+            reverse=True,
+        )
+        picked: list[str] = []
+        for tok in ranked:
+            if any(tok in p for p in picked):
+                continue
+            picked.append(tok)
+            if len(picked) >= 6:
+                break
+        return picked
 
-        if use_world:
+    def _compose_prompt(self, now: float | None = None) -> str:
+        self._speak_seq += 1
+        ts = self._clock() if now is None else now
+        hour = datetime.fromtimestamp(ts).hour
+        if 7 <= hour < 10:
+            clock_desc = "早起犯困/开启一天"
+        elif 10 <= hour < 14:
+            clock_desc = "临近或刚过午饭点"
+        elif 14 <= hour < 18:
+            clock_desc = "下午犯困摸鱼高峰"
+        elif 18 <= hour < 22:
+            clock_desc = "傍晚放松或纠结夜宵"
+        else:
+            clock_desc = "深夜夜猫子时间"
+
+        angle_pool: list[tuple[str, str]] = [
+            (
+                "routine_slice",
+                f"切入角度【当下现实作息切片（当前约 {clock_desc}）】：抓一个这个钟点真实会遇到的小状态吐槽或犯懒，禁止泛泛问候“在干嘛”。",
+            ),
+            (
+                "hot_debate",
+                "切入角度【脑洞二选一偏心站队】：抛一个全新生活/口味/怪癖二选一（与近期聊过的内容无关），你先强势偏心站一边，逼对方接招。",
+            ),
+            (
+                "odd_tidbit",
+                "切入角度【反常识小冷知识】：抛一个生活里反常识的小冷知识或奇怪事实，用“我刚反应过来这也太离谱”的口吻吐槽两句（不是每轮都有，本轮限定只讲一个点）。",
+            ),
+            (
+                "self_theater",
+                "切入角度【自己身上的突发小乌龙】：现编一个刚才发生在自己身上的小尴尬、奇思妙想或小傲娇吐槽（禁复读旧物件/旧设定）。",
+            ),
+            (
+                "playful_tease",
+                "切入角度【熟人盲猜/轻挑衅】：直接拿捏对方此刻状态打个赌或拆台（比如猜他电量快红了、姿势歪了、偷偷摸鱼），语气灵动带勾子。",
+            ),
+            (
+                "taste_roast",
+                "切入角度【随机品味安利或嫌弃】：在神曲歌单/老番旧片/奇葩零食饮品/童年游戏里抽一个近期没聊过的新方向，直接辣评。",
+            ),
+            (
+                "brainhole_whatif",
+                "切入角度【奇葩脑洞假设】：抛一个完全跳脱的脑洞假设（如重力突然减半一小时、物体能给自己打分），顺嘴玩一个梗。",
+            ),
+        ]
+        recent_set = set(self._recent_angles)
+        candidates = [
+            item
+            for item in angle_pool
+            if item[0] not in recent_set
+            and not (item[0] == "odd_tidbit" and "odd_tidbit" in list(self._recent_angles)[-2:])
+        ]
+        if not candidates:
+            candidates = [item for item in angle_pool if item[0] != (self._recent_angles[-1] if self._recent_angles else "")]
+        angle_id, seed_block = random.choice(candidates)
+        self._recent_angles.append(angle_id)
+
+        world_snippets = self._extract_world_snippets()
+        can_use_world = bool(world_snippets) and (self._speak_seq - self._last_world_seq >= 4)
+        world_overlay = ""
+        if can_use_world and (random.random() < 0.25):
             self._last_world_seq = self._speak_seq
             pick = random.choice(world_snippets)
-            seed_block = (
-                f"话题方向：轻量世界近况点缀——可以顺嘴带一嘴「{pick}」，"
-                "当成随口分享一个小发现一笔带过，不要列数据，也不要反问对方那边的天气。"
-            )
-        else:
-            seed_block = random.choice(casual_seeds)
+            world_overlay = f"顺带可轻量叠加一句近况点缀（也可不用，别列数据或问天气）：{pick}"
 
         lines = [
             "[主动找话题指令] 现在你主动对用户说 1 到 2 句简短口语，像真人熟人忽然在耳边或微信里冒泡搭话/吐槽一样鲜活。",
             seed_block,
         ]
+        if world_overlay:
+            lines.append(world_overlay)
+        forbidden = self._forbidden_topics()
+        if forbidden:
+            lines.append(f"【强制全新角度，严禁翻旧账】本轮禁止再提近期出现过的词：{'、'.join(forbidden)}。")
         if self._recent_openers:
             recent_list = list(self._recent_openers)
             recent_str = " / ".join(f"「{item}」" for item in recent_list[-4:])

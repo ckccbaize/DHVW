@@ -190,6 +190,17 @@
   - 升级安装（同目录覆盖）保留 `resources/components`，只有卸载才清空。
   - 安装目录不可写时行为降级为 AppData，需要用户名下可写；文档必须写明这一点。
 
+### 修订（2026-11-21）：升级会清空安装目录，组件与依赖必须移出
+
+- **背景**：原第 2 条后果写着「升级安装（同目录覆盖）保留 `resources/components`」，与 electron-builder 的实际行为不符。查 `app-builder-lib/templates/nsis/uninstaller.nsh`：升级时 `isUpdated` 为真，安装器会先调 `un.atomicRMDir` 把整个 `$INSTDIR` 挪进临时目录再 `RMDir /r $INSTDIR`，**安装目录内的所有内容都不保留**。
+- **决策**：组件（OLVT 本体、SenseVoice ASR、本地大模型）与 Python 依赖（`site-packages`）改为落在 `%APPDATA%/DigitalHuman/`：
+  - 组件 → `<dataDir>/components/<id>/<version>/`
+  - 依赖 → `<dataDir>/site-packages`
+  - 旧位置（安装目录内）仍做只读探测：`resolveComponentDir` 命中旧目录就直接沿用，`depsPath()` 把两处都加进搜索路径，老用户升级不重下 229 MB ASR、也不重装依赖。
+- **实测依据**（2026-11-21）：用 `DHVW_DATA_DIR` 隔离出全新目录跑安装版，依赖装在 `%APPDATA%` 侧，编排器 healthy、`semantic: true`；卸装/升级流程只清安装目录，用户数据与组件均保留。
+- **代价**：卸载不再「零残留」——组件与依赖留在 AppData。这是有意的取舍：重下 229 MB ASR 与 1–3 分钟装依赖，比「卸载后少几个目录」对用户伤害更大。`deleteAppDataOnUninstall: false` 本来也不删 AppData。
+- **新增约束**：任何「装好即不想重装」的东西都不许放进安装目录；放进安装目录的只能是随包只读资源（`resources/runtime`、`resources/live2d`、`resources/services` 等）。
+
 ## ADR-PC-020 OLVT 后端配置由外壳生成，用户不碰 conf.yaml
 
 - **日期**：2026-11-12 · **状态**：已接受

@@ -22,6 +22,34 @@ for (const [name, ready] of [
   if (prep.status !== 0) process.exit(prep.status ?? 1)
 }
 
+// electron-builder 对缺失的 extraResources 源只打一行 warn 就继续，出包会缺内容却不失败。
+// 这里把「装了等同没装」的资源逐个前置校验：宁可打包失败，也不要发出一个残包。
+const required = [
+  ['默认人设', 'resources/defaults/persona/deepseek.json'],
+  ['默认 L0 记忆', 'resources/defaults/memory/l0.json'],
+  ['默认像素角色', 'resources/defaults/characters/deepseek-54e633/sheet.png'],
+  ['默认精灵原图', 'resources/defaults/assets-char/ojj_sheet.png'],
+  ['参考场景 spec', 'resources/defaults/scenes/home/home.map.json'],
+  ['默认形象（大肥鱼）', 'resources/live2d/models/DeepSeek/大肥鱼.model3.json'],
+  ['默认形象纹理', 'resources/live2d/models/DeepSeek/大肥鱼.4096/texture_00.png'],
+  ['编排器依赖清单', 'resources/orchestrator-requirements.txt'],
+  ['记忆向量依赖清单', 'resources/memory-requirements.txt'],
+  ['地图动作表', 'resources/defaults/scenes/_shared/acts.json'],
+  ['地图工具链文档', '../../../docs/MAP-SCENE-DESIGN.md'],
+  ['地图工具链脚本', '../../../scripts/paint_home.py'],
+  ['地图工具链校验器', '../../../scripts/validate_scene.py'],
+  ['ARM 预览资源', '../../../arm/www/index.html'],
+  ['内置运行时', 'runtime/python.exe'],
+  ['依赖安装器', 'build/tools/uv.exe'],
+  ['句向量模型', 'resources/models/bge-small-zh-v1.5/model.onnx'],
+]
+const missing = required.filter(([, rel]) => !fs.existsSync(path.join(shellDir, rel)))
+if (missing.length) {
+  console.error('[fail] 打包所需资源缺失，安装包会缺内容：')
+  for (const [label, rel] of missing) console.error(`  - ${label}: ${rel}`)
+  process.exit(3)
+}
+
 const env = {
   ...process.env,
   ELECTRON_MIRROR: process.env.ELECTRON_MIRROR ?? 'https://npmmirror.com/mirrors/electron/',
