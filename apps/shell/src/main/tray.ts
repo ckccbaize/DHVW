@@ -1,7 +1,5 @@
 import { Menu, Tray, nativeImage } from 'electron'
-import path from 'node:path'
-import { app } from 'electron'
-import { resourcesRoot } from './paths'
+import { appIconPath } from './paths'
 
 interface TrayHooks {
   onShow: () => void
@@ -12,10 +10,7 @@ interface TrayHooks {
 let tray: Tray | null = null
 
 function icon(): Electron.NativeImage {
-  const file = app.isPackaged
-    ? path.join(process.resourcesPath, 'icon.png')
-    : path.join(resourcesRoot(), 'apps', 'shell', 'build', 'icon.png')
-  const img = nativeImage.createFromPath(file)
+  const img = nativeImage.createFromPath(appIconPath())
   return img.isEmpty() ? nativeImage.createEmpty() : img.resize({ width: 16, height: 16 })
 }
 

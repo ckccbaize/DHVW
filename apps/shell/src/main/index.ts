@@ -2,7 +2,7 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, screen, shell as 
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
-import { bundledResourceDir, dataDir, logDir, rendererIndex, resourcesRoot, runtimeDir } from './paths'
+import { appIconPath, bundledResourceDir, dataDir, logDir, rendererIndex, resourcesRoot, runtimeDir } from './paths'
 import { log } from './logger'
 import { loadConfig, saveConfig, type ShellConfig } from './config'
 import { allocatePorts, isPortFree } from './ports'
@@ -812,6 +812,8 @@ function createWindow(): void {
     show: true,
     backgroundColor: '#12151c',
     title: 'DHVW 主机端',
+    // 开发期任务栏/Alt-Tab 走窗口图标；打包后由 exe 内嵌的 icon.ico 提供
+    icon: appIconPath(),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,

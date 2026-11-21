@@ -27,6 +27,17 @@ export function installRoot(): string {
 }
 
 /**
+ * 应用图标 PNG：托盘与窗口共用同一份来源。
+ * 打包后由 electron-builder 的 extraResources 拷到 resources/icon.png；
+ * 开发期直接读 build/icon.png。换图标只改 build/icon.png。
+ */
+export function appIconPath(): string {
+  return isPackaged
+    ? path.join(process.resourcesPath, 'icon.png')
+    : path.join(resourcesRoot(), 'apps', 'shell', 'build', 'icon.png')
+}
+
+/**
  * 组件与依赖等“运行环境”目录，必须落在安装根目录内（resources/components），
  * 这样卸载时会随安装目录一起删除，不在用户机器上散落（ADR-PC-019）。
  */
