@@ -3,6 +3,7 @@ import path from 'node:path'
 import type { ImageGenProtocol, LlmMode, LlmProfile, LlmProtocol } from '../shared/types'
 import { DEFAULT_FUSION_STYLE_PROMPT } from '../shared/types'
 import { dataDir } from './paths'
+import { DEFAULT_LIVE2D_MODEL, DEFAULT_PIXEL_CHARACTER, readDefaultPersona } from './defaults'
 import { log } from './logger'
 
 export interface ShellConfig {
@@ -96,6 +97,16 @@ const DEFAULT_IMAGE_GEN: ShellConfig['imageGen'] = {
 const isLoopbackHostUrl = (url: string): boolean =>
   /^https?:\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0)(:|\/|$)/i.test(url.trim())
 
+/** 随包默认人设（resources/defaults/persona）。缺失时退回内置文案，不让首启空着。 */
+const SEED_PERSONA = readDefaultPersona()
+const FALLBACK_PERSONA = {
+  characterName: '小仓',
+  humanName: '主人',
+  personaPrompt:
+    '你是住在数字人虚拟仓里的小仓，活泼灵动、嘴俏带点小傲娇和小毒舌，爱恨分明敢偏心吐槽。说话自然带「嘛/呀/吧/咧/哼/切/呗」这类活人口语语气词，长短起伏着接话，不做中立端水老好人，不固定同一开头或尾音，也不主动硬扯虚拟仓。不要使用 Markdown，不要输出括号里的动作描写。',
+  personaCard: null,
+}
+
 const DEFAULTS: ShellConfig = {
   pythonPath: '',
   autoLaunch: false,
@@ -108,16 +119,17 @@ const DEFAULTS: ShellConfig = {
   asr: { enabled: true },
   olvt: {
     dir: '',
-    characterName: '小仓',
-    humanName: '主人',
-    personaPrompt:
-      '你是住在数字人虚拟仓里的小仓，活泼灵动、嘴俏带点小傲娇和小毒舌，爱恨分明敢偏心吐槽。说话自然带「嘛/呀/吧/咧/哼/切/呗」这类活人口语语气词，长短起伏着接话，不做中立端水老好人，不固定同一开头或尾音，也不主动硬扯虚拟仓。不要使用 Markdown，不要输出括号里的动作描写。',
-    personaCard: null,
+    characterName: SEED_PERSONA?.characterName ?? FALLBACK_PERSONA.characterName,
+    humanName: SEED_PERSONA?.humanName ?? FALLBACK_PERSONA.humanName,
+    personaPrompt: SEED_PERSONA?.personaPrompt ?? FALLBACK_PERSONA.personaPrompt,
+    personaCard: SEED_PERSONA?.personaCard ?? FALLBACK_PERSONA.personaCard,
   },
   tts: { backendDir: '', refAudioPath: '', refText: '', refLang: 'ja', textLang: 'zh' },
   gateway: { enabled: true, port: 8443 },
   sidecars: {},
-  live2d: { model: 'mao_pro' },
+  live2d: { model: DEFAULT_LIVE2D_MODEL },
+  // 空串 = 使用场景内置默认精灵（鲸鱼娘），与默认人设一致；
+  // 随包的 deepseek-54e633 只是“可选像素角色”，由用户在设置里切换
   pixelCharacterId: '',
   scene: { autoPush: false },
   proactive: {

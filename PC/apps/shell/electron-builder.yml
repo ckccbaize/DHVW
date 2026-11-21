@@ -9,10 +9,12 @@ files:
   - dist/**/*
   - package.json
 extraResources:
+  # 业务代码：入口是 python -m，所以 md 里的 skill（PERSONA-DESIGN.md）也必须随包
   - from: ../../services
     to: services
     filter:
       - '**/*.py'
+      - '**/*.md'
       - '!**/__pycache__/**'
   - from: runtime
     to: runtime
@@ -24,9 +26,13 @@ extraResources:
   - from: build/tools
     to: tools
   # 角色舞台：页面 + pixi/live2d 库 + 模型（本机 http 静态服务读取）
+  # 含随包默认形象 DeepSeek 大肥鱼（4096 纹理全套），首启即出画面
   - from: resources/live2d
     to: live2d
-  # 像素形象内置示例素材（鲸鱼娘原图 + 含方向错误的初音未来示例图）
+  # 默认内容：人设卡、L0 记忆、默认像素角色图集、内置精灵与参考场景 spec
+  - from: resources/defaults
+    to: defaults
+  # 像素形象工坊的内置示例素材（鲸鱼娘原图 + 含方向错误的初音未来示例图）
   - from: resources/char-samples
     to: char-samples
   # 中文句向量模型（bge-small-zh-v1.5 量化 ONNX，运行期零联网）
@@ -37,30 +43,39 @@ extraResources:
   # 上游 OLVT 未开放 UA / extra_body，随包带两个补丁文件覆盖过去
   - from: resources/olvt-overrides
     to: olvt-overrides
-  # 精简后的 OLVT 依赖清单（替代上游 requirements.txt）
+  # 三份依赖清单：OLVT 精简版 / 编排器与像素工坊必装 / 记忆向量可选
   - from: resources/olvt-requirements.txt
     to: olvt-requirements.txt
-  # 地图生成工具链（与 scene.py find_toolchain() 对齐）
-  - from: ../../docs/MAP-SCENE-DESIGN.md
+  - from: resources/orchestrator-requirements.txt
+    to: orchestrator-requirements.txt
+  - from: resources/memory-requirements.txt
+    to: memory-requirements.txt
+  # 地图生成工具链（与 scene.py find_toolchain() 对齐：<root>/docs 与 <root>/scripts 同层）
+  # 源文件在仓库根，路径必须从 apps/shell 往上一级到仓库根（../../../）
+  - from: ../../../docs/MAP-SCENE-DESIGN.md
     to: map-toolchain/docs/MAP-SCENE-DESIGN.md
-  - from: ../../scripts
+  - from: ../../../scripts
     to: map-toolchain/scripts
     filter:
       - 'paint_home.py'
       - 'paint_custom.py'
       - 'pack_scene.py'
       - 'validate_scene.py'
-  - from: ../../assets/scenes/_shared/acts.json
-    to: map-toolchain/assets/scenes/_shared/acts.json
-  - from: ../../assets/scenes/home/home.map.json
-    to: map-toolchain/assets/scenes/home/home.map.json
-  - from: ../../assets/scenes/office/office.map.json
-    to: map-toolchain/assets/scenes/office/office.map.json
+      - 'pick_layout.py'
+  # act 词表与参考 spec 走随包副本，不再依赖仓库外的 assets
+  - from: resources/defaults/scenes
+    to: map-toolchain/assets/scenes
+  # 默认像素角色原图（reset_default 会从这里取 ojj_sheet）
+  - from: resources/defaults/assets-char
+    to: map-toolchain/assets/char
   # ARM 渲染预览资源（Agent 页产出验收使用）
   - from: ../../../arm/www
     to: arm-www
 asar: true
 win:
+  # 安装包/exe 内嵌图标：electron-builder 默认取 buildResources 下的 icon.ico，
+  # 这里显式写出来，避免以后改 buildResources 时静默退回 Electron 默认图标。
+  icon: build/icon.ico
   target:
     - target: nsis
       arch:

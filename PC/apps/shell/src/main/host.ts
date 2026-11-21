@@ -2,7 +2,8 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { EventEmitter } from 'node:events'
-import { hostModuleRoot, logDir, ensureDir } from './paths'
+import { hostModuleRoot, logDir, ensureDir, orchDataDir } from './paths'
+import { depsPath } from './deps'
 import { log } from './logger'
 import type { HostEvent, ServiceDef, WorkerSnapshot } from '../shared/types'
 
@@ -84,8 +85,12 @@ export class HostSupervisor extends EventEmitter {
       env: {
         ...process.env,
         PYTHONPATH: hostModuleRoot(),
-        // 嵌入式 CPython 忽略 PYTHONPATH，改由 runtime/sitecustomize.py 读取
-        DHVW_PYTHONPATH: hostModuleRoot(),
+        // 嵌入式 CPython 忽略 PYTHONPATH，改由 runtime/sitecustomize.py 读取；
+        // 依赖目录显式带上，安装根只读时会落在 %APPDATA%/DigitalHuman/site-packages
+        DHVW_PYTHONPATH: [hostModuleRoot(), ...depsPath()].join(path.delimiter),
+        // 编排器的数据根（data_dir()）必须与外壳认定的 <dataDir>/data 一致，
+        // 否则 DHVW_DATA_DIR 被当成整体根时记忆/角色会写到另一处
+        DHVW_DATA_DIR: orchDataDir,
         PYTHONIOENCODING: 'utf-8',
         PYTHONUNBUFFERED: '1',
       },

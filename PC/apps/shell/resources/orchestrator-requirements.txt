@@ -1,0 +1,9 @@
+# 编排器与像素形象工坊的运行时依赖（首启由外壳调 uv 装进 runtime/site-packages）。
+# 缺任何一项，编排器进程都会在模块级 import 阶段直接退出，因此单独成表、必装。
+fastapi[standard]>=0.115.8
+uvicorn[standard]>=0.33.0
+httpx>=0.28.1
+# 像素图集扩展与地图工具链（paint_home / pack_scene / validate_scene）都要 PIL + numpy + scipy
+numpy>=1.26.4,<2
+scipy>=1.14.1
+pillow>=10.4.0

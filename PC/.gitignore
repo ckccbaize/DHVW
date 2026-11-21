@@ -60,6 +60,9 @@ apps/shell/build/tools/
 *.db-wal
 *.db-shm
 *.onnx
+# 随包的中文句向量模型必须入库：否则干净克隆的打包机会缺 24 MB onnx，
+# 只能靠 fetch-embed-model.mjs 联网补，离线打包直接失败（ADR-PC-017）
+!apps/shell/resources/models/bge-small-zh-v1.5/model.onnx
 
 # --- 编辑器 / 系统 ---
 .tmp/

@@ -124,16 +124,36 @@ class OlvtStyleSyncTests(unittest.TestCase):
 
     def test_proactive_compose_prompt_matches_lively_particle_rules(self) -> None:
         mod = _load_proactive_module()
+        ctx = types.SimpleNamespace(
+            agent_engine=types.SimpleNamespace(
+                _memory=[
+                    {"role": "assistant", "content": "纸箱床今天塌了嘛"},
+                    {"role": "user", "content": "纸箱床还行"},
+                    {"role": "assistant", "content": "章鱼真的有九颗脑子咧"},
+                    {"role": "user", "content": "章鱼太神奇了"},
+                ]
+            )
+        )
         handler = types.SimpleNamespace(
-            client_connections={}, client_contexts={}, current_conversation_tasks={}
+            client_connections={"c1": object()},
+            client_contexts={"c1": ctx},
+            current_conversation_tasks={},
         )
         sched = mod.ProactiveScheduler(handler)
+        sched.last_client = "c1"
         sched._recent_openers.append("你也太能摸鱼了吧呀")
         prompt = sched._compose_prompt()
         self.assertIn("活泼俏皮有态度", prompt)
         self.assertIn("嘛/呀/吧/咧/哼/切/呗", prompt)
         self.assertIn("上轮用过尾音「呀」", prompt)
         self.assertIn("翻旧账套话", prompt)
+        self.assertIn("强制全新角度，严禁翻旧账", prompt)
+        self.assertIn("纸箱床", prompt)
+
+        # 连续 5 次主动找话角度全部不重样
+        for _ in range(4):
+            sched._compose_prompt()
+        self.assertEqual(len(set(sched._recent_angles)), 5)
 
 
 if __name__ == "__main__":

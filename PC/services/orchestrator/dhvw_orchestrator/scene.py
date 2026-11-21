@@ -49,20 +49,26 @@ def _sanitize(text: str, fallback: str) -> str:
 
 
 def find_toolchain() -> Path | None:
-    """地图工具链根（含 docs/MAP-SCENE-DESIGN.md 与 scripts/paint_home.py）。"""
+    """地图工具链根（含 docs/MAP-SCENE-DESIGN.md 与 scripts/paint_home.py）。
+
+    开发期：PC/services/orchestrator/dhvw_orchestrator/scene.py → 仓库根。
+    打包后：resources/services/orchestrator/dhvw_orchestrator/scene.py → resources/map-toolchain。
+    """
     candidates: list[Path] = []
     env = os.environ.get("DHVW_MAP_TOOLCHAIN")
     if env:
         candidates.append(Path(env))
     here = Path(__file__).resolve()
-    # PC/services/orchestrator/dhvw_orchestrator/scene.py -> PC/services/orchestrator -> ...
-    for up in range(2, 6):
+    for up in range(2, 8):
         try:
             base = here.parents[up]
-            candidates.append(base)
-            candidates.append(base / "map-toolchain")
         except IndexError:
             break
+        candidates.append(base)
+        candidates.append(base / "map-toolchain")
+        # 打包后 services 与 map-toolchain 同处 resources/，两者是兄弟目录
+        if base.name == "services":
+            candidates.append(base.parent / "map-toolchain")
     for cand in candidates:
         if (cand / "docs/MAP-SCENE-DESIGN.md").is_file() and (cand / "scripts/paint_home.py").is_file():
             return cand

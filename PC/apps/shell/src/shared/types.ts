@@ -46,6 +46,8 @@ export interface AppSnapshot {
   autoLaunch: boolean
   pythonPath: string
   llm: { baseUrl: string; model: string }
+  /** 运行期依赖检查失败的原因（空串 = 正常）；界面用它显式提示，避免服务静默起不来 */
+  depsError?: string
 }
 
 export interface ServiceDef {

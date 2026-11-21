@@ -277,12 +277,14 @@ class Worker:
         log_path = self.log_dir / f"{self.id}.log"
         out = log_path.open("a", encoding="utf-8", errors="replace")
         env = dict(os.environ)
+        # 外壳可能已注入依赖目录（安装根只读时会退到用户数据目录），必须保留而不是覆盖
+        inherited = [p for p in (env.get("DHVW_PYTHONPATH") or env.get("PYTHONPATH") or "").split(os.pathsep) if p]
         search = os.pathsep.join(
             [
                 str(self.services_root / "worker"),
                 str(self.services_root / "host"),
                 str(self.services_root / "orchestrator"),
-                env.get("PYTHONPATH", ""),
+                *inherited,
             ]
         )
         env["PYTHONPATH"] = search

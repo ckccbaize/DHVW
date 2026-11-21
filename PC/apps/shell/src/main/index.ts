@@ -2,7 +2,7 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, screen, shell as 
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
-import { bundledResourceDir, dataDir, logDir, rendererIndex, resourcesRoot, runtimeDir } from './paths'
+import { appIconPath, bundledResourceDir, dataDir, logDir, rendererIndex, resourcesRoot, runtimeDir } from './paths'
 import { log } from './logger'
 import { loadConfig, saveConfig, type ShellConfig } from './config'
 import { allocatePorts, isPortFree } from './ports'
@@ -64,6 +64,8 @@ import { createTray } from './tray'
 import { applyNetworkHardening, hardenSessionSetup } from './hardening'
 import { listImageModels, listModels, probeLlm } from './network'
 import { COMPONENTS, componentStatus, ensureComponent, resolveSpec, uvBinary } from './components'
+import { DEFAULT_LIVE2D_MODEL, seedCharacters, seedL0Memory } from './defaults'
+import { ensureRuntimeDeps, depsDir } from './deps'
 import {
   clearApiKey,
   clearImageGenKey,
@@ -107,6 +109,8 @@ let gateway: Gateway | null = null
 let gatewayTargets: GatewayTarget[] = []
 let config: ShellConfig = loadConfig()
 let quitting = false
+/** 运行期依赖检查失败的原因；非空时界面顶部要明示，而不是让服务静默起不来 */
+let depsError = ''
 
 /** 编排器端口（0 = 还没分配）；设备通道与配置下发都靠它 */
 let orchestratorPort = 0
@@ -483,7 +487,7 @@ async function installMemoryDeps(): Promise<{ ok: boolean; output?: string; erro
     '--python',
     path.join(runtimeDir(), 'python.exe'),
     '--target',
-    path.join(runtimeDir(), 'site-packages'),
+    depsDir(),
     '--index-url',
     'https://mirrors.aliyun.com/pypi/simple',
     '--no-cache',
@@ -789,6 +793,7 @@ function snapshot(): AppSnapshot {
     autoLaunch: config.autoLaunch,
     pythonPath: resolvePython(),
     llm: config.llm,
+    ...(depsError ? { depsError } : {}),
   }
 }
 
@@ -812,6 +817,8 @@ function createWindow(): void {
     show: true,
     backgroundColor: '#12151c',
     title: 'DHVW 主机端',
+    // 开发期任务栏/Alt-Tab 走窗口图标；打包后由 exe 内嵌的 icon.ico 提供
+    icon: appIconPath(),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -2299,6 +2306,41 @@ async function boot(): Promise<void> {
     resources: resourcesRoot(),
   })
 
+  // 默认内容：先落地像素角色图集，配置文件本身已按随包人设生成
+  const seeded = seedCharacters()
+  if (seeded.copied.length) log('info', 'seed', '默认像素角色已就位', { ids: seeded.copied })
+
+  // 运行期依赖（编排器/像素工坊）：干净机器上第一次启动必须装，否则服务起不来。
+  // 安装跑 1–3 分钟，放后台异步执行，界面不冻结；装完重启宿主让子服务重新 import。
+  if (!app.isPackaged || process.env.DHVW_SKIP_DEP_INSTALL !== '1') {
+    void ensureRuntimeDeps(resolvePython(), uvBinary(), {
+      indexUrl: config.pipIndex,
+      onStage: (text) => log('info', 'deps', text),
+    })
+      .then((deps) => {
+        if (!deps.ok) {
+          log('error', 'deps', '运行期依赖不可用', { missing: deps.missing, error: deps.error })
+          depsError = deps.error ?? `缺少依赖：${deps.missing.join(', ')}`
+          broadcast()
+          return
+        }
+        if (!deps.installed) return
+        log('info', 'deps', '运行期依赖已安装，重启宿主使其生效')
+        depsError = ''
+        broadcast()
+        void supervisor?.stop('deps-installed').then(() => {
+          supervisor?.start()
+          // 依赖装完编排器才真正起得来，L0 种子这时再试一次
+          void seedL0Memory(orchestratorPort)
+        })
+      })
+      .catch((err) => {
+        depsError = String(err)
+        log('error', 'deps', '依赖检查异常', { error: depsError })
+        broadcast()
+      })
+  }
+
   const live2dRoot = bundledLive2dRoot()
   const olvtRootDir = resolveOlvtDir(config.sidecars.olvt?.cwd || config.olvt.dir)
   const legacyUserModelsDir = path.join(dataDir, 'live2d-models')
@@ -2307,7 +2349,11 @@ async function boot(): Promise<void> {
     ...(olvtRootDir ? [{ root: path.join(olvtRootDir, 'live2d-models'), source: 'olvt' as const }] : []),
     ...(fs.existsSync(legacyUserModelsDir) ? [{ root: legacyUserModelsDir, source: 'olvt' as const }] : []),
   ]
-  live2dModel = findModel(live2dRoots, config.live2d.model) ?? findModel(live2dRoots, 'mao_pro')
+  // 回退顺序：用户选中 → 随包默认（大肥鱼）→ 老默认 mao_pro，任何一步命中都能出画面
+  live2dModel =
+    findModel(live2dRoots, config.live2d.model) ??
+    findModel(live2dRoots, DEFAULT_LIVE2D_MODEL) ??
+    findModel(live2dRoots, 'mao_pro')
   if (!live2dModel) {
     log('warn', 'live2d', '模型库里没有可用模型', {
       want: config.live2d.model,
@@ -2406,6 +2452,8 @@ async function boot(): Promise<void> {
   supervisor.start()
   orchestratorPort = portOf('orchestrator')
   void pushOrchestratorConfigUntilReady()
+  // 默认 L0 记忆：编排器起来后按正常写入路径落库（只 L0，历史记忆不带）
+  void seedL0Memory(orchestratorPort)
   // 兜底刷新：设备重启/服务重连后配置不会被测试或旧值钉住
   refreshTimer = setInterval(() => void pushOrchestratorConfig(), 60_000)
   refreshTimer.unref()

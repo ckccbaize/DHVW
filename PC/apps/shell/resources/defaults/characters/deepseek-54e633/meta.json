@@ -1,0 +1,58 @@
+{
+ "id": "deepseek-54e633",
+ "name": "亚托莉",
+ "sourceFileName": "ai_4x4.png",
+ "rowOrder": "S,W,E,N",
+ "detectedRowOrder": "S,W,E,N",
+ "autoFixDir": true,
+ "cleanInnerWhite": true,
+ "corrections": [],
+ "manualFlips": {
+  "N": [
+   false,
+   false,
+   false,
+   false
+  ],
+  "S": [
+   false,
+   false,
+   false,
+   false
+  ]
+ },
+ "frame": {
+  "w": 32,
+  "h": 48
+ },
+ "animations": [
+  "bathe",
+  "cook",
+  "dress",
+  "drink",
+  "eat",
+  "hang_coat",
+  "idle",
+  "laundry",
+  "meet",
+  "play_cat",
+  "print",
+  "read",
+  "rest",
+  "sit",
+  "sleep",
+  "tidy",
+  "use_toilet",
+  "walk",
+  "wash_up",
+  "watch_tv",
+  "water_plants",
+  "work"
+ ],
+ "sheetSize": {
+  "w": 128,
+  "h": 4224
+ },
+ "createdAt": 1795088717647,
+ "updatedAt": 1795092861258
+}

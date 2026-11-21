@@ -406,6 +406,11 @@ export default function App(): React.ReactElement {
               端点 {probe.ok ? '可达' : '不可达'}
             </span>
           )}
+          {snap?.depsError && (
+            <span className="pill bad" title={snap.depsError}>
+              运行环境缺依赖
+            </span>
+          )}
         </div>
         <nav className="tabbar" aria-label="页面">
           {(
