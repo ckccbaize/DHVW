@@ -1632,13 +1632,18 @@ async function boot() {
         qqBoostPill.title = qqStartError;
       } else {
         qqBoostPill.title = "";
+        // running 为真说明 qq-openclaw 已在跑，只是还没配凭据/还没认主；
+        // 这种「待激活」与「根本没连上」是两回事，不能都说「待连」。
+        const running = Boolean(st?.running);
         qqBoostPill.textContent = !names.length
           ? "BOOST · 未选网关"
           : connected
             ? paired
               ? `BOOST · ${tag}在线`
               : `BOOST · ${tag}待激活`
-            : `BOOST · ${tag}待连`;
+            : running
+              ? `BOOST · ${tag}待激活`
+              : `BOOST · ${tag}待连`;
       }
     };
 
