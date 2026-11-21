@@ -15,6 +15,7 @@ import { moodBand } from "../core/machine/life.js";
 import { DESTINATIONS } from "../core/life/outing.js";
 import { createBrowsePlanner, pickSearchCandidates } from "../core/actions/browse.js";
 import { normalizeBehaviors, roomForAct, createActRoomMap } from "../core/life/plan.js";
+import { dedupeSceneRequests, shouldEnqueueScene, findSceneDirForPlace } from "../core/life/scene-dedupe.js";
 
 const EVENT_CAP = 2000;
 const DEFAULT_QUOTA = 500 * 1024 * 1024;
@@ -463,6 +464,37 @@ export function createLocalRuntime({
     return [...DESTINATIONS, ...custom];
   }
 
+  /** 按场景名反查 placeId：PC 推送可能只带 name（拾光书店 / 图书馆），请求表已空时靠它对齐地点。 */
+  async function placeIdForName(name) {
+    const target = String(name || "").trim();
+    if (!target) return "";
+    const known = (await loadScenePlaces());
+    const norm = (s) => String(s || "").replace(/\s+/g, "");
+    const groups = [
+      ["咖啡厅", "咖啡馆", "咖啡店", "咖啡"],
+      ["书店", "书城", "书局"],
+      ["图书馆", "图书室", "阅览室"],
+      ["公园", "花园", "绿地"],
+      ["集市", "菜市场", "市场"],
+      ["夜市"],
+    ];
+    const keyOf = (s) => {
+      const t = norm(s);
+      for (const g of groups) if (g.some((w) => t.includes(w))) return g[0];
+      return t;
+    };
+    const want = keyOf(target);
+    const all = await allPlaceRecords();
+    for (const p of all) {
+      if (keyOf(p.name || p.id) === want) return String(p.id || "").trim();
+    }
+    // 已登记过的场景（PC 产出名 ↔ placeId 对应关系）优先
+    for (const [placeId, info] of Object.entries(known)) {
+      if (keyOf(info?.name || "") === want) return placeId;
+    }
+    return "";
+  }
+
   async function addPlaceRecord(place = {}) {
     const id = String(place.id || "").trim();
     if (!id) return { ok: false, error: "缺 id" };
@@ -478,6 +510,26 @@ export function createLocalRuntime({
     });
     await backend.setKV("places", custom);
     return { ok: true, id, added: true };
+  }
+
+  // 地点级场景登记：`placeId -> {sceneId, name, at}`。与 scene_requests 分离，
+  // 因为后者是“待生成队列”，会被清空/裁剪/丢存档；这条记录只要场景包还在就不会删，
+  // 是“这个地点已经有场景了”的唯一可靠来源，避免同一地点被反复提交生成请求。
+  async function loadScenePlaces() {
+    const row = await backend.getKV("scene_places").catch(() => null);
+    return row && typeof row === "object" && !Array.isArray(row) ? { ...row } : {};
+  }
+
+  async function rememberScenePlace(placeId, info = {}) {
+    const id = String(placeId || "").trim();
+    if (!id) return;
+    const all = await loadScenePlaces();
+    all[id] = {
+      sceneId: String(info.sceneId || all[id]?.sceneId || "").trim(),
+      name: String(info.name || all[id]?.name || "").trim(),
+      at: info.at || all[id]?.at || now(),
+    };
+    await backend.setKV("scene_places", all).catch(() => {});
   }
 
   async function hasLocalScene(placeId) {
@@ -504,6 +556,30 @@ export function createLocalRuntime({
     }
   }
 
+  /** 该地点是否已经有场景：别名包存在、或登记表里有记录且包仍在。 */
+  async function placeHasScene(placeId) {
+    const id = String(placeId || "").trim();
+    if (!id) return false;
+    if (await hasLocalScene(id)) return true;
+    const known = (await loadScenePlaces())[id];
+    if (known?.sceneId && (await hasLocalScene(known.sceneId))) return true;
+    // 兜底：别名副本可能没写成（推送时请求已被清），但 job 包在——按 `*-<placeId>` 找。
+    try {
+      if (typeof caches !== "undefined") {
+        const cache = await caches.open("dhvw-scenes-v1");
+        const paths = (await cache.keys()).map((req) => new URL(req.url).pathname);
+        const dir = findSceneDirForPlace(paths, id);
+        if (dir) {
+          await rememberScenePlace(id, { sceneId: dir });
+          return true;
+        }
+      }
+    } catch {
+      /* 缓存不可用就只认登记表 */
+    }
+    return false;
+  }
+
   async function saveSceneRequests() {
     sceneRequests = sceneRequests.slice(0, 20);
     await backend.setKV("scene_requests", sceneRequests).catch(() => {});
@@ -513,9 +589,12 @@ export function createLocalRuntime({
   async function enqueueSceneRequest(placeId, { reason = "plan", day = 0, description = "" } = {}) {
     const id = String(placeId || "").trim();
     if (!id) return { ok: false, error: "缺 placeId" };
-    if (await hasLocalScene(id)) return { ok: true, queued: false, local: true };
-    const existing = sceneRequests.find((r) => r.placeId === id && (r.status === "pending" || r.status === "ready"));
-    if (existing) return { ok: true, queued: false, request: existing };
+    // 地点已有场景就永不重复申请——这是唯一去重口径，不依赖请求表是否还在。
+    const hasScene = await placeHasScene(id);
+    if (!shouldEnqueueScene({ hasScene, requests: sceneRequests, placeId: id, day })) {
+      const hit = sceneRequests.find((r) => r.placeId === id);
+      return hasScene ? { ok: true, queued: false, local: true } : { ok: true, queued: false, request: hit };
+    }
     const place = (await allPlaceRecords()).find((p) => p.id === id);
     if (!place) return { ok: false, error: `未知地点 ${id}` };
     const request = {
@@ -579,18 +658,33 @@ export function createLocalRuntime({
   async function applySceneReady(p = {}) {
     const sceneId = String(p.sceneId || p.job || "").trim();
     const req = findSceneRequest(p);
-    if (!req) return null;
-    req.status = "ready";
-    req.sceneId = sceneId;
-    req.readyAt = now();
-    await saveSceneRequests();
+    // 请求表可能已被清理（换存档/清缓存），但场景包确实到了——不能用「找不到请求」把
+    // 这次推送丢掉，否则该地点永远被判定为缺场景，PC 每次都被重新请求一遍。
+    // 三级兜底：请求里的 placeId → 载荷里的 placeId → 按地点名反查。
+    let placeId = String(req?.placeId || p.placeId || "").trim();
+    if (!placeId) placeId = await placeIdForName(p.name || req?.mapSpec?.name || "");
+    // placeId 反查不到时按 sceneId 后缀匹配已知地点（indoor-6-library → library）；
+    // 后缀不是已知地点就不猜，避免把 indoor-66500 记成地点 66500。
+    if (!placeId && sceneId) {
+      const key = sceneId.split("-").pop() || "";
+      const all = await allPlaceRecords();
+      if (key && all.some((x) => x.id === key)) placeId = key;
+    }
+    if (!placeId) return null;
+    if (req) {
+      req.status = "ready";
+      req.sceneId = sceneId;
+      req.readyAt = now();
+      await saveSceneRequests();
+    }
+    await rememberScenePlace(placeId, { sceneId, name: p.name || req?.mapSpec?.name });
     await addPlaceRecord({
-      id: req.placeId,
-      name: req.mapSpec?.name || req.placeId,
-      kind: req.mapSpec?.kind,
-      distance: req.mapSpec?.distance,
+      id: placeId,
+      name: p.name || req?.mapSpec?.name || placeId,
+      kind: p.kind || req?.mapSpec?.kind,
+      distance: p.distance ?? req?.mapSpec?.distance,
     });
-    return req;
+    return req || { placeId, sceneId, status: "ready", readyAt: now() };
   }
 
   async function loadFileState() {
@@ -1169,22 +1263,21 @@ export function createLocalRuntime({
       } catch {}
 
       sceneRequests = (await backend.getKV("scene_requests")) || [];
-      // 丢掉过去日期的 pending，避免补请求旧计划；同一地点只保留一条 pending/ready。
+      // 丢掉过去日期的 pending，避免补请求旧计划。
       const currentDay = lastSnapshot?.day ?? 1;
-      const seenRequests = new Set();
-      const keptRequests = [];
+      const freshRequests = [];
       for (const r of sceneRequests) {
         if (!r || !r.placeId) continue;
         const day = Number.isFinite(r.day) ? r.day : Number(String(r.id || "").match(/-(\d+)$/)?.[1]);
         if (r.status === "pending" && Number.isFinite(day) && day < currentDay) continue;
-        if (r.status === "pending" && await hasLocalScene(r.placeId)) continue;
-        if (r.status === "pending" || r.status === "ready") {
-          if (seenRequests.has(r.placeId)) continue;
-          seenRequests.add(r.placeId);
-        }
-        keptRequests.push(r);
+        freshRequests.push(r);
       }
-      sceneRequests = keptRequests;
+      // 已有场景的地点不再保留 pending；同一地点只留一条（优先 ready/failed）。
+      const scenePlaceIds = new Set();
+      for (const r of freshRequests) {
+        if (r.status === "pending" && (await placeHasScene(r.placeId))) scenePlaceIds.add(r.placeId);
+      }
+      sceneRequests = dedupeSceneRequests(freshRequests, (id) => scenePlaceIds.has(id));
       await backend.setKV("scene_requests", sceneRequests).catch(() => {});
       const storedPlots = (await backend.getKV("plots")) || [];
       const roomSet = new Set((scene.rooms || []).map((r) => r.id));
@@ -1463,6 +1556,9 @@ export function createLocalRuntime({
     },
     async findSceneRequest(payload = {}) {
       return findSceneRequest(payload);
+    },
+    async placeIdForName(name) {
+      return await placeIdForName(name);
     },
     async markSceneReady(payload = {}) {
       return await applySceneReady(payload);

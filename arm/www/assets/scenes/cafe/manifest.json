@@ -1,12 +1,12 @@
 {
  "schema_version": 1,
- "scene": "indoor-66500",
- "generated_by": "scripts/pack_scene.py",
+ "scene": "cafe",
+ "generated_by": "tools/pack-scenes.mjs",
  "files": [
   {
    "path": "scene.json",
-   "size": 27060,
-   "sha256": "7bee574a28826f8f8fa74195a0c74258fa8c2da37f11a78171e7c978ebf739f4"
+   "size": 31658,
+   "sha256": "1cd63461a443f6bdcacaa825c0aeb4e4f3cac0ba582a32c56d1111f4b8adfbaa"
   },
   {
    "path": "intgrid.bin",
@@ -40,8 +40,8 @@
   },
   {
    "path": "character/sheet.json",
-   "size": 7725,
-   "sha256": "ae926639c980e11f3064b0a15246a44a1d99a860fe77a399a7ac9aa288251ace"
+   "size": 8397,
+   "sha256": "281c042ccf9459cea7dd44c0e4da4bb9a262fcd48fa2b082e59bc5a13abaf119"
   }
  ]
 }

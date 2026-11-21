@@ -105,6 +105,10 @@ type server struct {
 	llmClient  *http.Client
 	qqMu       sync.Mutex
 	qqCmd      *exec.Cmd
+	// qqLastError 记录最近一次无法拉起 qq-openclaw 的原因。
+	// 之前找不到脚本时静默 return，前端只能显示「待连」，用户无从判断是缺 Node、
+	// 缺 qq-openclaw 目录，还是端口被占。
+	qqLastError string
 }
 
 func (s *server) rebuildLLMClient() {
@@ -717,6 +721,28 @@ func (s *server) findQqServerScript() string {
 	return ""
 }
 
+// findNode 找 node 可执行文件：优先包内自带（<包>/node/node.exe），再回退 PATH。
+// 测试包随包带 node 后，目标机器不需要预装 Node 22；包里没有时才退到系统安装。
+func (s *server) findNode() string {
+	candidates := []string{
+		os.Getenv("DHVW_NODE"),
+		filepath.Join(filepath.Dir(s.root), "node", "node.exe"),
+		filepath.Join(filepath.Dir(s.root), "node", "node"),
+	}
+	for _, c := range candidates {
+		if c == "" {
+			continue
+		}
+		if st, err := os.Stat(c); err == nil && !st.IsDir() {
+			return c
+		}
+	}
+	if p, err := exec.LookPath("node"); err == nil {
+		return p
+	}
+	return ""
+}
+
 func (s *server) qqAlive() bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 350*time.Millisecond)
 	defer cancel()
@@ -743,17 +769,29 @@ func (s *server) ensureQqStarted() {
 	}
 	script := s.findQqServerScript()
 	if script == "" {
+		// 明确记下来源与期望路径：测试包里通常不带 qq-openclaw，必须能看出是这个原因。
+		s.qqLastError = fmt.Sprintf(
+			"找不到 qq-openclaw 服务脚本（期望 %s，或设置 DHVW_QQ_SERVER）",
+			filepath.Join(filepath.Dir(s.root), "qq-openclaw", "dist", "dhvw-server.js"),
+		)
+		return
+	}
+	nodeBin := s.findNode()
+	if nodeBin == "" {
+		s.qqLastError = "找不到 node 可执行文件：请把 node.exe 放到包的 node/ 目录，或安装 Node 22.14+"
 		return
 	}
 	stateDir := filepath.Join(s.dataDir, "qq-openclaw")
 	_ = os.MkdirAll(stateDir, 0o755)
-	cmd := exec.Command("node", script, "-followBoost", "-stateDir", stateDir)
+	cmd := exec.Command(nodeBin, script, "-followBoost", "-stateDir", stateDir)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
-		log.Printf("[qq] 启动 qq-openclaw 失败: %v", err)
+		s.qqLastError = fmt.Sprintf("启动 qq-openclaw 失败（%s）: %v", nodeBin, err)
+		log.Printf("[qq] %s", s.qqLastError)
 		return
 	}
+	s.qqLastError = ""
 	s.qqCmd = cmd
 	go func(c *exec.Cmd) {
 		_ = c.Wait()
@@ -803,6 +841,18 @@ func (s *server) serveQqProxy(w http.ResponseWriter, r *http.Request) {
 		_ = json.Unmarshal(rawBody, &b)
 		if b.Enabled {
 			s.ensureQqStarted()
+			// 起不来就如实回报：前端据此显示「网关未就绪：<原因>」，
+			// 而不是让用户对着「待连」猜是配置错还是包不全。
+			s.qqMu.Lock()
+			reason := s.qqLastError
+			s.qqMu.Unlock()
+			if reason != "" && !s.qqAlive() {
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.Header().Set("Cache-Control", "no-store")
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "running": false, "error": reason})
+				return
+			}
 		} else {
 			s.stopQqChild()
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -842,10 +892,18 @@ func (s *server) serveQqProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	resp, err := s.httpClient.Do(hr)
 	if err != nil {
+		s.qqMu.Lock()
+		reason := s.qqLastError
+		s.qqMu.Unlock()
+		payload := map[string]any{"ok": true, "running": false, "configured": false, "paired": false}
+		if reason != "" {
+			// 让页面能显示「网关未就绪」的具体原因，而不是只看到「待连」。
+			payload["error"] = reason
+		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "running": false, "configured": false, "paired": false})
+		_ = json.NewEncoder(w).Encode(payload)
 		return
 	}
 	defer resp.Body.Close()
@@ -856,6 +914,22 @@ func (s *server) serveQqProxy(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) serveHealth(w http.ResponseWriter, r *http.Request) {
+	// 网关能力：让排查时一眼看出这个包能不能跑网关、用的是哪个 node。
+	// 包内自带 node 时不再依赖系统安装，nodeSource 区分 bundled/system。
+	nodeBin := s.findNode()
+	qqScript := s.findQqServerScript()
+	s.qqMu.Lock()
+	qqErr := s.qqLastError
+	s.qqMu.Unlock()
+	nodeSource := ""
+	if nodeBin != "" {
+		rootDir := filepath.Dir(s.root)
+		if strings.HasPrefix(nodeBin, filepath.Join(rootDir, "node")) {
+			nodeSource = "bundled"
+		} else {
+			nodeSource = "system"
+		}
+	}
 	body := map[string]any{
 		"ok":       len(s.pack.Missing) == 0 && len(s.pack.SizeBad) == 0 && len(s.pack.HashBad) == 0,
 		"version":  s.version,
@@ -863,7 +937,16 @@ func (s *server) serveHealth(w http.ResponseWriter, r *http.Request) {
 		"requests": s.hits.Load(),
 		"pack":     s.pack,
 		"root":     s.root,
-		"time":     time.Now().Format(time.RFC3339),
+		"gateway": map[string]any{
+			"script":      qqScript,
+			"scriptFound": qqScript != "",
+			"node":        nodeBin != "",
+			"nodePath":    nodeBin,
+			"nodeSource":  nodeSource,
+			"available":   qqScript != "" && nodeBin != "",
+			"lastError":   qqErr,
+		},
+		"time": time.Now().Format(time.RFC3339),
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
