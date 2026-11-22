@@ -153,4 +153,4 @@ sudo sh deploy/install.sh dist/dhvw-shell-linux-arm64
 - 语音与对话能力基于 [Open-LLM-VTuber](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber) 框架拓展定制。
 - 素材来源与许可明细详见 [docs/ASSETS-LICENSE.md](docs/ASSETS-LICENSE.md)。
 ---
-##反馈联系 q群 1091280824
+## 反馈联系 q群 1091280824
