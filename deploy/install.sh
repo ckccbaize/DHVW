@@ -44,6 +44,7 @@ chmod -R a+rX /opt/dhvw/www
 
 install -m 0755 "$BIN" /usr/local/bin/dhvw-shell
 install -m 0755 "$HERE/kiosk.sh" /opt/dhvw/kiosk.sh
+install -m 0755 "$HERE/display-watchdog.sh" /opt/dhvw/display-watchdog.sh
 
 install -m 0644 "$HERE/systemd/dhvw-shell.service" /etc/systemd/system/dhvw-shell.service
 install -m 0644 "$HERE/systemd/dhvw-x.service" /etc/systemd/system/dhvw-x.service

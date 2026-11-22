@@ -6,27 +6,11 @@ Requires=dhvw-x.service
 [Service]
 Type=simple
 Environment=DISPLAY=:0
-# 设备端要求常亮：X 屏保、DPMS、fbcon blank 全部压住。
-# 加触摸屏后如需息屏，停用本单元即可。
-#
-# 分辨率看门狗：X 若因 logind 会话拿不到 DRM master，xrandr 会报
-# "Configure crtc 0 failed" 并停在 320x200（X 最小编译尺寸）。这种状态
-# 不会自己恢复，只有重启 X 才能重新注册会话 —— 所以连续 3 次（约 30s）
-# 读到的 current 宽 < 1280 就重启 dhvw-x，恢复后自动停止。
-ExecStart=/bin/sh -c 'bad=0; while :; do \
-  xset s off 2>/dev/null || true; xset s noblank 2>/dev/null || true; \
-  xset s 0 0 2>/dev/null || true; xset -dpms 2>/dev/null || true; \
-  xset dpms 0 0 0 2>/dev/null || true; \
-  echo 0 > /sys/class/graphics/fb0/blank 2>/dev/null || true; \
-  cur=$(xrandr --query 2>/dev/null | sed -n "s/.*current \([0-9]\+\) x \([0-9]\+\).*/\1/p" | head -1); \
-  if [ -z "$cur" ] || [ "$cur" -lt 1280 ]; then \
-    bad=$((bad+1)); \
-    if [ $bad -ge 3 ]; then \
-      logger -t dhvw-display "display stuck at ${cur:-unknown}px, restarting dhvw-x"; \
-      bad=0; systemctl restart dhvw-x || true; sleep 20; \
-    fi; \
-  else bad=0; fi; \
-  sleep 10; done'
+# 常亮 + 分辨率看门狗，逻辑见 /opt/dhvw/display-watchdog.sh：
+#  1) 屏保与 DPMS 三个 timeout 全部归零，并把 fbcon blank 压回 0。
+#  2) X 拿不到 DRM master 时 xrandr 报 "Configure crtc 0 failed" 并停在
+#     320x200，且不会自愈；连续 3 次读到宽度 < 1280 就重启 dhvw-x。
+ExecStart=/opt/dhvw/display-watchdog.sh
 Restart=always
 RestartSec=2
 
