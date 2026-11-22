@@ -1616,7 +1616,16 @@ function registerIpc(): void {
       if (!res.ok) return base
       const data = (await res.json()) as Partial<QqBotStatusView> & { ok?: boolean }
       let dirty = false
-      if (data.paired && data.ownerOpenId && data.ownerOpenId !== config.qqBot.ownerOpenId) {
+      // QQ openid 是 32 位十六进制，飞书是 ou_ 前缀。历史上 ARM 侧曾经把飞书的
+      // ownerOpenId 混进 QQ 顶层字段，这里如果照抄回 PC 配置，下次 push 又会把
+      // 污染值下发回设备（表现为 QQ connected 但永远收不到消息）。按格式挡掉。
+      const isFeishuOpenId = (v: unknown): boolean => String(v || '').trim().startsWith('ou_')
+      if (
+        data.paired &&
+        data.ownerOpenId &&
+        !isFeishuOpenId(data.ownerOpenId) &&
+        data.ownerOpenId !== config.qqBot.ownerOpenId
+      ) {
         config = { ...config, qqBot: { ...config.qqBot, ownerOpenId: String(data.ownerOpenId) } }
         dirty = true
       }
