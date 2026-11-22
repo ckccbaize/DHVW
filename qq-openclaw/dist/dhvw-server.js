@@ -256,6 +256,21 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
   if (!effCfg.clientSecret && rawCfg.clientSecret) effCfg.clientSecret = rawCfg.clientSecret;
   if (!effCfg.feishu.appSecret && rawCfg.feishu?.appSecret) effCfg.feishu.appSecret = rawCfg.feishu.appSecret;
 
+  // 存量数据修复：bot-config.json 曾经把飞书的 ownerOpenId 写进 QQ 顶层，
+  // 于是 QQ 拿 ou_ 开头的 id 发消息、永远发不出去（connected 仍为 true）。
+  // QQ openid 是 32 位十六进制，绝不可能以 ou_ 开头；一旦发现就回落到
+  // /etc/dhvw/qqbot.json 里的正确值。
+  if (typeof effCfg.ownerOpenId === "string" && effCfg.ownerOpenId.startsWith("ou_")) {
+    const fallback = String(rawCfg.ownerOpenId || "").trim();
+    if (fallback && !fallback.startsWith("ou_")) {
+      effCfg.ownerOpenId = fallback;
+      console.log("[qq-openclaw] 修正被飞书数据污染的 QQ ownerOpenId");
+    } else {
+      effCfg.ownerOpenId = "";
+      console.log("[qq-openclaw] 清除被飞书数据污染的 QQ ownerOpenId（需重新认主）");
+    }
+  }
+
   let worldState = { day: 1, minute: 480, phase: "morning", weather: "clear", place: "home", mood: { energy: 0.55, valence: 0.55, social: 0.4, focus: 0.5 }, band: "calm" };
   let llmConfig = effCfg.llm?.baseUrl ? effCfg.llm : cachedLlm;
   const sockets = new Set();
@@ -684,7 +699,13 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
       if (typeof patch.appId === "string" && patch.appId.trim()) effCfg.appId = patch.appId.trim();
       if (typeof patch.clientSecret === "string" && patch.clientSecret.trim()) effCfg.clientSecret = patch.clientSecret.trim();
       if (typeof patch.sandbox === "boolean") effCfg.sandbox = patch.sandbox;
-      if (typeof patch.ownerOpenId === "string") effCfg.ownerOpenId = patch.ownerOpenId.trim();
+      // QQ 的 openid 是 32 位十六进制，飞书的是 ou_ 前缀。历史上 PC 侧把飞书的
+      // ownerOpenId 混进 QQ 的配置 patch 下发过，导致 QQ 把消息发给不存在的用户
+      // （表现：进程 connected=true 但永远收不到回应）。这里按格式挡掉。
+      if (typeof patch.ownerOpenId === "string") {
+        const next = patch.ownerOpenId.trim();
+        if (!next || !next.startsWith("ou_")) effCfg.ownerOpenId = next;
+      }
       if (typeof patch.proactive === "boolean") effCfg.proactive = patch.proactive;
       if (patch.stickerEagerness !== undefined && Number.isFinite(Number(patch.stickerEagerness))) {
         const eg = Math.max(0, Math.min(3, Math.floor(Number(patch.stickerEagerness))));
@@ -842,7 +863,7 @@ export async function startDhvwQqService(rawCfg, deps = {}) {
         } else if (msg?.type === "qq:bot:rebind") {
           void triggerRebind(msg?.payload?.channel || "qq");
         } else if (msg?.type === "feishu:bot:config" && msg.payload) {
-          void applyBotConfig({ channel: "feishu", ...msg.payload });
+          void applyBotConfig({ ...msg.payload, channel: "feishu" });
         } else if (msg?.type === "feishu:bot:rebind") {
           void triggerRebind("feishu");
         }
