@@ -1,14 +1,16 @@
 [Unit]
-Description=DHVW display keep-awake (X screen saver/DPMS off)
+Description=DHVW display keep-awake (X screen saver/DPMS off) + resolution watchdog
 After=dhvw-x.service
 Requires=dhvw-x.service
 
 [Service]
 Type=simple
 Environment=DISPLAY=:0
-# 设备端要求常亮：X 屏保、DPMS、fbcon blank 全部压住。
-# 加触摸屏后如需息屏，停用本单元即可。
-ExecStart=/bin/sh -c 'while :; do xset s off 2>/dev/null || true; xset s noblank 2>/dev/null || true; xset s 0 0 2>/dev/null || true; xset -dpms 2>/dev/null || true; xset dpms 0 0 0 2>/dev/null || true; echo 0 > /sys/class/graphics/fb0/blank 2>/dev/null || true; sleep 5; done'
+# 常亮 + 分辨率看门狗，逻辑见 /opt/dhvw/display-watchdog.sh：
+#  1) 屏保与 DPMS 三个 timeout 全部归零，并把 fbcon blank 压回 0。
+#  2) X 拿不到 DRM master 时 xrandr 报 "Configure crtc 0 failed" 并停在
+#     320x200，且不会自愈；连续 3 次读到宽度 < 1280 就重启 dhvw-x。
+ExecStart=/opt/dhvw/display-watchdog.sh
 Restart=always
 RestartSec=2
 

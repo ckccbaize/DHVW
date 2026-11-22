@@ -979,7 +979,7 @@ async function boot() {
         break;
       }
       case "feishubot:config": {
-        void applyRemoteQqConfig({ channel: "feishu", ...p });
+        void applyRemoteQqConfig({ ...p, channel: "feishu" });
         break;
       }
       case "feishubot:rebind": {
