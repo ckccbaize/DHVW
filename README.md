@@ -152,3 +152,5 @@ sudo sh deploy/install.sh dist/dhvw-shell-linux-arm64
 - 像素场景与地图体系借鉴并致谢 [ai-town](https://github.com/a16z-infra/ai-town) 及 [pixel-agents](https://github.com/antirez/pixel-agents)。
 - 语音与对话能力基于 [Open-LLM-VTuber](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber) 框架拓展定制。
 - 素材来源与许可明细详见 [docs/ASSETS-LICENSE.md](docs/ASSETS-LICENSE.md)。
+---
+##反馈联系 q群 1091280824
